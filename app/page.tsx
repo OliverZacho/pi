@@ -10,19 +10,48 @@ const defaultOverview: AdminOverview = {
   storageNotes: ""
 };
 
+function asOverview(value: unknown): AdminOverview {
+  if (!value || typeof value !== "object") {
+    return defaultOverview;
+  }
+  const candidate = value as Partial<AdminOverview>;
+  return {
+    companies: Array.isArray(candidate.companies) ? candidate.companies : [],
+    emails: Array.isArray(candidate.emails) ? candidate.emails : [],
+    categories: Array.isArray(candidate.categories) ? candidate.categories : defaultOverview.categories,
+    storageNotes: typeof candidate.storageNotes === "string" ? candidate.storageNotes : ""
+  };
+}
+
 export default function Home() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   async function loadOverview() {
-    setLoading(true);
-    const response = await fetch("/api/admin/overview", { cache: "no-store" });
-    const data = (await response.json()) as AdminOverview;
-    setOverview(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setLoadError("");
+      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const data = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        const body = data as { error?: string };
+        setOverview(defaultOverview);
+        setLoadError(body.error ?? "Failed to load admin overview.");
+        return;
+      }
+
+      setOverview(asOverview(data));
+    } catch {
+      setOverview(defaultOverview);
+      setLoadError("Failed to load admin overview.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -65,6 +94,7 @@ export default function Home() {
       <section className="header">
         <h1>Pirol Admin Center</h1>
         <p>Track subscribed competitors, ingest newsletters from Resend webhooks, and classify every email.</p>
+        {loadError ? <p className="error">{loadError}</p> : null}
       </section>
 
       <section className="stats-grid">
