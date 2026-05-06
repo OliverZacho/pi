@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "My Website",
-  description: "A generic Next.js starter page"
+  title: "Pirol Admin",
+  description: "Admin center for competitor email ingestion and classification"
 };
 
 type RootLayoutProps = {
