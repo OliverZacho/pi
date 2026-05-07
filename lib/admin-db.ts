@@ -134,25 +134,57 @@ export async function createCompanySubscriptionInDb(
 }
 
 export async function storeWebhookEmailInDb(input: {
-  to: string;
+  resendId: string;
+  toCandidates: string[];
   from: string;
   subject: string;
   html: string;
   sentAt?: string;
+  rawPayload: unknown;
   llmCategory?: CapturedEmail["category"];
   llmConfidence?: number;
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; deduplicated: boolean }> {
   const supabaseAdmin = getSupabaseAdmin();
-  const { data: inboxRaw, error: inboxError } = await supabaseAdmin
-    .from("company_inboxes")
-    .select("id, company_id, companies(name)")
-    .eq("email_address", input.to.toLowerCase())
-    .single();
 
-  if (inboxError) {
-    throw inboxError;
+  const { data: existing } = await supabaseAdmin
+    .from("captured_emails")
+    .select("id")
+    .eq("resend_message_id", input.resendId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    return { id: existing.id, deduplicated: true };
   }
-  const inbox = inboxRaw;
+
+  const lowercaseRecipients = input.toCandidates
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  let matchedInbox: { id: string; company_id: string; recipient: string } | null = null;
+
+  if (lowercaseRecipients.length > 0) {
+    const { data: inboxRows, error: inboxError } = await supabaseAdmin
+      .from("company_inboxes")
+      .select("id, company_id, email_address")
+      .in("email_address", lowercaseRecipients);
+
+    if (inboxError) {
+      throw inboxError;
+    }
+
+    if (inboxRows && inboxRows.length > 0) {
+      const recipientLookup = new Set(lowercaseRecipients);
+      const firstMatch =
+        inboxRows.find((row) => recipientLookup.has(row.email_address)) ?? inboxRows[0];
+      matchedInbox = {
+        id: firstMatch.id,
+        company_id: firstMatch.company_id,
+        recipient: firstMatch.email_address
+      };
+    }
+  }
+
+  const recipient = matchedInbox?.recipient ?? lowercaseRecipients[0] ?? "unknown@pirol.app";
 
   const rules = classifyFromRules(input.subject, input.html);
   const category = input.llmCategory ?? rules.category;
@@ -163,10 +195,11 @@ export async function storeWebhookEmailInDb(input: {
   const { data: email, error: emailError } = await supabaseAdmin
     .from("captured_emails")
     .insert({
-      company_id: inbox.company_id,
-      inbox_id: inbox.id,
+      company_id: matchedInbox?.company_id ?? null,
+      inbox_id: matchedInbox?.id ?? null,
+      resend_message_id: input.resendId,
       sender_email: input.from,
-      recipient_email: input.to.toLowerCase(),
+      recipient_email: recipient,
       subject: input.subject,
       sent_at: input.sentAt ?? new Date().toISOString(),
       html_content: input.html,
@@ -175,9 +208,7 @@ export async function storeWebhookEmailInDb(input: {
       classification_source: source,
       classification_confidence: confidence,
       llm_model: input.llmCategory ? "external-llm" : null,
-      raw_payload: {
-        companyName: relationFirst(inbox.companies)?.name ?? null
-      }
+      raw_payload: input.rawPayload as never
     })
     .select("id")
     .single();
@@ -186,5 +217,5 @@ export async function storeWebhookEmailInDb(input: {
     throw emailError;
   }
 
-  return { id: email.id };
+  return { id: email.id, deduplicated: false };
 }
