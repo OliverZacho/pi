@@ -1,8 +1,15 @@
-export default function Home() {
-  return (
-    <main className="page">
-      <h1>Welcome</h1>
-      <p>This is a generic Next.js page.</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect("/admin");
+  }
+
+  redirect("/login");
 }

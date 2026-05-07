@@ -6,13 +6,147 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
 }
 
-.page {
-  min-height: 100vh;
+code {
+  background: #e2e8f0;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+}
+
+.admin-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
   display: grid;
-  place-content: center;
-  text-align: center;
+  gap: 1rem;
+}
+
+.header h1 {
+  margin: 0;
+}
+
+.header p {
+  margin: 0.5rem 0 0;
+  color: #334155;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
   gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.inline-form input,
+.inline-form button {
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.inline-form button {
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.error {
+  color: #b91c1c;
+  margin-bottom: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+th,
+td {
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.65rem 0.4rem;
+  vertical-align: top;
+}
+
+.admin-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sign-out {
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+
+.auth-page {
+  min-height: 100vh;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.auth-form input,
+.auth-form button {
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.auth-form button {
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 0.875rem;
 }
