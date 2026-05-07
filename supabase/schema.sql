@@ -111,3 +111,47 @@ begin
     with check (true);
   end if;
 end $$;
+
+-- Admin gate: link auth.users to Pirol admin access (insert rows via SQL dashboard or service role)
+create table if not exists public.admin_users (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.admin_users enable row level security;
+
+drop policy if exists admin_users_select_self on public.admin_users;
+create policy admin_users_select_self
+on public.admin_users
+for select
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists companies_admin_all on public.companies;
+create policy companies_admin_all
+on public.companies
+for all
+to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+drop policy if exists company_inboxes_admin_all on public.company_inboxes;
+create policy company_inboxes_admin_all
+on public.company_inboxes
+for all
+to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+drop policy if exists captured_emails_admin_all on public.captured_emails;
+create policy captured_emails_admin_all
+on public.captured_emails
+for all
+to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+grant select on public.admin_users to authenticated;
+grant select, insert, update, delete on public.companies to authenticated;
+grant select, insert, update, delete on public.company_inboxes to authenticated;
+grant select, insert, update, delete on public.captured_emails to authenticated;

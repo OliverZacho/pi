@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminOverview, CapturedEmail, CompanySubscription } from "./admin-types";
 import { buildUniqueSubscriptionEmail, classifyFromRules, extractImageUrlsFromHtml } from "./email-utils";
 import { getSupabaseAdmin } from "./supabase-admin";
@@ -18,15 +19,14 @@ function relationFirst<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-export async function getOverviewFromDb(): Promise<AdminOverview> {
-  const supabaseAdmin = getSupabaseAdmin();
+export async function getOverviewFromDb(supabase: SupabaseClient): Promise<AdminOverview> {
   const [{ data: companiesRaw, error: companiesError }, { data: emailsRaw, error: emailsError }] =
     await Promise.all([
-      supabaseAdmin
+      supabase
         .from("companies")
         .select("id, name, domain, subscribed_since, company_inboxes(email_address, is_primary)")
         .order("subscribed_since", { ascending: false }),
-      supabaseAdmin
+      supabase
         .from("captured_emails")
         .select(
           "id, sender_email, subject, sent_at, received_at, image_urls, category, classification_source, classification_confidence, companies(name)"
@@ -82,15 +82,16 @@ export async function getOverviewFromDb(): Promise<AdminOverview> {
   };
 }
 
-export async function createCompanySubscriptionInDb(input: {
+export async function createCompanySubscriptionInDb(
+  supabase: SupabaseClient,
+  input: {
   name: string;
   domain: string;
 }): Promise<CompanySubscription> {
-  const supabaseAdmin = getSupabaseAdmin();
   const normalizedName = input.name.trim();
   const normalizedDomain = input.domain.trim().toLowerCase();
 
-  const { data: existingInboxes, error: inboxesError } = await supabaseAdmin
+  const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
     .select("email_address");
 
@@ -103,7 +104,7 @@ export async function createCompanySubscriptionInDb(input: {
     (existingInboxes ?? []).map((item) => item.email_address)
   );
 
-  const { data: company, error: companyError } = await supabaseAdmin
+  const { data: company, error: companyError } = await supabase
     .from("companies")
     .insert({ name: normalizedName, domain: normalizedDomain })
     .select("id, name, domain, subscribed_since")
@@ -113,7 +114,7 @@ export async function createCompanySubscriptionInDb(input: {
     throw companyError;
   }
 
-  const { error: inboxError } = await supabaseAdmin.from("company_inboxes").insert({
+  const { error: inboxError } = await supabase.from("company_inboxes").insert({
     company_id: company.id,
     email_address: subscriptionEmail,
     is_primary: true

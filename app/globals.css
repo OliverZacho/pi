@@ -90,3 +90,63 @@ td {
   padding: 0.65rem 0.4rem;
   vertical-align: top;
 }
+
+.admin-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sign-out {
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+
+.auth-page {
+  min-height: 100vh;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.auth-form input,
+.auth-form button {
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.auth-form button {
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 0.875rem;
+}
