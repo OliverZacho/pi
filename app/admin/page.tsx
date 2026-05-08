@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { AdminOverview, EmailCategory } from "@/lib/admin-types";
 
 const ALL_CATEGORIES: EmailCategory[] = [
@@ -82,16 +82,15 @@ function formatDateTime(value: string | null): string {
   return parsed.toLocaleString();
 }
 
-const NEW_MARKET_OPTION = "__new__";
-
 export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [market, setMarket] = useState("");
-  const [newMarket, setNewMarket] = useState("");
-  const [isAddingMarket, setIsAddingMarket] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [marketHighlight, setMarketHighlight] = useState(0);
+  const marketComboRef = useRef<HTMLDivElement>(null);
   const [companySearch, setCompanySearch] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -159,6 +158,73 @@ export default function AdminHomePage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [overview.companies]);
 
+  const filteredMarkets = useMemo(() => {
+    const query = market.trim().toLowerCase();
+    if (!query) {
+      return existingMarkets;
+    }
+    return existingMarkets.filter((option) =>
+      option.toLowerCase().includes(query)
+    );
+  }, [existingMarkets, market]);
+
+  useEffect(() => {
+    if (marketHighlight >= filteredMarkets.length) {
+      setMarketHighlight(0);
+    }
+  }, [filteredMarkets, marketHighlight]);
+
+  useEffect(() => {
+    function onDocumentMouseDown(event: MouseEvent) {
+      if (!marketComboRef.current) {
+        return;
+      }
+      if (!marketComboRef.current.contains(event.target as Node)) {
+        setMarketOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentMouseDown);
+    };
+  }, []);
+
+  function onMarketKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      if (filteredMarkets.length === 0) {
+        setMarketOpen(true);
+        return;
+      }
+      event.preventDefault();
+      setMarketOpen(true);
+      setMarketHighlight((index) => (index + 1) % filteredMarkets.length);
+    } else if (event.key === "ArrowUp") {
+      if (filteredMarkets.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      setMarketOpen(true);
+      setMarketHighlight(
+        (index) =>
+          (index - 1 + filteredMarkets.length) % filteredMarkets.length
+      );
+    } else if (event.key === "Enter") {
+      if (marketOpen && filteredMarkets.length > 0) {
+        event.preventDefault();
+        const choice = filteredMarkets[marketHighlight] ?? filteredMarkets[0];
+        if (choice) {
+          setMarket(choice);
+        }
+        setMarketOpen(false);
+      }
+    } else if (event.key === "Escape") {
+      if (marketOpen) {
+        event.preventDefault();
+        setMarketOpen(false);
+      }
+    }
+  }
+
   const sortedCompanies = useMemo(() => {
     const copy = [...overview.companies];
     copy.sort((a, b) => {
@@ -197,7 +263,7 @@ export default function AdminHomePage() {
     event.preventDefault();
     setError("");
 
-    const resolvedMarket = isAddingMarket ? newMarket.trim() : market.trim();
+    const resolvedMarket = market.trim();
 
     const response = await fetch("/api/admin/companies", {
       method: "POST",
@@ -214,8 +280,7 @@ export default function AdminHomePage() {
     setName("");
     setDomain("");
     setMarket("");
-    setNewMarket("");
-    setIsAddingMarket(false);
+    setMarketOpen(false);
     await loadOverview();
   }
 
@@ -273,50 +338,53 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
-          {isAddingMarket ? (
-            <div className="market-new-field">
-              <input
-                value={newMarket}
-                onChange={(e) => setNewMarket(e.target.value)}
-                placeholder="New market (e.g. fashion, museum)"
-                aria-label="New market"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="market-cancel"
-                onClick={() => {
-                  setIsAddingMarket(false);
-                  setNewMarket("");
-                }}
-                aria-label="Cancel new market"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <select
+          <div className="market-combobox" ref={marketComboRef}>
+            <input
               value={market}
               onChange={(e) => {
-                const value = e.target.value;
-                if (value === NEW_MARKET_OPTION) {
-                  setIsAddingMarket(true);
-                  setMarket("");
-                } else {
-                  setMarket(value);
-                }
+                setMarket(e.target.value);
+                setMarketOpen(true);
+                setMarketHighlight(0);
               }}
+              onFocus={() => setMarketOpen(true)}
+              onKeyDown={onMarketKeyDown}
+              placeholder="Market (e.g. fashion, museum)"
               aria-label="Market"
-            >
-              <option value="">Select market</option>
-              {existingMarkets.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-              <option value={NEW_MARKET_OPTION}>+ Add new market…</option>
-            </select>
-          )}
+              role="combobox"
+              aria-expanded={marketOpen}
+              aria-controls="market-listbox"
+              aria-autocomplete="list"
+              autoComplete="off"
+            />
+            {marketOpen && filteredMarkets.length > 0 ? (
+              <ul
+                id="market-listbox"
+                role="listbox"
+                className="market-listbox"
+              >
+                {filteredMarkets.map((option, index) => (
+                  <li
+                    key={option}
+                    role="option"
+                    aria-selected={index === marketHighlight}
+                    className={
+                      index === marketHighlight
+                        ? "market-option highlighted"
+                        : "market-option"
+                    }
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setMarket(option);
+                      setMarketOpen(false);
+                    }}
+                    onMouseEnter={() => setMarketHighlight(index)}
+                  >
+                    {option}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <button type="submit">Create</button>
         </form>
         {error ? <p className="error">{error}</p> : null}

@@ -59,7 +59,6 @@ code {
 }
 
 .inline-form input,
-.inline-form select,
 .inline-form button {
   border-radius: 8px;
   border: 1px solid #94a3b8;
@@ -67,34 +66,47 @@ code {
   font: inherit;
 }
 
-.inline-form select {
-  background: #fff;
-  cursor: pointer;
-}
-
-.market-new-field {
-  display: flex;
-  gap: 0.35rem;
+.market-combobox {
+  position: relative;
   min-width: 0;
 }
 
-.market-new-field input {
-  flex: 1;
-  min-width: 0;
+.market-combobox input {
+  width: 100%;
   border-radius: 8px;
   border: 1px solid #94a3b8;
   padding: 0.55rem 0.65rem;
   font: inherit;
+  background: #fff;
 }
 
-.market-cancel {
+.market-listbox {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
   background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  max-height: 14rem;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.market-option {
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.95rem;
   color: #0f172a;
-  border-radius: 8px;
-  border: 1px solid #94a3b8;
-  padding: 0.55rem 0.65rem;
-  font: inherit;
-  cursor: pointer;
+}
+
+.market-option.highlighted,
+.market-option:hover {
+  background: #e2e8f0;
 }
 
 .inline-form button {
