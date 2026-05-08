@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { Database } from "@/types/supabase";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -12,7 +13,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const supabase = createServerClient(url, anonKey, {
+  const supabase = createServerClient<Database>(url, anonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -44,7 +45,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (!isLoggedIn && path.startsWith("/api/admin")) {
+  if (!isLoggedIn && path.startsWith("/api/admin") && !path.startsWith("/api/admin/internal")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

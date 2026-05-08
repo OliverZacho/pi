@@ -7,7 +7,8 @@ const defaultOverview: AdminOverview = {
   companies: [],
   emails: [],
   categories: ["new_launch", "sale", "newsletter", "product_update", "event", "other"],
-  storageNotes: ""
+  storageNotes: "",
+  pagination: { nextCursor: null, pageSize: 50 }
 };
 
 function asOverview(value: unknown): AdminOverview {
@@ -15,11 +16,25 @@ function asOverview(value: unknown): AdminOverview {
     return defaultOverview;
   }
   const candidate = value as Partial<AdminOverview>;
+  const paginationCandidate =
+    typeof candidate.pagination === "object" && candidate.pagination !== null
+      ? candidate.pagination
+      : null;
   return {
     companies: Array.isArray(candidate.companies) ? candidate.companies : [],
     emails: Array.isArray(candidate.emails) ? candidate.emails : [],
     categories: Array.isArray(candidate.categories) ? candidate.categories : defaultOverview.categories,
-    storageNotes: typeof candidate.storageNotes === "string" ? candidate.storageNotes : ""
+    storageNotes: typeof candidate.storageNotes === "string" ? candidate.storageNotes : "",
+    pagination: {
+      nextCursor:
+        paginationCandidate && typeof paginationCandidate.nextCursor === "string"
+          ? paginationCandidate.nextCursor
+          : null,
+      pageSize:
+        paginationCandidate && typeof paginationCandidate.pageSize === "number"
+          ? paginationCandidate.pageSize
+          : defaultOverview.pagination.pageSize
+    }
   };
 }
 

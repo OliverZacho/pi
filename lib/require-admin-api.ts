@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/supabase";
 
-type AdminSessionOk = { supabase: SupabaseClient };
+type AdminSessionOk = { supabase: SupabaseClient<Database> };
 type AdminSessionErr = { response: NextResponse };
 
 export async function requireAdminSession(): Promise<AdminSessionOk | AdminSessionErr> {
