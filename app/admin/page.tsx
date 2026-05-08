@@ -82,15 +82,34 @@ function formatDateTime(value: string | null): string {
   return parsed.toLocaleString();
 }
 
+const NEW_MARKET_OPTION = "__new__";
+
 export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [market, setMarket] = useState("");
+  const [newMarket, setNewMarket] = useState("");
+  const [isAddingMarket, setIsAddingMarket] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+
+  async function copySubscriptionEmail(email: string) {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(email);
+      }
+      setCopiedEmail(email);
+      window.setTimeout(() => {
+        setCopiedEmail((current) => (current === email ? null : current));
+      }, 1500);
+    } catch {
+      // ignore clipboard failures silently
+    }
+  }
 
   async function loadOverview() {
     try {
@@ -128,6 +147,17 @@ export default function AdminHomePage() {
     }),
     [overview]
   );
+
+  const existingMarkets = useMemo(() => {
+    const set = new Set<string>();
+    for (const company of overview.companies) {
+      const value = company.market?.trim();
+      if (value) {
+        set.add(value);
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [overview.companies]);
 
   const sortedCompanies = useMemo(() => {
     const copy = [...overview.companies];
@@ -167,10 +197,12 @@ export default function AdminHomePage() {
     event.preventDefault();
     setError("");
 
+    const resolvedMarket = isAddingMarket ? newMarket.trim() : market.trim();
+
     const response = await fetch("/api/admin/companies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, domain, market: market.trim() || null })
+      body: JSON.stringify({ name, domain, market: resolvedMarket || null })
     });
 
     if (!response.ok) {
@@ -182,6 +214,8 @@ export default function AdminHomePage() {
     setName("");
     setDomain("");
     setMarket("");
+    setNewMarket("");
+    setIsAddingMarket(false);
     await loadOverview();
   }
 
@@ -239,12 +273,50 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
-          <input
-            value={market}
-            onChange={(e) => setMarket(e.target.value)}
-            placeholder="Market (e.g. fashion, museum)"
-            aria-label="Market"
-          />
+          {isAddingMarket ? (
+            <div className="market-new-field">
+              <input
+                value={newMarket}
+                onChange={(e) => setNewMarket(e.target.value)}
+                placeholder="New market (e.g. fashion, museum)"
+                aria-label="New market"
+                autoFocus
+              />
+              <button
+                type="button"
+                className="market-cancel"
+                onClick={() => {
+                  setIsAddingMarket(false);
+                  setNewMarket("");
+                }}
+                aria-label="Cancel new market"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <select
+              value={market}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === NEW_MARKET_OPTION) {
+                  setIsAddingMarket(true);
+                  setMarket("");
+                } else {
+                  setMarket(value);
+                }
+              }}
+              aria-label="Market"
+            >
+              <option value="">Select market</option>
+              {existingMarkets.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+              <option value={NEW_MARKET_OPTION}>+ Add new market…</option>
+            </select>
+          )}
           <button type="submit">Create</button>
         </form>
         {error ? <p className="error">{error}</p> : null}
@@ -291,7 +363,53 @@ export default function AdminHomePage() {
                   <td>{company.market ? company.market : <span className="dim">-</span>}</td>
                   <td>{company.domain}</td>
                   <td>
-                    <code>{company.subscriptionEmail}</code>
+                    <span className="email-cell">
+                      <code>{company.subscriptionEmail}</code>
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() => {
+                          void copySubscriptionEmail(company.subscriptionEmail);
+                        }}
+                        aria-label={`Copy ${company.subscriptionEmail}`}
+                        title={
+                          copiedEmail === company.subscriptionEmail
+                            ? "Copied!"
+                            : "Copy email"
+                        }
+                      >
+                        {copiedEmail === company.subscriptionEmail ? (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        )}
+                      </button>
+                    </span>
                   </td>
                   <td>{formatDateTime(company.subscribedAt)}</td>
                   <td className="numeric">{company.emailCount}</td>

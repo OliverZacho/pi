@@ -59,11 +59,42 @@ code {
 }
 
 .inline-form input,
+.inline-form select,
 .inline-form button {
   border-radius: 8px;
   border: 1px solid #94a3b8;
   padding: 0.55rem 0.65rem;
   font: inherit;
+}
+
+.inline-form select {
+  background: #fff;
+  cursor: pointer;
+}
+
+.market-new-field {
+  display: flex;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.market-new-field input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.market-cancel {
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  cursor: pointer;
 }
 
 .inline-form button {
@@ -184,4 +215,36 @@ td {
 
 .dim {
   color: #64748b;
+}
+
+.email-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.copy-button:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.copy-button:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
 }
