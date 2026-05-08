@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getResend, getResendWebhookSecret } from "@/lib/resend";
-import { storeWebhookEmailInDb } from "@/lib/admin-db";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import type { Json } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,40 +47,64 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  if (event.type !== "email.received") {
-    return NextResponse.json({ ignored: event.type }, { status: 202 });
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("webhook_events")
+    .select("id, status")
+    .eq("svix_id", svixId)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("Failed to look up existing webhook event", existingError);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 
-  try {
-    const { data: full, error: fetchError } = await resend.emails.receiving.get(event.data.email_id);
-    if (fetchError || !full) {
-      console.error("Failed to fetch received email from Resend", fetchError);
-      return NextResponse.json({ error: "Failed to fetch email content" }, { status: 502 });
-    }
-
-    const recipientCandidates = [
-      ...(full.to ?? []),
-      ...(full.cc ?? []),
-      ...(full.bcc ?? []),
-      ...(event.data.to ?? [])
-    ];
-
-    const result = await storeWebhookEmailInDb({
-      resendId: full.id,
-      toCandidates: recipientCandidates,
-      from: full.from,
-      subject: full.subject ?? "(no subject)",
-      html: full.html ?? full.text ?? "",
-      sentAt: full.created_at ?? event.data.created_at ?? event.created_at,
-      rawPayload: { event, full }
-    });
-
+  if (existing?.id) {
     return NextResponse.json(
-      { received: true, emailId: result.id, deduplicated: result.deduplicated },
+      { received: true, eventId: existing.id, deduplicated: true, status: existing.status },
       { status: 202 }
     );
-  } catch (error) {
-    console.error("Failed to ingest resend webhook", error);
-    return NextResponse.json({ error: "Failed to ingest webhook payload" }, { status: 500 });
   }
+
+  if (event.type !== "email.received") {
+    const { data: skipped, error: skipError } = await supabaseAdmin
+      .from("webhook_events")
+      .insert({
+        source: "resend",
+        svix_id: svixId,
+        event_type: event.type,
+        status: "skipped",
+        processed_at: new Date().toISOString(),
+        payload: event as unknown as Json
+      })
+      .select("id")
+      .single();
+
+    if (skipError) {
+      console.error("Failed to log skipped webhook event", skipError);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ignored: event.type, eventId: skipped.id }, { status: 202 });
+  }
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from("webhook_events")
+    .insert({
+      source: "resend",
+      svix_id: svixId,
+      event_type: event.type,
+      status: "received",
+      payload: event as unknown as Json
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    console.error("Failed to enqueue webhook event", insertError);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
+
+  return NextResponse.json({ received: true, eventId: inserted.id }, { status: 202 });
 }

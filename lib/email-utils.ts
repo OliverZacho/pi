@@ -30,11 +30,17 @@ export function classifyFromRules(subject: string, html: string): {
   confidence: number;
 } {
   const haystack = `${subject} ${html}`.toLowerCase();
-  if (/\blaunch\b|\bnew product\b|\bintroducing\b/.test(haystack)) {
+  if (/\bnew launch\b|\bnew product\b|\bintroducing\b|\bnow available\b/.test(haystack)) {
+    return { category: "new_launch", confidence: 0.88 };
+  }
+  if (/\bsale\b|\bdiscount\b|\b\d{1,2}%\s*off\b|\bpromo\b|\bdeal\b/.test(haystack)) {
+    return { category: "sale", confidence: 0.88 };
+  }
+  if (/\blaunch\b|\bdebut\b/.test(haystack)) {
     return { category: "new_launch", confidence: 0.78 };
   }
-  if (/\bsale\b|\bdiscount\b|\boffer\b|\bpromo\b|\bdeal\b/.test(haystack)) {
-    return { category: "sale", confidence: 0.8 };
+  if (/\boffer\b/.test(haystack)) {
+    return { category: "sale", confidence: 0.74 };
   }
   if (/\bwebinar\b|\bevent\b|\bregister\b/.test(haystack)) {
     return { category: "event", confidence: 0.73 };
