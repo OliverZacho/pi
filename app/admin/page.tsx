@@ -158,21 +158,37 @@ export default function AdminHomePage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [overview.companies]);
 
-  const filteredMarkets = useMemo(() => {
-    const query = market.trim().toLowerCase();
-    if (!query) {
-      return existingMarkets;
+  const trimmedMarket = market.trim();
+  const lowerTrimmed = trimmedMarket.toLowerCase();
+  const hasExactMatch = existingMarkets.some(
+    (option) => option.toLowerCase() === lowerTrimmed
+  );
+
+  type MarketOption =
+    | { kind: "existing"; value: string }
+    | { kind: "create"; value: string };
+
+  const marketOptions = useMemo<MarketOption[]>(() => {
+    const filtered = lowerTrimmed
+      ? existingMarkets.filter((option) =>
+          option.toLowerCase().includes(lowerTrimmed)
+        )
+      : existingMarkets;
+    const list: MarketOption[] = filtered.map((value) => ({
+      kind: "existing",
+      value
+    }));
+    if (trimmedMarket.length > 0 && !hasExactMatch) {
+      list.push({ kind: "create", value: trimmedMarket });
     }
-    return existingMarkets.filter((option) =>
-      option.toLowerCase().includes(query)
-    );
-  }, [existingMarkets, market]);
+    return list;
+  }, [existingMarkets, trimmedMarket, lowerTrimmed, hasExactMatch]);
 
   useEffect(() => {
-    if (marketHighlight >= filteredMarkets.length) {
+    if (marketHighlight >= marketOptions.length) {
       setMarketHighlight(0);
     }
-  }, [filteredMarkets, marketHighlight]);
+  }, [marketOptions, marketHighlight]);
 
   useEffect(() => {
     function onDocumentMouseDown(event: MouseEvent) {
@@ -189,39 +205,43 @@ export default function AdminHomePage() {
     };
   }, []);
 
+  function selectMarketOption(option: MarketOption) {
+    setMarket(option.value);
+    setMarketOpen(false);
+    setMarketHighlight(0);
+  }
+
   function onMarketKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
-      if (filteredMarkets.length === 0) {
-        setMarketOpen(true);
-        return;
-      }
       event.preventDefault();
       setMarketOpen(true);
-      setMarketHighlight((index) => (index + 1) % filteredMarkets.length);
+      if (marketOptions.length > 0) {
+        setMarketHighlight((index) => (index + 1) % marketOptions.length);
+      }
     } else if (event.key === "ArrowUp") {
-      if (filteredMarkets.length === 0) {
-        return;
-      }
       event.preventDefault();
       setMarketOpen(true);
-      setMarketHighlight(
-        (index) =>
-          (index - 1 + filteredMarkets.length) % filteredMarkets.length
-      );
+      if (marketOptions.length > 0) {
+        setMarketHighlight(
+          (index) =>
+            (index - 1 + marketOptions.length) % marketOptions.length
+        );
+      }
     } else if (event.key === "Enter") {
-      if (marketOpen && filteredMarkets.length > 0) {
+      if (marketOpen && marketOptions.length > 0) {
         event.preventDefault();
-        const choice = filteredMarkets[marketHighlight] ?? filteredMarkets[0];
+        const choice = marketOptions[marketHighlight] ?? marketOptions[0];
         if (choice) {
-          setMarket(choice);
+          selectMarketOption(choice);
         }
-        setMarketOpen(false);
       }
     } else if (event.key === "Escape") {
       if (marketOpen) {
         event.preventDefault();
         setMarketOpen(false);
       }
+    } else if (event.key === "Tab") {
+      setMarketOpen(false);
     }
   }
 
@@ -338,51 +358,102 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
-          <div className="market-combobox" ref={marketComboRef}>
-            <input
-              value={market}
-              onChange={(e) => {
-                setMarket(e.target.value);
-                setMarketOpen(true);
-                setMarketHighlight(0);
-              }}
-              onFocus={() => setMarketOpen(true)}
-              onKeyDown={onMarketKeyDown}
-              placeholder="Market (e.g. fashion, museum)"
-              aria-label="Market"
-              role="combobox"
-              aria-expanded={marketOpen}
-              aria-controls="market-listbox"
-              aria-autocomplete="list"
-              autoComplete="off"
-            />
-            {marketOpen && filteredMarkets.length > 0 ? (
-              <ul
+          <div className="combobox" ref={marketComboRef}>
+            <div className="combobox-field">
+              <input
+                className="combobox-input"
+                value={market}
+                onChange={(e) => {
+                  setMarket(e.target.value);
+                  setMarketOpen(true);
+                  setMarketHighlight(0);
+                }}
+                onFocus={() => setMarketOpen(true)}
+                onKeyDown={onMarketKeyDown}
+                placeholder="Market (e.g. fashion, museum)"
+                aria-label="Market"
+                role="combobox"
+                aria-expanded={marketOpen}
+                aria-controls="market-listbox"
+                aria-autocomplete="list"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="combobox-chevron"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setMarketOpen((open) => !open);
+                }}
+                tabIndex={-1}
+                aria-label={marketOpen ? "Close markets" : "Open markets"}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className={marketOpen ? "chevron-open" : ""}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+            {marketOpen ? (
+              <div
                 id="market-listbox"
                 role="listbox"
-                className="market-listbox"
+                className="combobox-popover"
               >
-                {filteredMarkets.map((option, index) => (
-                  <li
-                    key={option}
-                    role="option"
-                    aria-selected={index === marketHighlight}
-                    className={
-                      index === marketHighlight
-                        ? "market-option highlighted"
-                        : "market-option"
-                    }
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setMarket(option);
-                      setMarketOpen(false);
-                    }}
-                    onMouseEnter={() => setMarketHighlight(index)}
-                  >
-                    {option}
-                  </li>
-                ))}
-              </ul>
+                {marketOptions.length === 0 ? (
+                  <div className="combobox-empty">
+                    {existingMarkets.length === 0
+                      ? "No markets yet — type to add one"
+                      : "No matches"}
+                  </div>
+                ) : (
+                  marketOptions.map((option, index) => {
+                    const isHighlighted = index === marketHighlight;
+                    const className = `combobox-option${
+                      isHighlighted ? " highlighted" : ""
+                    }${option.kind === "create" ? " is-create" : ""}`;
+                    return (
+                      <button
+                        key={`${option.kind}:${option.value}`}
+                        type="button"
+                        role="option"
+                        aria-selected={isHighlighted}
+                        className={className}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectMarketOption(option);
+                        }}
+                        onMouseEnter={() => setMarketHighlight(index)}
+                      >
+                        {option.kind === "create" ? (
+                          <>
+                            <span className="combobox-option-prefix">
+                              Add
+                            </span>
+                            <span className="combobox-option-value">
+                              &ldquo;{option.value}&rdquo;
+                            </span>
+                          </>
+                        ) : (
+                          <span className="combobox-option-value">
+                            {option.value}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             ) : null}
           </div>
           <button type="submit">Create</button>
