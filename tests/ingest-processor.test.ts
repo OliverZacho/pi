@@ -135,7 +135,14 @@ describe("processNextBatch", () => {
     mocks.uploadEmailHtmlMock.mockResolvedValueOnce("em_1.html");
     mocks.mirrorRemoteImagesMock.mockResolvedValueOnce({
       storedPaths: ["em_1/abc.png"],
-      stored: [],
+      stored: [
+        {
+          remoteUrl: "https://cdn.example.com/banner.png",
+          storagePath: "em_1/abc.png",
+          contentType: "image/png",
+          byteLength: 100
+        }
+      ],
       failedUrls: []
     });
     mocks.classifyEmailMock.mockResolvedValueOnce({
@@ -143,7 +150,13 @@ describe("processNextBatch", () => {
       confidence: 0.92,
       source: "llm",
       model: "gpt-4o-mini",
-      reasoning: "Mentions launch."
+      reasoning: "Mentions launch.",
+      discountPercent: null,
+      discountAmount: null,
+      currency: null,
+      promoCode: null,
+      primaryCtaText: "Read more",
+      primaryCtaUrlHint: null
     });
     mocks.storeProcessedEmailMock.mockResolvedValueOnce({ id: "email-row-1", deduplicated: false });
 
@@ -168,7 +181,11 @@ describe("processNextBatch", () => {
         resendId: "em_1",
         htmlStoragePath: "em_1.html",
         imageStoragePaths: ["em_1/abc.png"],
-        classification: expect.objectContaining({ category: "product_launch", source: "llm" })
+        classification: expect.objectContaining({ category: "product_launch", source: "llm" }),
+        enrichment: expect.objectContaining({
+          hasGif: false,
+          hasDarkMode: false
+        })
       })
     );
 

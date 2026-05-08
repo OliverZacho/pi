@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AdminOverview, EmailCategory } from "@/lib/admin-types";
+import Link from "next/link";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AdminOverview, EmailCategory, EspProvider } from "@/lib/admin-types";
 
 const ALL_CATEGORIES: EmailCategory[] = [
   "sale",
@@ -27,6 +28,66 @@ const CATEGORY_LABELS: Record<EmailCategory, string> = {
   partnership: "Collaboration / Partnership",
   company_news: "Company news",
   other: "Other"
+};
+
+const ESP_PROVIDERS: EspProvider[] = [
+  "mailchimp",
+  "klaviyo",
+  "hubspot",
+  "sendgrid",
+  "braze",
+  "iterable",
+  "customerio",
+  "salesforce_mc",
+  "marketo",
+  "omnisend",
+  "activecampaign",
+  "constantcontact",
+  "drip",
+  "attentive",
+  "sendinblue"
+];
+
+const ESP_LABELS: Record<EspProvider, string> = {
+  mailchimp: "Mailchimp",
+  klaviyo: "Klaviyo",
+  hubspot: "HubSpot",
+  sendgrid: "SendGrid",
+  braze: "Braze",
+  iterable: "Iterable",
+  customerio: "Customer.io",
+  salesforce_mc: "Salesforce MC",
+  marketo: "Marketo",
+  omnisend: "Omnisend",
+  activecampaign: "ActiveCampaign",
+  constantcontact: "Constant Contact",
+  drip: "Drip",
+  attentive: "Attentive",
+  sendinblue: "Brevo / Sendinblue"
+};
+
+type EmailFilters = {
+  category: EmailCategory | "";
+  esp: EspProvider | "";
+  hasGif: boolean;
+  hasDarkMode: boolean;
+  hasPromoCode: boolean;
+  minDiscount: string;
+  receivedAfter: string;
+  receivedBefore: string;
+  search: string;
+};
+
+const EMPTY_FILTERS: EmailFilters = {
+  category: "",
+  esp: "",
+  hasGif: false,
+  hasDarkMode: false,
+  hasPromoCode: false,
+  minDiscount: "",
+  receivedAfter: "",
+  receivedBefore: "",
+  search: ""
 };
 
 function categoryLabel(slug: string): string {
@@ -95,6 +156,7 @@ export default function AdminHomePage() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [filters, setFilters] = useState<EmailFilters>(EMPTY_FILTERS);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -110,11 +172,26 @@ export default function AdminHomePage() {
     }
   }
 
-  async function loadOverview() {
+  const loadOverview = useCallback(async (active: EmailFilters) => {
     try {
       setLoading(true);
       setLoadError("");
-      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (active.category) params.set("category", active.category);
+      if (active.esp) params.set("esp", active.esp);
+      if (active.hasGif) params.set("hasGif", "true");
+      if (active.hasDarkMode) params.set("hasDarkMode", "true");
+      if (active.hasPromoCode) params.set("hasPromoCode", "true");
+      if (active.minDiscount) params.set("minDiscount", active.minDiscount);
+      if (active.receivedAfter) params.set("receivedAfter", active.receivedAfter);
+      if (active.receivedBefore) params.set("receivedBefore", active.receivedBefore);
+      if (active.search.trim()) params.set("search", active.search.trim());
+
+      const query = params.toString();
+      const response = await fetch(
+        query ? `/api/admin/overview?${query}` : "/api/admin/overview",
+        { cache: "no-store" }
+      );
       const data = (await response.json()) as unknown;
 
       if (!response.ok) {
@@ -131,11 +208,16 @@ export default function AdminHomePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadOverview();
-  }, []);
+    const handle = window.setTimeout(() => {
+      void loadOverview(filters);
+    }, 250);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [filters, loadOverview]);
 
   const stats = useMemo(
     () => ({
@@ -301,7 +383,7 @@ export default function AdminHomePage() {
     setDomain("");
     setMarket("");
     setMarketOpen(false);
-    await loadOverview();
+    await loadOverview(filters);
   }
 
   return (
@@ -569,9 +651,139 @@ export default function AdminHomePage() {
       <section className="card">
         <h2>Recent Emails + Classification</h2>
         <p>Classification source can be rule-based now and LLM-provided when available in webhook payload.</p>
-        {overview.emails.length === 0 ? (
+
+        <div className="filter-bar">
+          <label>
+            <span>Search</span>
+            <input
+              type="search"
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, search: event.target.value }))
+              }
+              placeholder="Subject or sender"
+            />
+          </label>
+          <label>
+            <span>Category</span>
+            <select
+              value={filters.category}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  category: event.target.value as EmailCategory | ""
+                }))
+              }
+            >
+              <option value="">All categories</option>
+              {ALL_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_LABELS[cat]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>ESP</span>
+            <select
+              value={filters.esp}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  esp: event.target.value as EspProvider | ""
+                }))
+              }
+            >
+              <option value="">All providers</option>
+              {ESP_PROVIDERS.map((provider) => (
+                <option key={provider} value={provider}>
+                  {ESP_LABELS[provider]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Min discount %</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={5}
+              value={filters.minDiscount}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, minDiscount: event.target.value }))
+              }
+              placeholder="e.g. 20"
+            />
+          </label>
+          <label>
+            <span>Received after</span>
+            <input
+              type="date"
+              value={filters.receivedAfter}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, receivedAfter: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>Received before</span>
+            <input
+              type="date"
+              value={filters.receivedBefore}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, receivedBefore: event.target.value }))
+              }
+            />
+          </label>
+        </div>
+
+        <div className="filter-toggles">
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasGif}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasGif: event.target.checked }))
+              }
+            />
+            Has GIF
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasDarkMode}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasDarkMode: event.target.checked }))
+              }
+            />
+            Dark mode
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasPromoCode}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasPromoCode: event.target.checked }))
+              }
+            />
+            Has promo code
+          </label>
+        </div>
+
+        <div className="filter-actions">
+          <span className="muted">{overview.emails.length} email{overview.emails.length === 1 ? "" : "s"} shown</span>
+          <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>
+            Reset filters
+          </button>
+        </div>
+
+        {loading ? (
+          <p>Loading...</p>
+        ) : overview.emails.length === 0 ? (
           <p>
-            No emails ingested yet. Post to <code>/api/webhooks/resend</code> to test.
+            No emails match the current filters. Post to{" "}
+            <code>/api/webhooks/resend</code> to ingest more.
           </p>
         ) : (
           <table>
@@ -580,24 +792,58 @@ export default function AdminHomePage() {
                 <th>Company</th>
                 <th>Subject</th>
                 <th>Category</th>
-                <th>Subcategory</th>
+                <th>ESP</th>
+                <th>Signals</th>
                 <th>Source</th>
                 <th className="numeric">Images</th>
-                <th>Sent At</th>
+                <th>Received</th>
               </tr>
             </thead>
             <tbody>
               {overview.emails.map((email) => (
                 <tr key={email.id}>
                   <td>{email.companyName}</td>
-                  <td>{email.subject}</td>
+                  <td>
+                    <Link href={`/admin/emails/${email.id}`} className="subject-link">
+                      <div className="subject-cell">
+                        <span className="subject-text">{email.subject}</span>
+                        {email.preheader ? (
+                          <span className="preheader-text">{email.preheader}</span>
+                        ) : null}
+                      </div>
+                    </Link>
+                  </td>
                   <td>{categoryLabel(email.category)}</td>
                   <td>
-                    {email.subcategory ? email.subcategory : <span className="dim">-</span>}
+                    {email.espProvider ? (
+                      <span className="badge esp">{ESP_LABELS[email.espProvider]}</span>
+                    ) : (
+                      <span className="dim">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="badge-row">
+                      {email.discountPercent !== null ? (
+                        <span className="badge discount">
+                          {Math.round(email.discountPercent)}% off
+                        </span>
+                      ) : null}
+                      {email.promoCode ? (
+                        <span className="badge promo">{email.promoCode}</span>
+                      ) : null}
+                      {email.hasGif ? <span className="badge gif">GIF</span> : null}
+                      {email.hasDarkMode ? <span className="badge dark">Dark</span> : null}
+                      {email.discountPercent === null &&
+                      !email.promoCode &&
+                      !email.hasGif &&
+                      !email.hasDarkMode ? (
+                        <span className="dim">-</span>
+                      ) : null}
+                    </div>
                   </td>
                   <td>{email.classificationSource}</td>
                   <td className="numeric">{email.imageUrls.length}</td>
-                  <td>{formatDateTime(email.sentAt)}</td>
+                  <td>{formatDateTime(email.receivedAt)}</td>
                 </tr>
               ))}
             </tbody>

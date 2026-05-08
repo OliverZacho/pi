@@ -31,11 +31,20 @@ export type Database = {
       }
       captured_emails: {
         Row: {
+          auth_results: Json | null
           category: string
           classification_confidence: number
           classification_source: string
           company_id: string | null
           created_at: string
+          currency: string | null
+          discount_amount: number | null
+          discount_percent: number | null
+          esp_confidence: number | null
+          esp_provider: string | null
+          esp_signals: Json | null
+          has_dark_mode: boolean
+          has_gif: boolean
           html_content: string
           html_storage_path: string | null
           id: string
@@ -43,8 +52,13 @@ export type Database = {
           inbox_id: string | null
           llm_model: string | null
           llm_reasoning: string | null
+          metadata: Json
           plain_text: string | null
+          preheader: string | null
+          primary_cta_text: string | null
+          primary_cta_url: string | null
           processed_at: string | null
+          promo_code: string | null
           raw_payload: Json
           received_at: string
           recipient_email: string
@@ -56,11 +70,20 @@ export type Database = {
           subject: string
         }
         Insert: {
+          auth_results?: Json | null
           category?: string
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
           created_at?: string
+          currency?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          esp_confidence?: number | null
+          esp_provider?: string | null
+          esp_signals?: Json | null
+          has_dark_mode?: boolean
+          has_gif?: boolean
           html_content: string
           html_storage_path?: string | null
           id?: string
@@ -68,8 +91,13 @@ export type Database = {
           inbox_id?: string | null
           llm_model?: string | null
           llm_reasoning?: string | null
+          metadata?: Json
           plain_text?: string | null
+          preheader?: string | null
+          primary_cta_text?: string | null
+          primary_cta_url?: string | null
           processed_at?: string | null
+          promo_code?: string | null
           raw_payload?: Json
           received_at?: string
           recipient_email: string
@@ -81,11 +109,20 @@ export type Database = {
           subject: string
         }
         Update: {
+          auth_results?: Json | null
           category?: string
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
           created_at?: string
+          currency?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          esp_confidence?: number | null
+          esp_provider?: string | null
+          esp_signals?: Json | null
+          has_dark_mode?: boolean
+          has_gif?: boolean
           html_content?: string
           html_storage_path?: string | null
           id?: string
@@ -93,8 +130,13 @@ export type Database = {
           inbox_id?: string | null
           llm_model?: string | null
           llm_reasoning?: string | null
+          metadata?: Json
           plain_text?: string | null
+          preheader?: string | null
+          primary_cta_text?: string | null
+          primary_cta_url?: string | null
           processed_at?: string | null
+          promo_code?: string | null
           raw_payload?: Json
           received_at?: string
           recipient_email?: string
@@ -118,6 +160,53 @@ export type Database = {
             columns: ["inbox_id"]
             isOneToOne: false
             referencedRelation: "company_inboxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_products: {
+        Row: {
+          bbox: Json | null
+          currency: string | null
+          discount_percent: number | null
+          email_id: string
+          extracted_at: string
+          id: string
+          image_storage_path: string | null
+          name: string | null
+          price: number | null
+          source_url: string | null
+        }
+        Insert: {
+          bbox?: Json | null
+          currency?: string | null
+          discount_percent?: number | null
+          email_id: string
+          extracted_at?: string
+          id?: string
+          image_storage_path?: string | null
+          name?: string | null
+          price?: number | null
+          source_url?: string | null
+        }
+        Update: {
+          bbox?: Json | null
+          currency?: string | null
+          discount_percent?: number | null
+          email_id?: string
+          extracted_at?: string
+          id?: string
+          image_storage_path?: string | null
+          name?: string | null
+          price?: number | null
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_products_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "captured_emails"
             referencedColumns: ["id"]
           },
         ]

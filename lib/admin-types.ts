@@ -23,6 +23,23 @@ export type CompanySubscription = {
   lastEmailAt: string | null;
 };
 
+export type EspProvider =
+  | "mailchimp"
+  | "klaviyo"
+  | "hubspot"
+  | "sendgrid"
+  | "braze"
+  | "iterable"
+  | "customerio"
+  | "salesforce_mc"
+  | "marketo"
+  | "omnisend"
+  | "activecampaign"
+  | "constantcontact"
+  | "drip"
+  | "attentive"
+  | "sendinblue";
+
 export type CapturedEmail = {
   id: string;
   companyId: string | null;
@@ -37,6 +54,17 @@ export type CapturedEmail = {
   subcategory: string | null;
   classificationSource: ClassificationSource;
   classificationConfidence: number;
+  espProvider: EspProvider | null;
+  espConfidence: number | null;
+  preheader: string | null;
+  hasGif: boolean;
+  hasDarkMode: boolean;
+  discountPercent: number | null;
+  discountAmount: number | null;
+  currency: string | null;
+  promoCode: string | null;
+  primaryCtaText: string | null;
+  primaryCtaUrl: string | null;
 };
 
 export type CapturedEmailDetail = CapturedEmail & {
@@ -47,6 +75,8 @@ export type CapturedEmailDetail = CapturedEmail & {
   llmModel: string | null;
   llmReasoning: string | null;
   processedAt: string | null;
+  authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
+  metadata: Record<string, unknown> | null;
 };
 
 export type AdminOverview = {

@@ -5,7 +5,8 @@ import type {
   CapturedEmailDetail,
   CompanyDetail,
   CompanySubscription,
-  EmailCategory
+  EmailCategory,
+  EspProvider
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { getSignedAssets, getSignedHtml } from "./storage";
@@ -44,7 +45,18 @@ export type GetOverviewOptions = {
   cursor?: string | null;
   category?: EmailCategory | null;
   pageSize?: number;
+  espProvider?: EspProvider | null;
+  hasGif?: boolean | null;
+  hasDarkMode?: boolean | null;
+  hasPromoCode?: boolean | null;
+  minDiscountPercent?: number | null;
+  receivedAfter?: string | null;
+  receivedBefore?: string | null;
+  search?: string | null;
 };
+
+const EMAIL_LIST_COLUMNS =
+  "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, subcategory, classification_source, classification_confidence, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, companies(id, name)";
 
 export async function getOverviewFromDb(
   supabase: PirolDb,
@@ -55,9 +67,7 @@ export async function getOverviewFromDb(
 
   let emailsQuery = supabase
     .from("captured_emails")
-    .select(
-      "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, subcategory, classification_source, classification_confidence, companies(id, name)"
-    )
+    .select(EMAIL_LIST_COLUMNS)
     .order("received_at", { ascending: false })
     .limit(pageSize + 1);
 
@@ -66,6 +76,45 @@ export async function getOverviewFromDb(
       throw new Error(`Invalid category filter: ${options.category}`);
     }
     emailsQuery = emailsQuery.eq("category", options.category);
+  }
+
+  if (options.espProvider) {
+    emailsQuery = emailsQuery.eq("esp_provider", options.espProvider);
+  }
+
+  if (options.hasGif === true) {
+    emailsQuery = emailsQuery.eq("has_gif", true);
+  }
+
+  if (options.hasDarkMode === true) {
+    emailsQuery = emailsQuery.eq("has_dark_mode", true);
+  }
+
+  if (options.hasPromoCode === true) {
+    emailsQuery = emailsQuery.not("promo_code", "is", null);
+  }
+
+  if (typeof options.minDiscountPercent === "number" && Number.isFinite(options.minDiscountPercent)) {
+    emailsQuery = emailsQuery.gte("discount_percent", options.minDiscountPercent);
+  }
+
+  if (options.receivedAfter) {
+    emailsQuery = emailsQuery.gte("received_at", options.receivedAfter);
+  }
+
+  if (options.receivedBefore) {
+    emailsQuery = emailsQuery.lte("received_at", options.receivedBefore);
+  }
+
+  if (options.search) {
+    const trimmed = options.search.trim();
+    if (trimmed.length > 0) {
+      const sanitized = trimmed.replace(/[%,]/g, " ");
+      const term = `%${sanitized}%`;
+      emailsQuery = emailsQuery.or(
+        `subject.ilike.${term},sender_email.ilike.${term}`
+      );
+    }
   }
 
   if (options.cursor) {
@@ -120,7 +169,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, companies(id, name)"
+      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, auth_results, metadata, companies(id, name)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -154,6 +203,17 @@ export async function getEmailDetailFromDb(
     subcategory: data.subcategory ?? null,
     classificationSource: data.classification_source as CapturedEmail["classificationSource"],
     classificationConfidence: Number(data.classification_confidence ?? 0),
+    espProvider: (data.esp_provider as EspProvider | null) ?? null,
+    espConfidence: data.esp_confidence === null ? null : Number(data.esp_confidence),
+    preheader: data.preheader ?? null,
+    hasGif: data.has_gif ?? false,
+    hasDarkMode: data.has_dark_mode ?? false,
+    discountPercent: data.discount_percent === null ? null : Number(data.discount_percent),
+    discountAmount: data.discount_amount === null ? null : Number(data.discount_amount),
+    currency: data.currency ?? null,
+    promoCode: data.promo_code ?? null,
+    primaryCtaText: data.primary_cta_text ?? null,
+    primaryCtaUrl: data.primary_cta_url ?? null,
     recipient: data.recipient_email,
     htmlSignedUrl,
     imageSignedUrls: imagePaths
@@ -162,7 +222,9 @@ export async function getEmailDetailFromDb(
     remoteImageUrls: data.remote_image_urls ?? [],
     llmModel: data.llm_model ?? null,
     llmReasoning: data.llm_reasoning ?? null,
-    processedAt: data.processed_at ?? null
+    processedAt: data.processed_at ?? null,
+    authResults: parseAuthResults(data.auth_results),
+    metadata: parseMetadata(data.metadata)
   };
 }
 
@@ -188,9 +250,7 @@ export async function getCompanyDetailFromDb(
   const [{ data: emailRows, error: emailError }, { count, error: countError }] = await Promise.all([
     supabase
       .from("captured_emails")
-      .select(
-        "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, subcategory, classification_source, classification_confidence, companies(id, name)"
-      )
+      .select(EMAIL_LIST_COLUMNS)
       .eq("company_id", companyId)
       .order("received_at", { ascending: false })
       .limit(COMPANY_RECENT_EMAIL_LIMIT),
@@ -260,6 +320,17 @@ type EmailListRow = {
   subcategory: string | null;
   classification_source: string;
   classification_confidence: number | string | null;
+  esp_provider: string | null;
+  esp_confidence: number | string | null;
+  preheader: string | null;
+  has_gif: boolean | null;
+  has_dark_mode: boolean | null;
+  discount_percent: number | string | null;
+  discount_amount: number | string | null;
+  currency: string | null;
+  promo_code: string | null;
+  primary_cta_text: string | null;
+  primary_cta_url: string | null;
   companies: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
@@ -295,8 +366,48 @@ function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
     category: row.category as CapturedEmail["category"],
     subcategory: row.subcategory ?? null,
     classificationSource: row.classification_source as CapturedEmail["classificationSource"],
-    classificationConfidence: Number(row.classification_confidence ?? 0)
+    classificationConfidence: Number(row.classification_confidence ?? 0),
+    espProvider: (row.esp_provider as EspProvider | null) ?? null,
+    espConfidence: row.esp_confidence === null || row.esp_confidence === undefined
+      ? null
+      : Number(row.esp_confidence),
+    preheader: row.preheader ?? null,
+    hasGif: row.has_gif ?? false,
+    hasDarkMode: row.has_dark_mode ?? false,
+    discountPercent: row.discount_percent === null || row.discount_percent === undefined
+      ? null
+      : Number(row.discount_percent),
+    discountAmount: row.discount_amount === null || row.discount_amount === undefined
+      ? null
+      : Number(row.discount_amount),
+    currency: row.currency ?? null,
+    promoCode: row.promo_code ?? null,
+    primaryCtaText: row.primary_cta_text ?? null,
+    primaryCtaUrl: row.primary_cta_url ?? null
   };
+}
+
+function parseAuthResults(value: unknown): CapturedEmailDetail["authResults"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  const pick = (key: string): string | null => {
+    const v = candidate[key];
+    return typeof v === "string" ? v : null;
+  };
+  return {
+    spf: pick("spf"),
+    dkim: pick("dkim"),
+    dmarc: pick("dmarc")
+  };
+}
+
+function parseMetadata(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
 }
 
 export async function createCompanySubscriptionInDb(
@@ -375,6 +486,23 @@ export type StoreProcessedEmailInput = {
     source: "rules" | "llm" | "manual";
     model?: string;
     reasoning?: string;
+    discountPercent?: number | null;
+    discountAmount?: number | null;
+    currency?: string | null;
+    promoCode?: string | null;
+    primaryCtaText?: string | null;
+    primaryCtaUrlHint?: string | null;
+  };
+  enrichment?: {
+    espProvider?: string | null;
+    espConfidence?: number | null;
+    espSignals?: unknown;
+    preheader?: string | null;
+    hasGif?: boolean | null;
+    hasDarkMode?: boolean | null;
+    primaryCtaUrl?: string | null;
+    authResults?: unknown;
+    metadata?: unknown;
   };
 };
 
@@ -423,6 +551,8 @@ export async function storeProcessedEmail(
 
   const recipient = matchedInbox?.recipient ?? lowercaseRecipients[0] ?? "unknown@pirol.app";
 
+  const enrichment = input.enrichment ?? {};
+
   const { data: email, error: emailError } = await supabaseAdmin
     .from("captured_emails")
     .insert({
@@ -444,7 +574,21 @@ export async function storeProcessedEmail(
       llm_model: input.classification.model ?? null,
       llm_reasoning: input.classification.reasoning ?? null,
       raw_payload: input.rawPayload as Json,
-      processed_at: new Date().toISOString()
+      processed_at: new Date().toISOString(),
+      esp_provider: enrichment.espProvider ?? null,
+      esp_confidence: enrichment.espConfidence ?? null,
+      esp_signals: (enrichment.espSignals ?? null) as Json | null,
+      preheader: enrichment.preheader ?? null,
+      has_gif: enrichment.hasGif ?? false,
+      has_dark_mode: enrichment.hasDarkMode ?? false,
+      discount_percent: input.classification.discountPercent ?? null,
+      discount_amount: input.classification.discountAmount ?? null,
+      currency: input.classification.currency ?? null,
+      promo_code: input.classification.promoCode ?? null,
+      primary_cta_text: input.classification.primaryCtaText ?? null,
+      primary_cta_url: enrichment.primaryCtaUrl ?? null,
+      auth_results: (enrichment.authResults ?? null) as Json | null,
+      metadata: ((enrichment.metadata ?? {}) as Json) ?? ({} as Json)
     })
     .select("id")
     .single();
