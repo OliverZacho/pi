@@ -1,9 +1,13 @@
 export type EmailCategory =
-  | "new_launch"
   | "sale"
-  | "newsletter"
-  | "product_update"
+  | "product_launch"
   | "event"
+  | "content"
+  | "loyalty"
+  | "transactional"
+  | "seasonal"
+  | "partnership"
+  | "company_news"
   | "other";
 
 export type ClassificationSource = "rules" | "llm" | "manual";
@@ -12,8 +16,11 @@ export type CompanySubscription = {
   id: string;
   name: string;
   domain: string;
+  market: string | null;
   subscriptionEmail: string;
   subscribedAt: string;
+  emailCount: number;
+  lastEmailAt: string | null;
 };
 
 export type CapturedEmail = {
@@ -27,6 +34,7 @@ export type CapturedEmail = {
   html: string;
   imageUrls: string[];
   category: EmailCategory;
+  subcategory: string | null;
   classificationSource: ClassificationSource;
   classificationConfidence: number;
 };

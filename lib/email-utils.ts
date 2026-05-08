@@ -30,27 +30,51 @@ export function classifyFromRules(subject: string, html: string): {
   confidence: number;
 } {
   const haystack = `${subject} ${html}`.toLowerCase();
-  if (/\bnew launch\b|\bnew product\b|\bintroducing\b|\bnow available\b/.test(haystack)) {
-    return { category: "new_launch", confidence: 0.88 };
+
+  if (/\breceipt\b|\border\s*#?\s*\d+\b|\border confirmation\b|\bpayment received\b|\bshipping confirmation\b|\binvoice\b/.test(haystack)) {
+    return { category: "transactional", confidence: 0.9 };
   }
-  if (/\bsale\b|\bdiscount\b|\b\d{1,2}%\s*off\b|\bpromo\b|\bdeal\b/.test(haystack)) {
+
+  if (/\bblack friday\b|\bcyber monday\b|\bchristmas\b|\bxmas\b|\bholiday sale\b|\bvalentine'?s\b|\bhalloween\b|\beaster\b|\bnew year'?s sale\b|\bsummer sale\b/.test(haystack)) {
+    return { category: "seasonal", confidence: 0.9 };
+  }
+
+  if (/\bsale\b|\bdiscount\b|\b\d{1,2}%\s*off\b|\bpromo(?:tion|tional)?\b|\bdeal\b|\bcoupon\b|\bspecial offer\b/.test(haystack)) {
     return { category: "sale", confidence: 0.88 };
   }
-  if (/\blaunch\b|\bdebut\b/.test(haystack)) {
-    return { category: "new_launch", confidence: 0.78 };
+
+  if (/\bintroducing\b|\bnew product\b|\bnow available\b|\bnew launch\b|\bjust launched\b|\bnewly launched\b|\bnew release\b|\bnow live\b|\bdebut\b|\bunveil\b/.test(haystack)) {
+    return { category: "product_launch", confidence: 0.85 };
   }
+
+  if (/\bwebinar\b|\bevent\b|\binvit(?:e|ation)\b|\brsvp\b|\bregister now\b|\bjoin us\b|\bsave the date\b|\bworkshop\b|\bconference\b/.test(haystack)) {
+    return { category: "event", confidence: 0.82 };
+  }
+
+  if (/\brewards?\b|\bloyalty\b|\bmember(?:s|ship)?\b|\bwe miss you\b|\bcome back\b|\bwelcome back\b|\bredeem points?\b|\bvip\b/.test(haystack)) {
+    return { category: "loyalty", confidence: 0.78 };
+  }
+
+  if (/\bcollaboration\b|\bcollab\b|\bpartnership\b|\bpartner(?:ing)?\s+with\b|\bteam(?:ed|ing)?\s+up\b/.test(haystack)) {
+    return { category: "partnership", confidence: 0.78 };
+  }
+
+  if (/\bmilestone\b|\brebrand\b|\b(?:we'?re|now)\s+hiring\b|\bjoin our team\b|\bwe'?re now\b|\bcompany update\b|\bfunding round\b|\bseries [a-z]\b|\bacquisition\b/.test(haystack)) {
+    return { category: "company_news", confidence: 0.78 };
+  }
+
+  if (/\blaunch\b/.test(haystack)) {
+    return { category: "product_launch", confidence: 0.72 };
+  }
+
   if (/\boffer\b/.test(haystack)) {
-    return { category: "sale", confidence: 0.74 };
+    return { category: "sale", confidence: 0.7 };
   }
-  if (/\bwebinar\b|\bevent\b|\bregister\b/.test(haystack)) {
-    return { category: "event", confidence: 0.73 };
+
+  if (/\bnewsletter\b|\bweekly digest\b|\bmonthly digest\b|\bedition\b|\bissue #?\d+\b|\bread more\b|\bour story\b|\binsights?\b/.test(haystack)) {
+    return { category: "content", confidence: 0.65 };
   }
-  if (/\bupdate\b|\brelease notes\b|\bchangelog\b/.test(haystack)) {
-    return { category: "product_update", confidence: 0.71 };
-  }
-  if (/\bnewsletter\b|\bweekly\b|\bmonthly\b/.test(haystack)) {
-    return { category: "newsletter", confidence: 0.68 };
-  }
+
   return { category: "other", confidence: 0.45 };
 }
 

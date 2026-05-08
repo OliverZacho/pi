@@ -52,6 +52,7 @@ export type Database = {
           resend_message_id: string | null
           sender_email: string
           sent_at: string | null
+          subcategory: string | null
           subject: string
         }
         Insert: {
@@ -76,6 +77,7 @@ export type Database = {
           resend_message_id?: string | null
           sender_email: string
           sent_at?: string | null
+          subcategory?: string | null
           subject: string
         }
         Update: {
@@ -100,6 +102,7 @@ export type Database = {
           resend_message_id?: string | null
           sender_email?: string
           sent_at?: string | null
+          subcategory?: string | null
           subject?: string
         }
         Relationships: [
@@ -125,6 +128,7 @@ export type Database = {
           deleted_at: string | null
           domain: string
           id: string
+          market: string | null
           name: string
           subscribed_since: string
           updated_at: string
@@ -134,6 +138,7 @@ export type Database = {
           deleted_at?: string | null
           domain: string
           id?: string
+          market?: string | null
           name: string
           subscribed_since?: string
           updated_at?: string
@@ -143,6 +148,7 @@ export type Database = {
           deleted_at?: string | null
           domain?: string
           id?: string
+          market?: string | null
           name?: string
           subscribed_since?: string
           updated_at?: string
@@ -222,7 +228,22 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      company_email_stats: {
+        Row: {
+          company_id: string | null
+          email_count: number | null
+          last_received_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captured_emails_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       claim_webhook_events: {

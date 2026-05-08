@@ -139,7 +139,7 @@ describe("processNextBatch", () => {
       failedUrls: []
     });
     mocks.classifyEmailMock.mockResolvedValueOnce({
-      category: "new_launch",
+      category: "product_launch",
       confidence: 0.92,
       source: "llm",
       model: "gpt-4o-mini",
@@ -168,7 +168,7 @@ describe("processNextBatch", () => {
         resendId: "em_1",
         htmlStoragePath: "em_1.html",
         imageStoragePaths: ["em_1/abc.png"],
-        classification: expect.objectContaining({ category: "new_launch", source: "llm" })
+        classification: expect.objectContaining({ category: "product_launch", source: "llm" })
       })
     );
 

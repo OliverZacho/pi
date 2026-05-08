@@ -42,7 +42,7 @@ describe("classifyEmail", () => {
     });
 
     expect(result.source).toBe("rules");
-    expect(result.category).toBe("new_launch");
+    expect(result.category).toBe("product_launch");
     expect(result.confidence).toBeGreaterThanOrEqual(0.85);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -67,9 +67,9 @@ describe("classifyEmail", () => {
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       anthropicResponse({
-        category: "product_update",
+        category: "company_news",
         confidence: 0.92,
-        reasoning: "Mentions release notes."
+        reasoning: "Mentions a hiring milestone."
       })
     );
 
@@ -86,9 +86,9 @@ describe("classifyEmail", () => {
     expect(headers["anthropic-version"]).toBeDefined();
 
     expect(result.source).toBe("llm");
-    expect(result.category).toBe("product_update");
+    expect(result.category).toBe("company_news");
     expect(result.confidence).toBeCloseTo(0.92);
-    expect(result.reasoning).toBe("Mentions release notes.");
+    expect(result.reasoning).toBe("Mentions a hiring milestone.");
     expect(result.model).toBe("claude-haiku-4-5");
   });
 

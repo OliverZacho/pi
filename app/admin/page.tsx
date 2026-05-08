@@ -1,12 +1,45 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { AdminOverview } from "@/lib/admin-types";
+import type { AdminOverview, EmailCategory } from "@/lib/admin-types";
+
+const ALL_CATEGORIES: EmailCategory[] = [
+  "sale",
+  "product_launch",
+  "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
+  "other"
+];
+
+const CATEGORY_LABELS: Record<EmailCategory, string> = {
+  sale: "Sale / Discount",
+  product_launch: "Product / Service launch",
+  event: "Event / Invite",
+  content: "Content / Editorial",
+  loyalty: "Loyalty / Retention",
+  transactional: "Transactional",
+  seasonal: "Seasonal / Campaign",
+  partnership: "Collaboration / Partnership",
+  company_news: "Company news",
+  other: "Other"
+};
+
+function categoryLabel(slug: string): string {
+  if ((ALL_CATEGORIES as string[]).includes(slug)) {
+    return CATEGORY_LABELS[slug as EmailCategory];
+  }
+  return slug;
+}
 
 const defaultOverview: AdminOverview = {
   companies: [],
   emails: [],
-  categories: ["new_launch", "sale", "newsletter", "product_update", "event", "other"],
+  categories: ALL_CATEGORIES,
   storageNotes: "",
   pagination: { nextCursor: null, pageSize: 50 }
 };
@@ -38,11 +71,24 @@ function asOverview(value: unknown): AdminOverview {
   };
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+  return parsed.toLocaleString();
+}
+
 export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
+  const [market, setMarket] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
 
@@ -78,10 +124,44 @@ export default function AdminHomePage() {
       companies: overview.companies.length,
       emails: overview.emails.length,
       sales: overview.emails.filter((mail) => mail.category === "sale").length,
-      launches: overview.emails.filter((mail) => mail.category === "new_launch").length
+      launches: overview.emails.filter((mail) => mail.category === "product_launch").length
     }),
     [overview]
   );
+
+  const sortedCompanies = useMemo(() => {
+    const copy = [...overview.companies];
+    copy.sort((a, b) => {
+      const aHas = a.lastEmailAt ? 1 : 0;
+      const bHas = b.lastEmailAt ? 1 : 0;
+      if (aHas !== bHas) {
+        return bHas - aHas;
+      }
+      if (a.lastEmailAt && b.lastEmailAt) {
+        return new Date(b.lastEmailAt).getTime() - new Date(a.lastEmailAt).getTime();
+      }
+      return new Date(b.subscribedAt).getTime() - new Date(a.subscribedAt).getTime();
+    });
+    return copy;
+  }, [overview.companies]);
+
+  const filteredCompanies = useMemo(() => {
+    const query = companySearch.trim().toLowerCase();
+    if (!query) {
+      return sortedCompanies;
+    }
+    return sortedCompanies.filter((company) => {
+      const haystack = [
+        company.name,
+        company.domain,
+        company.market ?? "",
+        company.subscriptionEmail
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [sortedCompanies, companySearch]);
 
   async function onCreateCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,7 +170,7 @@ export default function AdminHomePage() {
     const response = await fetch("/api/admin/companies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, domain })
+      body: JSON.stringify({ name, domain, market: market.trim() || null })
     });
 
     if (!response.ok) {
@@ -101,6 +181,7 @@ export default function AdminHomePage() {
 
     setName("");
     setDomain("");
+    setMarket("");
     await loadOverview();
   }
 
@@ -129,11 +210,11 @@ export default function AdminHomePage() {
           <p>{stats.emails}</p>
         </article>
         <article className="card">
-          <h2>Sales Emails</h2>
+          <h2>Sales / Discounts</h2>
           <p>{stats.sales}</p>
         </article>
         <article className="card">
-          <h2>Launch Emails</h2>
+          <h2>Product Launches</h2>
           <p>{stats.launches}</p>
         </article>
       </section>
@@ -143,7 +224,7 @@ export default function AdminHomePage() {
         <p>
           Generates a unique sender like <code>company-yyyymmdd@pirol.app</code> for each newsletter signup.
         </p>
-        <form className="inline-form" onSubmit={onCreateCompany}>
+        <form className="inline-form with-market" onSubmit={onCreateCompany}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -158,6 +239,12 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
+          <input
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
+            placeholder="Market (e.g. fashion, museum)"
+            aria-label="Market"
+          />
           <button type="submit">Create</button>
         </form>
         {error ? <p className="error">{error}</p> : null}
@@ -165,29 +252,56 @@ export default function AdminHomePage() {
 
       <section className="card">
         <h2>Subscribed Companies</h2>
+        <div className="section-toolbar">
+          <input
+            className="search-input"
+            type="search"
+            value={companySearch}
+            onChange={(e) => setCompanySearch(e.target.value)}
+            placeholder="Search by name, domain, market, or email"
+            aria-label="Search companies"
+          />
+          <span className="muted">
+            {filteredCompanies.length} of {sortedCompanies.length} shown
+          </span>
+        </div>
         {loading ? (
           <p>Loading...</p>
-        ) : overview.companies.length === 0 ? (
+        ) : sortedCompanies.length === 0 ? (
           <p>No companies subscribed yet.</p>
+        ) : filteredCompanies.length === 0 ? (
+          <p>No companies match your search.</p>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>Company</th>
+                <th>Market</th>
                 <th>Domain</th>
                 <th>Subscription Email</th>
                 <th>Subscribed Since</th>
+                <th className="numeric">Emails</th>
+                <th>Last Email</th>
               </tr>
             </thead>
             <tbody>
-              {overview.companies.map((company) => (
+              {filteredCompanies.map((company) => (
                 <tr key={company.id}>
                   <td>{company.name}</td>
+                  <td>{company.market ? company.market : <span className="dim">-</span>}</td>
                   <td>{company.domain}</td>
                   <td>
                     <code>{company.subscriptionEmail}</code>
                   </td>
-                  <td>{new Date(company.subscribedAt).toLocaleString()}</td>
+                  <td>{formatDateTime(company.subscribedAt)}</td>
+                  <td className="numeric">{company.emailCount}</td>
+                  <td>
+                    {company.lastEmailAt ? (
+                      formatDateTime(company.lastEmailAt)
+                    ) : (
+                      <span className="dim">never</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -209,8 +323,9 @@ export default function AdminHomePage() {
                 <th>Company</th>
                 <th>Subject</th>
                 <th>Category</th>
+                <th>Subcategory</th>
                 <th>Source</th>
-                <th>Images</th>
+                <th className="numeric">Images</th>
                 <th>Sent At</th>
               </tr>
             </thead>
@@ -219,12 +334,13 @@ export default function AdminHomePage() {
                 <tr key={email.id}>
                   <td>{email.companyName}</td>
                   <td>{email.subject}</td>
+                  <td>{categoryLabel(email.category)}</td>
                   <td>
-                    <code>{email.category}</code>
+                    {email.subcategory ? email.subcategory : <span className="dim">-</span>}
                   </td>
                   <td>{email.classificationSource}</td>
-                  <td>{email.imageUrls.length}</td>
-                  <td>{new Date(email.sentAt).toLocaleString()}</td>
+                  <td className="numeric">{email.imageUrls.length}</td>
+                  <td>{formatDateTime(email.sentAt)}</td>
                 </tr>
               ))}
             </tbody>

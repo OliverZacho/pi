@@ -4,11 +4,15 @@ import type { EmailCategory } from "@/lib/admin-types";
 import { requireAdminSession } from "@/lib/require-admin-api";
 
 const VALID_CATEGORIES: EmailCategory[] = [
-  "new_launch",
   "sale",
-  "newsletter",
-  "product_update",
+  "product_launch",
   "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
   "other"
 ];
 

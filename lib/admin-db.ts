@@ -19,22 +19,19 @@ const MAX_PAGE_SIZE = 200;
 const COMPANY_RECENT_EMAIL_LIMIT = 25;
 
 const VALID_CATEGORIES: EmailCategory[] = [
-  "new_launch",
   "sale",
-  "newsletter",
-  "product_update",
+  "product_launch",
   "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
   "other"
 ];
 
-const categories: AdminOverview["categories"] = [
-  "new_launch",
-  "sale",
-  "newsletter",
-  "product_update",
-  "event",
-  "other"
-];
+const categories: AdminOverview["categories"] = [...VALID_CATEGORIES];
 
 function relationFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) {
@@ -59,7 +56,7 @@ export async function getOverviewFromDb(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, classification_source, classification_confidence, companies(id, name)"
+      "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, subcategory, classification_source, classification_confidence, companies(id, name)"
     )
     .order("received_at", { ascending: false })
     .limit(pageSize + 1);
@@ -79,7 +76,9 @@ export async function getOverviewFromDb(
     await Promise.all([
       supabase
         .from("companies")
-        .select("id, name, domain, subscribed_since, company_inboxes(email_address, is_primary)")
+        .select(
+          "id, name, domain, market, subscribed_since, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+        )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
       emailsQuery
@@ -121,7 +120,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, companies(id, name)"
+      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, companies(id, name)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -152,6 +151,7 @@ export async function getEmailDetailFromDb(
     html: data.html_content ?? "",
     imageUrls: imagePaths,
     category: data.category as CapturedEmail["category"],
+    subcategory: data.subcategory ?? null,
     classificationSource: data.classification_source as CapturedEmail["classificationSource"],
     classificationConfidence: Number(data.classification_confidence ?? 0),
     recipient: data.recipient_email,
@@ -172,7 +172,9 @@ export async function getCompanyDetailFromDb(
 ): Promise<CompanyDetail | null> {
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
-    .select("id, name, domain, subscribed_since, deleted_at, company_inboxes(email_address, is_primary)")
+    .select(
+      "id, name, domain, market, subscribed_since, deleted_at, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+    )
     .eq("id", companyId)
     .maybeSingle();
 
@@ -187,7 +189,7 @@ export async function getCompanyDetailFromDb(
     supabase
       .from("captured_emails")
       .select(
-        "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, classification_source, classification_confidence, companies(id, name)"
+        "id, company_id, sender_email, subject, sent_at, received_at, image_urls, category, subcategory, classification_source, classification_confidence, companies(id, name)"
       )
       .eq("company_id", companyId)
       .order("received_at", { ascending: false })
@@ -231,12 +233,19 @@ export async function softDeleteCompanyInDb(
   return data ? { id: data.id } : null;
 }
 
+type CompanyStatsRow = {
+  email_count: number | null;
+  last_received_at: string | null;
+};
+
 type CompanyRow = {
   id: string;
   name: string;
   domain: string;
+  market: string | null;
   subscribed_since: string;
   company_inboxes?: { email_address: string; is_primary: boolean }[] | null;
+  company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
 };
 
 type EmailListRow = {
@@ -248,6 +257,7 @@ type EmailListRow = {
   received_at: string;
   image_urls: string[] | null;
   category: string;
+  subcategory: string | null;
   classification_source: string;
   classification_confidence: number | string | null;
   companies: { id: string; name: string } | { id: string; name: string }[] | null;
@@ -257,12 +267,16 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
   const inboxes = row.company_inboxes ?? [];
   const primaryInbox =
     inboxes.find((inbox) => inbox.is_primary)?.email_address ?? "unassigned@pirol.app";
+  const stats = relationFirst(row.company_email_stats);
   return {
     id: row.id,
     name: row.name,
     domain: row.domain,
+    market: row.market ?? null,
     subscriptionEmail: primaryInbox,
-    subscribedAt: row.subscribed_since
+    subscribedAt: row.subscribed_since,
+    emailCount: stats?.email_count ?? 0,
+    lastEmailAt: stats?.last_received_at ?? null
   };
 }
 
@@ -279,6 +293,7 @@ function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
     html: "",
     imageUrls: row.image_urls ?? [],
     category: row.category as CapturedEmail["category"],
+    subcategory: row.subcategory ?? null,
     classificationSource: row.classification_source as CapturedEmail["classificationSource"],
     classificationConfidence: Number(row.classification_confidence ?? 0)
   };
@@ -287,11 +302,15 @@ function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
 export async function createCompanySubscriptionInDb(
   supabase: PirolDb,
   input: {
-  name: string;
-  domain: string;
-}): Promise<CompanySubscription> {
+    name: string;
+    domain: string;
+    market?: string | null;
+  }
+): Promise<CompanySubscription> {
   const normalizedName = input.name.trim();
   const normalizedDomain = input.domain.trim().toLowerCase();
+  const normalizedMarket = input.market?.trim().toLowerCase();
+  const marketValue = normalizedMarket && normalizedMarket.length > 0 ? normalizedMarket : null;
 
   const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
@@ -308,8 +327,8 @@ export async function createCompanySubscriptionInDb(
 
   const { data: company, error: companyError } = await supabase
     .from("companies")
-    .insert({ name: normalizedName, domain: normalizedDomain })
-    .select("id, name, domain, subscribed_since")
+    .insert({ name: normalizedName, domain: normalizedDomain, market: marketValue })
+    .select("id, name, domain, market, subscribed_since")
     .single();
 
   if (companyError) {
@@ -330,8 +349,11 @@ export async function createCompanySubscriptionInDb(
     id: company.id,
     name: company.name,
     domain: company.domain,
+    market: company.market ?? null,
     subscriptionEmail,
-    subscribedAt: company.subscribed_since
+    subscribedAt: company.subscribed_since,
+    emailCount: 0,
+    lastEmailAt: null
   };
 }
 

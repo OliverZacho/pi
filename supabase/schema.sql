@@ -4,6 +4,7 @@ create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   domain text not null,
+  market text,
   subscribed_since timestamptz not null default now(),
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -40,7 +41,19 @@ create table if not exists public.captured_emails (
   plain_text text,
   image_urls text[] not null default '{}',
   remote_image_urls text[] not null default '{}',
-  category text not null default 'other' check (category in ('new_launch', 'sale', 'newsletter', 'product_update', 'event', 'other')),
+  category text not null default 'other' check (category in (
+    'sale',
+    'product_launch',
+    'event',
+    'content',
+    'loyalty',
+    'transactional',
+    'seasonal',
+    'partnership',
+    'company_news',
+    'other'
+  )),
+  subcategory text,
   classification_source text not null default 'rules' check (classification_source in ('rules', 'llm', 'manual')),
   classification_confidence numeric(4, 3) not null default 0.0 check (classification_confidence >= 0 and classification_confidence <= 1),
   llm_model text,
@@ -235,3 +248,16 @@ $$;
 
 revoke all on function public.claim_webhook_events(integer) from public;
 revoke all on function public.claim_webhook_events(integer) from anon, authenticated;
+
+create or replace view public.company_email_stats
+with (security_invoker = true) as
+select
+  company_id,
+  count(*)::int as email_count,
+  max(received_at) as last_received_at
+from public.captured_emails
+where company_id is not null
+group by company_id;
+
+grant select on public.company_email_stats to authenticated;
+grant select on public.company_email_stats to service_role;

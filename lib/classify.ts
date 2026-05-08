@@ -9,11 +9,15 @@ const PROMPT_TEXT_LIMIT = 4_000;
 const LLM_TIMEOUT_MS = 15_000;
 
 const CATEGORY_VALUES: EmailCategory[] = [
-  "new_launch",
   "sale",
-  "newsletter",
-  "product_update",
+  "product_launch",
   "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
   "other"
 ];
 
@@ -88,7 +92,20 @@ async function classifyWithAnthropic(
     max_tokens: 256,
     temperature: 0,
     system:
-      "You classify marketing emails sent by competitor brands into one of six categories: new_launch, sale, newsletter, product_update, event, other. Always call the classify_email tool exactly once; never reply with prose. Confidence is a number between 0 and 1 reflecting how certain you are. Reasoning must be one or two sentences explaining the decision.",
+      "You classify marketing emails sent by competitor brands into exactly one of these categories. " +
+      "sale: discounts, promotions, percent-off, coupons, deals. " +
+      "product_launch: announcing a new product or service ('introducing', 'now available', 'just launched'). " +
+      "event: invites to webinars, conferences, RSVPs, workshops, save-the-date. " +
+      "content: editorial newsletters, blog digests, brand storytelling without a clear purchase CTA. " +
+      "loyalty: rewards programs, membership, re-engagement ('we miss you', 'come back'), VIP perks. " +
+      "transactional: receipts, order confirmations, shipping updates, invoices (rare in this dataset). " +
+      "seasonal: holiday or seasonal campaigns (Black Friday, Cyber Monday, Christmas, Summer sale). " +
+      "partnership: collaborations, brand partnerships ('teaming up with', 'collab'). " +
+      "company_news: rebrands, hiring announcements, milestones, funding, acquisitions. " +
+      "other: marketing emails that don't fit any of the above. " +
+      "Always call the classify_email tool exactly once; never reply with prose. " +
+      "Confidence is a number between 0 and 1 reflecting how certain you are. " +
+      "Reasoning must be one or two sentences explaining the decision.",
     tools: [
       {
         name: "classify_email",
