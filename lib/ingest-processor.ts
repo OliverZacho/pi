@@ -197,7 +197,8 @@ async function ingestEmailReceivedEvent(
   const espResult = detectEsp({
     headers,
     html,
-    links: metadata.links
+    links: metadata.links,
+    resourceHosts: metadata.resource_hosts
   });
 
   const classification = await classifyEmail({ subject, html, plainText });

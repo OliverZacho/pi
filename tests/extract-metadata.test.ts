@@ -6,6 +6,7 @@ import {
   extractLinks,
   extractMetadata,
   extractPreheader,
+  extractResourceHosts,
   extractSubjectMetadata
 } from "@/lib/extract-metadata";
 
@@ -144,6 +145,46 @@ describe("extractSubjectMetadata", () => {
     expect(extractSubjectMetadata("Hi {first_name}, welcome").has_personalization_token).toBe(true);
     expect(extractSubjectMetadata("Hi *|FNAME|*").has_personalization_token).toBe(true);
     expect(extractSubjectMetadata("No tokens here").has_personalization_token).toBe(false);
+  });
+});
+
+describe("extractResourceHosts", () => {
+  it("collects hostnames from anchors, images, link tags, and CSS @import / url()", () => {
+    const html = `
+      <html><head>
+        <link rel="stylesheet" href="https://cdn.klaviyo.com/styles.css" />
+        <style>
+          @import url(https://static-forms.klaviyo.com/fonts/custom_fonts.css);
+          .hero { background: url('https://images.brand.com/hero.png'); }
+        </style>
+      </head><body>
+        <a href="https://shop.brand.com/sale">Shop</a>
+        <img src="https://cdn.brand.com/logo.png" />
+      </body></html>
+    `;
+    const hosts = extractResourceHosts(html);
+    expect(hosts).toEqual(
+      expect.arrayContaining([
+        "cdn.klaviyo.com",
+        "static-forms.klaviyo.com",
+        "images.brand.com",
+        "shop.brand.com",
+        "cdn.brand.com"
+      ])
+    );
+  });
+
+  it("deduplicates and lowercases hosts", () => {
+    const html = `
+      <a href="https://Cdn.Brand.com/a">a</a>
+      <img src="https://cdn.brand.com/b.png" />
+    `;
+    const hosts = extractResourceHosts(html);
+    expect(hosts).toEqual(["cdn.brand.com"]);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(extractResourceHosts("")).toEqual([]);
   });
 });
 

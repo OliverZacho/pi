@@ -36,6 +36,7 @@ export type EmailMetadata = {
   image_to_text_ratio: number;
   links: ParsedLink[];
   link_domains: string[];
+  resource_hosts: string[];
   utm_index: ParsedLink["utm"][];
   subject_metadata: SubjectMetadata;
   auth_results: AuthResults | null;
@@ -70,6 +71,7 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
   const subjectMeta = extractSubjectMetadata(input.subject ?? "");
   const links = extractLinks(html);
   const linkDomains = uniqueLowercase(links.map((link) => link.host).filter(isNonNull));
+  const resourceHosts = extractResourceHosts(html);
   const utm_index = links
     .map((link) => link.utm)
     .filter((utm) => Object.values(utm).some((value) => value !== null));
@@ -88,10 +90,29 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
     image_to_text_ratio: Number(ratio.toFixed(4)),
     links,
     link_domains: linkDomains,
+    resource_hosts: resourceHosts,
     utm_index,
     subject_metadata: subjectMeta,
     auth_results: extractAuthResults(input.headers ?? null)
   };
+}
+
+const URL_LIKE_RE =
+  /https?:\/\/([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?:[\/:?#][^\s"'<>)]*)?/g;
+
+export function extractResourceHosts(html: string): string[] {
+  if (!html) {
+    return [];
+  }
+  const seen = new Set<string>();
+  for (const match of html.matchAll(URL_LIKE_RE)) {
+    const host = match[1]?.toLowerCase();
+    if (!host) {
+      continue;
+    }
+    seen.add(host);
+  }
+  return Array.from(seen);
 }
 
 export function extractPreheader(html: string): string | null {

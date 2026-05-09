@@ -40,6 +40,28 @@ describe("detectEsp", () => {
     expect(result.signals.length).toBeGreaterThan(0);
   });
 
+  it("identifies Klaviyo via @import CSS URL plus kl- template classes (no <a> link, no DKIM headers)", () => {
+    const html = `
+      <html><head>
+        <style>@import url(https://static-forms.klaviyo.com/fonts/api/v1/WJ7sXi/custom_fonts.css);</style>
+      </head><body>
+        <div class="kl-row colstack"><div class="kl-column">hi</div></div>
+        <a href="https://brand.com/sale">Shop</a>
+      </body></html>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [link("https://brand.com/sale")],
+      resourceHosts: ["static-forms.klaviyo.com"]
+    });
+    expect(result.provider).toBe("klaviyo");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker"])
+    );
+  });
+
   it("identifies HubSpot via _hsenc/_hsmi link parameters", () => {
     const result = detectEsp({
       headers: {

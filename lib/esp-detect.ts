@@ -34,6 +34,7 @@ export type DetectEspInput = {
   headers?: Record<string, string> | null;
   html?: string;
   links?: ParsedLink[];
+  resourceHosts?: string[];
 };
 
 type Fingerprint = {
@@ -71,7 +72,12 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)email\.klaviyomail\.com$/i,
       /(^|\.)d3k81ch9hvuctc\.cloudfront\.net$/i
     ],
-    htmlPatterns: [/klaviyo/i, /\b_kx\b/, /\b_ke\b/],
+    htmlPatterns: [
+      /klaviyo/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-(?:row|column|button|hlb|table-subblock|img-base-auto-width)\b/i,
+      /\b_kx\b/,
+      /\b_ke\b/
+    ],
     dkimPatterns: [/klaviyo\.com/i, /klaviyomail\.com/i, /sendgrid\.net/i],
     returnPathPatterns: [/bounces\.klaviyo\.com/i, /klaviyomail\.com/i],
     xHeaderNames: ["x-klaviyo-message-id", "x-klaviyo-account"]
@@ -218,6 +224,8 @@ const SIGNAL_WEIGHT: Record<EspSignal["kind"], number> = {
 
 const CONFIDENCE_THRESHOLD = 0.6;
 
+const MAX_HTML_MARKERS_PER_PROVIDER = 2;
+
 export function detectEsp(input: DetectEspInput): EspDetectionResult {
   const headerLookup = lowerCaseHeaders(input.headers ?? null);
   const dkimDomain = parseDkimDomain(headerLookup["dkim-signature"]);
@@ -227,7 +235,15 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
   const feedbackId = headerLookup["feedback-id"] ?? "";
   const html = input.html ?? "";
   const links = input.links ?? [];
-  const linkHosts = links.map((link) => link.host ?? "").filter(Boolean);
+  const linkHosts = new Set(
+    links.map((link) => link.host?.toLowerCase() ?? "").filter(Boolean)
+  );
+  for (const host of input.resourceHosts ?? []) {
+    if (host) {
+      linkHosts.add(host.toLowerCase());
+    }
+  }
+  const candidateHosts = [...linkHosts];
 
   const scoreByProvider = new Map<Exclude<EspProvider, "unknown">, number>();
   const signalsByProvider = new Map<Exclude<EspProvider, "unknown">, EspSignal[]>();
@@ -268,7 +284,7 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
 
     if (fp.hostPatterns) {
       for (const pattern of fp.hostPatterns) {
-        const matchedHost = linkHosts.find((host) => pattern.test(host));
+        const matchedHost = candidateHosts.find((host) => pattern.test(host));
         if (matchedHost) {
           addSignal(fp.provider, { kind: "link_host", detail: matchedHost });
           break;
@@ -281,11 +297,21 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
     }
 
     if (fp.htmlPatterns) {
+      let htmlMarkerCount = 0;
+      const seenDetails = new Set<string>();
       for (const pattern of fp.htmlPatterns) {
+        if (htmlMarkerCount >= MAX_HTML_MARKERS_PER_PROVIDER) {
+          break;
+        }
         const match = html.match(pattern);
         if (match) {
-          addSignal(fp.provider, { kind: "html_marker", detail: match[0].slice(0, 80) });
-          break;
+          const detail = match[0].slice(0, 80);
+          if (seenDetails.has(detail)) {
+            continue;
+          }
+          seenDetails.add(detail);
+          addSignal(fp.provider, { kind: "html_marker", detail });
+          htmlMarkerCount += 1;
         }
       }
     }
