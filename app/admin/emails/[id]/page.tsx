@@ -41,7 +41,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   mailgun: "Mailgun",
   postmark: "Postmark",
   amazon_ses: "Amazon SES",
-  mailjet: "Mailjet"
+  mailjet: "Mailjet",
+  apsis: "APSIS / Efficy"
 };
 
 function formatDateTime(value: string | null): string {

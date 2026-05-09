@@ -40,7 +40,8 @@ const VALID_ESP_PROVIDERS: EspProvider[] = [
   "mailgun",
   "postmark",
   "amazon_ses",
-  "mailjet"
+  "mailjet",
+  "apsis"
 ];
 
 function parseBoolean(raw: string | null): boolean | null {

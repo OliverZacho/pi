@@ -25,6 +25,7 @@ export type EspProvider =
   | "postmark"
   | "amazon_ses"
   | "mailjet"
+  | "apsis"
   | "unknown";
 
 export type EspSignal = {
@@ -322,6 +323,26 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/mailjet\.com/i],
     returnPathPatterns: [/mailjet\.com/i, /mjt\.lu/i],
     xHeaderNames: ["x-mj-id", "x-mj-mid", "x-mj-templateid"]
+  },
+  {
+    provider: "apsis",
+    hostPatterns: [
+      /(^|\.)apsis\.one$/i,
+      /(^|\.)tr\.apsis\.one$/i,
+      /(^|\.)images\.apsis\.one$/i,
+      /(^|\.)static\.images\.apsis\.one$/i,
+      /(^|\.)aonetrk\.com$/i,
+      /(^|\.)apsismail\.com$/i,
+      /(^|\.)anpdm\.com$/i
+    ],
+    htmlPatterns: [
+      /apsis\.one/i,
+      /\bdata-link-id\s*=\s*["']ln_/i,
+      /\baonetrk\.com\b/i
+    ],
+    dkimPatterns: [/apsis\.one/i, /apsismail\.com/i, /anpdm\.com/i, /efficy\.com/i],
+    returnPathPatterns: [/apsis\.one/i, /apsismail\.com/i, /anpdm\.com/i],
+    xHeaderNames: ["x-apsis-message-id", "x-apsis-mailing-id"]
   }
 ];
 

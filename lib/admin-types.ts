@@ -47,7 +47,8 @@ export type EspProvider =
   | "mailgun"
   | "postmark"
   | "amazon_ses"
-  | "mailjet";
+  | "mailjet"
+  | "apsis";
 
 export type CapturedEmail = {
   id: string;
