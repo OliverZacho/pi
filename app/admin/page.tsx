@@ -1,12 +1,124 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { AdminOverview } from "@/lib/admin-types";
+import Link from "next/link";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AdminOverview, EmailCategory, EspProvider } from "@/lib/admin-types";
+
+const ALL_CATEGORIES: EmailCategory[] = [
+  "sale",
+  "product_launch",
+  "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
+  "other"
+];
+
+const CATEGORY_LABELS: Record<EmailCategory, string> = {
+  sale: "Sale / Discount",
+  product_launch: "Product / Service launch",
+  event: "Event / Invite",
+  content: "Content / Editorial",
+  loyalty: "Loyalty / Retention",
+  transactional: "Transactional",
+  seasonal: "Seasonal / Campaign",
+  partnership: "Collaboration / Partnership",
+  company_news: "Company news",
+  other: "Other"
+};
+
+const ESP_PROVIDERS: EspProvider[] = [
+  "mailchimp",
+  "klaviyo",
+  "hubspot",
+  "sendgrid",
+  "braze",
+  "iterable",
+  "customerio",
+  "salesforce_mc",
+  "marketo",
+  "omnisend",
+  "activecampaign",
+  "constantcontact",
+  "drip",
+  "attentive",
+  "sendinblue",
+  "shopify_email",
+  "substack",
+  "beehiiv",
+  "convertkit",
+  "mailerlite",
+  "mailgun",
+  "postmark",
+  "amazon_ses",
+  "mailjet"
+];
+
+const ESP_LABELS: Record<EspProvider, string> = {
+  mailchimp: "Mailchimp",
+  klaviyo: "Klaviyo",
+  hubspot: "HubSpot",
+  sendgrid: "SendGrid",
+  braze: "Braze",
+  iterable: "Iterable",
+  customerio: "Customer.io",
+  salesforce_mc: "Salesforce MC",
+  marketo: "Marketo",
+  omnisend: "Omnisend",
+  activecampaign: "ActiveCampaign",
+  constantcontact: "Constant Contact",
+  drip: "Drip",
+  attentive: "Attentive",
+  sendinblue: "Brevo / Sendinblue",
+  shopify_email: "Shopify Email",
+  substack: "Substack",
+  beehiiv: "beehiiv",
+  convertkit: "ConvertKit / Kit",
+  mailerlite: "MailerLite",
+  mailgun: "Mailgun",
+  postmark: "Postmark",
+  amazon_ses: "Amazon SES",
+  mailjet: "Mailjet"
+};
+
+type EmailFilters = {
+  category: EmailCategory | "";
+  esp: EspProvider | "";
+  hasGif: boolean;
+  hasDarkMode: boolean;
+  hasPromoCode: boolean;
+  minDiscount: string;
+  receivedAfter: string;
+  receivedBefore: string;
+  search: string;
+};
+
+const EMPTY_FILTERS: EmailFilters = {
+  category: "",
+  esp: "",
+  hasGif: false,
+  hasDarkMode: false,
+  hasPromoCode: false,
+  minDiscount: "",
+  receivedAfter: "",
+  receivedBefore: "",
+  search: ""
+};
+
+function categoryLabel(slug: string): string {
+  if ((ALL_CATEGORIES as string[]).includes(slug)) {
+    return CATEGORY_LABELS[slug as EmailCategory];
+  }
+  return slug;
+}
 
 const defaultOverview: AdminOverview = {
   companies: [],
   emails: [],
-  categories: ["new_launch", "sale", "newsletter", "product_update", "event", "other"],
+  categories: ALL_CATEGORIES,
   storageNotes: "",
   pagination: { nextCursor: null, pageSize: 50 }
 };
@@ -38,19 +150,66 @@ function asOverview(value: unknown): AdminOverview {
   };
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+  return parsed.toLocaleString();
+}
+
 export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
+  const [market, setMarket] = useState("");
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [marketHighlight, setMarketHighlight] = useState(0);
+  const marketComboRef = useRef<HTMLDivElement>(null);
+  const [companySearch, setCompanySearch] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [filters, setFilters] = useState<EmailFilters>(EMPTY_FILTERS);
 
-  async function loadOverview() {
+  async function copySubscriptionEmail(email: string) {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(email);
+      }
+      setCopiedEmail(email);
+      window.setTimeout(() => {
+        setCopiedEmail((current) => (current === email ? null : current));
+      }, 1500);
+    } catch {
+      // ignore clipboard failures silently
+    }
+  }
+
+  const loadOverview = useCallback(async (active: EmailFilters) => {
     try {
       setLoading(true);
       setLoadError("");
-      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (active.category) params.set("category", active.category);
+      if (active.esp) params.set("esp", active.esp);
+      if (active.hasGif) params.set("hasGif", "true");
+      if (active.hasDarkMode) params.set("hasDarkMode", "true");
+      if (active.hasPromoCode) params.set("hasPromoCode", "true");
+      if (active.minDiscount) params.set("minDiscount", active.minDiscount);
+      if (active.receivedAfter) params.set("receivedAfter", active.receivedAfter);
+      if (active.receivedBefore) params.set("receivedBefore", active.receivedBefore);
+      if (active.search.trim()) params.set("search", active.search.trim());
+
+      const query = params.toString();
+      const response = await fetch(
+        query ? `/api/admin/overview?${query}` : "/api/admin/overview",
+        { cache: "no-store" }
+      );
       const data = (await response.json()) as unknown;
 
       if (!response.ok) {
@@ -67,30 +226,169 @@ export default function AdminHomePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadOverview();
-  }, []);
+    const handle = window.setTimeout(() => {
+      void loadOverview(filters);
+    }, 250);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [filters, loadOverview]);
 
   const stats = useMemo(
     () => ({
       companies: overview.companies.length,
       emails: overview.emails.length,
       sales: overview.emails.filter((mail) => mail.category === "sale").length,
-      launches: overview.emails.filter((mail) => mail.category === "new_launch").length
+      launches: overview.emails.filter((mail) => mail.category === "product_launch").length
     }),
     [overview]
   );
+
+  const existingMarkets = useMemo(() => {
+    const set = new Set<string>();
+    for (const company of overview.companies) {
+      const value = company.market?.trim();
+      if (value) {
+        set.add(value);
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [overview.companies]);
+
+  const trimmedMarket = market.trim();
+  const lowerTrimmed = trimmedMarket.toLowerCase();
+  const hasExactMatch = existingMarkets.some(
+    (option) => option.toLowerCase() === lowerTrimmed
+  );
+
+  type MarketOption =
+    | { kind: "existing"; value: string }
+    | { kind: "create"; value: string };
+
+  const marketOptions = useMemo<MarketOption[]>(() => {
+    const filtered = lowerTrimmed
+      ? existingMarkets.filter((option) =>
+          option.toLowerCase().includes(lowerTrimmed)
+        )
+      : existingMarkets;
+    const list: MarketOption[] = filtered.map((value) => ({
+      kind: "existing",
+      value
+    }));
+    if (trimmedMarket.length > 0 && !hasExactMatch) {
+      list.push({ kind: "create", value: trimmedMarket });
+    }
+    return list;
+  }, [existingMarkets, trimmedMarket, lowerTrimmed, hasExactMatch]);
+
+  useEffect(() => {
+    if (marketHighlight >= marketOptions.length) {
+      setMarketHighlight(0);
+    }
+  }, [marketOptions, marketHighlight]);
+
+  useEffect(() => {
+    function onDocumentMouseDown(event: MouseEvent) {
+      if (!marketComboRef.current) {
+        return;
+      }
+      if (!marketComboRef.current.contains(event.target as Node)) {
+        setMarketOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentMouseDown);
+    };
+  }, []);
+
+  function selectMarketOption(option: MarketOption) {
+    setMarket(option.value);
+    setMarketOpen(false);
+    setMarketHighlight(0);
+  }
+
+  function onMarketKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setMarketOpen(true);
+      if (marketOptions.length > 0) {
+        setMarketHighlight((index) => (index + 1) % marketOptions.length);
+      }
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setMarketOpen(true);
+      if (marketOptions.length > 0) {
+        setMarketHighlight(
+          (index) =>
+            (index - 1 + marketOptions.length) % marketOptions.length
+        );
+      }
+    } else if (event.key === "Enter") {
+      if (marketOpen && marketOptions.length > 0) {
+        event.preventDefault();
+        const choice = marketOptions[marketHighlight] ?? marketOptions[0];
+        if (choice) {
+          selectMarketOption(choice);
+        }
+      }
+    } else if (event.key === "Escape") {
+      if (marketOpen) {
+        event.preventDefault();
+        setMarketOpen(false);
+      }
+    } else if (event.key === "Tab") {
+      setMarketOpen(false);
+    }
+  }
+
+  const sortedCompanies = useMemo(() => {
+    const copy = [...overview.companies];
+    copy.sort((a, b) => {
+      const aHas = a.lastEmailAt ? 1 : 0;
+      const bHas = b.lastEmailAt ? 1 : 0;
+      if (aHas !== bHas) {
+        return bHas - aHas;
+      }
+      if (a.lastEmailAt && b.lastEmailAt) {
+        return new Date(b.lastEmailAt).getTime() - new Date(a.lastEmailAt).getTime();
+      }
+      return new Date(b.subscribedAt).getTime() - new Date(a.subscribedAt).getTime();
+    });
+    return copy;
+  }, [overview.companies]);
+
+  const filteredCompanies = useMemo(() => {
+    const query = companySearch.trim().toLowerCase();
+    if (!query) {
+      return sortedCompanies;
+    }
+    return sortedCompanies.filter((company) => {
+      const haystack = [
+        company.name,
+        company.domain,
+        company.market ?? "",
+        company.subscriptionEmail
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [sortedCompanies, companySearch]);
 
   async function onCreateCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
+    const resolvedMarket = market.trim();
+
     const response = await fetch("/api/admin/companies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, domain })
+      body: JSON.stringify({ name, domain, market: resolvedMarket || null })
     });
 
     if (!response.ok) {
@@ -101,7 +399,9 @@ export default function AdminHomePage() {
 
     setName("");
     setDomain("");
-    await loadOverview();
+    setMarket("");
+    setMarketOpen(false);
+    await loadOverview(filters);
   }
 
   return (
@@ -129,11 +429,11 @@ export default function AdminHomePage() {
           <p>{stats.emails}</p>
         </article>
         <article className="card">
-          <h2>Sales Emails</h2>
+          <h2>Sales / Discounts</h2>
           <p>{stats.sales}</p>
         </article>
         <article className="card">
-          <h2>Launch Emails</h2>
+          <h2>Product Launches</h2>
           <p>{stats.launches}</p>
         </article>
       </section>
@@ -143,7 +443,7 @@ export default function AdminHomePage() {
         <p>
           Generates a unique sender like <code>company-yyyymmdd@pirol.app</code> for each newsletter signup.
         </p>
-        <form className="inline-form" onSubmit={onCreateCompany}>
+        <form className="inline-form with-market" onSubmit={onCreateCompany}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -158,6 +458,104 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
+          <div className="combobox" ref={marketComboRef}>
+            <div className="combobox-field">
+              <input
+                className="combobox-input"
+                value={market}
+                onChange={(e) => {
+                  setMarket(e.target.value);
+                  setMarketOpen(true);
+                  setMarketHighlight(0);
+                }}
+                onFocus={() => setMarketOpen(true)}
+                onKeyDown={onMarketKeyDown}
+                placeholder="Market (e.g. fashion, museum)"
+                aria-label="Market"
+                role="combobox"
+                aria-expanded={marketOpen}
+                aria-controls="market-listbox"
+                aria-autocomplete="list"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="combobox-chevron"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setMarketOpen((open) => !open);
+                }}
+                tabIndex={-1}
+                aria-label={marketOpen ? "Close markets" : "Open markets"}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className={marketOpen ? "chevron-open" : ""}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+            {marketOpen ? (
+              <div
+                id="market-listbox"
+                role="listbox"
+                className="combobox-popover"
+              >
+                {marketOptions.length === 0 ? (
+                  <div className="combobox-empty">
+                    {existingMarkets.length === 0
+                      ? "No markets yet — type to add one"
+                      : "No matches"}
+                  </div>
+                ) : (
+                  marketOptions.map((option, index) => {
+                    const isHighlighted = index === marketHighlight;
+                    const className = `combobox-option${
+                      isHighlighted ? " highlighted" : ""
+                    }${option.kind === "create" ? " is-create" : ""}`;
+                    return (
+                      <button
+                        key={`${option.kind}:${option.value}`}
+                        type="button"
+                        role="option"
+                        aria-selected={isHighlighted}
+                        className={className}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectMarketOption(option);
+                        }}
+                        onMouseEnter={() => setMarketHighlight(index)}
+                      >
+                        {option.kind === "create" ? (
+                          <>
+                            <span className="combobox-option-prefix">
+                              Add
+                            </span>
+                            <span className="combobox-option-value">
+                              &ldquo;{option.value}&rdquo;
+                            </span>
+                          </>
+                        ) : (
+                          <span className="combobox-option-value">
+                            {option.value}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
+          </div>
           <button type="submit">Create</button>
         </form>
         {error ? <p className="error">{error}</p> : null}
@@ -165,29 +563,102 @@ export default function AdminHomePage() {
 
       <section className="card">
         <h2>Subscribed Companies</h2>
+        <div className="section-toolbar">
+          <input
+            className="search-input"
+            type="search"
+            value={companySearch}
+            onChange={(e) => setCompanySearch(e.target.value)}
+            placeholder="Search by name, domain, market, or email"
+            aria-label="Search companies"
+          />
+          <span className="muted">
+            {filteredCompanies.length} of {sortedCompanies.length} shown
+          </span>
+        </div>
         {loading ? (
           <p>Loading...</p>
-        ) : overview.companies.length === 0 ? (
+        ) : sortedCompanies.length === 0 ? (
           <p>No companies subscribed yet.</p>
+        ) : filteredCompanies.length === 0 ? (
+          <p>No companies match your search.</p>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>Company</th>
+                <th>Market</th>
                 <th>Domain</th>
                 <th>Subscription Email</th>
                 <th>Subscribed Since</th>
+                <th className="numeric">Emails</th>
+                <th>Last Email</th>
               </tr>
             </thead>
             <tbody>
-              {overview.companies.map((company) => (
+              {filteredCompanies.map((company) => (
                 <tr key={company.id}>
                   <td>{company.name}</td>
+                  <td>{company.market ? company.market : <span className="dim">-</span>}</td>
                   <td>{company.domain}</td>
                   <td>
-                    <code>{company.subscriptionEmail}</code>
+                    <span className="email-cell">
+                      <code>{company.subscriptionEmail}</code>
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() => {
+                          void copySubscriptionEmail(company.subscriptionEmail);
+                        }}
+                        aria-label={`Copy ${company.subscriptionEmail}`}
+                        title={
+                          copiedEmail === company.subscriptionEmail
+                            ? "Copied!"
+                            : "Copy email"
+                        }
+                      >
+                        {copiedEmail === company.subscriptionEmail ? (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        )}
+                      </button>
+                    </span>
                   </td>
-                  <td>{new Date(company.subscribedAt).toLocaleString()}</td>
+                  <td>{formatDateTime(company.subscribedAt)}</td>
+                  <td className="numeric">{company.emailCount}</td>
+                  <td>
+                    {company.lastEmailAt ? (
+                      formatDateTime(company.lastEmailAt)
+                    ) : (
+                      <span className="dim">never</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -198,9 +669,139 @@ export default function AdminHomePage() {
       <section className="card">
         <h2>Recent Emails + Classification</h2>
         <p>Classification source can be rule-based now and LLM-provided when available in webhook payload.</p>
-        {overview.emails.length === 0 ? (
+
+        <div className="filter-bar">
+          <label>
+            <span>Search</span>
+            <input
+              type="search"
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, search: event.target.value }))
+              }
+              placeholder="Subject or sender"
+            />
+          </label>
+          <label>
+            <span>Category</span>
+            <select
+              value={filters.category}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  category: event.target.value as EmailCategory | ""
+                }))
+              }
+            >
+              <option value="">All categories</option>
+              {ALL_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_LABELS[cat]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>ESP</span>
+            <select
+              value={filters.esp}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  esp: event.target.value as EspProvider | ""
+                }))
+              }
+            >
+              <option value="">All providers</option>
+              {ESP_PROVIDERS.map((provider) => (
+                <option key={provider} value={provider}>
+                  {ESP_LABELS[provider]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Min discount %</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={5}
+              value={filters.minDiscount}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, minDiscount: event.target.value }))
+              }
+              placeholder="e.g. 20"
+            />
+          </label>
+          <label>
+            <span>Received after</span>
+            <input
+              type="date"
+              value={filters.receivedAfter}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, receivedAfter: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>Received before</span>
+            <input
+              type="date"
+              value={filters.receivedBefore}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, receivedBefore: event.target.value }))
+              }
+            />
+          </label>
+        </div>
+
+        <div className="filter-toggles">
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasGif}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasGif: event.target.checked }))
+              }
+            />
+            Has GIF
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasDarkMode}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasDarkMode: event.target.checked }))
+              }
+            />
+            Dark mode
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={filters.hasPromoCode}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, hasPromoCode: event.target.checked }))
+              }
+            />
+            Has promo code
+          </label>
+        </div>
+
+        <div className="filter-actions">
+          <span className="muted">{overview.emails.length} email{overview.emails.length === 1 ? "" : "s"} shown</span>
+          <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>
+            Reset filters
+          </button>
+        </div>
+
+        {loading ? (
+          <p>Loading...</p>
+        ) : overview.emails.length === 0 ? (
           <p>
-            No emails ingested yet. Post to <code>/api/webhooks/resend</code> to test.
+            No emails match the current filters. Post to{" "}
+            <code>/api/webhooks/resend</code> to ingest more.
           </p>
         ) : (
           <table>
@@ -209,22 +810,58 @@ export default function AdminHomePage() {
                 <th>Company</th>
                 <th>Subject</th>
                 <th>Category</th>
+                <th>ESP</th>
+                <th>Signals</th>
                 <th>Source</th>
-                <th>Images</th>
-                <th>Sent At</th>
+                <th className="numeric">Images</th>
+                <th>Received</th>
               </tr>
             </thead>
             <tbody>
               {overview.emails.map((email) => (
                 <tr key={email.id}>
                   <td>{email.companyName}</td>
-                  <td>{email.subject}</td>
                   <td>
-                    <code>{email.category}</code>
+                    <Link href={`/admin/emails/${email.id}`} className="subject-link">
+                      <div className="subject-cell">
+                        <span className="subject-text">{email.subject}</span>
+                        {email.preheader ? (
+                          <span className="preheader-text">{email.preheader}</span>
+                        ) : null}
+                      </div>
+                    </Link>
+                  </td>
+                  <td>{categoryLabel(email.category)}</td>
+                  <td>
+                    {email.espProvider ? (
+                      <span className="badge esp">{ESP_LABELS[email.espProvider]}</span>
+                    ) : (
+                      <span className="dim">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="badge-row">
+                      {email.discountPercent !== null ? (
+                        <span className="badge discount">
+                          {Math.round(email.discountPercent)}% off
+                        </span>
+                      ) : null}
+                      {email.promoCode ? (
+                        <span className="badge promo">{email.promoCode}</span>
+                      ) : null}
+                      {email.hasGif ? <span className="badge gif">GIF</span> : null}
+                      {email.hasDarkMode ? <span className="badge dark">Dark</span> : null}
+                      {email.discountPercent === null &&
+                      !email.promoCode &&
+                      !email.hasGif &&
+                      !email.hasDarkMode ? (
+                        <span className="dim">-</span>
+                      ) : null}
+                    </div>
                   </td>
                   <td>{email.classificationSource}</td>
-                  <td>{email.imageUrls.length}</td>
-                  <td>{new Date(email.sentAt).toLocaleString()}</td>
+                  <td className="numeric">{email.imageUrls.length}</td>
+                  <td>{formatDateTime(email.receivedAt)}</td>
                 </tr>
               ))}
             </tbody>

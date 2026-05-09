@@ -1,9 +1,13 @@
 export type EmailCategory =
-  | "new_launch"
   | "sale"
-  | "newsletter"
-  | "product_update"
+  | "product_launch"
   | "event"
+  | "content"
+  | "loyalty"
+  | "transactional"
+  | "seasonal"
+  | "partnership"
+  | "company_news"
   | "other";
 
 export type ClassificationSource = "rules" | "llm" | "manual";
@@ -12,9 +16,38 @@ export type CompanySubscription = {
   id: string;
   name: string;
   domain: string;
+  market: string | null;
   subscriptionEmail: string;
   subscribedAt: string;
+  emailCount: number;
+  lastEmailAt: string | null;
 };
+
+export type EspProvider =
+  | "mailchimp"
+  | "klaviyo"
+  | "hubspot"
+  | "sendgrid"
+  | "braze"
+  | "iterable"
+  | "customerio"
+  | "salesforce_mc"
+  | "marketo"
+  | "omnisend"
+  | "activecampaign"
+  | "constantcontact"
+  | "drip"
+  | "attentive"
+  | "sendinblue"
+  | "shopify_email"
+  | "substack"
+  | "beehiiv"
+  | "convertkit"
+  | "mailerlite"
+  | "mailgun"
+  | "postmark"
+  | "amazon_ses"
+  | "mailjet";
 
 export type CapturedEmail = {
   id: string;
@@ -27,8 +60,20 @@ export type CapturedEmail = {
   html: string;
   imageUrls: string[];
   category: EmailCategory;
+  subcategory: string | null;
   classificationSource: ClassificationSource;
   classificationConfidence: number;
+  espProvider: EspProvider | null;
+  espConfidence: number | null;
+  preheader: string | null;
+  hasGif: boolean;
+  hasDarkMode: boolean;
+  discountPercent: number | null;
+  discountAmount: number | null;
+  currency: string | null;
+  promoCode: string | null;
+  primaryCtaText: string | null;
+  primaryCtaUrl: string | null;
 };
 
 export type CapturedEmailDetail = CapturedEmail & {
@@ -39,6 +84,8 @@ export type CapturedEmailDetail = CapturedEmail & {
   llmModel: string | null;
   llmReasoning: string | null;
   processedAt: string | null;
+  authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
+  metadata: Record<string, unknown> | null;
 };
 
 export type AdminOverview = {

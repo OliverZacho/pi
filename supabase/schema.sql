@@ -4,6 +4,7 @@ create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   domain text not null,
+  market text,
   subscribed_since timestamptz not null default now(),
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -40,14 +41,46 @@ create table if not exists public.captured_emails (
   plain_text text,
   image_urls text[] not null default '{}',
   remote_image_urls text[] not null default '{}',
-  category text not null default 'other' check (category in ('new_launch', 'sale', 'newsletter', 'product_update', 'event', 'other')),
+  category text not null default 'other' check (category in (
+    'sale',
+    'product_launch',
+    'event',
+    'content',
+    'loyalty',
+    'transactional',
+    'seasonal',
+    'partnership',
+    'company_news',
+    'other'
+  )),
+  subcategory text,
   classification_source text not null default 'rules' check (classification_source in ('rules', 'llm', 'manual')),
   classification_confidence numeric(4, 3) not null default 0.0 check (classification_confidence >= 0 and classification_confidence <= 1),
   llm_model text,
   llm_reasoning text,
   raw_payload jsonb not null default '{}'::jsonb,
   processed_at timestamptz,
-  created_at timestamptz not null default now()
+  esp_provider text,
+  esp_confidence numeric(4, 3),
+  esp_signals jsonb,
+  preheader text,
+  has_gif boolean not null default false,
+  has_dark_mode boolean not null default false,
+  discount_percent numeric(5, 2),
+  discount_amount numeric(10, 2),
+  currency text,
+  promo_code text,
+  primary_cta_text text,
+  primary_cta_url text,
+  auth_results jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint captured_emails_esp_confidence_range
+    check (esp_confidence is null or (esp_confidence >= 0 and esp_confidence <= 1)),
+  constraint captured_emails_discount_percent_range
+    check (discount_percent is null or (discount_percent >= 0 and discount_percent <= 100)),
+  constraint captured_emails_currency_format
+    check (currency is null or currency ~ '^[A-Za-z]{3}$')
 );
 
 create unique index if not exists captured_emails_resend_message_unique
@@ -60,6 +93,36 @@ create index if not exists captured_emails_received_at_idx on public.captured_em
 create index if not exists captured_emails_category_idx on public.captured_emails (category);
 create index if not exists captured_emails_company_received_idx on public.captured_emails (company_id, received_at desc);
 create index if not exists captured_emails_classification_source_idx on public.captured_emails (classification_source);
+create index if not exists captured_emails_esp_provider_idx
+  on public.captured_emails (esp_provider)
+  where esp_provider is not null;
+create index if not exists captured_emails_discount_percent_idx
+  on public.captured_emails (received_at desc)
+  where discount_percent is not null;
+create index if not exists captured_emails_has_gif_idx
+  on public.captured_emails (has_gif)
+  where has_gif = true;
+create index if not exists captured_emails_has_dark_mode_idx
+  on public.captured_emails (has_dark_mode)
+  where has_dark_mode = true;
+create index if not exists captured_emails_promo_code_idx
+  on public.captured_emails (promo_code)
+  where promo_code is not null;
+
+create table if not exists public.email_products (
+  id uuid primary key default gen_random_uuid(),
+  email_id uuid not null references public.captured_emails(id) on delete cascade,
+  name text,
+  price numeric(10, 2),
+  currency text,
+  discount_percent numeric(5, 2),
+  image_storage_path text,
+  source_url text,
+  bbox jsonb,
+  extracted_at timestamptz not null default now()
+);
+
+create index if not exists email_products_email_id_idx on public.email_products (email_id);
 
 create table if not exists public.webhook_events (
   id uuid primary key default gen_random_uuid(),
@@ -103,6 +166,7 @@ alter table public.companies enable row level security;
 alter table public.company_inboxes enable row level security;
 alter table public.captured_emails enable row level security;
 alter table public.webhook_events enable row level security;
+alter table public.email_products enable row level security;
 
 do $$
 begin
@@ -148,6 +212,18 @@ begin
   ) then
     create policy service_role_full_access_webhook_events
     on public.webhook_events
+    for all
+    to service_role
+    using (true)
+    with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'email_products' and policyname = 'service_role_full_access_email_products'
+  ) then
+    create policy service_role_full_access_email_products
+    on public.email_products
     for all
     to service_role
     using (true)
@@ -202,11 +278,20 @@ to authenticated
 using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
 with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
 
+drop policy if exists email_products_admin_all on public.email_products;
+create policy email_products_admin_all
+on public.email_products
+for all
+to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
 grant select on public.admin_users to authenticated;
 grant select, insert, update, delete on public.companies to authenticated;
 grant select, insert, update, delete on public.company_inboxes to authenticated;
 grant select, insert, update, delete on public.captured_emails to authenticated;
 grant select, insert, update, delete on public.webhook_events to authenticated;
+grant select, insert, update, delete on public.email_products to authenticated;
 
 create or replace function public.claim_webhook_events(batch_limit integer default 5)
 returns setof public.webhook_events
@@ -235,3 +320,16 @@ $$;
 
 revoke all on function public.claim_webhook_events(integer) from public;
 revoke all on function public.claim_webhook_events(integer) from anon, authenticated;
+
+create or replace view public.company_email_stats
+with (security_invoker = true) as
+select
+  company_id,
+  count(*)::int as email_count,
+  max(received_at) as last_received_at
+from public.captured_emails
+where company_id is not null
+group by company_id;
+
+grant select on public.company_email_stats to authenticated;
+grant select on public.company_email_stats to service_role;

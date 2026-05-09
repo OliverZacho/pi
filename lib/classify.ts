@@ -9,11 +9,15 @@ const PROMPT_TEXT_LIMIT = 4_000;
 const LLM_TIMEOUT_MS = 15_000;
 
 const CATEGORY_VALUES: EmailCategory[] = [
-  "new_launch",
   "sale",
-  "newsletter",
-  "product_update",
+  "product_launch",
   "event",
+  "content",
+  "loyalty",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
   "other"
 ];
 
@@ -26,10 +30,28 @@ export type ClassifierInput = {
 export type ClassificationResult = {
   category: EmailCategory;
   confidence: number;
-  source: "rules" | "llm";
+  source: "rules" | "llm" | "manual";
   model?: string;
   reasoning?: string;
   llmError?: string;
+  discountPercent?: number | null;
+  discountAmount?: number | null;
+  currency?: string | null;
+  promoCode?: string | null;
+  primaryCtaText?: string | null;
+  primaryCtaUrlHint?: string | null;
+};
+
+type LlmExtraction = {
+  category: EmailCategory;
+  confidence: number;
+  reasoning: string;
+  discountPercent: number | null;
+  discountAmount: number | null;
+  currency: string | null;
+  promoCode: string | null;
+  primaryCtaText: string | null;
+  primaryCtaUrlHint: string | null;
 };
 
 function getModel(): string {
@@ -38,61 +60,101 @@ function getModel(): string {
 
 export async function classifyEmail(input: ClassifierInput): Promise<ClassificationResult> {
   const rules = classifyFromRules(input.subject, input.html);
-
-  if (rules.confidence >= RULES_TRUST_THRESHOLD) {
-    return {
-      category: rules.category,
-      confidence: rules.confidence,
-      source: "rules"
-    };
-  }
-
   const apiKey = process.env.ANTHROPIC_API_KEY;
+
   if (!apiKey) {
     return {
       category: rules.category,
       confidence: rules.confidence,
       source: "rules",
-      llmError: "ANTHROPIC_API_KEY not configured"
+      llmError: "ANTHROPIC_API_KEY not configured",
+      discountPercent: null,
+      discountAmount: null,
+      currency: null,
+      promoCode: null,
+      primaryCtaText: null,
+      primaryCtaUrlHint: null
     };
   }
 
+  let llm: LlmExtraction | null = null;
+  let llmError: string | undefined;
+
   try {
-    const llm = await classifyWithAnthropic(input, apiKey);
-    return {
-      category: llm.category,
-      confidence: llm.confidence,
-      source: "llm",
-      model: getModel(),
-      reasoning: llm.reasoning
-    };
+    llm = await classifyWithAnthropic(input, apiKey);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown llm error";
+    llmError = error instanceof Error ? error.message : "unknown llm error";
+  }
+
+  if (!llm) {
     return {
       category: rules.category,
       confidence: rules.confidence,
       source: "rules",
-      llmError: message
+      llmError,
+      discountPercent: null,
+      discountAmount: null,
+      currency: null,
+      promoCode: null,
+      primaryCtaText: null,
+      primaryCtaUrlHint: null
     };
   }
+
+  const useRulesCategory = rules.confidence >= RULES_TRUST_THRESHOLD;
+
+  return {
+    category: useRulesCategory ? rules.category : llm.category,
+    confidence: useRulesCategory ? rules.confidence : llm.confidence,
+    source: useRulesCategory ? "rules" : "llm",
+    model: getModel(),
+    reasoning: llm.reasoning,
+    discountPercent: llm.discountPercent,
+    discountAmount: llm.discountAmount,
+    currency: llm.currency,
+    promoCode: llm.promoCode,
+    primaryCtaText: llm.primaryCtaText,
+    primaryCtaUrlHint: llm.primaryCtaUrlHint
+  };
 }
 
 async function classifyWithAnthropic(
   input: ClassifierInput,
   apiKey: string
-): Promise<{ category: EmailCategory; confidence: number; reasoning: string }> {
+): Promise<LlmExtraction> {
   const promptText = (input.plainText ?? stripHtml(input.html)).slice(0, PROMPT_TEXT_LIMIT);
 
   const body = {
     model: getModel(),
-    max_tokens: 256,
+    max_tokens: 512,
     temperature: 0,
     system:
-      "You classify marketing emails sent by competitor brands into one of six categories: new_launch, sale, newsletter, product_update, event, other. Always call the classify_email tool exactly once; never reply with prose. Confidence is a number between 0 and 1 reflecting how certain you are. Reasoning must be one or two sentences explaining the decision.",
+      "You analyze marketing emails sent by competitor brands. " +
+      "You must always call the classify_email tool exactly once; never reply with prose. " +
+      "Categories: " +
+      "sale: discounts, promotions, percent-off, coupons, deals. " +
+      "product_launch: announcing a new product or service ('introducing', 'now available', 'just launched'). " +
+      "event: invites to webinars, conferences, RSVPs, workshops, save-the-date. " +
+      "content: editorial newsletters, blog digests, brand storytelling without a clear purchase CTA. " +
+      "loyalty: rewards programs, membership, re-engagement ('we miss you', 'come back'), VIP perks. " +
+      "transactional: receipts, order confirmations, shipping updates, invoices (rare in this dataset). " +
+      "seasonal: holiday or seasonal campaigns (Black Friday, Cyber Monday, Christmas, Summer sale). " +
+      "partnership: collaborations, brand partnerships ('teaming up with', 'collab'). " +
+      "company_news: rebrands, hiring announcements, milestones, funding, acquisitions. " +
+      "other: marketing emails that don't fit any of the above. " +
+      "Confidence is a number between 0 and 1 reflecting how certain you are about the category. " +
+      "Reasoning must be one or two sentences explaining the decision. " +
+      "Structured extraction (return null when not present): " +
+      "discount_percent: the largest discount percentage offered (0-100), null if no percentage discount. " +
+      "discount_amount: a fixed-amount discount in the email's currency, null if not a fixed amount. " +
+      "currency: 3-letter ISO code (e.g. USD, EUR, GBP, DKK) when an amount or price is shown, else null. " +
+      "promo_code: the literal promo/coupon code (e.g. SPRING25), null if none. " +
+      "primary_cta_text: the visible label of the most prominent call-to-action button. " +
+      "primary_cta_url_hint: the URL or domain of that CTA when known, else null.",
     tools: [
       {
         name: "classify_email",
-        description: "Record the classification for a marketing email.",
+        description: "Classify a marketing email and extract structured campaign details.",
         input_schema: {
           type: "object",
           additionalProperties: false,
@@ -109,6 +171,32 @@ async function classifyWithAnthropic(
             reasoning: {
               type: "string",
               minLength: 1,
+              maxLength: 500
+            },
+            discount_percent: {
+              type: ["number", "null"],
+              minimum: 0,
+              maximum: 100
+            },
+            discount_amount: {
+              type: ["number", "null"],
+              minimum: 0
+            },
+            currency: {
+              type: ["string", "null"],
+              minLength: 3,
+              maxLength: 3
+            },
+            promo_code: {
+              type: ["string", "null"],
+              maxLength: 64
+            },
+            primary_cta_text: {
+              type: ["string", "null"],
+              maxLength: 120
+            },
+            primary_cta_url_hint: {
+              type: ["string", "null"],
               maxLength: 500
             }
           },
@@ -153,7 +241,7 @@ async function classifyWithAnthropic(
     content?: Array<{
       type: string;
       name?: string;
-      input?: { category?: string; confidence?: number; reasoning?: string };
+      input?: Record<string, unknown>;
     }>;
   };
 
@@ -167,18 +255,62 @@ async function classifyWithAnthropic(
 
   const candidate = toolBlock.input;
 
-  if (!candidate.category || !CATEGORY_VALUES.includes(candidate.category as EmailCategory)) {
-    throw new Error(`anthropic returned unknown category: ${candidate.category}`);
+  const categoryRaw = candidate.category;
+  if (
+    typeof categoryRaw !== "string" ||
+    !CATEGORY_VALUES.includes(categoryRaw as EmailCategory)
+  ) {
+    throw new Error(`anthropic returned unknown category: ${String(categoryRaw)}`);
   }
 
-  const confidence = typeof candidate.confidence === "number" ? candidate.confidence : 0.5;
-  const clamped = Math.max(0, Math.min(1, confidence));
+  const confidenceRaw = candidate.confidence;
+  const confidence = typeof confidenceRaw === "number" ? confidenceRaw : 0.5;
+  const clampedConfidence = Math.max(0, Math.min(1, confidence));
 
   return {
-    category: candidate.category as EmailCategory,
-    confidence: clamped,
-    reasoning: typeof candidate.reasoning === "string" ? candidate.reasoning : ""
+    category: categoryRaw as EmailCategory,
+    confidence: clampedConfidence,
+    reasoning: typeof candidate.reasoning === "string" ? candidate.reasoning : "",
+    discountPercent: clampNumberInRange(candidate.discount_percent, 0, 100),
+    discountAmount: clampNumberInRange(candidate.discount_amount, 0, 1_000_000),
+    currency: normalizeCurrency(candidate.currency),
+    promoCode: normalizeShortString(candidate.promo_code, 64),
+    primaryCtaText: normalizeShortString(candidate.primary_cta_text, 120),
+    primaryCtaUrlHint: normalizeShortString(candidate.primary_cta_url_hint, 500)
   };
+}
+
+function clampNumberInRange(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) {
+    return null;
+  }
+  return Math.max(min, Math.min(max, n));
+}
+
+function normalizeCurrency(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function normalizeShortString(value: unknown, maxLen: number): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, maxLen);
 }
 
 function stripHtml(html: string): string {

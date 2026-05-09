@@ -1,10 +1,17 @@
 import type { Resend } from "resend";
 import { storeProcessedEmail } from "./admin-db";
+import type { EmailCategory } from "./admin-types";
 import { classifyEmail } from "./classify";
 import { extractImageUrlsFromHtml } from "./email-utils";
+import { detectEsp } from "./esp-detect";
+import { extractMetadata, type ParsedLink } from "./extract-metadata";
 import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
+import {
+  extractProductsFromHeroImage,
+  persistExtractedProducts
+} from "./vision-classify";
 import type { TablesUpdate } from "@/types/supabase";
 
 type WebhookEventUpdate = TablesUpdate<"webhook_events">;
@@ -154,6 +161,7 @@ async function ingestEmailReceivedEvent(
   const html = full.html ?? full.text ?? "";
   const plainText = full.text ?? undefined;
   const subject = full.subject ?? "(no subject)";
+  const headers = (full as { headers?: Record<string, string> | null }).headers ?? null;
 
   const recipientCandidates = [
     ...(full.to ?? []),
@@ -177,9 +185,41 @@ async function ingestEmailReceivedEvent(
 
   const htmlStoragePath = await uploadEmailHtml(full.id, html);
   const mirror = await mirrorRemoteImages(full.id, remoteImageUrls);
+
+  const metadata = extractMetadata({
+    subject,
+    html,
+    plainText,
+    mirroredAssets: mirror.stored,
+    headers
+  });
+
+  const espResult = detectEsp({
+    headers,
+    html,
+    links: metadata.links,
+    resourceHosts: metadata.resource_hosts
+  });
+
   const classification = await classifyEmail({ subject, html, plainText });
 
-  return storeProcessedEmail({
+  const primaryCtaUrl = resolvePrimaryCtaUrl(
+    classification.primaryCtaUrlHint ?? null,
+    metadata.links
+  );
+
+  const enrichmentMetadata = {
+    link_domains: metadata.link_domains,
+    utm_index: metadata.utm_index,
+    subject_metadata: metadata.subject_metadata,
+    word_count: metadata.word_count,
+    image_count: metadata.image_count,
+    image_to_text_ratio: metadata.image_to_text_ratio,
+    has_amp_html: metadata.has_amp_html,
+    esp_candidates: espResult.candidates
+  };
+
+  const stored = await storeProcessedEmail({
     resendId: full.id,
     toCandidates: recipientCandidates,
     from: full.from,
@@ -196,9 +236,104 @@ async function ingestEmailReceivedEvent(
       confidence: classification.confidence,
       source: classification.source,
       model: classification.model,
-      reasoning: classification.reasoning
+      reasoning: classification.reasoning,
+      discountPercent: classification.discountPercent ?? null,
+      discountAmount: classification.discountAmount ?? null,
+      currency: classification.currency ?? null,
+      promoCode: classification.promoCode ?? null,
+      primaryCtaText: classification.primaryCtaText ?? null,
+      primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null
+    },
+    enrichment: {
+      espProvider: espResult.provider === "unknown" ? null : espResult.provider,
+      espConfidence: espResult.confidence,
+      espSignals: espResult.signals,
+      preheader: metadata.preheader,
+      hasGif: metadata.has_gif,
+      hasDarkMode: metadata.has_dark_mode,
+      primaryCtaUrl,
+      authResults: metadata.auth_results,
+      metadata: enrichmentMetadata
     }
   });
+
+  if (!stored.deduplicated) {
+    await runVisionExtractionStage({
+      emailId: stored.id,
+      category: classification.category,
+      imageToTextRatio: metadata.image_to_text_ratio,
+      mirroredAssets: mirror.stored
+    });
+  }
+
+  return stored;
+}
+
+async function runVisionExtractionStage(args: {
+  emailId: string;
+  category: EmailCategory;
+  imageToTextRatio: number;
+  mirroredAssets: Awaited<ReturnType<typeof mirrorRemoteImages>>["stored"];
+}): Promise<void> {
+  try {
+    const result = await extractProductsFromHeroImage({
+      category: args.category,
+      imageToTextRatio: args.imageToTextRatio,
+      mirroredAssets: args.mirroredAssets
+    });
+
+    if (result.error) {
+      console.warn("Vision extraction failed (non-blocking)", {
+        emailId: args.emailId,
+        error: result.error
+      });
+      return;
+    }
+
+    if (!result.attempted || result.products.length === 0) {
+      return;
+    }
+
+    await persistExtractedProducts(args.emailId, result);
+  } catch (error) {
+    console.warn("Vision extraction threw (non-blocking)", {
+      emailId: args.emailId,
+      error: error instanceof Error ? error.message : "unknown vision error"
+    });
+  }
+}
+
+function resolvePrimaryCtaUrl(
+  hint: string | null,
+  links: ParsedLink[]
+): string | null {
+  if (!hint || links.length === 0) {
+    return null;
+  }
+
+  const trimmed = hint.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const exact = links.find((link) => link.url === trimmed);
+  if (exact) {
+    return exact.url;
+  }
+
+  let host: string | null = null;
+  try {
+    host = new URL(trimmed).hostname.toLowerCase();
+  } catch {
+    host = trimmed.toLowerCase().replace(/^https?:\/\//, "").split("/")[0] || null;
+  }
+
+  if (!host) {
+    return null;
+  }
+
+  const byHost = links.find((link) => link.host && link.host === host);
+  return byHost?.url ?? null;
 }
 
 async function markEventStatus(
