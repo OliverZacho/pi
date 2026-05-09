@@ -16,6 +16,15 @@ export type EspProvider =
   | "drip"
   | "attentive"
   | "sendinblue"
+  | "shopify_email"
+  | "substack"
+  | "beehiiv"
+  | "convertkit"
+  | "mailerlite"
+  | "mailgun"
+  | "postmark"
+  | "amazon_ses"
+  | "mailjet"
   | "unknown";
 
 export type EspSignal = {
@@ -208,6 +217,111 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/sendinblue\.com/i, /brevo\.com/i, /mailin\.fr/i],
     returnPathPatterns: [/sendinblue\.com/i, /brevo\.com/i],
     xHeaderNames: ["x-mailin-eid", "x-sib-id"]
+  },
+  {
+    provider: "shopify_email",
+    hostPatterns: [
+      /(^|\.)shopifyemail\.com$/i,
+      /(^|\.)delivery\.shopifyemail\.com$/i,
+      /(^|\.)email\.shopify\.com$/i
+    ],
+    dkimPatterns: [/shopifyemail\.com/i, /shopify\.com/i],
+    returnPathPatterns: [/bounces?\.shopifyemail\.com/i, /shopifyemail\.com/i],
+    xHeaderNames: ["x-shopify-email-id", "x-shopify-template-id"]
+  },
+  {
+    provider: "substack",
+    hostPatterns: [
+      /(^|\.)substack\.com$/i,
+      /(^|\.)email\.substack\.com$/i,
+      /(^|\.)substackcdn\.com$/i
+    ],
+    htmlPatterns: [/substack\.com/i, /\bsubstack-feedback\b/i],
+    dkimPatterns: [/substack\.com/i],
+    returnPathPatterns: [/bounce[^@]*@(?:[^\s>]*)?substack\.com/i],
+    xHeaderNames: ["x-substack-post-id", "x-substack-publication-id"]
+  },
+  {
+    provider: "beehiiv",
+    hostPatterns: [
+      /(^|\.)beehiiv\.com$/i,
+      /(^|\.)mail\.beehiiv\.com$/i,
+      /(^|\.)media\.beehiiv\.com$/i
+    ],
+    htmlPatterns: [/beehiiv\.com/i],
+    dkimPatterns: [/beehiiv\.com/i, /mail\.beehiiv\.com/i],
+    returnPathPatterns: [/beehiiv\.com/i],
+    xHeaderNames: ["x-beehiiv-message-id"]
+  },
+  {
+    provider: "convertkit",
+    hostPatterns: [
+      /(^|\.)convertkit-mail2?\.com$/i,
+      /(^|\.)convertkit\.com$/i,
+      /(^|\.)kit\.com$/i,
+      /(^|\.)ck-assets\.com$/i
+    ],
+    dkimPatterns: [/convertkit-mail2?\.com/i, /convertkit\.com/i, /kit\.com/i],
+    returnPathPatterns: [/convertkit-mail2?\.com/i, /kit\.com/i],
+    xHeaderNames: ["x-ck-message-id", "x-convertkit-message-id"]
+  },
+  {
+    provider: "mailerlite",
+    hostPatterns: [
+      /(^|\.)mailerlite\.com$/i,
+      /(^|\.)mlsend\.com$/i,
+      /(^|\.)email\.mailerlite\.com$/i
+    ],
+    htmlPatterns: [/mailerlite/i],
+    dkimPatterns: [/mailerlite\.com/i, /mlsend\.com/i],
+    returnPathPatterns: [/mailerlite\.com/i, /mlsend\.com/i],
+    xHeaderNames: ["x-ml-message-id", "x-mailerlite-id"]
+  },
+  {
+    provider: "mailgun",
+    hostPatterns: [
+      /(^|\.)mailgun\.org$/i,
+      /(^|\.)mailgun\.net$/i,
+      /(^|\.)email\.mailgun\.net$/i
+    ],
+    dkimPatterns: [/mailgun\.org/i, /mailgun\.net/i],
+    returnPathPatterns: [/mailgun\.org/i, /mailgun\.net/i],
+    xHeaderNames: ["x-mailgun-sid", "x-mailgun-message-id"]
+  },
+  {
+    provider: "postmark",
+    hostPatterns: [
+      /(^|\.)mtasv\.net$/i,
+      /(^|\.)postmarkapp\.com$/i,
+      /(^|\.)pm-bounces\.com$/i,
+      /(^|\.)pmrdy\.com$/i
+    ],
+    dkimPatterns: [/postmarkapp\.com/i, /mtasv\.net/i],
+    returnPathPatterns: [/mtasv\.net/i, /postmarkapp\.com/i, /pm-bounces\.com/i],
+    xHeaderNames: ["x-pm-message-id", "x-postmark-server-token"]
+  },
+  {
+    provider: "amazon_ses",
+    hostPatterns: [
+      /(^|\.)amazonses\.com$/i,
+      /(^|\.)email\.amazonses\.com$/i,
+      /(^|\.)email-smtp\.[a-z0-9-]+\.amazonaws\.com$/i,
+      /(^|\.)simpleemailservice\.com$/i
+    ],
+    dkimPatterns: [/amazonses\.com/i],
+    returnPathPatterns: [/amazonses\.com/i, /simpleemailservice\.com/i],
+    xHeaderNames: ["x-ses-outgoing", "x-ses-message-id", "x-ses-configuration-set"]
+  },
+  {
+    provider: "mailjet",
+    hostPatterns: [
+      /(^|\.)mailjet\.com$/i,
+      /(^|\.)mjt\.lu$/i,
+      /(^|\.)track\.mailjet\.com$/i
+    ],
+    dkimPatterns: [/mailjet\.com/i],
+    returnPathPatterns: [/mailjet\.com/i, /mjt\.lu/i],
+    xHeaderNames: ["x-mj-id", "x-mj-mid", "x-mj-templateid"]
   }
 ];
 

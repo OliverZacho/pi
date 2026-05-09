@@ -32,7 +32,16 @@ const ESP_LABELS: Record<EspProvider, string> = {
   constantcontact: "Constant Contact",
   drip: "Drip",
   attentive: "Attentive",
-  sendinblue: "Brevo / Sendinblue"
+  sendinblue: "Brevo / Sendinblue",
+  shopify_email: "Shopify Email",
+  substack: "Substack",
+  beehiiv: "beehiiv",
+  convertkit: "ConvertKit / Kit",
+  mailerlite: "MailerLite",
+  mailgun: "Mailgun",
+  postmark: "Postmark",
+  amazon_ses: "Amazon SES",
+  mailjet: "Mailjet"
 };
 
 function formatDateTime(value: string | null): string {

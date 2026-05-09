@@ -45,7 +45,16 @@ const ESP_PROVIDERS: EspProvider[] = [
   "constantcontact",
   "drip",
   "attentive",
-  "sendinblue"
+  "sendinblue",
+  "shopify_email",
+  "substack",
+  "beehiiv",
+  "convertkit",
+  "mailerlite",
+  "mailgun",
+  "postmark",
+  "amazon_ses",
+  "mailjet"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -63,7 +72,16 @@ const ESP_LABELS: Record<EspProvider, string> = {
   constantcontact: "Constant Contact",
   drip: "Drip",
   attentive: "Attentive",
-  sendinblue: "Brevo / Sendinblue"
+  sendinblue: "Brevo / Sendinblue",
+  shopify_email: "Shopify Email",
+  substack: "Substack",
+  beehiiv: "beehiiv",
+  convertkit: "ConvertKit / Kit",
+  mailerlite: "MailerLite",
+  mailgun: "Mailgun",
+  postmark: "Postmark",
+  amazon_ses: "Amazon SES",
+  mailjet: "Mailjet"
 };
 
 type EmailFilters = {

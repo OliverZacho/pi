@@ -31,7 +31,16 @@ const VALID_ESP_PROVIDERS: EspProvider[] = [
   "constantcontact",
   "drip",
   "attentive",
-  "sendinblue"
+  "sendinblue",
+  "shopify_email",
+  "substack",
+  "beehiiv",
+  "convertkit",
+  "mailerlite",
+  "mailgun",
+  "postmark",
+  "amazon_ses",
+  "mailjet"
 ];
 
 function parseBoolean(raw: string | null): boolean | null {

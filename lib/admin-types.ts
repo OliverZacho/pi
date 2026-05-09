@@ -38,7 +38,16 @@ export type EspProvider =
   | "constantcontact"
   | "drip"
   | "attentive"
-  | "sendinblue";
+  | "sendinblue"
+  | "shopify_email"
+  | "substack"
+  | "beehiiv"
+  | "convertkit"
+  | "mailerlite"
+  | "mailgun"
+  | "postmark"
+  | "amazon_ses"
+  | "mailjet";
 
 export type CapturedEmail = {
   id: string;

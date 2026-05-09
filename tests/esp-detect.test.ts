@@ -190,6 +190,102 @@ describe("detectEsp", () => {
     expect(result.provider).toBe("attentive");
   });
 
+  it("identifies Shopify Email", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=shopifyemail.com;",
+        "Return-Path": "<bounces.shopifyemail.com>"
+      },
+      links: [link("https://delivery.shopifyemail.com/click?u=abc")]
+    });
+    expect(result.provider).toBe("shopify_email");
+  });
+
+  it("identifies Substack via DKIM and tracking link", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=substack.com;"
+      },
+      links: [link("https://email.substack.com/c/abc")]
+    });
+    expect(result.provider).toBe("substack");
+  });
+
+  it("identifies beehiiv", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=mail.beehiiv.com;"
+      },
+      links: [link("https://mail.beehiiv.com/click?id=abc")]
+    });
+    expect(result.provider).toBe("beehiiv");
+  });
+
+  it("identifies ConvertKit / Kit", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=convertkit-mail2.com;"
+      },
+      links: [link("https://creator.convertkit-mail2.com/c/abc")]
+    });
+    expect(result.provider).toBe("convertkit");
+  });
+
+  it("identifies MailerLite", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=mlsend.com;",
+        "Return-Path": "<bounces@mlsend.com>"
+      },
+      links: [link("https://email.mailerlite.com/click?u=abc")]
+    });
+    expect(result.provider).toBe("mailerlite");
+  });
+
+  it("identifies Mailgun", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=mailgun.org;",
+        "Return-Path": "<bounces@brand.mailgun.org>"
+      },
+      links: [link("https://email.mailgun.net/o/abc")]
+    });
+    expect(result.provider).toBe("mailgun");
+  });
+
+  it("identifies Postmark", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=mtasv.net;",
+        "Return-Path": "<msprvs1=12=bounces@pm-bounces.com>"
+      },
+      links: [link("https://pmrdy.com/track/click?u=abc")]
+    });
+    expect(result.provider).toBe("postmark");
+  });
+
+  it("identifies Amazon SES", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=amazonses.com;",
+        "Return-Path": "<01000001-bounces@amazonses.com>"
+      },
+      html: "<a href=\"https://brand.com\">x</a>",
+      links: [link("https://brand.com")]
+    });
+    expect(result.provider).toBe("amazon_ses");
+  });
+
+  it("identifies Mailjet", () => {
+    const result = detectEsp({
+      headers: {
+        "DKIM-Signature": "v=1; d=mailjet.com;"
+      },
+      links: [link("https://x9z3p.mjt.lu/lnk/abc")]
+    });
+    expect(result.provider).toBe("mailjet");
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },
