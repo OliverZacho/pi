@@ -45,15 +45,14 @@ const ESP_LABELS: Record<EspProvider, string> = {
   apsis: "APSIS / Efficy"
 };
 
-type EmailTab = "inbox" | "rendered" | "raw";
+type EmailTab = "inbox" | "raw";
 
 const TAB_LABELS: Record<EmailTab, string> = {
   inbox: "Inbox view",
-  rendered: "Rendered HTML",
   raw: "Raw data"
 };
 
-const TABS: EmailTab[] = ["inbox", "rendered", "raw"];
+const TABS: EmailTab[] = ["inbox", "raw"];
 
 function formatDateTime(value: string | null): string {
   if (!value) {
@@ -358,22 +357,6 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                     />
                   ) : null}
                 </div>
-              </div>
-            ) : null}
-
-            {activeTab === "rendered" ? (
-              <div role="tabpanel" className="email-tab-panel">
-                {renderUrl ? (
-                  <iframe
-                    src={renderUrl}
-                    title="Rendered email"
-                    sandbox="allow-popups allow-popups-to-escape-sandbox"
-                    referrerPolicy="no-referrer"
-                    className="email-preview-frame"
-                  />
-                ) : (
-                  <p className="dim">No rendered HTML is available.</p>
-                )}
               </div>
             ) : null}
 
