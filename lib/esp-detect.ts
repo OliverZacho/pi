@@ -177,10 +177,21 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "activecampaign",
-    hostPatterns: [/(^|\.)activehosted\.com$/i],
-    dkimPatterns: [/activehosted\.com/i, /activecampaign\.com/i],
-    returnPathPatterns: [/activehosted\.com/i],
-    xHeaderNames: ["x-ac-mailtype"]
+    hostPatterns: [
+      /(^|\.)activehosted\.com$/i,
+      /(^|\.)activecampaign\.com$/i,
+      /(^|\.)acemln[a-z]\.com$/i,
+      /(^|\.)acemlnpages\.com$/i,
+      /(^|\.)acemlnpc\.com$/i
+    ],
+    htmlPatterns: [
+      /(^|\.)acemln[a-z]\.com\//i,
+      /\.acemln[a-z]\.com\/(?:lt|proc|p_v|open)\.php\b/i,
+      /(^|\.)activehosted\.com\/(?:lt|proc|p_v|open)\.php\b/i
+    ],
+    dkimPatterns: [/activehosted\.com/i, /activecampaign\.com/i, /acemln[a-z]\.com/i],
+    returnPathPatterns: [/activehosted\.com/i, /acemln[a-z]\.com/i],
+    xHeaderNames: ["x-ac-mailtype", "x-activecampaign-id"]
   },
   {
     provider: "constantcontact",

@@ -159,6 +159,30 @@ describe("detectEsp", () => {
     expect(result.provider).toBe("activecampaign");
   });
 
+  it("identifies ActiveCampaign via acemln*.com tracking subdomain (no headers)", () => {
+    const html = `
+      <a href="https://hubsch-interior.acemlnb.com/lt.php?x=41Zy~GE2J6PN5HV6">Shop</a>
+      <a href="https://hubsch-interior.acemlnb.com/proc.php?nl=3&c=1416&m=1545&act=unsub&runid=393424">Unsubscribe</a>
+      <a href="https://hubsch-interior.acemlnb.com/p_v.php?l=3&c=1416&m=1545">View online</a>
+      <img src="https://hubsch-interior.acemlnb.com/lt.php?x=4TZy~GE2J6PN5HV6" width="1" height="1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://hubsch-interior.acemlnb.com/lt.php?x=41Zy~GE2J6PN5HV6"),
+        link("https://hubsch-interior.acemlnb.com/proc.php?nl=3&c=1416&m=1545&act=unsub&runid=393424"),
+        link("https://hubsch-interior.acemlnb.com/p_v.php?l=3&c=1416&m=1545")
+      ],
+      resourceHosts: ["hubsch-interior.acemlnb.com"]
+    });
+    expect(result.provider).toBe("activecampaign");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker"])
+    );
+  });
+
   it("identifies Constant Contact", () => {
     const result = detectEsp({
       headers: {
