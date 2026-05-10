@@ -177,6 +177,8 @@ export default function AdminHomePage() {
   const [loadError, setLoadError] = useState("");
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [filters, setFilters] = useState<EmailFilters>(EMPTY_FILTERS);
+  const [createdEmail, setCreatedEmail] = useState<string | null>(null);
+  const [createdEmailCopied, setCreatedEmailCopied] = useState(false);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -191,6 +193,46 @@ export default function AdminHomePage() {
       // ignore clipboard failures silently
     }
   }
+
+  async function copyCreatedEmail(email: string) {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(email);
+      }
+      setCreatedEmailCopied(true);
+    } catch {
+      // ignore clipboard failures silently
+    }
+  }
+
+  useEffect(() => {
+    if (!createdEmail) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setCreatedEmail(null);
+      setCreatedEmailCopied(false);
+    }, 10000);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [createdEmail]);
+
+  useEffect(() => {
+    if (!createdEmail) {
+      return;
+    }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCreatedEmail(null);
+        setCreatedEmailCopied(false);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [createdEmail]);
 
   const loadOverview = useCallback(async (active: EmailFilters) => {
     try {
@@ -397,6 +439,15 @@ export default function AdminHomePage() {
       const body = (await response.json()) as { error?: string };
       setError(body.error ?? "Could not create company subscription.");
       return;
+    }
+
+    const body = (await response.json()) as {
+      company?: { subscriptionEmail?: string };
+    };
+    const newEmail = body.company?.subscriptionEmail;
+    if (newEmail) {
+      setCreatedEmail(newEmail);
+      setCreatedEmailCopied(false);
     }
 
     setName("");
@@ -875,6 +926,105 @@ export default function AdminHomePage() {
         <h2>Storage Strategy</h2>
         <p>{overview.storageNotes}</p>
       </section>
+
+      {createdEmail ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            setCreatedEmail(null);
+            setCreatedEmailCopied(false);
+          }}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="created-email-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="created-email-title">Subscription email created</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setCreatedEmail(null);
+                  setCreatedEmailCopied(false);
+                }}
+                aria-label="Close"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <p className="modal-subtitle">
+              Click the email to copy it to your clipboard. This dialog closes
+              automatically in 10 seconds.
+            </p>
+            <button
+              type="button"
+              className="created-email"
+              onClick={() => {
+                void copyCreatedEmail(createdEmail);
+              }}
+              title="Click to copy"
+            >
+              <code className="created-email-value">{createdEmail}</code>
+              <span className="created-email-action">
+                {createdEmailCopied ? (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy
+                  </>
+                )}
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
