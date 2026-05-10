@@ -79,8 +79,10 @@ export type CapturedEmail = {
 
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
+  htmlContent: string;
   htmlSignedUrl: string | null;
   imageSignedUrls: { storagePath: string; signedUrl: string }[];
+  imageMirrorMap: Record<string, string>;
   remoteImageUrls: string[];
   llmModel: string | null;
   llmReasoning: string | null;

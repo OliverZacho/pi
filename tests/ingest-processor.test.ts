@@ -189,6 +189,11 @@ describe("processNextBatch", () => {
       })
     );
 
+    const storeArgs = mocks.storeProcessedEmailMock.mock.calls[0][0];
+    expect(storeArgs.enrichment.metadata.image_mirror_map).toEqual({
+      "https://cdn.example.com/banner.png": "em_1/abc.png"
+    });
+
     expect(mocks.updateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "processed", last_error: null })
     );

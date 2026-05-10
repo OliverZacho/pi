@@ -287,6 +287,13 @@ async function ingestEmailReceivedEvent(
     metadata.links
   );
 
+  const imageMirrorMap = mirror.stored.reduce<Record<string, string>>((acc, asset) => {
+    if (asset.remoteUrl && asset.storagePath) {
+      acc[asset.remoteUrl] = asset.storagePath;
+    }
+    return acc;
+  }, {});
+
   const enrichmentMetadata = {
     link_domains: metadata.link_domains,
     utm_index: metadata.utm_index,
@@ -295,7 +302,8 @@ async function ingestEmailReceivedEvent(
     image_count: metadata.image_count,
     image_to_text_ratio: metadata.image_to_text_ratio,
     has_amp_html: metadata.has_amp_html,
-    esp_candidates: espResult.candidates
+    esp_candidates: espResult.candidates,
+    image_mirror_map: imageMirrorMap
   };
 
   const stored = await runStage("store_email", () =>

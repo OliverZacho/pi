@@ -215,10 +215,12 @@ export async function getEmailDetailFromDb(
     primaryCtaText: data.primary_cta_text ?? null,
     primaryCtaUrl: data.primary_cta_url ?? null,
     recipient: data.recipient_email,
+    htmlContent: data.html_content ?? "",
     htmlSignedUrl,
     imageSignedUrls: imagePaths
       .map((path) => ({ storagePath: path, signedUrl: signedAssets[path] ?? null }))
       .filter((item): item is { storagePath: string; signedUrl: string } => item.signedUrl !== null),
+    imageMirrorMap: parseImageMirrorMap(data.metadata),
     remoteImageUrls: data.remote_image_urls ?? [],
     llmModel: data.llm_model ?? null,
     llmReasoning: data.llm_reasoning ?? null,
@@ -226,6 +228,23 @@ export async function getEmailDetailFromDb(
     authResults: parseAuthResults(data.auth_results),
     metadata: parseMetadata(data.metadata)
   };
+}
+
+function parseImageMirrorMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const candidate = (value as Record<string, unknown>).image_mirror_map;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return {};
+  }
+  const result: Record<string, string> = {};
+  for (const [remoteUrl, storagePath] of Object.entries(candidate)) {
+    if (typeof remoteUrl === "string" && typeof storagePath === "string" && storagePath.length > 0) {
+      result[remoteUrl] = storagePath;
+    }
+  }
+  return result;
 }
 
 export async function getCompanyDetailFromDb(
