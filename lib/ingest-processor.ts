@@ -139,23 +139,86 @@ async function runClaimedEvent(row: WebhookEventRow): Promise<ProcessEventOutcom
       deduplicated: result.deduplicated
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown processing error";
+    const message = serializeProcessingError(error);
+    console.error("Webhook event processing failed", {
+      eventId: row.id,
+      svixId: row.svix_id,
+      resendEmailId: event.data.email_id,
+      from: event.data.from,
+      subject: event.data.subject,
+      error
+    });
     await markEventStatus(row.id, "failed", message);
     return { eventId: row.id, status: "failed", error: message };
   }
+}
+
+class StageError extends Error {
+  readonly stage: string;
+  readonly cause: unknown;
+
+  constructor(stage: string, cause: unknown) {
+    super(`${stage}: ${describeCause(cause)}`);
+    this.name = "StageError";
+    this.stage = stage;
+    this.cause = cause;
+  }
+}
+
+async function runStage<T>(stage: string, fn: () => Promise<T> | T): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof StageError) {
+      throw error;
+    }
+    throw new StageError(stage, error);
+  }
+}
+
+function describeCause(cause: unknown): string {
+  if (cause instanceof Error) {
+    return cause.message || cause.name || "Error with empty message";
+  }
+  if (cause === null || cause === undefined) {
+    return String(cause);
+  }
+  if (typeof cause === "string") {
+    return cause;
+  }
+  try {
+    const json = JSON.stringify(cause);
+    if (json && json !== "{}") {
+      return json;
+    }
+  } catch {
+    /* ignore stringify failures */
+  }
+  return Object.prototype.toString.call(cause);
+}
+
+function serializeProcessingError(error: unknown): string {
+  if (error instanceof StageError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message || `${error.name || "Error"} (no message)`;
+  }
+  return `non-error thrown: ${describeCause(error)}`;
 }
 
 async function ingestEmailReceivedEvent(
   resend: Resend,
   event: ResendInboundEvent
 ): Promise<{ id: string; deduplicated: boolean }> {
-  const { data: full, error: fetchError } = await resend.emails.receiving.get(
-    event.data.email_id
+  const { data: full, error: fetchError } = await runStage(
+    "fetch_resend_email",
+    () => resend.emails.receiving.get(event.data.email_id)
   );
 
   if (fetchError || !full) {
     const reason = fetchError?.message ?? "no body returned";
-    throw new Error(`Failed to fetch received email from Resend: ${reason}`);
+    throw new StageError("fetch_resend_email", new Error(reason));
   }
 
   const html = full.html ?? full.text ?? "";
@@ -173,35 +236,51 @@ async function ingestEmailReceivedEvent(
   const remoteImageUrls = extractImageUrlsFromHtml(html);
 
   const supabaseAdmin = getSupabaseAdmin();
-  const { data: existing } = await supabaseAdmin
-    .from("captured_emails")
-    .select("id")
-    .eq("resend_message_id", full.id)
-    .maybeSingle();
+  const existing = await runStage("dedup_lookup", async () => {
+    const { data, error } = await supabaseAdmin
+      .from("captured_emails")
+      .select("id")
+      .eq("resend_message_id", full.id)
+      .maybeSingle();
+    if (error) {
+      throw error;
+    }
+    return data;
+  });
 
   if (existing?.id) {
     return { id: existing.id, deduplicated: true };
   }
 
-  const htmlStoragePath = await uploadEmailHtml(full.id, html);
-  const mirror = await mirrorRemoteImages(full.id, remoteImageUrls);
+  const htmlStoragePath = await runStage("upload_html", () =>
+    uploadEmailHtml(full.id, html)
+  );
+  const mirror = await runStage("mirror_images", () =>
+    mirrorRemoteImages(full.id, remoteImageUrls)
+  );
 
-  const metadata = extractMetadata({
-    subject,
-    html,
-    plainText,
-    mirroredAssets: mirror.stored,
-    headers
-  });
+  const metadata = await runStage("extract_metadata", () =>
+    extractMetadata({
+      subject,
+      html,
+      plainText,
+      mirroredAssets: mirror.stored,
+      headers
+    })
+  );
 
-  const espResult = detectEsp({
-    headers,
-    html,
-    links: metadata.links,
-    resourceHosts: metadata.resource_hosts
-  });
+  const espResult = await runStage("detect_esp", () =>
+    detectEsp({
+      headers,
+      html,
+      links: metadata.links,
+      resourceHosts: metadata.resource_hosts
+    })
+  );
 
-  const classification = await classifyEmail({ subject, html, plainText });
+  const classification = await runStage("classify_email", () =>
+    classifyEmail({ subject, html, plainText })
+  );
 
   const primaryCtaUrl = resolvePrimaryCtaUrl(
     classification.primaryCtaUrlHint ?? null,
@@ -219,43 +298,45 @@ async function ingestEmailReceivedEvent(
     esp_candidates: espResult.candidates
   };
 
-  const stored = await storeProcessedEmail({
-    resendId: full.id,
-    toCandidates: recipientCandidates,
-    from: full.from,
-    subject,
-    html,
-    plainText,
-    sentAt: full.created_at ?? event.data.created_at ?? event.created_at,
-    rawPayload: { event, full, mirrorFailures: mirror.failedUrls },
-    htmlStoragePath,
-    imageStoragePaths: mirror.storedPaths,
-    remoteImageUrls,
-    classification: {
-      category: classification.category,
-      confidence: classification.confidence,
-      source: classification.source,
-      model: classification.model,
-      reasoning: classification.reasoning,
-      discountPercent: classification.discountPercent ?? null,
-      discountAmount: classification.discountAmount ?? null,
-      currency: classification.currency ?? null,
-      promoCode: classification.promoCode ?? null,
-      primaryCtaText: classification.primaryCtaText ?? null,
-      primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null
-    },
-    enrichment: {
-      espProvider: espResult.provider === "unknown" ? null : espResult.provider,
-      espConfidence: espResult.confidence,
-      espSignals: espResult.signals,
-      preheader: metadata.preheader,
-      hasGif: metadata.has_gif,
-      hasDarkMode: metadata.has_dark_mode,
-      primaryCtaUrl,
-      authResults: metadata.auth_results,
-      metadata: enrichmentMetadata
-    }
-  });
+  const stored = await runStage("store_email", () =>
+    storeProcessedEmail({
+      resendId: full.id,
+      toCandidates: recipientCandidates,
+      from: full.from,
+      subject,
+      html,
+      plainText,
+      sentAt: full.created_at ?? event.data.created_at ?? event.created_at,
+      rawPayload: { event, full, mirrorFailures: mirror.failedUrls },
+      htmlStoragePath,
+      imageStoragePaths: mirror.storedPaths,
+      remoteImageUrls,
+      classification: {
+        category: classification.category,
+        confidence: classification.confidence,
+        source: classification.source,
+        model: classification.model,
+        reasoning: classification.reasoning,
+        discountPercent: classification.discountPercent ?? null,
+        discountAmount: classification.discountAmount ?? null,
+        currency: classification.currency ?? null,
+        promoCode: classification.promoCode ?? null,
+        primaryCtaText: classification.primaryCtaText ?? null,
+        primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null
+      },
+      enrichment: {
+        espProvider: espResult.provider === "unknown" ? null : espResult.provider,
+        espConfidence: espResult.confidence,
+        espSignals: espResult.signals,
+        preheader: metadata.preheader,
+        hasGif: metadata.has_gif,
+        hasDarkMode: metadata.has_dark_mode,
+        primaryCtaUrl,
+        authResults: metadata.auth_results,
+        metadata: enrichmentMetadata
+      }
+    })
+  );
 
   if (!stored.deduplicated) {
     await runVisionExtractionStage({

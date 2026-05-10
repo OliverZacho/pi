@@ -286,6 +286,32 @@ describe("detectEsp", () => {
     expect(result.provider).toBe("mailjet");
   });
 
+  it("identifies APSIS One via tr.apsis.one click links and aonetrk.com open pixel (no headers)", () => {
+    const html = `
+      <img src="https://tr.aonetrk.com/open/abc?pmc=xyz" width="1" height="1" />
+      <img src="https://static.images.apsis.one/pixel.gif" />
+      <a href="https://tr.apsis.one/e/uXB1jaobQESJMlvVkKXz0A/aaa/bbb/ccc"
+         data-link-id="ln_abc123" target="_blank">Shop</a>
+      <a href="https://tr.apsis.one/unsub/8O4J8NvHRU2Aw2keNm_wzA/ln_xkBi0LsGk3OED3je9cHSu">Unsubscribe</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://tr.apsis.one/e/uXB1jaobQESJMlvVkKXz0A/aaa/bbb/ccc"),
+        link("https://tr.apsis.one/unsub/8O4J8NvHRU2Aw2keNm_wzA/ln_xkBi0LsGk3OED3je9cHSu")
+      ],
+      resourceHosts: [
+        "tr.aonetrk.com",
+        "static.images.apsis.one",
+        "images.apsis.one",
+        "tr.apsis.one"
+      ]
+    });
+    expect(result.provider).toBe("apsis");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },
