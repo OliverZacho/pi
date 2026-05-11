@@ -156,6 +156,19 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)cl\.s[0-9]+\.exct\.net$/i,
       /(^|\.)exacttarget\.com$/i
     ],
+    // SFMC Email Studio / Content Builder leaves very distinctive markup and
+    // URL shapes in the rendered HTML. These let us detect tenants that route
+    // through CNAMEd custom tracking domains (e.g. click.<brand>.com,
+    // image.<brand>.com) where the host fingerprints don't match.
+    htmlPatterns: [
+      /\bstylingblock-content-wrapper\b/,
+      /\b(?:x_)?camarker-inner\b/,
+      /\bdata-linkto\s*=\s*["']/i,
+      /\bdata-assetid\s*=\s*["']\d+["']/i,
+      /\/open\.aspx\?[A-Za-z0-9]+\.\d+&d=\d+&bmt=\d+/i,
+      /\bclick\.[a-z0-9.-]+\/\?qs=[A-Za-z0-9_-]{8,}/i,
+      /\b[a-z0-9.-]+\/lib\/[a-f0-9]{20,}\/m\/\d+\//i
+    ],
     dkimPatterns: [/exacttarget\.com/i, /exct\.net/i],
     returnPathPatterns: [/exct\.net/i, /bounce\.s[0-9]+\.exacttarget\.com/i],
     xHeaderNames: ["x-sfmc-stack-id", "x-job-id"]
@@ -370,7 +383,7 @@ const SIGNAL_WEIGHT: Record<EspSignal["kind"], number> = {
 
 const CONFIDENCE_THRESHOLD = 0.6;
 
-const MAX_HTML_MARKERS_PER_PROVIDER = 2;
+const MAX_HTML_MARKERS_PER_PROVIDER = 3;
 
 export function detectEsp(input: DetectEspInput): EspDetectionResult {
   const headerLookup = lowerCaseHeaders(input.headers ?? null);
