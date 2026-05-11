@@ -699,16 +699,21 @@ export default function AdminHomePage() {
           <div>
             <h2>Suggested companies</h2>
             <p className="muted">
-              Ask Claude for fresh brand ideas in a market. Click <em>Use this</em> to
-              prefill the create form below; <em>Skip</em> hides the brand from future
-              suggestions.
+              Find <strong>Danish or Scandinavian</strong> brands (DK / SE / NO) in a
+              market. Click <em>Use this</em> to prefill the create form below;{" "}
+              <em>Skip</em> hides the brand from future suggestions.
             </p>
           </div>
-          {suggestModel ? (
-            <span className="suggestion-model" title="Anthropic model">
-              {suggestModel}
+          <div className="suggestion-header-meta">
+            <span className="badge suggestion-scope" title="Geographic scope">
+              DK · SE · NO
             </span>
-          ) : null}
+            {suggestModel ? (
+              <span className="suggestion-model" title="Anthropic model">
+                {suggestModel}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="suggestion-controls">
@@ -846,7 +851,7 @@ export default function AdminHomePage() {
 
         {suggestLoading ? (
           <p className="muted suggestion-status">
-            Searching the web and verifying domains for {suggestMarketTrimmed || "this market"}… this can take 20–60s.
+            Searching the Scandinavian web for {suggestMarketTrimmed || "this market"} brands and verifying domains… this can take 20–60s.
           </p>
         ) : suggestedCandidates.length === 0 ? (
           <p className="muted suggestion-status">

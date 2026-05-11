@@ -81,7 +81,7 @@ describe("suggestCompanies", () => {
         {
           name: "Aiayu",
           domain: "aiayu.com",
-          country: null,
+          country: "DK",
           why_relevant: "Sustainable Scandinavian basics."
         },
         {
@@ -113,7 +113,76 @@ describe("suggestCompanies", () => {
       "extra.com"
     ]);
     expect(result.candidates[0].country).toBe("DK");
-    expect(result.candidates[1].country).toBeNull();
+    expect(result.candidates[1].country).toBe("DK");
+  });
+
+  it("drops candidates outside Denmark, Sweden, or Norway", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse([
+        { name: "Ganni", domain: "ganni.com", country: "DK", why_relevant: "ok" },
+        { name: "Acne Studios", domain: "acnestudios.com", country: "SE", why_relevant: "ok" },
+        { name: "Norse Projects", domain: "norseprojects.com", country: "DK", why_relevant: "ok" },
+        { name: "Norwegian Wool", domain: "norwegianwool.com", country: "NO", why_relevant: "ok" },
+        { name: "Aritzia", domain: "aritzia.com", country: "CA", why_relevant: "should be filtered" },
+        { name: "Everlane", domain: "everlane.com", country: "US", why_relevant: "should be filtered" },
+        { name: "Toteme", domain: "toteme-studio.com", country: "se", why_relevant: "lowercase ok" }
+      ])
+    );
+
+    const result = await suggestCompanies({ market: "fashion", count: 20 });
+
+    const domains = result.candidates.map((c) => c.domain);
+    expect(domains).toContain("ganni.com");
+    expect(domains).toContain("acnestudios.com");
+    expect(domains).toContain("norseprojects.com");
+    expect(domains).toContain("norwegianwool.com");
+    expect(domains).toContain("toteme-studio.com");
+    expect(domains).not.toContain("aritzia.com");
+    expect(domains).not.toContain("everlane.com");
+
+    const toteme = result.candidates.find((c) => c.domain === "toteme-studio.com");
+    expect(toteme?.country).toBe("SE");
+  });
+
+  it("accepts a candidate with a Nordic TLD when country is unknown but rejects unknown .com", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse([
+        { name: "Skjorten", domain: "skjorten.dk", country: null, why_relevant: "ok" },
+        { name: "Något", domain: "nagot.se", country: null, why_relevant: "ok" },
+        { name: "Mystery Brand", domain: "mystery-brand.com", country: null, why_relevant: "drop me" }
+      ])
+    );
+
+    const result = await suggestCompanies({ market: "fashion", count: 10 });
+    const domains = result.candidates.map((c) => c.domain);
+    expect(domains).toEqual(["skjorten.dk", "nagot.se"]);
+  });
+
+  it("includes user_location and Scandinavian scope in the request", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse([
+        { name: "A", domain: "a.dk", country: "DK", why_relevant: "ok" }
+      ])
+    );
+
+    await suggestCompanies({ market: "specialty coffee" });
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string) as {
+      tools: Array<{
+        type?: string;
+        name?: string;
+        user_location?: { country?: string; city?: string };
+      }>;
+      system: string;
+      messages: Array<{ role: string; content: string }>;
+    };
+
+    const webTool = body.tools.find((t) => t.type === "web_search_20250305");
+    expect(webTool?.user_location?.country).toBe("DK");
+    expect(webTool?.user_location?.city).toBe("Copenhagen");
+    expect(body.system).toMatch(/DENMARK, SWEDEN, or NORWAY/);
+    expect(body.messages[0].content).toMatch(/Denmark, Sweden, Norway ONLY/);
   });
 
   it("sends the web_search tool to Anthropic by default", async () => {

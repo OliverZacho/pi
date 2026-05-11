@@ -7,8 +7,25 @@ const MAX_RESULTS = 30;
 const MIN_RESULTS = 1;
 const DEFAULT_RESULTS = 10;
 const WEB_SEARCH_TOOL_VERSION = "web_search_20250305";
-const DEFAULT_WEB_SEARCH_USES = 5;
+const DEFAULT_WEB_SEARCH_USES = 6;
 const DEFAULT_VERIFY_TIMEOUT_MS = 4_000;
+
+// Pirol scope is Danish + Scandinavian brands only. Used to constrain the LLM
+// prompt, localize web search, and post-filter candidates.
+const ALLOWED_COUNTRIES = new Set(["DK", "SE", "NO"]);
+const COUNTRY_NAMES: Record<string, string> = {
+  DK: "Denmark",
+  SE: "Sweden",
+  NO: "Norway"
+};
+const SCANDINAVIAN_TLD_RE = /\.(dk|se|no)$/i;
+const WEB_SEARCH_USER_LOCATION = {
+  type: "approximate" as const,
+  city: "Copenhagen",
+  region: "Capital Region of Denmark",
+  country: "DK",
+  timezone: "Europe/Copenhagen"
+};
 
 export type SuggestionCandidate = {
   name: string;
@@ -137,33 +154,40 @@ export async function suggestCompanies(
     tools.unshift({
       type: WEB_SEARCH_TOOL_VERSION,
       name: "web_search",
-      max_uses: maxWebSearchUses()
+      max_uses: maxWebSearchUses(),
+      user_location: WEB_SEARCH_USER_LOCATION
     });
   }
 
   const systemBase =
     "You are a brand research assistant for Pirol, a competitor newsletter intelligence tool. " +
-    "Your job is to surface REAL, currently-operating brands that send marketing newsletters and are worth tracking. " +
+    "Your job is to surface REAL, currently-operating brands that send marketing newsletters. " +
+    "SCOPE: Pirol only tracks brands headquartered in DENMARK, SWEDEN, or NORWAY. " +
+    "Reject every brand that is primarily based outside DK / SE / NO, even if it sells into those markets. " +
     "Hard rules: " +
     "1) Never invent, guess, or hallucinate brand names or domains. If you are not sure a brand or domain exists, drop it. " +
-    "2) Every candidate must be a brand whose primary domain you have seen in actual web search results in this turn. " +
+    "2) Only include brands whose primary headquarters is in Denmark, Sweden, or Norway. " +
     "3) The 'domain' field must be the brand's primary registrable domain exactly as it appears on the live web (no protocol, no path, no 'www.'). " +
-    "4) Never repeat any domain in the exclude list (case-insensitive). " +
-    "5) 'why_relevant' is one short sentence (<=180 chars) explaining why this brand is a good fit for the market, grounded in the search result. " +
-    "6) 'country' is an ISO 3166-1 alpha-2 country code uppercased, or null if you genuinely don't know. " +
-    "7) Diversity matters: avoid suggesting many sub-brands of the same parent company. " +
+    "4) 'country' must be 'DK', 'SE', or 'NO' (ISO 3166-1 alpha-2). Never return null and never any other country. If you cannot pin a brand to one of these countries, drop it. " +
+    "5) Never repeat any domain in the exclude list (case-insensitive). " +
+    "6) 'why_relevant' is one short sentence (<=180 chars) explaining why this brand fits the market, grounded in the search result. " +
+    "7) Diversity matters: avoid many sub-brands of the same parent company. " +
     "8) End your turn by calling the suggest_companies tool exactly once with the verified list. Never reply with prose only.";
 
   const systemWithSearch =
     systemBase +
     " Process: " +
-    "(a) Call web_search with focused queries (e.g. 'best <market> brands newsletter', 'top <market> DTC brands site:<region tld>') 1-5 times until you have enough real brands. " +
-    "(b) Confirm each brand's primary domain from the search results before including it. " +
-    "(c) Then call suggest_companies. Prefer dropping a candidate over guessing its domain.";
+    "(a) Run web_search 2-6 times with Scandinavian-specific queries. Good examples: " +
+    "  - 'best Danish <market> brands', 'top Scandinavian <market> brands', " +
+    "  - '<market> Danmark Klaviyo nyhedsbrev', '<market> Sverige nyhetsbrev', '<market> Norge nyhetsbrev', " +
+    "  - site:.dk <market>, site:.se <market>, site:.no <market>. " +
+    "(b) From the search results, only keep brands whose 'About' / contact / footer shows a Danish, Swedish, or Norwegian HQ. " +
+    "(c) Confirm each brand's primary domain from the search result URL. Prefer .dk / .se / .no domains; .com is fine if the brand clearly states Nordic HQ. " +
+    "(d) Then call suggest_companies. Prefer dropping a candidate over guessing.";
 
   const systemWithoutSearch =
     systemBase +
-    " You do not have web search available, so be conservative: only return brands and domains you are highly confident exist. Prefer returning fewer candidates over guessing.";
+    " You do not have web search available, so be very conservative: only return brands you are highly confident are Danish, Swedish, or Norwegian, with a domain you are sure exists. Prefer returning fewer candidates over guessing.";
 
   const body = {
     model,
@@ -177,13 +201,14 @@ export async function suggestCompanies(
         role: "user",
         content:
           `Market: ${market}\n` +
+          `Geographic scope: Denmark, Sweden, Norway ONLY.\n` +
           `Target count: ${desired}\n` +
           `Exclude these domains (already tracked or already dismissed):\n${excludeBlock}\n\n` +
           (useWebSearch
-            ? "Use web search to find real, currently-operating brands in this market. " +
-              "Only include brands whose primary domain you can see directly in a search result. " +
-              "Then call suggest_companies with the verified list."
-            : "Only include brands you are highly confident exist. Then call suggest_companies.")
+            ? "Use web search with Scandinavian-specific queries to find real DK / SE / NO brands in this market. " +
+              "Only include brands whose primary domain appears in a search result AND whose HQ is in Denmark, Sweden, or Norway. " +
+              "Reject any brand based elsewhere (US, UK, FR, DE, etc.). Then call suggest_companies with the verified list."
+            : "Only include brands headquartered in Denmark, Sweden, or Norway that you are highly confident exist. Then call suggest_companies.")
       }
     ]
   };
@@ -316,6 +341,15 @@ function normalizeCandidate(raw: LlmCandidate): SuggestionCandidate | null {
     return null;
   }
   const country = normalizeCountry(raw.country);
+  const tldLooksNordic = SCANDINAVIAN_TLD_RE.test(domain);
+
+  if (country && !ALLOWED_COUNTRIES.has(country)) {
+    return null;
+  }
+  if (!country && !tldLooksNordic) {
+    return null;
+  }
+
   const whyRelevant =
     typeof raw.why_relevant === "string" ? raw.why_relevant.trim().slice(0, 200) : "";
   return {

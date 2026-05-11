@@ -366,6 +366,21 @@ td {
   white-space: nowrap;
 }
 
+.suggestion-header-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.badge.suggestion-scope {
+  background: #dbeafe;
+  color: #1d4ed8;
+  letter-spacing: 0.04em;
+}
+
 .suggestion-controls {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto auto;
