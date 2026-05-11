@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import {
   SuggestCompaniesError,
+  type SuggestionCandidate,
   normalizeDomain,
-  suggestCompanies
+  suggestCompanies,
+  verifyDomains
 } from "@/lib/suggest-companies";
 
 type SuggestBody = {
@@ -13,6 +15,7 @@ type SuggestBody = {
 
 const MAX_COUNT = 30;
 const DEFAULT_COUNT = 10;
+const MAX_LLM_ROUNDS = 2;
 
 export async function POST(request: Request) {
   const session = await requireAdminSession();
@@ -52,11 +55,11 @@ export async function POST(request: Request) {
       throw skipsRes.error;
     }
 
-    const excludeSet = new Set<string>();
+    const baselineExclude = new Set<string>();
     for (const row of companiesRes.data ?? []) {
       const normalized = normalizeDomain(row.domain);
       if (normalized) {
-        excludeSet.add(normalized);
+        baselineExclude.add(normalized);
       }
     }
     for (const row of skipsRes.data ?? []) {
@@ -66,20 +69,89 @@ export async function POST(request: Request) {
       }
       const normalized = normalizeDomain(row.domain);
       if (normalized) {
-        excludeSet.add(normalized);
+        baselineExclude.add(normalized);
       }
     }
 
-    const result = await suggestCompanies({
-      market,
-      count,
-      excludeDomains: Array.from(excludeSet)
-    });
+    const accepted = new Map<string, SuggestionCandidate>();
+    const droppedDomains: string[] = [];
+    let lastModel: string | null = null;
+    let totalProposed = 0;
+
+    for (let round = 0; round < MAX_LLM_ROUNDS; round += 1) {
+      const remaining = count - accepted.size;
+      if (remaining <= 0) {
+        break;
+      }
+
+      const excludeForRound = new Set(baselineExclude);
+      for (const domain of accepted.keys()) {
+        excludeForRound.add(domain);
+      }
+      for (const domain of droppedDomains) {
+        excludeForRound.add(domain);
+      }
+
+      const roundRequest = Math.min(MAX_COUNT, Math.max(remaining, remaining + 5));
+
+      const llm = await suggestCompanies({
+        market,
+        count: roundRequest,
+        excludeDomains: Array.from(excludeForRound)
+      });
+
+      lastModel = llm.model;
+      totalProposed += llm.candidates.length;
+
+      if (llm.candidates.length === 0) {
+        break;
+      }
+
+      const verification = await verifyDomains(
+        llm.candidates.map((candidate) => candidate.domain)
+      );
+
+      const verdictByDomain = new Map<string, boolean>();
+      for (const v of verification.verifications) {
+        verdictByDomain.set(v.domain, v.ok);
+      }
+
+      let acceptedThisRound = 0;
+      for (const candidate of llm.candidates) {
+        if (accepted.has(candidate.domain)) {
+          continue;
+        }
+        const ok = verdictByDomain.get(candidate.domain) ?? false;
+        if (!ok) {
+          if (!droppedDomains.includes(candidate.domain)) {
+            droppedDomains.push(candidate.domain);
+          }
+          continue;
+        }
+        accepted.set(candidate.domain, candidate);
+        acceptedThisRound += 1;
+        if (accepted.size >= count) {
+          break;
+        }
+      }
+
+      if (acceptedThisRound === 0) {
+        break;
+      }
+    }
+
+    const candidates = Array.from(accepted.values()).slice(0, count);
 
     return NextResponse.json({
       market,
-      model: result.model,
-      candidates: result.candidates
+      model: lastModel,
+      candidates,
+      stats: {
+        proposed: totalProposed,
+        verified: candidates.length,
+        dropped: droppedDomains.length
+      },
+      droppedDomains
     });
   } catch (error) {
     if (error instanceof SuggestCompaniesError) {

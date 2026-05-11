@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SuggestCompaniesError,
   normalizeDomain,
-  suggestCompanies
+  suggestCompanies,
+  verifyDomains
 } from "@/lib/suggest-companies";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -115,6 +116,50 @@ describe("suggestCompanies", () => {
     expect(result.candidates[1].country).toBeNull();
   });
 
+  it("sends the web_search tool to Anthropic by default", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse([
+        { name: "A", domain: "a.com", country: "DK", why_relevant: "x" }
+      ])
+    );
+
+    await suggestCompanies({ market: "fashion" });
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string) as {
+      tools: Array<{ type?: string; name?: string }>;
+      tool_choice: { type: string };
+      system: string;
+    };
+
+    expect(body.tools.some((t) => t.type === "web_search_20250305")).toBe(true);
+    expect(body.tools.some((t) => t.name === "suggest_companies")).toBe(true);
+    expect(body.tool_choice.type).toBe("auto");
+    expect(body.system).toMatch(/web_search/i);
+  });
+
+  it("omits the web_search tool when PIROL_SUGGEST_WEB_SEARCH is disabled", async () => {
+    process.env.PIROL_SUGGEST_WEB_SEARCH = "false";
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse([
+        { name: "A", domain: "a.com", country: "DK", why_relevant: "x" }
+      ])
+    );
+
+    await suggestCompanies({ market: "fashion" });
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string) as {
+      tools: Array<{ type?: string; name?: string }>;
+      system: string;
+    };
+
+    expect(body.tools.some((t) => t.type === "web_search_20250305")).toBe(false);
+    expect(body.tools.some((t) => t.name === "suggest_companies")).toBe(true);
+    expect(body.system).toMatch(/do not have web search/i);
+  });
+
   it("clamps the returned list to the requested count", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       anthropicResponse([
@@ -165,5 +210,87 @@ describe("suggestCompanies", () => {
     await expect(
       suggestCompanies({ market: "fashion" })
     ).rejects.toMatchObject({ code: "llm_unknown", message: "network down" });
+  });
+});
+
+describe("verifyDomains", () => {
+  it("keeps real domains and drops unreachable ones", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("real.com")) {
+          return new Response("", { status: 200 });
+        }
+        if (url.includes("forbidden.com")) {
+          return new Response("", { status: 403 });
+        }
+        if (url.includes("server-error.com")) {
+          return new Response("", { status: 503 });
+        }
+        const err = new Error("getaddrinfo ENOTFOUND fake-brand.example");
+        throw err;
+      }
+    );
+
+    const result = await verifyDomains(
+      ["real.com", "forbidden.com", "server-error.com", "fake-brand.example", "REAL.com"],
+      { timeoutMs: 1000, concurrency: 4 }
+    );
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(result.kept.sort()).toEqual(["forbidden.com", "real.com"]);
+    expect(result.dropped.sort()).toEqual(["fake-brand.example", "server-error.com"]);
+
+    const realCheck = result.verifications.find((v) => v.domain === "real.com");
+    expect(realCheck?.ok).toBe(true);
+    expect(realCheck?.status).toBe(200);
+
+    const fakeCheck = result.verifications.find(
+      (v) => v.domain === "fake-brand.example"
+    );
+    expect(fakeCheck?.ok).toBe(false);
+    expect(fakeCheck?.reason).toBe("dns_not_found");
+  });
+
+  it("treats fetch timeouts as a dropped domain", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        })
+    );
+
+    const result = await verifyDomains(["slow.example"], { timeoutMs: 30 });
+    expect(result.kept).toHaveLength(0);
+    expect(result.dropped).toEqual(["slow.example"]);
+    expect(
+      result.verifications.find((v) => v.domain === "slow.example")?.reason
+    ).toBe("timeout");
+  });
+
+  it("normalizes and deduplicates inputs", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("", { status: 200 }));
+
+    const result = await verifyDomains(
+      [
+        "https://Ganni.com/",
+        "ganni.com",
+        "https://www.Ganni.COM/dk",
+        "",
+        "no-tld",
+        null as unknown as string
+      ],
+      { concurrency: 2 }
+    );
+
+    expect(result.verifications).toHaveLength(1);
+    expect(result.kept).toEqual(["ganni.com"]);
+    expect(fetchSpy).toHaveBeenCalled();
   });
 });

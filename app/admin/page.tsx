@@ -197,6 +197,11 @@ export default function AdminHomePage() {
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggestModel, setSuggestModel] = useState<string | null>(null);
   const [suggestedCandidates, setSuggestedCandidates] = useState<SuggestedCandidate[]>([]);
+  const [suggestStats, setSuggestStats] = useState<{
+    proposed: number;
+    verified: number;
+    dropped: number;
+  } | null>(null);
   const [skippingDomain, setSkippingDomain] = useState<string | null>(null);
   const createFormRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -452,6 +457,7 @@ export default function AdminHomePage() {
     }
     setSuggestLoading(true);
     setSuggestError(null);
+    setSuggestStats(null);
     try {
       const response = await fetch("/api/admin/companies/suggest", {
         method: "POST",
@@ -462,6 +468,7 @@ export default function AdminHomePage() {
         candidates?: SuggestedCandidate[];
         model?: string;
         error?: string;
+        stats?: { proposed: number; verified: number; dropped: number };
       };
       if (!response.ok) {
         setSuggestedCandidates([]);
@@ -479,6 +486,14 @@ export default function AdminHomePage() {
           : []
       );
       setSuggestModel(typeof data.model === "string" ? data.model : null);
+      setSuggestStats(
+        data.stats &&
+          typeof data.stats.proposed === "number" &&
+          typeof data.stats.verified === "number" &&
+          typeof data.stats.dropped === "number"
+          ? data.stats
+          : null
+      );
     } catch {
       setSuggestedCandidates([]);
       setSuggestError("Failed to fetch suggestions.");
@@ -814,9 +829,24 @@ export default function AdminHomePage() {
 
         {suggestError ? <p className="error">{suggestError}</p> : null}
 
+        {!suggestLoading && suggestStats ? (
+          <p className="muted suggestion-stats">
+            Web-searched {suggestStats.proposed} candidate
+            {suggestStats.proposed === 1 ? "" : "s"} →{" "}
+            <strong>{suggestStats.verified} verified</strong>
+            {suggestStats.dropped > 0 ? (
+              <>
+                {" "}
+                · dropped {suggestStats.dropped} unreachable domain
+                {suggestStats.dropped === 1 ? "" : "s"}
+              </>
+            ) : null}
+          </p>
+        ) : null}
+
         {suggestLoading ? (
           <p className="muted suggestion-status">
-            Asking the model for brands in {suggestMarketTrimmed || "this market"}…
+            Searching the web and verifying domains for {suggestMarketTrimmed || "this market"}… this can take 20–60s.
           </p>
         ) : suggestedCandidates.length === 0 ? (
           <p className="muted suggestion-status">

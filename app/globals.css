@@ -413,6 +413,15 @@ td {
   margin: 0.25rem 0 0;
 }
 
+.suggestion-stats {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+}
+
+.suggestion-stats strong {
+  color: #0f172a;
+}
+
 .suggestion-list {
   list-style: none;
   margin: 0.25rem 0 0;
