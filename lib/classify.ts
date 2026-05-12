@@ -1,4 +1,4 @@
-import type { EmailCategory } from "./admin-types";
+import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
 import { classifyFromRules } from "./email-utils";
 
 const DEFAULT_MODEL = "claude-haiku-4-5";
@@ -8,18 +8,7 @@ const RULES_TRUST_THRESHOLD = 0.85;
 const PROMPT_TEXT_LIMIT = 4_000;
 const LLM_TIMEOUT_MS = 15_000;
 
-const CATEGORY_VALUES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const CATEGORY_VALUES: EmailCategory[] = [...EMAIL_CATEGORIES];
 
 export type ClassifierInput = {
   subject: string;
@@ -131,14 +120,17 @@ async function classifyWithAnthropic(
     system:
       "You analyze marketing emails sent by competitor brands. " +
       "You must always call the classify_email tool exactly once; never reply with prose. " +
+      "Pick the single category that best matches the email's primary purpose. " +
       "Categories: " +
-      "sale: discounts, promotions, percent-off, coupons, deals. " +
-      "product_launch: announcing a new product or service ('introducing', 'now available', 'just launched'). " +
-      "event: invites to webinars, conferences, RSVPs, workshops, save-the-date. " +
-      "content: editorial newsletters, blog digests, brand storytelling without a clear purchase CTA. " +
-      "loyalty: rewards programs, membership, re-engagement ('we miss you', 'come back'), VIP perks. " +
+      "sale: discounts, promotions, percent-off, coupons, deals. Pick this whenever a discount or deal is the headline, even if specific products are shown. " +
+      "product_launch: announcing a brand-new product, service, drop, or collection for the first time ('introducing', 'meet the new', 'now available', 'just launched', 'debut', 'unveiling'). " +
+      "products: showcasing an existing product line or specific products without a discount headline and without launching something new. Includes 'shop the collection', new arrivals, restocks, back-in-stock, bestseller roundups, gift guides, lookbooks, category edits, and 'our latest styles' style emails. Prefer this over content/event when the email's clear intent is to drive product views/purchases. " +
+      "event: invites to webinars, conferences, RSVPs, workshops, save-the-date, in-store events. Only pick this if the email is primarily about attending something. " +
+      "content: editorial newsletters, blog digests, brand storytelling, interviews, recipes, how-to guides, behind-the-scenes content without a clear shop-this CTA. If the email is mainly pushing products, prefer 'products' instead. " +
+      "loyalty: rewards programs, membership tiers, re-engagement ('we miss you', 'come back', 'welcome back' to a lapsed customer), VIP perks, points redemption. " +
+      "welcome: onboarding emails sent after a user signs up or subscribes ('welcome to <brand>', 'thanks for signing up', 'thanks for subscribing', 'confirm your email', double opt-in, first-touch welcome series, getting started). Distinct from loyalty re-engagement. " +
       "transactional: receipts, order confirmations, shipping updates, invoices (rare in this dataset). " +
-      "seasonal: holiday or seasonal campaigns (Black Friday, Cyber Monday, Christmas, Summer sale). " +
+      "seasonal: holiday or seasonal campaigns (Black Friday, Cyber Monday, Christmas, Summer sale, Valentine's, Halloween). " +
       "partnership: collaborations, brand partnerships ('teaming up with', 'collab'). " +
       "company_news: rebrands, hiring announcements, milestones, funding, acquisitions. " +
       "other: marketing emails that don't fit any of the above. " +

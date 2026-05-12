@@ -2,20 +2,14 @@
 
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
-import type { CapturedEmailDetail, EmailCategory, EspProvider } from "@/lib/admin-types";
+import {
+  EMAIL_CATEGORY_LABELS,
+  type CapturedEmailDetail,
+  type EmailCategory,
+  type EspProvider
+} from "@/lib/admin-types";
 
-const CATEGORY_LABELS: Record<EmailCategory, string> = {
-  sale: "Sale / Discount",
-  product_launch: "Product / Service launch",
-  event: "Event / Invite",
-  content: "Content / Editorial",
-  loyalty: "Loyalty / Retention",
-  transactional: "Transactional",
-  seasonal: "Seasonal / Campaign",
-  partnership: "Collaboration / Partnership",
-  company_news: "Company news",
-  other: "Other"
-};
+const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
 
 const ESP_LABELS: Record<EspProvider, string> = {
   mailchimp: "Mailchimp",

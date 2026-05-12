@@ -1,20 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOverviewFromDb } from "@/lib/admin-db";
-import type { EmailCategory, EspProvider } from "@/lib/admin-types";
+import { EMAIL_CATEGORIES, type EmailCategory, type EspProvider } from "@/lib/admin-types";
 import { requireAdminSession } from "@/lib/require-admin-api";
 
-const VALID_CATEGORIES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const VALID_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
 const VALID_ESP_PROVIDERS: EspProvider[] = [
   "mailchimp",

@@ -44,9 +44,11 @@ create table if not exists public.captured_emails (
   category text not null default 'other' check (category in (
     'sale',
     'product_launch',
+    'products',
     'event',
     'content',
     'loyalty',
+    'welcome',
     'transactional',
     'seasonal',
     'partnership',

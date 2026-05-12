@@ -2,33 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AdminOverview, EmailCategory, EspProvider } from "@/lib/admin-types";
+import {
+  EMAIL_CATEGORIES,
+  EMAIL_CATEGORY_LABELS,
+  type AdminOverview,
+  type EmailCategory,
+  type EspProvider
+} from "@/lib/admin-types";
 
-const ALL_CATEGORIES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
-const CATEGORY_LABELS: Record<EmailCategory, string> = {
-  sale: "Sale / Discount",
-  product_launch: "Product / Service launch",
-  event: "Event / Invite",
-  content: "Content / Editorial",
-  loyalty: "Loyalty / Retention",
-  transactional: "Transactional",
-  seasonal: "Seasonal / Campaign",
-  partnership: "Collaboration / Partnership",
-  company_news: "Company news",
-  other: "Other"
-};
+const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
 
 const ESP_PROVIDERS: EspProvider[] = [
   "mailchimp",
@@ -120,7 +104,7 @@ const EMPTY_FILTERS: EmailFilters = {
 };
 
 function categoryLabel(slug: string): string {
-  if ((ALL_CATEGORIES as string[]).includes(slug)) {
+  if ((ALL_CATEGORIES as readonly string[]).includes(slug)) {
     return CATEGORY_LABELS[slug as EmailCategory];
   }
   return slug;
@@ -129,7 +113,7 @@ function categoryLabel(slug: string): string {
 const defaultOverview: AdminOverview = {
   companies: [],
   emails: [],
-  categories: ALL_CATEGORIES,
+  categories: [...ALL_CATEGORIES],
   storageNotes: "",
   pagination: { nextCursor: null, pageSize: 50 }
 };

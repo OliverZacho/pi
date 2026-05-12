@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  AdminOverview,
-  CapturedEmail,
-  CapturedEmailDetail,
-  CompanyDetail,
-  CompanySubscription,
-  EmailCategory,
-  EspProvider
+import {
+  EMAIL_CATEGORIES,
+  type AdminOverview,
+  type CapturedEmail,
+  type CapturedEmailDetail,
+  type CompanyDetail,
+  type CompanySubscription,
+  type EmailCategory,
+  type EspProvider
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { getSignedAssets, getSignedHtml } from "./storage";
@@ -19,18 +20,7 @@ const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 const COMPANY_RECENT_EMAIL_LIMIT = 25;
 
-const VALID_CATEGORIES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const VALID_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
 const categories: AdminOverview["categories"] = [...VALID_CATEGORIES];
 

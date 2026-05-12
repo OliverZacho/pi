@@ -61,6 +61,39 @@ describe("classifyFromRules", () => {
     expect(result.category).toBe("loyalty");
   });
 
+  it("matches welcome / onboarding keywords", () => {
+    const result = classifyFromRules(
+      "Welcome to Acme",
+      "<p>Thanks for signing up — here's how to get started.</p>"
+    );
+    expect(result.category).toBe("welcome");
+    expect(result.confidence).toBeGreaterThan(0.7);
+  });
+
+  it("keeps 'welcome back' as a loyalty signal, not welcome onboarding", () => {
+    const result = classifyFromRules(
+      "Welcome back",
+      "<p>We miss you — come back and use your rewards.</p>"
+    );
+    expect(result.category).toBe("loyalty");
+  });
+
+  it("matches product showcase keywords as 'products'", () => {
+    const result = classifyFromRules(
+      "Shop the new collection",
+      "<p>Our latest styles are here — new arrivals waiting for you.</p>"
+    );
+    expect(result.category).toBe("products");
+  });
+
+  it("prefers 'sale' over 'products' when a discount headline is present", () => {
+    const result = classifyFromRules(
+      "Shop the new collection — 30% off",
+      "<p>New arrivals and 30% off everything sitewide.</p>"
+    );
+    expect(result.category).toBe("sale");
+  });
+
   it("matches partnership keywords", () => {
     const result = classifyFromRules("Big news", "<p>We're teaming up with Nike on a collaboration.</p>");
     expect(result.category).toBe("partnership");
