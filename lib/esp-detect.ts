@@ -29,7 +29,16 @@ export type EspProvider =
   | "unknown";
 
 export type EspSignal = {
-  kind: "dkim_d" | "return_path" | "list_unsubscribe" | "link_host" | "image_host" | "html_marker" | "x_header" | "feedback_id";
+  kind:
+    | "dkim_d"
+    | "return_path"
+    | "list_unsubscribe"
+    | "link_host"
+    | "image_host"
+    | "link_url"
+    | "html_marker"
+    | "x_header"
+    | "feedback_id";
   detail: string;
 };
 
@@ -51,6 +60,15 @@ type Fingerprint = {
   provider: Exclude<EspProvider, "unknown">;
   hostPatterns?: RegExp[];
   htmlPatterns?: RegExp[];
+  /**
+   * Tested against the full URL strings of parsed `<a>` links. These typically
+   * encode tracking-URL shapes that are highly distinctive to a provider even
+   * when the host has been CNAMEd to the brand's own domain (e.g. SFMC's
+   * `?qs=…` and `/open.aspx?…&bmt=…` shapes). Matches are scored at the same
+   * weight as `link_host` so they survive even when the host itself looks
+   * brand-owned.
+   */
+  linkUrlPatterns?: RegExp[];
   dkimPatterns?: RegExp[];
   returnPathPatterns?: RegExp[];
   feedbackIdPatterns?: RegExp[];
@@ -156,6 +174,33 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)cl\.s[0-9]+\.exct\.net$/i,
       /(^|\.)exacttarget\.com$/i
     ],
+    // SFMC Email Studio / Content Builder leaves very distinctive markup and
+    // URL shapes in the rendered HTML. These let us detect tenants that route
+    // through CNAMEd custom tracking domains (e.g. click.<brand>.com,
+    // image.<brand>.com) where the host fingerprints don't match.
+    //
+    // The first three patterns target highly distinctive URL shapes (the
+    // `open.aspx?…&bmt=…` tracking pixel, the `?qs=…` click-CNAME redirect, and
+    // the `/lib/<hex>/m/N/` Content Builder asset path) so the strongest
+    // signals are counted first — `MAX_HTML_MARKERS_PER_PROVIDER` caps how
+    // many of these contribute, and we want the most reliable fingerprints to
+    // win that race over generic class names.
+    htmlPatterns: [
+      /\/open\.aspx\?[A-Za-z0-9]+\.\d+&(?:amp;)?d=\d+&(?:amp;)?bmt=\d+/i,
+      /\bclick\.[a-z0-9.-]+\/(?:[^\s"'<>]*\?)?qs=[A-Za-z0-9_-]{8,}/i,
+      /\b[a-z0-9.-]+\/lib\/[a-f0-9]{20,}\/m\/\d+\//i,
+      /\bstylingblock-content-wrapper\b/,
+      /\b(?:x_)?camarker-inner\b/,
+      /\bdata-linkto\s*=\s*["']/i,
+      /\bdata-assetid\s*=\s*["']\d+["']/i
+    ],
+    // Matching against full link URLs (independent of the HTML-pattern cap)
+    // gives us an extra `link_host`-weight signal so SFMC scores well above
+    // the threshold whenever any of these tracking shapes are present.
+    linkUrlPatterns: [
+      /\bclick\.[a-z0-9.-]+\/(?:[^\s"'<>]*\?)?qs=[A-Za-z0-9_-]{8,}/i,
+      /\/open\.aspx\?[A-Za-z0-9]+\.\d+&(?:amp;)?d=\d+&(?:amp;)?bmt=\d+/i
+    ],
     dkimPatterns: [/exacttarget\.com/i, /exct\.net/i],
     returnPathPatterns: [/exct\.net/i, /bounce\.s[0-9]+\.exacttarget\.com/i],
     xHeaderNames: ["x-sfmc-stack-id", "x-job-id"]
@@ -177,10 +222,21 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "activecampaign",
-    hostPatterns: [/(^|\.)activehosted\.com$/i],
-    dkimPatterns: [/activehosted\.com/i, /activecampaign\.com/i],
-    returnPathPatterns: [/activehosted\.com/i],
-    xHeaderNames: ["x-ac-mailtype"]
+    hostPatterns: [
+      /(^|\.)activehosted\.com$/i,
+      /(^|\.)activecampaign\.com$/i,
+      /(^|\.)acemln[a-z]\.com$/i,
+      /(^|\.)acemlnpages\.com$/i,
+      /(^|\.)acemlnpc\.com$/i
+    ],
+    htmlPatterns: [
+      /(^|\.)acemln[a-z]\.com\//i,
+      /\.acemln[a-z]\.com\/(?:lt|proc|p_v|open)\.php\b/i,
+      /(^|\.)activehosted\.com\/(?:lt|proc|p_v|open)\.php\b/i
+    ],
+    dkimPatterns: [/activehosted\.com/i, /activecampaign\.com/i, /acemln[a-z]\.com/i],
+    returnPathPatterns: [/activehosted\.com/i, /acemln[a-z]\.com/i],
+    xHeaderNames: ["x-ac-mailtype", "x-activecampaign-id"]
   },
   {
     provider: "constantcontact",
@@ -353,13 +409,16 @@ const SIGNAL_WEIGHT: Record<EspSignal["kind"], number> = {
   list_unsubscribe: 0.4,
   x_header: 0.4,
   link_host: 0.35,
+  link_url: 0.35,
   image_host: 0.25,
   html_marker: 0.2
 };
 
 const CONFIDENCE_THRESHOLD = 0.6;
 
-const MAX_HTML_MARKERS_PER_PROVIDER = 2;
+const MAX_HTML_MARKERS_PER_PROVIDER = 4;
+
+const MAX_LINK_URL_MATCHES_PER_PROVIDER = 2;
 
 export function detectEsp(input: DetectEspInput): EspDetectionResult {
   const headerLookup = lowerCaseHeaders(input.headers ?? null);
@@ -379,6 +438,9 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
     }
   }
   const candidateHosts = [...linkHosts];
+  const linkUrls = links
+    .map((link) => link.url)
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
 
   const scoreByProvider = new Map<Exclude<EspProvider, "unknown">, number>();
   const signalsByProvider = new Map<Exclude<EspProvider, "unknown">, EspSignal[]>();
@@ -448,6 +510,27 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
           addSignal(fp.provider, { kind: "html_marker", detail });
           htmlMarkerCount += 1;
         }
+      }
+    }
+
+    if (fp.linkUrlPatterns && linkUrls.length > 0) {
+      let linkUrlMatchCount = 0;
+      const seenLinkDetails = new Set<string>();
+      for (const pattern of fp.linkUrlPatterns) {
+        if (linkUrlMatchCount >= MAX_LINK_URL_MATCHES_PER_PROVIDER) {
+          break;
+        }
+        const hit = linkUrls.find((url) => pattern.test(url));
+        if (!hit) {
+          continue;
+        }
+        const detail = hit.slice(0, 120);
+        if (seenLinkDetails.has(detail)) {
+          continue;
+        }
+        seenLinkDetails.add(detail);
+        addSignal(fp.provider, { kind: "link_url", detail });
+        linkUrlMatchCount += 1;
       }
     }
 

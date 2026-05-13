@@ -43,8 +43,18 @@ export function classifyFromRules(subject: string, html: string): {
     return { category: "sale", confidence: 0.88 };
   }
 
-  if (/\bintroducing\b|\bnew product\b|\bnow available\b|\bnew launch\b|\bjust launched\b|\bnewly launched\b|\bnew release\b|\bnow live\b|\bdebut\b|\bunveil\b/.test(haystack)) {
+  if (/\bintroducing\b|\bnew product\b|\bnow available\b|\bnew launch\b|\bjust launched\b|\bnewly launched\b|\bnew release\b|\bnow live\b|\bdebut\b|\bunveil(?:ing|ed)?\b|\bmeet the new\b/.test(haystack)) {
     return { category: "product_launch", confidence: 0.85 };
+  }
+
+  if (/\bwelcome to\b|\bthanks for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bgetting started\b|\bglad you'?re here\b/.test(haystack)) {
+    return { category: "welcome", confidence: 0.85 };
+  }
+
+  if (
+    /\bshop (?:the |our )?(?:collection|edit|drop|range|lineup|new[- ]?ins?)\b|\bnew arrivals?\b|\bbestsellers?\b|\brestock(?:ed)?\b|\bback in stock\b|\block ?book\b|\bgift guide\b|\bfeatured products?\b|\bour (?:latest|newest) (?:styles|pieces|drop|arrivals)\b|\bshop now\b|\bshop the (?:look|edit)\b|\bnew[- ]?in\b/.test(haystack)
+  ) {
+    return { category: "products", confidence: 0.78 };
   }
 
   if (/\bwebinar\b|\bevent\b|\binvit(?:e|ation)\b|\brsvp\b|\bregister now\b|\bjoin us\b|\bsave the date\b|\bworkshop\b|\bconference\b/.test(haystack)) {

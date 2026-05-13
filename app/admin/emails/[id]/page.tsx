@@ -1,21 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
-import type { CapturedEmailDetail, EmailCategory, EspProvider } from "@/lib/admin-types";
+import { use, useEffect, useMemo, useState } from "react";
+import {
+  EMAIL_CATEGORY_LABELS,
+  type CapturedEmailDetail,
+  type EmailCategory,
+  type EspProvider
+} from "@/lib/admin-types";
 
-const CATEGORY_LABELS: Record<EmailCategory, string> = {
-  sale: "Sale / Discount",
-  product_launch: "Product / Service launch",
-  event: "Event / Invite",
-  content: "Content / Editorial",
-  loyalty: "Loyalty / Retention",
-  transactional: "Transactional",
-  seasonal: "Seasonal / Campaign",
-  partnership: "Collaboration / Partnership",
-  company_news: "Company news",
-  other: "Other"
-};
+const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
 
 const ESP_LABELS: Record<EspProvider, string> = {
   mailchimp: "Mailchimp",
@@ -45,6 +39,15 @@ const ESP_LABELS: Record<EspProvider, string> = {
   apsis: "APSIS / Efficy"
 };
 
+type EmailTab = "inbox" | "raw";
+
+const TAB_LABELS: Record<EmailTab, string> = {
+  inbox: "Inbox view",
+  raw: "Raw data"
+};
+
+const TABS: EmailTab[] = ["inbox", "raw"];
+
 function formatDateTime(value: string | null): string {
   if (!value) {
     return "-";
@@ -56,11 +59,36 @@ function formatDateTime(value: string | null): string {
   return parsed.toLocaleString();
 }
 
+function formatInboxDate(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+  return parsed.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
 function categoryLabel(slug: string): string {
   if (slug in CATEGORY_LABELS) {
     return CATEGORY_LABELS[slug as EmailCategory];
   }
   return slug;
+}
+
+function senderInitial(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "?";
+  const character = trimmed.charAt(0);
+  return character.toUpperCase();
 }
 
 type DetailPageProps = {
@@ -72,6 +100,7 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
   const [email, setEmail] = useState<CapturedEmailDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<EmailTab>("inbox");
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +132,13 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
       cancelled = true;
     };
   }, [id]);
+
+  const renderUrl = email ? `/api/admin/emails/${email.id}/render` : null;
+
+  const metadataDump = useMemo(() => {
+    if (!email?.metadata) return null;
+    return JSON.stringify(email.metadata, null, 2);
+  }, [email?.metadata]);
 
   return (
     <main className="admin-page">
@@ -264,24 +300,107 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
             )}
           </section>
 
-          {email.htmlSignedUrl ? (
-            <section className="card">
-              <h2>Rendered HTML</h2>
-              <iframe
-                src={email.htmlSignedUrl}
-                title="Rendered email"
-                sandbox=""
-                className="email-preview-frame"
-              />
-            </section>
-          ) : null}
+          <section className="card email-content-card">
+            <div className="email-tabs" role="tablist" aria-label="Email content view">
+              {TABS.map((tab) => (
+                <button
+                  key={tab}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === tab}
+                  className={`email-tab${activeTab === tab ? " is-active" : ""}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              ))}
+            </div>
 
-          {email.metadata ? (
-            <section className="card">
-              <h2>Raw metadata</h2>
-              <pre className="json-dump">{JSON.stringify(email.metadata, null, 2)}</pre>
-            </section>
-          ) : null}
+            {activeTab === "inbox" ? (
+              <div role="tabpanel" className="email-tab-panel">
+                <div className="inbox-viewer">
+                  <header className="inbox-viewer-header">
+                    <div className="inbox-avatar" aria-hidden="true">
+                      {senderInitial(email.companyName || email.sender)}
+                    </div>
+                    <div className="inbox-meta">
+                      <h3 className="inbox-subject">{email.subject || "(no subject)"}</h3>
+                      <div className="inbox-row">
+                        <span className="inbox-from-name">
+                          {email.companyName || email.sender}
+                        </span>
+                        <span className="inbox-from-address">&lt;{email.sender}&gt;</span>
+                        <span className="inbox-date">{formatInboxDate(email.receivedAt)}</span>
+                      </div>
+                      <div className="inbox-row inbox-recipient">
+                        <span className="muted">To</span>{" "}
+                        <code className="inbox-recipient-address">{email.recipient}</code>
+                      </div>
+                      {email.preheader ? (
+                        <div className="inbox-preheader">{email.preheader}</div>
+                      ) : null}
+                    </div>
+                  </header>
+                  {renderUrl ? (
+                    <iframe
+                      src={renderUrl}
+                      title="Inbox preview"
+                      sandbox="allow-popups allow-popups-to-escape-sandbox"
+                      referrerPolicy="no-referrer"
+                      className="email-preview-frame inbox-frame"
+                    />
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "raw" ? (
+              <div role="tabpanel" className="email-tab-panel raw-tab-panel">
+                <div className="raw-section">
+                  <h3>Metadata JSON</h3>
+                  {metadataDump ? (
+                    <pre className="json-dump">{metadataDump}</pre>
+                  ) : (
+                    <p className="dim">No metadata recorded.</p>
+                  )}
+                </div>
+                <div className="raw-section">
+                  <div className="raw-section-header">
+                    <h3>HTML source</h3>
+                    {email.htmlSignedUrl ? (
+                      <a
+                        href={email.htmlSignedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="raw-source-link"
+                      >
+                        Open original .html &rarr;
+                      </a>
+                    ) : null}
+                  </div>
+                  {email.htmlContent ? (
+                    <pre className="json-dump html-source">{email.htmlContent}</pre>
+                  ) : (
+                    <p className="dim">No HTML source stored for this email.</p>
+                  )}
+                </div>
+                {email.remoteImageUrls.length > 0 ? (
+                  <div className="raw-section">
+                    <h3>Remote image URLs ({email.remoteImageUrls.length})</h3>
+                    <ul className="remote-url-list">
+                      {email.remoteImageUrls.map((url) => (
+                        <li key={url}>
+                          <a href={url} target="_blank" rel="noreferrer">
+                            {url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
         </>
       ) : null}
     </main>

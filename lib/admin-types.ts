@@ -1,14 +1,46 @@
 export type EmailCategory =
   | "sale"
   | "product_launch"
+  | "products"
   | "event"
   | "content"
   | "loyalty"
+  | "welcome"
   | "transactional"
   | "seasonal"
   | "partnership"
   | "company_news"
   | "other";
+
+export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
+  "sale",
+  "product_launch",
+  "products",
+  "event",
+  "content",
+  "loyalty",
+  "welcome",
+  "transactional",
+  "seasonal",
+  "partnership",
+  "company_news",
+  "other"
+] as const;
+
+export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
+  sale: "Sale",
+  product_launch: "Product launch",
+  products: "Products",
+  event: "Event",
+  content: "Editorial",
+  loyalty: "Loyalty",
+  welcome: "Welcome",
+  transactional: "Transactional",
+  seasonal: "Seasonal",
+  partnership: "Partnership",
+  company_news: "Company news",
+  other: "Other"
+};
 
 export type ClassificationSource = "rules" | "llm" | "manual";
 
@@ -79,8 +111,10 @@ export type CapturedEmail = {
 
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
+  htmlContent: string;
   htmlSignedUrl: string | null;
   imageSignedUrls: { storagePath: string; signedUrl: string }[];
+  imageMirrorMap: Record<string, string>;
   remoteImageUrls: string[];
   llmModel: string | null;
   llmReasoning: string | null;

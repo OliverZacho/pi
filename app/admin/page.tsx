@@ -2,33 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AdminOverview, EmailCategory, EspProvider } from "@/lib/admin-types";
+import {
+  EMAIL_CATEGORIES,
+  EMAIL_CATEGORY_LABELS,
+  type AdminOverview,
+  type EmailCategory,
+  type EspProvider
+} from "@/lib/admin-types";
 
-const ALL_CATEGORIES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
-const CATEGORY_LABELS: Record<EmailCategory, string> = {
-  sale: "Sale / Discount",
-  product_launch: "Product / Service launch",
-  event: "Event / Invite",
-  content: "Content / Editorial",
-  loyalty: "Loyalty / Retention",
-  transactional: "Transactional",
-  seasonal: "Seasonal / Campaign",
-  partnership: "Collaboration / Partnership",
-  company_news: "Company news",
-  other: "Other"
-};
+const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
 
 const ESP_PROVIDERS: EspProvider[] = [
   "mailchimp",
@@ -98,6 +82,15 @@ type EmailFilters = {
   search: string;
 };
 
+type SuggestedCandidate = {
+  name: string;
+  domain: string;
+  country: string | null;
+  whyRelevant: string;
+};
+
+const SUGGESTION_COUNT_OPTIONS = [5, 10, 15, 20];
+
 const EMPTY_FILTERS: EmailFilters = {
   category: "",
   esp: "",
@@ -111,7 +104,7 @@ const EMPTY_FILTERS: EmailFilters = {
 };
 
 function categoryLabel(slug: string): string {
-  if ((ALL_CATEGORIES as string[]).includes(slug)) {
+  if ((ALL_CATEGORIES as readonly string[]).includes(slug)) {
     return CATEGORY_LABELS[slug as EmailCategory];
   }
   return slug;
@@ -120,7 +113,7 @@ function categoryLabel(slug: string): string {
 const defaultOverview: AdminOverview = {
   companies: [],
   emails: [],
-  categories: ALL_CATEGORIES,
+  categories: [...ALL_CATEGORIES],
   storageNotes: "",
   pagination: { nextCursor: null, pageSize: 50 }
 };
@@ -177,6 +170,25 @@ export default function AdminHomePage() {
   const [loadError, setLoadError] = useState("");
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [filters, setFilters] = useState<EmailFilters>(EMPTY_FILTERS);
+  const [createdEmail, setCreatedEmail] = useState<string | null>(null);
+  const [createdEmailCopied, setCreatedEmailCopied] = useState(false);
+  const [suggestMarket, setSuggestMarket] = useState("");
+  const [suggestMarketOpen, setSuggestMarketOpen] = useState(false);
+  const [suggestMarketHighlight, setSuggestMarketHighlight] = useState(0);
+  const suggestMarketComboRef = useRef<HTMLDivElement>(null);
+  const [suggestCount, setSuggestCount] = useState<number>(10);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [suggestModel, setSuggestModel] = useState<string | null>(null);
+  const [suggestedCandidates, setSuggestedCandidates] = useState<SuggestedCandidate[]>([]);
+  const [suggestStats, setSuggestStats] = useState<{
+    proposed: number;
+    verified: number;
+    dropped: number;
+  } | null>(null);
+  const [skippingDomain, setSkippingDomain] = useState<string | null>(null);
+  const createFormRef = useRef<HTMLFormElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -191,6 +203,46 @@ export default function AdminHomePage() {
       // ignore clipboard failures silently
     }
   }
+
+  async function copyCreatedEmail(email: string) {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(email);
+      }
+      setCreatedEmailCopied(true);
+    } catch {
+      // ignore clipboard failures silently
+    }
+  }
+
+  useEffect(() => {
+    if (!createdEmail) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setCreatedEmail(null);
+      setCreatedEmailCopied(false);
+    }, 10000);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [createdEmail]);
+
+  useEffect(() => {
+    if (!createdEmail) {
+      return;
+    }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCreatedEmail(null);
+        setCreatedEmailCopied(false);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [createdEmail]);
 
   const loadOverview = useCallback(async (active: EmailFilters) => {
     try {
@@ -307,6 +359,183 @@ export default function AdminHomePage() {
     };
   }, []);
 
+  const suggestMarketTrimmed = suggestMarket.trim();
+  const suggestMarketLower = suggestMarketTrimmed.toLowerCase();
+  const suggestMarketOptions = useMemo<string[]>(() => {
+    return suggestMarketLower
+      ? existingMarkets.filter((option) =>
+          option.toLowerCase().includes(suggestMarketLower)
+        )
+      : existingMarkets;
+  }, [existingMarkets, suggestMarketLower]);
+
+  useEffect(() => {
+    if (suggestMarketHighlight >= suggestMarketOptions.length) {
+      setSuggestMarketHighlight(0);
+    }
+  }, [suggestMarketOptions, suggestMarketHighlight]);
+
+  useEffect(() => {
+    function onDocumentMouseDown(event: MouseEvent) {
+      if (!suggestMarketComboRef.current) {
+        return;
+      }
+      if (!suggestMarketComboRef.current.contains(event.target as Node)) {
+        setSuggestMarketOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentMouseDown);
+    };
+  }, []);
+
+  function selectSuggestMarketOption(option: string) {
+    setSuggestMarket(option);
+    setSuggestMarketOpen(false);
+    setSuggestMarketHighlight(0);
+  }
+
+  function onSuggestMarketKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSuggestMarketOpen(true);
+      if (suggestMarketOptions.length > 0) {
+        setSuggestMarketHighlight(
+          (index) => (index + 1) % suggestMarketOptions.length
+        );
+      }
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSuggestMarketOpen(true);
+      if (suggestMarketOptions.length > 0) {
+        setSuggestMarketHighlight(
+          (index) =>
+            (index - 1 + suggestMarketOptions.length) % suggestMarketOptions.length
+        );
+      }
+    } else if (event.key === "Enter") {
+      if (suggestMarketOpen && suggestMarketOptions.length > 0) {
+        event.preventDefault();
+        const choice =
+          suggestMarketOptions[suggestMarketHighlight] ?? suggestMarketOptions[0];
+        if (choice) {
+          selectSuggestMarketOption(choice);
+        }
+      }
+    } else if (event.key === "Escape") {
+      if (suggestMarketOpen) {
+        event.preventDefault();
+        setSuggestMarketOpen(false);
+      }
+    } else if (event.key === "Tab") {
+      setSuggestMarketOpen(false);
+    }
+  }
+
+  async function runSuggest() {
+    const market = suggestMarketTrimmed;
+    if (!market) {
+      setSuggestError("Pick a market first.");
+      return;
+    }
+    setSuggestLoading(true);
+    setSuggestError(null);
+    setSuggestStats(null);
+    try {
+      const response = await fetch("/api/admin/companies/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ market, count: suggestCount })
+      });
+      const data = (await response.json()) as {
+        candidates?: SuggestedCandidate[];
+        model?: string;
+        error?: string;
+        stats?: { proposed: number; verified: number; dropped: number };
+      };
+      if (!response.ok) {
+        setSuggestedCandidates([]);
+        setSuggestError(data.error ?? "Failed to fetch suggestions.");
+        return;
+      }
+      setSuggestedCandidates(
+        Array.isArray(data.candidates)
+          ? data.candidates.filter(
+              (item): item is SuggestedCandidate =>
+                typeof item?.name === "string" &&
+                typeof item?.domain === "string" &&
+                typeof item?.whyRelevant === "string"
+            )
+          : []
+      );
+      setSuggestModel(typeof data.model === "string" ? data.model : null);
+      setSuggestStats(
+        data.stats &&
+          typeof data.stats.proposed === "number" &&
+          typeof data.stats.verified === "number" &&
+          typeof data.stats.dropped === "number"
+          ? data.stats
+          : null
+      );
+    } catch {
+      setSuggestedCandidates([]);
+      setSuggestError("Failed to fetch suggestions.");
+    } finally {
+      setSuggestLoading(false);
+    }
+  }
+
+  function useCandidate(candidate: SuggestedCandidate) {
+    setName(candidate.name);
+    setDomain(candidate.domain);
+    setMarket(suggestMarketTrimmed);
+    setMarketOpen(false);
+    setSuggestedCandidates((current) =>
+      current.filter((item) => item.domain !== candidate.domain)
+    );
+    if (createFormRef.current) {
+      createFormRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    }
+    window.setTimeout(() => {
+      nameInputRef.current?.focus();
+    }, 250);
+  }
+
+  async function skipCandidate(candidate: SuggestedCandidate) {
+    setSkippingDomain(candidate.domain);
+    try {
+      const response = await fetch(
+        "/api/admin/companies/suggestion-skips",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            domain: candidate.domain,
+            market: suggestMarketTrimmed || null
+          })
+        }
+      );
+      if (response.ok || response.status === 201) {
+        setSuggestedCandidates((current) =>
+          current.filter((item) => item.domain !== candidate.domain)
+        );
+      } else {
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setSuggestError(body.error ?? "Failed to skip candidate.");
+      }
+    } catch {
+      setSuggestError("Failed to skip candidate.");
+    } finally {
+      setSkippingDomain(null);
+    }
+  }
+
   function selectMarketOption(option: MarketOption) {
     setMarket(option.value);
     setMarketOpen(false);
@@ -399,6 +628,15 @@ export default function AdminHomePage() {
       return;
     }
 
+    const body = (await response.json()) as {
+      company?: { subscriptionEmail?: string };
+    };
+    const newEmail = body.company?.subscriptionEmail;
+    if (newEmail) {
+      setCreatedEmail(newEmail);
+      setCreatedEmailCopied(false);
+    }
+
     setName("");
     setDomain("");
     setMarket("");
@@ -440,13 +678,234 @@ export default function AdminHomePage() {
         </article>
       </section>
 
+      <section className="card suggestion-card">
+        <div className="suggestion-header">
+          <div>
+            <h2>Suggested companies</h2>
+            <p className="muted">
+              Find <strong>Danish or Scandinavian</strong> brands (DK / SE / NO) in a
+              market. Click <em>Use this</em> to prefill the create form below;{" "}
+              <em>Skip</em> hides the brand from future suggestions.
+            </p>
+          </div>
+          <div className="suggestion-header-meta">
+            <span className="badge suggestion-scope" title="Geographic scope">
+              DK · SE · NO
+            </span>
+            {suggestModel ? (
+              <span className="suggestion-model" title="Anthropic model">
+                {suggestModel}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="suggestion-controls">
+          <div className="combobox" ref={suggestMarketComboRef}>
+            <div className="combobox-field">
+              <input
+                className="combobox-input"
+                value={suggestMarket}
+                onChange={(e) => {
+                  setSuggestMarket(e.target.value);
+                  setSuggestMarketOpen(true);
+                  setSuggestMarketHighlight(0);
+                }}
+                onFocus={() => setSuggestMarketOpen(true)}
+                onKeyDown={onSuggestMarketKeyDown}
+                placeholder="Market (e.g. fashion, museum)"
+                aria-label="Suggest market"
+                role="combobox"
+                aria-expanded={suggestMarketOpen}
+                aria-controls="suggest-market-listbox"
+                aria-autocomplete="list"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="combobox-chevron"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setSuggestMarketOpen((open) => !open);
+                }}
+                tabIndex={-1}
+                aria-label={
+                  suggestMarketOpen ? "Close markets" : "Open markets"
+                }
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className={suggestMarketOpen ? "chevron-open" : ""}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+            {suggestMarketOpen ? (
+              <div
+                id="suggest-market-listbox"
+                role="listbox"
+                className="combobox-popover"
+              >
+                {suggestMarketOptions.length === 0 ? (
+                  <div className="combobox-empty">
+                    {existingMarkets.length === 0
+                      ? "No markets yet — type one"
+                      : "No matches — type one"}
+                  </div>
+                ) : (
+                  suggestMarketOptions.map((option, index) => {
+                    const isHighlighted = index === suggestMarketHighlight;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        role="option"
+                        aria-selected={isHighlighted}
+                        className={`combobox-option${
+                          isHighlighted ? " highlighted" : ""
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectSuggestMarketOption(option);
+                        }}
+                        onMouseEnter={() =>
+                          setSuggestMarketHighlight(index)
+                        }
+                      >
+                        <span className="combobox-option-value">{option}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <label className="suggestion-count">
+            <span className="muted">Count</span>
+            <select
+              value={suggestCount}
+              onChange={(e) => setSuggestCount(Number(e.target.value))}
+            >
+              {SUGGESTION_COUNT_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="suggestion-run"
+            onClick={() => {
+              void runSuggest();
+            }}
+            disabled={suggestLoading || !suggestMarketTrimmed}
+          >
+            {suggestLoading ? "Thinking..." : suggestedCandidates.length > 0 ? "Refresh" : "Suggest"}
+          </button>
+        </div>
+
+        {suggestError ? <p className="error">{suggestError}</p> : null}
+
+        {!suggestLoading && suggestStats ? (
+          <p className="muted suggestion-stats">
+            Web-searched {suggestStats.proposed} candidate
+            {suggestStats.proposed === 1 ? "" : "s"} →{" "}
+            <strong>{suggestStats.verified} verified</strong>
+            {suggestStats.dropped > 0 ? (
+              <>
+                {" "}
+                · dropped {suggestStats.dropped} unreachable domain
+                {suggestStats.dropped === 1 ? "" : "s"}
+              </>
+            ) : null}
+          </p>
+        ) : null}
+
+        {suggestLoading ? (
+          <p className="muted suggestion-status">
+            Searching the Scandinavian web for {suggestMarketTrimmed || "this market"} brands and verifying domains… this can take 20–60s.
+          </p>
+        ) : suggestedCandidates.length === 0 ? (
+          <p className="muted suggestion-status">
+            {suggestMarketTrimmed
+              ? "No suggestions yet — press Suggest to ask Claude."
+              : "Pick a market to get suggestions."}
+          </p>
+        ) : (
+          <ul className="suggestion-list">
+            {suggestedCandidates.map((candidate) => (
+              <li key={candidate.domain} className="suggestion-item">
+                <div className="suggestion-main">
+                  <div className="suggestion-title-row">
+                    <span className="suggestion-name">{candidate.name}</span>
+                    <a
+                      className="suggestion-domain"
+                      href={`https://${candidate.domain}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      {candidate.domain}
+                    </a>
+                    {candidate.country ? (
+                      <span className="badge suggestion-country">
+                        {candidate.country}
+                      </span>
+                    ) : null}
+                  </div>
+                  {candidate.whyRelevant ? (
+                    <p className="suggestion-why">{candidate.whyRelevant}</p>
+                  ) : null}
+                </div>
+                <div className="suggestion-actions">
+                  <button
+                    type="button"
+                    className="suggestion-use"
+                    onClick={() => useCandidate(candidate)}
+                  >
+                    Use this →
+                  </button>
+                  <button
+                    type="button"
+                    className="suggestion-skip"
+                    onClick={() => {
+                      void skipCandidate(candidate);
+                    }}
+                    disabled={skippingDomain === candidate.domain}
+                    title="Hide from future suggestions"
+                  >
+                    {skippingDomain === candidate.domain ? "..." : "Skip ✕"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="card">
         <h2>Create Company Subscription Email</h2>
         <p>
           Generates a unique sender like <code>company-yyyymmdd@pirol.app</code> for each newsletter signup.
         </p>
-        <form className="inline-form with-market" onSubmit={onCreateCompany}>
+        <form
+          className="inline-form with-market"
+          onSubmit={onCreateCompany}
+          ref={createFormRef}
+        >
           <input
+            ref={nameInputRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Company Name"
@@ -875,6 +1334,105 @@ export default function AdminHomePage() {
         <h2>Storage Strategy</h2>
         <p>{overview.storageNotes}</p>
       </section>
+
+      {createdEmail ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            setCreatedEmail(null);
+            setCreatedEmailCopied(false);
+          }}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="created-email-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="created-email-title">Subscription email created</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setCreatedEmail(null);
+                  setCreatedEmailCopied(false);
+                }}
+                aria-label="Close"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <p className="modal-subtitle">
+              Click the email to copy it to your clipboard. This dialog closes
+              automatically in 10 seconds.
+            </p>
+            <button
+              type="button"
+              className="created-email"
+              onClick={() => {
+                void copyCreatedEmail(createdEmail);
+              }}
+              title="Click to copy"
+            >
+              <code className="created-email-value">{createdEmail}</code>
+              <span className="created-email-action">
+                {createdEmailCopied ? (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy
+                  </>
+                )}
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

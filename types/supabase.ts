@@ -276,6 +276,30 @@ export type Database = {
           },
         ]
       }
+      suggestion_skips: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          market: string | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          market?: string | null
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          market?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
           attempt_count: number

@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  AdminOverview,
-  CapturedEmail,
-  CapturedEmailDetail,
-  CompanyDetail,
-  CompanySubscription,
-  EmailCategory,
-  EspProvider
+import {
+  EMAIL_CATEGORIES,
+  type AdminOverview,
+  type CapturedEmail,
+  type CapturedEmailDetail,
+  type CompanyDetail,
+  type CompanySubscription,
+  type EmailCategory,
+  type EspProvider
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { getSignedAssets, getSignedHtml } from "./storage";
@@ -19,18 +20,7 @@ const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 const COMPANY_RECENT_EMAIL_LIMIT = 25;
 
-const VALID_CATEGORIES: EmailCategory[] = [
-  "sale",
-  "product_launch",
-  "event",
-  "content",
-  "loyalty",
-  "transactional",
-  "seasonal",
-  "partnership",
-  "company_news",
-  "other"
-];
+const VALID_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
 const categories: AdminOverview["categories"] = [...VALID_CATEGORIES];
 
@@ -215,10 +205,12 @@ export async function getEmailDetailFromDb(
     primaryCtaText: data.primary_cta_text ?? null,
     primaryCtaUrl: data.primary_cta_url ?? null,
     recipient: data.recipient_email,
+    htmlContent: data.html_content ?? "",
     htmlSignedUrl,
     imageSignedUrls: imagePaths
       .map((path) => ({ storagePath: path, signedUrl: signedAssets[path] ?? null }))
       .filter((item): item is { storagePath: string; signedUrl: string } => item.signedUrl !== null),
+    imageMirrorMap: parseImageMirrorMap(data.metadata),
     remoteImageUrls: data.remote_image_urls ?? [],
     llmModel: data.llm_model ?? null,
     llmReasoning: data.llm_reasoning ?? null,
@@ -226,6 +218,23 @@ export async function getEmailDetailFromDb(
     authResults: parseAuthResults(data.auth_results),
     metadata: parseMetadata(data.metadata)
   };
+}
+
+function parseImageMirrorMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const candidate = (value as Record<string, unknown>).image_mirror_map;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return {};
+  }
+  const result: Record<string, string> = {};
+  for (const [remoteUrl, storagePath] of Object.entries(candidate)) {
+    if (typeof remoteUrl === "string" && typeof storagePath === "string" && storagePath.length > 0) {
+      result[remoteUrl] = storagePath;
+    }
+  }
+  return result;
 }
 
 export async function getCompanyDetailFromDb(
