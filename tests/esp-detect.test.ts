@@ -155,6 +155,43 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Salesforce Marketing Cloud with strong confidence on a real Rosendahl GWP email shape", () => {
+    // Distilled from a real send: only HTML and parsed links, no DKIM /
+    // Return-Path / x- headers available. The previous fingerprint matched at
+    // exactly the threshold floor (3 × html_marker = 0.6), which was so
+    // fragile that small template variations would flip the result to
+    // `unknown`. With the URL-shape patterns ordered first plus a dedicated
+    // `link_url` signal, real-world SFMC sends should now clear ~0.8+.
+    const html = `
+      <div style="font-size:0; line-height:0;"><img src="https://click.ros.rosendahl.com/open.aspx?FUWFCVEBYDBULMCYHJERMVT3RQ.510005&d=510005&bmt=0" width="1" height="1" alt=""></div>
+      <table class="stylingblock-content-wrapper"><tr>
+        <td class="stylingblock-content-wrapper camarker-inner">
+          <a data-linkto="other" href="https://click.ros.rosendahl.com/?qs=ABB7InYiOjEsImQiOjQ4NzR9ADMAAAAAACS7hegxCwzriHzszn9AlpMozeqO7OX3oFsbyUAPRX0gqNCFPRt45iyihHj2BPFumxLV4Gclj3vEyNxN4hfX4p1AT0vD-9fef9zuaiGPaPt7Sg">Se denne email i en browser</a>
+          <a data-linkto="other" href="https://click.ros.rosendahl.com/?qs=ABB7InYiOjEsImQiOjQ4NzR9ADMAAAAAACS7hegyNKaQc2mp80ysxG5VpyOKR96rGN25x3Ts1inO9DEKyK-w_NmCCp37urqUCgMS6yibjl_Yc8x_mGFs6FvymNcfzWvLokD6OaucDhS6PQ">Front page</a>
+          <img data-assetid="14749" src="https://image.ros.rosendahl.com/lib/fe2e11737364047d701d75/m/1/18d2266d-da00-4f0e-9ce7-48fab00d6a77.png" alt="" />
+          <img data-assetid="163126" src="https://image.ros.rosendahl.com/lib/fe2e11737364047d701d75/m/1/SS26_MULTIBRAND_GWP_NEWSLETTER_1200x12.jpg" alt="" />
+        </td>
+      </tr></table>
+    `;
+    const result = detectEsp({
+      headers: null,
+      html,
+      links: [
+        link("https://click.ros.rosendahl.com/?qs=ABB7InYiOjEsImQiOjQ4NzR9ADMAAAAAACS7hegxCwzriHzszn9AlpMozeqO7OX3oFsbyUAPRX0gqNCFPRt45iyihHj2BPFumxLV4Gclj3vEyNxN4hfX4p1AT0vD-9fef9zuaiGPaPt7Sg"),
+        link("https://click.ros.rosendahl.com/?qs=ABB7InYiOjEsImQiOjQ4NzR9ADMAAAAAACS7hegyNKaQc2mp80ysxG5VpyOKR96rGN25x3Ts1inO9DEKyK-w_NmCCp37urqUCgMS6yibjl_Yc8x_mGFs6FvymNcfzWvLokD6OaucDhS6PQ")
+      ],
+      resourceHosts: [
+        "click.ros.rosendahl.com",
+        "image.ros.rosendahl.com"
+      ]
+    });
+    expect(result.provider).toBe("salesforce_mc");
+    expect(result.confidence).toBeGreaterThan(0.7);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("identifies Marketo via mkt_tok parameter", () => {
     const result = detectEsp({
       headers: {
