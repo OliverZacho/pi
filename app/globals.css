@@ -238,6 +238,54 @@ td {
   vertical-align: top;
 }
 
+th.sortable-header {
+  padding: 0;
+}
+
+th.sortable-header.numeric .sortable-header-button {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.sortable-header-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.65rem 0.4rem;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.sortable-header-button:hover {
+  background: #f1f5f9;
+}
+
+.sortable-header-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.sortable-header-indicator {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1;
+}
+
+th.sortable-header.is-active .sortable-header-button {
+  color: #0f172a;
+}
+
+th.sortable-header.is-active .sortable-header-indicator {
+  color: #0f172a;
+}
+
 .admin-header {
   display: flex;
   flex-wrap: wrap;
