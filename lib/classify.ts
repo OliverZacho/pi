@@ -126,13 +126,15 @@ async function classifyWithAnthropic(
       "product_launch: announcing a brand-new product, service, drop, or collection for the first time ('introducing', 'meet the new', 'now available', 'just launched', 'debut', 'unveiling'). " +
       "products: showcasing an existing product line or specific products without a discount headline and without launching something new. Includes 'shop the collection', new arrivals, restocks, back-in-stock, bestseller roundups, gift guides, lookbooks, category edits, and 'our latest styles' style emails. Prefer this over content/event when the email's clear intent is to drive product views/purchases. " +
       "event: invites to webinars, conferences, RSVPs, workshops, save-the-date, in-store events. Only pick this if the email is primarily about attending something. " +
-      "content: editorial newsletters, blog digests, brand storytelling, interviews, recipes, how-to guides, behind-the-scenes content without a clear shop-this CTA. If the email is mainly pushing products, prefer 'products' instead. " +
+      "content: editorial newsletters, blog digests, brand storytelling, interviews, behind-the-scenes, magazine-style storytelling without a clear shop-this CTA. If the email is mainly pushing products, prefer 'products'. If it primarily teaches the reader how to do something, prefer 'education'. " +
+      "education: how-to guides, tutorials, recipes, owner tips, product walkthroughs, customer enablement, courses, certifications, explainers that teach a task or skill. Choose this over 'content' when the email's primary value is instructional ('how to', 'step by step', 'tips for', recipes, product academy, walkthroughs). " +
       "loyalty: rewards programs, membership tiers, re-engagement ('we miss you', 'come back', 'welcome back' to a lapsed customer), VIP perks, points redemption. " +
       "welcome: onboarding emails sent after a user signs up or subscribes ('welcome to <brand>', 'thanks for signing up', 'thanks for subscribing', 'confirm your email', double opt-in, first-touch welcome series, getting started). Distinct from loyalty re-engagement. " +
       "transactional: receipts, order confirmations, shipping updates, invoices (rare in this dataset). " +
       "seasonal: holiday or seasonal campaigns (Black Friday, Cyber Monday, Christmas, Summer sale, Valentine's, Halloween). " +
       "partnership: collaborations, brand partnerships ('teaming up with', 'collab'). " +
-      "company_news: rebrands, hiring announcements, milestones, funding, acquisitions. " +
+      "company_news: rebrands, hiring announcements, milestones, funding, acquisitions, leadership changes. Monthly 'what's new' / changelog / release-recap emails that announce multiple newly shipped product features should go to 'product_launch' instead. If the email is dominated by step-by-step instructions on how to use those features, prefer 'education'. If it is a reflective narrative without specific new features, prefer 'content'. " +
+      "survey: feedback requests, NPS, customer research panels, beta-tester recruitment, 'help us improve', review/rating asks. " +
       "other: marketing emails that don't fit any of the above. " +
       "Confidence is a number between 0 and 1 reflecting how certain you are about the category. " +
       "Reasoning must be one or two sentences explaining the decision. " +

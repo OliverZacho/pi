@@ -114,6 +114,24 @@ describe("classifyFromRules", () => {
     expect(result.category).toBe("content");
   });
 
+  it("matches education / how-to keywords", () => {
+    const result = classifyFromRules(
+      "How to charge your EV at home",
+      "<p>A step-by-step tutorial for first-time owners.</p>"
+    );
+    expect(result.category).toBe("education");
+    expect(result.confidence).toBeGreaterThan(0.7);
+  });
+
+  it("matches survey / feedback keywords", () => {
+    const result = classifyFromRules(
+      "Got 2 minutes? Share your feedback",
+      "<p>Take our short survey and help us improve.</p>"
+    );
+    expect(result.category).toBe("survey");
+    expect(result.confidence).toBeGreaterThan(0.7);
+  });
+
   it("falls back to 'other' when no keywords match", () => {
     const result = classifyFromRules("hello", "<p>just a note</p>");
     expect(result.category).toBe("other");

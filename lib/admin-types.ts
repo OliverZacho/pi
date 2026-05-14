@@ -4,12 +4,14 @@ export type EmailCategory =
   | "products"
   | "event"
   | "content"
+  | "education"
   | "loyalty"
   | "welcome"
   | "transactional"
   | "seasonal"
   | "partnership"
   | "company_news"
+  | "survey"
   | "other";
 
 export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
@@ -18,12 +20,14 @@ export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
   "products",
   "event",
   "content",
+  "education",
   "loyalty",
   "welcome",
   "transactional",
   "seasonal",
   "partnership",
   "company_news",
+  "survey",
   "other"
 ] as const;
 
@@ -33,12 +37,14 @@ export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
   products: "Products",
   event: "Event",
   content: "Editorial",
+  education: "Education",
   loyalty: "Loyalty",
   welcome: "Welcome",
   transactional: "Transactional",
   seasonal: "Seasonal",
   partnership: "Partnership",
   company_news: "Company news",
+  survey: "Survey",
   other: "Other"
 };
 
