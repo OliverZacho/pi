@@ -26,6 +26,7 @@ export type EspProvider =
   | "amazon_ses"
   | "mailjet"
   | "apsis"
+  | "agillic"
   | "unknown";
 
 export type EspSignal = {
@@ -399,6 +400,47 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/apsis\.one/i, /apsismail\.com/i, /anpdm\.com/i, /efficy\.com/i],
     returnPathPatterns: [/apsis\.one/i, /apsismail\.com/i, /anpdm\.com/i],
     xHeaderNames: ["x-apsis-message-id", "x-apsis-mailing-id"]
+  },
+  {
+    provider: "agillic",
+    // The image CDN host is always `<tenant>.agilliccdn.com`. The tracking /
+    // open / web-view host is usually a brand-owned CNAME (e.g.
+    // `designuniverse.bolia.com`), so we lean on URL-shape patterns below.
+    hostPatterns: [
+      /(^|\.)agilliccdn\.com$/i,
+      /(^|\.)agillic\.com$/i,
+      /(^|\.)agillic\.net$/i
+    ],
+    // Agillic's Email Studio leaves several very distinctive markers in the
+    // rendered HTML — both editor-only artifacts (the `agillicRangeMarker`
+    // inline-span class, the `agavailability` meta tag, the `data-webcopy-*`
+    // and `data-button-link` template attributes) and brand-CNAMEd URL shapes
+    // that survive when the tracking host has been re-pointed to the brand
+    // (e.g. `/api/api/webcopy/view/<base64>/<template>.html`, the
+    // `/web/namedservice/?ext=<encoded-url>` redirect, the
+    // `/web/open/<id>:<hash>==/open.gif` pixel, and `/api/api/checker/click`).
+    htmlPatterns: [
+      /\bagillicRangeMarker\b/,
+      /<meta\s+name\s*=\s*["']agavailability["']/i,
+      /\bdata-webcopy-link\s*=/i,
+      /\/api\/api\/webcopy\/view\//i,
+      /\/web\/namedservice\/\?ext=/i,
+      /\/api\/api\/checker\/click\b/i,
+      /\/web\/open\/[A-Za-z0-9_-]{16,}/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us a
+    // stronger `link_host`-weight signal (vs. the `html_marker` weight) so we
+    // clear the 0.6 threshold confidently on real-world sends through brand
+    // CNAMEs, where we have no DKIM / Return-Path headers to lean on.
+    linkUrlPatterns: [
+      /\/web\/namedservice\/\?ext=[^"'<>\s]+/i,
+      /\/api\/api\/webcopy\/view\/[^"'<>\s]+/i,
+      /\/api\/api\/checker\/click\b/i,
+      /\/web\/page\/[A-Za-z0-9_-]+\?pv=/i
+    ],
+    dkimPatterns: [/agillic\.com/i, /agilliccdn\.com/i],
+    returnPathPatterns: [/agillic\.com/i, /agilliccdn\.com/i],
+    xHeaderNames: ["x-agillic-message-id", "x-agillic-trace-id"]
   }
 ];
 

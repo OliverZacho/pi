@@ -73,6 +73,14 @@ export function classifyFromRules(subject: string, html: string): {
     return { category: "company_news", confidence: 0.78 };
   }
 
+  if (/\bsurvey\b|\bfeedback\b|\bshare your (?:thoughts|feedback|opinion|experience)\b|\btell us (?:what|how|about)\b|\brate your (?:experience|order|stay|visit)\b|\bnet promoter\b|\bnps\b|\bwe'?d love your feedback\b|\bhelp us improve\b|\byour opinion matters\b|\btake (?:our|the|a) (?:short |quick )?survey\b/.test(haystack)) {
+    return { category: "survey", confidence: 0.8 };
+  }
+
+  if (/\bhow to\b|\bhow-to\b|\bstep[- ]by[- ]step\b|\btutorial\b|\brecipes?\b|\bwalk[- ]?through\b|\bbeginner'?s guide\b|\blearn how\b|\blearn to\b|\btips (?:for|and tricks)\b|\bproduct academy\b|\btraining course\b|\bcertification\b|\bexplainer\b/.test(haystack)) {
+    return { category: "education", confidence: 0.78 };
+  }
+
   if (/\blaunch\b/.test(haystack)) {
     return { category: "product_launch", confidence: 0.72 };
   }

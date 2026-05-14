@@ -39,7 +39,8 @@ const ESP_PROVIDERS: EspProvider[] = [
   "postmark",
   "amazon_ses",
   "mailjet",
-  "apsis"
+  "apsis",
+  "agillic"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -67,7 +68,29 @@ const ESP_LABELS: Record<EspProvider, string> = {
   postmark: "Postmark",
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
-  apsis: "APSIS / Efficy"
+  apsis: "APSIS / Efficy",
+  agillic: "Agillic"
+};
+
+type CompanySortKey =
+  | "name"
+  | "market"
+  | "domain"
+  | "subscriptionEmail"
+  | "subscribedAt"
+  | "emailCount"
+  | "lastEmailAt";
+
+type SortDirection = "asc" | "desc";
+
+type CompanySort = {
+  key: CompanySortKey;
+  direction: SortDirection;
+};
+
+const DEFAULT_COMPANY_SORT: CompanySort = {
+  key: "subscribedAt",
+  direction: "desc"
 };
 
 type EmailFilters = {
@@ -156,6 +179,49 @@ function formatDateTime(value: string | null): string {
   return parsed.toLocaleString();
 }
 
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  numeric = false
+}: {
+  label: string;
+  sortKey: CompanySortKey;
+  sort: CompanySort;
+  onSort: (key: CompanySortKey) => void;
+  numeric?: boolean;
+}) {
+  const isActive = sort.key === sortKey;
+  const direction = isActive ? sort.direction : null;
+  const ariaSort: "ascending" | "descending" | "none" = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "";
+  return (
+    <th
+      className={`sortable-header${numeric ? " numeric" : ""}${
+        isActive ? " is-active" : ""
+      }`}
+      aria-sort={ariaSort}
+      scope="col"
+    >
+      <button
+        type="button"
+        className="sortable-header-button"
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{label}</span>
+        <span className="sortable-header-indicator" aria-hidden="true">
+          {indicator || "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [loading, setLoading] = useState(true);
@@ -166,6 +232,7 @@ export default function AdminHomePage() {
   const [marketHighlight, setMarketHighlight] = useState(0);
   const marketComboRef = useRef<HTMLDivElement>(null);
   const [companySearch, setCompanySearch] = useState("");
+  const [companySort, setCompanySort] = useState<CompanySort>(DEFAULT_COMPANY_SORT);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
@@ -578,19 +645,77 @@ export default function AdminHomePage() {
 
   const sortedCompanies = useMemo(() => {
     const copy = [...overview.companies];
+    const { key, direction } = companySort;
+    const factor = direction === "asc" ? 1 : -1;
+
+    const compareStrings = (a: string | null, b: string | null) => {
+      const aEmpty = !a;
+      const bEmpty = !b;
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      return (a as string).localeCompare(b as string, undefined, {
+        sensitivity: "base"
+      });
+    };
+
+    const compareDates = (a: string | null, b: string | null) => {
+      const aEmpty = !a;
+      const bEmpty = !b;
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      return new Date(a as string).getTime() - new Date(b as string).getTime();
+    };
+
     copy.sort((a, b) => {
-      const aHas = a.lastEmailAt ? 1 : 0;
-      const bHas = b.lastEmailAt ? 1 : 0;
-      if (aHas !== bHas) {
-        return bHas - aHas;
+      let result = 0;
+      switch (key) {
+        case "name":
+          result = compareStrings(a.name, b.name);
+          break;
+        case "market":
+          result = compareStrings(a.market, b.market);
+          break;
+        case "domain":
+          result = compareStrings(a.domain, b.domain);
+          break;
+        case "subscriptionEmail":
+          result = compareStrings(a.subscriptionEmail, b.subscriptionEmail);
+          break;
+        case "subscribedAt":
+          result = compareDates(a.subscribedAt, b.subscribedAt);
+          break;
+        case "emailCount":
+          result = a.emailCount - b.emailCount;
+          break;
+        case "lastEmailAt":
+          result = compareDates(a.lastEmailAt, b.lastEmailAt);
+          break;
       }
-      if (a.lastEmailAt && b.lastEmailAt) {
-        return new Date(b.lastEmailAt).getTime() - new Date(a.lastEmailAt).getTime();
+      if (result !== 0) {
+        return result * factor;
       }
-      return new Date(b.subscribedAt).getTime() - new Date(a.subscribedAt).getTime();
+      return compareStrings(a.name, b.name);
     });
     return copy;
-  }, [overview.companies]);
+  }, [overview.companies, companySort]);
+
+  function toggleCompanySort(key: CompanySortKey) {
+    setCompanySort((current) => {
+      if (current.key === key) {
+        return {
+          key,
+          direction: current.direction === "asc" ? "desc" : "asc"
+        };
+      }
+      const defaultDirection: SortDirection =
+        key === "subscribedAt" || key === "lastEmailAt" || key === "emailCount"
+          ? "desc"
+          : "asc";
+      return { key, direction: defaultDirection };
+    });
+  }
 
   const filteredCompanies = useMemo(() => {
     const query = companySearch.trim().toLowerCase();
@@ -1047,13 +1172,49 @@ export default function AdminHomePage() {
           <table>
             <thead>
               <tr>
-                <th>Company</th>
-                <th>Market</th>
-                <th>Domain</th>
-                <th>Subscription Email</th>
-                <th>Subscribed Since</th>
-                <th className="numeric">Emails</th>
-                <th>Last Email</th>
+                <SortableHeader
+                  label="Company"
+                  sortKey="name"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
+                <SortableHeader
+                  label="Market"
+                  sortKey="market"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
+                <SortableHeader
+                  label="Domain"
+                  sortKey="domain"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
+                <SortableHeader
+                  label="Subscription Email"
+                  sortKey="subscriptionEmail"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
+                <SortableHeader
+                  label="Subscribed Since"
+                  sortKey="subscribedAt"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
+                <SortableHeader
+                  label="Emails"
+                  sortKey="emailCount"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                  numeric
+                />
+                <SortableHeader
+                  label="Last Email"
+                  sortKey="lastEmailAt"
+                  sort={companySort}
+                  onSort={toggleCompanySort}
+                />
               </tr>
             </thead>
             <tbody>
