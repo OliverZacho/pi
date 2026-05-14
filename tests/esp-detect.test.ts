@@ -401,6 +401,51 @@ describe("detectEsp", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.6);
   });
 
+  it("identifies Agillic on a brand-CNAMEd tracking domain with the Agillic CDN (no headers)", () => {
+    // Distilled from a real Bolia Velkomstflow send: the tracking / open /
+    // web-view host is CNAMEd to `designuniverse.bolia.com`, so only the image
+    // CDN host on `*.agilliccdn.com` matches by host. The URL-shape patterns
+    // (`/api/api/webcopy/view/`, `/web/namedservice/?ext=`, `/web/open/`,
+    // `/api/api/checker/click`, `/web/page/?pv=`) plus the Agillic Editor
+    // markers (`agillicRangeMarker`, the `agavailability` meta tag, the
+    // `data-webcopy-link` attribute) carry the detection.
+    const html = `
+      <html><head>
+        <meta name="agavailability" content="email">
+        <meta name="predefined-color" content="transparent,#F2F0E7,#69755F">
+      </head><body>
+        <img src="https://designuniverse.bolia.com/web/open/HROg4mtcRlSWpCFyK-aJi-PgSTmXlDAcW7DlccEgDe1tJyASniCQao8A18QQJOeW:Zl0XbAbmSCdITkj7_zOX9Q==/open.gif">
+        <div data-webcopy-link="https://designuniverse.bolia.com/api/api/webcopy/view/1WNEsUTyqxSuYOPTcdFh6JPsleQCFi57odlh-glXNF4xmA6MjJVEOF9Pe3airjyj:pthcOkVwWG-0Ck70LxYndA==/Velkomstflow_Mail1_FY26.html?lgn_uid=foo" data-webcopy-label="Vis denne mail i webbrowser">
+          <a href="https://designuniverse.bolia.com/api/api/webcopy/view/bVP4OdYwTY6sLnh28pMcR4k901OFb-ZnxcsPz3EMCzZRvVHkmJx8IF80XsgpKHzB:8pazYCjSexoaSFlYQoL_-A==/Velkomstflow_Mail1_FY26.html?lgn_uid=bar">View in browser</a>
+          <a href="https://designuniverse.bolia.com/web/namedservice/?ext=https%3A%2F%2Fwww.bolia.com%2F%40%28local%29&cs=abc&lgn_uid=baz&ea=qux%3D%3D:r==">Shop</a>
+          <a href="https://designuniverse.bolia.com/web/page/profile?pv=cnYCHDbl1zsfGruP-CHfbBb6FcXrLPFEQdrh6r-zZ8aAviXwWAdzJ8Fiv640Dwq-p2I1TkX7l8yxuUunoX3q8gzhQw7iHES1WUdk151R5NE=:foo==&ea=quux==">Update profile</a>
+          <img src="https://bolia.agilliccdn.com/cpk7wt/MjAyNTA3/Mjk=/MDMwOGYzZTktNzE5Yi00M2FkLWJhM2UtNDFjNzQ0ZmY3ZGFm.jpg">
+          <span class="agillicRangeMarker">&#8206;</span>
+        </div>
+        <a href="https://designuniverse.bolia.com/api/api/checker/click?ea=ELrz_9GVuUBUaP5kcL3itLGgVhUloW-P9cXo19YQ7kmJy_Qrl4A4RF_BTxTRnMid:R2jkRxOg56Yh5A2W2DvyRA==">Text</a>
+      </body></html>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://designuniverse.bolia.com/api/api/webcopy/view/bVP4OdYwTY6sLnh28pMcR4k901OFb-ZnxcsPz3EMCzZRvVHkmJx8IF80XsgpKHzB:8pazYCjSexoaSFlYQoL_-A==/Velkomstflow_Mail1_FY26.html?lgn_uid=bar"),
+        link("https://designuniverse.bolia.com/web/namedservice/?ext=https%3A%2F%2Fwww.bolia.com%2F%40%28local%29&cs=abc&lgn_uid=baz&ea=qux%3D%3D:r=="),
+        link("https://designuniverse.bolia.com/web/page/profile?pv=cnYCHDbl1zsfGruP-CHfbBb6FcXrLPFEQdrh6r-zZ8aAviXwWAdzJ8Fiv640Dwq-p2I1TkX7l8yxuUunoX3q8gzhQw7iHES1WUdk151R5NE=:foo==&ea=quux=="),
+        link("https://designuniverse.bolia.com/api/api/checker/click?ea=ELrz_9GVuUBUaP5kcL3itLGgVhUloW-P9cXo19YQ7kmJy_Qrl4A4RF_BTxTRnMid:R2jkRxOg56Yh5A2W2DvyRA==")
+      ],
+      resourceHosts: [
+        "designuniverse.bolia.com",
+        "bolia.agilliccdn.com"
+      ]
+    });
+    expect(result.provider).toBe("agillic");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

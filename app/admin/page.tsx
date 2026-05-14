@@ -39,7 +39,8 @@ const ESP_PROVIDERS: EspProvider[] = [
   "postmark",
   "amazon_ses",
   "mailjet",
-  "apsis"
+  "apsis",
+  "agillic"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -67,7 +68,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   postmark: "Postmark",
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
-  apsis: "APSIS / Efficy"
+  apsis: "APSIS / Efficy",
+  agillic: "Agillic"
 };
 
 type EmailFilters = {

@@ -80,7 +80,8 @@ export type EspProvider =
   | "postmark"
   | "amazon_ses"
   | "mailjet"
-  | "apsis";
+  | "apsis"
+  | "agillic";
 
 export type CapturedEmail = {
   id: string;
