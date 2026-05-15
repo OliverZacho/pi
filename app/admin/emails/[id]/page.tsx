@@ -190,26 +190,42 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 </ul>
               </div>
             ) : null}
-            {email.fontFamilies.length > 0 ? (
-              <div className="palette-row" aria-label="Email fonts">
-                <span className="palette-label">Fonts</span>
-                <ul className="palette-swatches font-list">
-                  {email.fontFamilies.map((font) => (
-                    <li key={font.family}>
-                      <span
-                        className="font-sample"
-                        style={{ fontFamily: `'${font.family}', sans-serif` }}
-                        aria-hidden="true"
+            {(() => {
+              const primaryFonts = email.fontFamilies.filter(
+                (font) => font.primary_count > 0
+              );
+              if (primaryFonts.length === 0) {
+                return null;
+              }
+              return (
+                <div className="palette-row" aria-label="Email fonts">
+                  <span
+                    className="palette-label"
+                    title="Number of CSS declarations where this font is the first (non-fallback) choice."
+                  >
+                    Fonts
+                  </span>
+                  <ul className="palette-swatches font-list">
+                    {primaryFonts.map((font) => (
+                      <li
+                        key={font.family}
+                        title={`${font.family}: primary in ${font.primary_count} declaration${font.primary_count === 1 ? "" : "s"} (appears ${font.count} time${font.count === 1 ? "" : "s"} total, including fallback positions)`}
                       >
-                        Aa
-                      </span>
-                      <span className="font-name">{font.family}</span>
-                      <span className="palette-count">{font.count}x</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+                        <span
+                          className="font-sample"
+                          style={{ fontFamily: `'${font.family}', sans-serif` }}
+                          aria-hidden="true"
+                        >
+                          Aa
+                        </span>
+                        <span className="font-name">{font.family}</span>
+                        <span className="palette-count">{font.primary_count}x</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
             <dl className="detail-grid">
               <div>
                 <dt>Category</dt>

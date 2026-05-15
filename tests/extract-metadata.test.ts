@@ -325,11 +325,16 @@ describe("extractFontFamilies", () => {
     const map = new Map(fonts.map((f) => [f.family.toLowerCase(), f]));
 
     expect(map.get("inter")?.count).toBe(2);
+    expect(map.get("inter")?.primary_count).toBe(2);
     expect(map.get("inter")?.sources.sort()).toEqual(["inline", "style_block"]);
     expect(map.get("helvetica neue")?.count).toBe(1);
+    expect(map.get("helvetica neue")?.primary_count).toBe(1);
     expect(map.get("helvetica")?.count).toBe(1);
+    expect(map.get("helvetica")?.primary_count).toBe(0);
     expect(map.get("arial")?.count).toBe(1);
+    expect(map.get("arial")?.primary_count).toBe(0);
     expect(map.get("georgia")?.count).toBe(1);
+    expect(map.get("georgia")?.primary_count).toBe(1);
     expect(map.has("sans-serif")).toBe(false);
     expect(map.has("serif")).toBe(false);
   });
@@ -344,6 +349,47 @@ describe("extractFontFamilies", () => {
     expect(fonts).toHaveLength(1);
     expect(fonts[0].family).toBe("Helvetica Neue");
     expect(fonts[0].count).toBe(3);
+    expect(fonts[0].primary_count).toBe(3);
+  });
+
+  it("distinguishes primary (first) fonts from fallback chain entries", () => {
+    const html = `
+      <style>
+        body { font-family: 'Brand Display', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        h1 { font-family: 'Brand Display', Georgia, serif; }
+        .footer { font-family: Arial, Helvetica, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const byName = new Map(fonts.map((f) => [f.family, f]));
+
+    expect(byName.get("Brand Display")?.primary_count).toBe(2);
+    expect(byName.get("Brand Display")?.count).toBe(2);
+
+    expect(byName.get("Arial")?.primary_count).toBe(1);
+    expect(byName.get("Arial")?.count).toBe(2);
+
+    expect(byName.get("Helvetica")?.primary_count).toBe(0);
+    expect(byName.get("Helvetica")?.count).toBe(2);
+
+    expect(byName.get("Helvetica Neue")?.primary_count).toBe(0);
+    expect(byName.get("Georgia")?.primary_count).toBe(0);
+
+    expect(fonts[0].family).toBe("Brand Display");
+  });
+
+  it("treats the first non-generic entry as primary, skipping system-stack tokens", () => {
+    const html = `
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const segoe = fonts.find((f) => f.family === "Segoe UI");
+    expect(segoe?.primary_count).toBe(1);
+    const roboto = fonts.find((f) => f.family === "Roboto");
+    expect(roboto?.primary_count).toBe(0);
+    expect(roboto?.count).toBe(1);
   });
 
   it("captures @font-face declarations as style_block sources", () => {
@@ -419,7 +465,7 @@ describe("extractFontFamilies", () => {
     expect(extractFontFamilies(html)).toEqual([]);
   });
 
-  it("sorts by frequency descending and respects the limit", () => {
+  it("sorts by primary_count desc, then total count, and respects the limit", () => {
     const html = `
       <style>
         .a { font-family: 'Inter'; }
@@ -433,8 +479,8 @@ describe("extractFontFamilies", () => {
     `;
     const fonts = extractFontFamilies(html, 2);
     expect(fonts.map((f) => f.family)).toEqual(["Inter", "Roboto"]);
-    expect(fonts[0].count).toBe(3);
-    expect(fonts[1].count).toBe(2);
+    expect(fonts[0].primary_count).toBe(3);
+    expect(fonts[1].primary_count).toBe(2);
   });
 
   it("returns [] for empty input", () => {
@@ -497,6 +543,9 @@ describe("extractMetadata (integration)", () => {
     expect(fontFamilies).not.toContain("sans-serif");
     const inter = meta.font_families.find((f) => f.family === "Inter");
     expect(inter?.count).toBe(2);
+    expect(inter?.primary_count).toBe(2);
     expect(inter?.sources.sort()).toEqual(["inline", "style_block"]);
+    const arial = meta.font_families.find((f) => f.family === "Arial");
+    expect(arial?.primary_count).toBe(0);
   });
 });

@@ -283,12 +283,16 @@ function parseFontFamilies(value: unknown): FontFamily[] {
       typeof entry.count === "number" && Number.isFinite(entry.count)
         ? Math.max(0, Math.floor(entry.count))
         : 0;
+    const primaryCount =
+      typeof entry.primary_count === "number" && Number.isFinite(entry.primary_count)
+        ? Math.max(0, Math.floor(entry.primary_count))
+        : 0;
     const rawSources = Array.isArray(entry.sources) ? entry.sources : [];
     const sources = rawSources.filter(
       (s): s is FontFamilySource =>
         typeof s === "string" && (FONT_SOURCE_VALUES as string[]).includes(s)
     );
-    result.push({ family, count, sources });
+    result.push({ family, count, primary_count: primaryCount, sources });
   }
   return result;
 }

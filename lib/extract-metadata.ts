@@ -38,7 +38,15 @@ export type FontSource = "inline" | "style_block" | "attribute";
 
 export type FontFamily = {
   family: string;
+  /** Total occurrences across every `font-family` declaration (any position). */
   count: number;
+  /**
+   * How often this font was the *first non-generic* entry in a `font-family`
+   * stack — i.e. the typeface the author actually intended to render.
+   * Fallbacks (e.g. Arial / Helvetica trailing every stack) have a high
+   * `count` but a `primary_count` of 0.
+   */
+  primary_count: number;
   sources: FontSource[];
 };
 
@@ -294,31 +302,56 @@ export function extractFontFamilies(
 
   const aggregate = new Map<
     string,
-    { display: string; count: number; sources: Set<FontSource> }
+    {
+      display: string;
+      count: number;
+      primary_count: number;
+      sources: Set<FontSource>;
+    }
   >();
 
-  const record = (rawValue: string, source: FontSource): void => {
+  // Records one entry from a font-family stack. `isPrimary` marks the *first
+  // non-generic* (= first accepted) entry of the surrounding declaration as
+  // the author's intended typeface; the remaining entries are fallbacks.
+  // Returns whether the entry was accepted (so callers can advance the
+  // "primary slot" past filtered-out entries like `-apple-system`).
+  const record = (rawValue: string, source: FontSource, isPrimary: boolean): boolean => {
     const trimmed = rawValue.trim();
     if (!trimmed) {
-      return;
+      return false;
     }
     if (/^var\s*\(/i.test(trimmed)) {
-      return;
+      return false;
     }
     const key = trimmed.replace(/\s+/g, " ").toLowerCase();
     if (!key || FONT_GENERIC_KEYWORDS.has(key)) {
-      return;
+      return false;
     }
     const existing = aggregate.get(key);
     if (existing) {
       existing.count += 1;
+      if (isPrimary) {
+        existing.primary_count += 1;
+      }
       existing.sources.add(source);
     } else {
       aggregate.set(key, {
         display: trimmed.replace(/\s+/g, " "),
         count: 1,
+        primary_count: isPrimary ? 1 : 0,
         sources: new Set([source])
       });
+    }
+    return true;
+  };
+
+  const recordList = (parts: string[], source: FontSource): void => {
+    let primaryAssigned = false;
+    for (const part of parts) {
+      const accepted = record(part, source, !primaryAssigned);
+      if (accepted && !primaryAssigned) {
+        primaryAssigned = true;
+      }
     }
   };
 
@@ -336,9 +369,7 @@ export function extractFontFamilies(
       if (!value) {
         continue;
       }
-      for (const part of splitFontFamilyList(value)) {
-        record(part, source);
-      }
+      recordList(splitFontFamilyList(value), source);
     }
   };
 
@@ -355,18 +386,22 @@ export function extractFontFamilies(
     if (!raw) {
       continue;
     }
-    for (const part of splitFontFamilyList(raw)) {
-      record(part, "attribute");
-    }
+    recordList(splitFontFamilyList(raw), "attribute");
   }
 
   const entries: FontFamily[] = Array.from(aggregate.values())
     .map((info) => ({
       family: info.display,
       count: info.count,
+      primary_count: info.primary_count,
       sources: Array.from(info.sources).sort()
     }))
-    .sort((a, b) => b.count - a.count || a.family.localeCompare(b.family));
+    .sort(
+      (a, b) =>
+        b.primary_count - a.primary_count ||
+        b.count - a.count ||
+        a.family.localeCompare(b.family)
+    );
 
   const cap = Math.max(0, Math.floor(limit));
   return cap > 0 ? entries.slice(0, cap) : entries;

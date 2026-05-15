@@ -128,7 +128,14 @@ export type FontFamilySource = "inline" | "style_block" | "attribute";
 
 export type FontFamily = {
   family: string;
+  /** Total `font-family` declarations the name appears in (any stack position). */
   count: number;
+  /**
+   * How often the font was the *first non-generic* entry of its declaration
+   * — i.e. the typeface the author actually wanted to render. Fallbacks (e.g.
+   * Arial trailing every stack) have a high `count` but `primary_count: 0`.
+   */
+  primary_count: number;
   sources: FontFamilySource[];
 };
 
