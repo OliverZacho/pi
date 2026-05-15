@@ -37,7 +37,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
   apsis: "APSIS / Efficy",
-  agillic: "Agillic"
+  agillic: "Agillic",
+  peytzmail: "Peytzmail"
 };
 
 type EmailTab = "inbox" | "raw";

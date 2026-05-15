@@ -40,7 +40,8 @@ const ESP_PROVIDERS: EspProvider[] = [
   "amazon_ses",
   "mailjet",
   "apsis",
-  "agillic"
+  "agillic",
+  "peytzmail"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -69,7 +70,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
   apsis: "APSIS / Efficy",
-  agillic: "Agillic"
+  agillic: "Agillic",
+  peytzmail: "Peytzmail"
 };
 
 type CompanySortKey =
