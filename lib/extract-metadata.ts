@@ -26,6 +26,14 @@ export type AuthResults = {
   dmarc: "pass" | "fail" | "neutral" | "softfail" | "temperror" | "permerror" | "none" | null;
 };
 
+export type PaletteSource = "inline" | "style_block" | "attribute";
+
+export type PaletteColor = {
+  hex: string;
+  count: number;
+  sources: PaletteSource[];
+};
+
 export type EmailMetadata = {
   preheader: string | null;
   has_gif: boolean;
@@ -40,6 +48,7 @@ export type EmailMetadata = {
   utm_index: ParsedLink["utm"][];
   subject_metadata: SubjectMetadata;
   auth_results: AuthResults | null;
+  palette_colors: PaletteColor[];
 };
 
 export type ExtractMetadataInput = {
@@ -93,7 +102,8 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
     resource_hosts: resourceHosts,
     utm_index,
     subject_metadata: subjectMeta,
-    auth_results: extractAuthResults(input.headers ?? null)
+    auth_results: extractAuthResults(input.headers ?? null),
+    palette_colors: extractColorPalette(html)
   };
 }
 
@@ -113,6 +123,142 @@ export function extractResourceHosts(html: string): string[] {
     seen.add(host);
   }
   return Array.from(seen);
+}
+
+const PALETTE_DEFAULT_LIMIT = 24;
+const HEX_TOKEN_RE = /#([0-9a-f]{6}|[0-9a-f]{3})\b/gi;
+const RGB_TOKEN_RE = /rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)/gi;
+const STYLE_BLOCK_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+const STYLE_ATTR_RE = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+const COLOR_ATTR_RE =
+  /\b(?:bgcolor|color)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/gi;
+const SCRIPT_BLOCK_RE = /<script\b[\s\S]*?<\/script>/gi;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+/**
+ * Captures the hex/rgb color tokens that appear in the email's HTML/CSS layout
+ * (style blocks, inline `style` attributes, and legacy `bgcolor`/`color` attrs).
+ * Image pixel data is intentionally not inspected — we only look at colour
+ * tokens declared in the markup itself. RGB/RGBA values are normalised to
+ * lowercase 6-char hex; alpha channels are stripped.
+ */
+export function extractColorPalette(
+  html: string,
+  limit: number = PALETTE_DEFAULT_LIMIT
+): PaletteColor[] {
+  if (!html) {
+    return [];
+  }
+
+  const cleaned = html.replace(SCRIPT_BLOCK_RE, " ").replace(HTML_COMMENT_RE, " ");
+
+  const aggregate = new Map<string, { count: number; sources: Set<PaletteSource> }>();
+
+  const record = (hex: string, source: PaletteSource): void => {
+    const normalised = normaliseHex(hex);
+    if (!normalised) {
+      return;
+    }
+    const existing = aggregate.get(normalised);
+    if (existing) {
+      existing.count += 1;
+      existing.sources.add(source);
+    } else {
+      aggregate.set(normalised, { count: 1, sources: new Set([source]) });
+    }
+  };
+
+  const scanColors = (text: string, source: PaletteSource): void => {
+    if (!text) {
+      return;
+    }
+    for (const match of text.matchAll(HEX_TOKEN_RE)) {
+      record(`#${match[1]}`, source);
+    }
+    for (const match of text.matchAll(RGB_TOKEN_RE)) {
+      record(
+        channelsToHex(
+          clampChannel(Number(match[1])),
+          clampChannel(Number(match[2])),
+          clampChannel(Number(match[3]))
+        ),
+        source
+      );
+    }
+  };
+
+  for (const block of cleaned.matchAll(STYLE_BLOCK_RE)) {
+    scanColors(block[1] ?? "", "style_block");
+  }
+
+  for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
+    scanColors(attr[1] ?? attr[2] ?? "", "inline");
+  }
+
+  for (const attr of cleaned.matchAll(COLOR_ATTR_RE)) {
+    const value = (attr[1] ?? attr[2] ?? attr[3] ?? "").trim();
+    if (!value) {
+      continue;
+    }
+    if (value.startsWith("#")) {
+      const hexMatch = value.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i);
+      if (hexMatch) {
+        record(`#${hexMatch[1]}`, "attribute");
+      }
+      continue;
+    }
+    const rgbMatch = value.match(
+      /^rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)/i
+    );
+    if (rgbMatch) {
+      record(
+        channelsToHex(
+          clampChannel(Number(rgbMatch[1])),
+          clampChannel(Number(rgbMatch[2])),
+          clampChannel(Number(rgbMatch[3]))
+        ),
+        "attribute"
+      );
+    }
+  }
+
+  const entries: PaletteColor[] = Array.from(aggregate.entries())
+    .map(([hex, info]) => ({
+      hex,
+      count: info.count,
+      sources: Array.from(info.sources).sort()
+    }))
+    .sort((a, b) => b.count - a.count || a.hex.localeCompare(b.hex));
+
+  const cap = Math.max(0, Math.floor(limit));
+  return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+function normaliseHex(hex: string): string | null {
+  const match = hex.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i);
+  if (!match) {
+    return null;
+  }
+  let value = match[1].toLowerCase();
+  if (value.length === 3) {
+    value = value
+      .split("")
+      .map((ch) => ch + ch)
+      .join("");
+  }
+  return `#${value}`;
+}
+
+function clampChannel(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function channelsToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number): string => n.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 export function extractPreheader(html: string): string | null {

@@ -7,7 +7,9 @@ import {
   type CompanyDetail,
   type CompanySubscription,
   type EmailCategory,
-  type EspProvider
+  type EspProvider,
+  type PaletteColor,
+  type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { getSignedAssets, getSignedHtml } from "./storage";
@@ -216,8 +218,42 @@ export async function getEmailDetailFromDb(
     llmReasoning: data.llm_reasoning ?? null,
     processedAt: data.processed_at ?? null,
     authResults: parseAuthResults(data.auth_results),
+    paletteColors: parsePaletteColors(data.metadata),
     metadata: parseMetadata(data.metadata)
   };
+}
+
+const PALETTE_SOURCE_VALUES: PaletteColorSource[] = ["inline", "style_block", "attribute"];
+
+function parsePaletteColors(value: unknown): PaletteColor[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const candidate = (value as Record<string, unknown>).palette_colors;
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+  const result: PaletteColor[] = [];
+  for (const item of candidate) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const hex = typeof entry.hex === "string" ? entry.hex.toLowerCase() : null;
+    if (!hex || !/^#[0-9a-f]{6}$/.test(hex)) {
+      continue;
+    }
+    const count = typeof entry.count === "number" && Number.isFinite(entry.count)
+      ? Math.max(0, Math.floor(entry.count))
+      : 0;
+    const rawSources = Array.isArray(entry.sources) ? entry.sources : [];
+    const sources = rawSources.filter(
+      (s): s is PaletteColorSource =>
+        typeof s === "string" && (PALETTE_SOURCE_VALUES as string[]).includes(s)
+    );
+    result.push({ hex, count, sources });
+  }
+  return result;
 }
 
 function parseImageMirrorMap(value: unknown): Record<string, string> {

@@ -116,6 +116,14 @@ export type CapturedEmail = {
   primaryCtaUrl: string | null;
 };
 
+export type PaletteColorSource = "inline" | "style_block" | "attribute";
+
+export type PaletteColor = {
+  hex: string;
+  count: number;
+  sources: PaletteColorSource[];
+};
+
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
   htmlContent: string;
@@ -127,6 +135,7 @@ export type CapturedEmailDetail = CapturedEmail & {
   llmReasoning: string | null;
   processedAt: string | null;
   authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
+  paletteColors: PaletteColor[];
   metadata: Record<string, unknown> | null;
 };
 

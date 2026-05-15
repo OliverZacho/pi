@@ -303,7 +303,8 @@ async function ingestEmailReceivedEvent(
     image_to_text_ratio: metadata.image_to_text_ratio,
     has_amp_html: metadata.has_amp_html,
     esp_candidates: espResult.candidates,
-    image_mirror_map: imageMirrorMap
+    image_mirror_map: imageMirrorMap,
+    palette_colors: metadata.palette_colors
   };
 
   const stored = await runStage("store_email", () =>

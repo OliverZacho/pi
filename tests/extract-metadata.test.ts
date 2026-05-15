@@ -3,6 +3,7 @@ import {
   detectDarkMode,
   detectHasGif,
   extractAuthResults,
+  extractColorPalette,
   extractLinks,
   extractMetadata,
   extractPreheader,
@@ -218,17 +219,105 @@ describe("extractAuthResults", () => {
   });
 });
 
+describe("extractColorPalette", () => {
+  it("captures hex colors from <style> blocks and inline style attrs", () => {
+    const html = `
+      <html>
+        <head>
+          <style>
+            body { background: #FFFFFF; color: #1a1a1a; }
+            .accent { color: #ff0066; border-color: #1A1A1A; }
+          </style>
+        </head>
+        <body>
+          <div style="background-color:#fff;color:#1a1a1a">Hi</div>
+        </body>
+      </html>
+    `;
+    const palette = extractColorPalette(html);
+    const map = new Map(palette.map((c) => [c.hex, c]));
+
+    expect(map.get("#ffffff")?.count).toBe(2);
+    expect(map.get("#1a1a1a")?.count).toBe(3);
+    expect(map.get("#ff0066")?.count).toBe(1);
+
+    expect(map.get("#1a1a1a")?.sources.sort()).toEqual(["inline", "style_block"]);
+    expect(map.get("#ff0066")?.sources).toEqual(["style_block"]);
+  });
+
+  it("normalises 3-char hex shorthand to 6-char and lowercases", () => {
+    const palette = extractColorPalette(`<div style="color:#FAB">x</div>`);
+    expect(palette).toEqual([
+      { hex: "#ffaabb", count: 1, sources: ["inline"] }
+    ]);
+  });
+
+  it("normalises rgb() and strips alpha from rgba()", () => {
+    const html = `
+      <style>.a { color: rgb(255, 102, 0); background: rgba(0, 0, 0, 0.5); }</style>
+      <p style="border:1px solid rgb(255,102,0)">x</p>
+    `;
+    const palette = extractColorPalette(html);
+    const map = new Map(palette.map((c) => [c.hex, c]));
+    expect(map.get("#ff6600")?.count).toBe(2);
+    expect(map.get("#000000")?.count).toBe(1);
+  });
+
+  it("captures legacy bgcolor and color HTML attributes", () => {
+    const html = `
+      <table bgcolor="#0F172A">
+        <tr><td><font color="white">hi</font></td></tr>
+        <tr><td bgcolor="rgb(34,34,34)">x</td></tr>
+      </table>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toContain("#0f172a");
+    expect(hexes).toContain("#222222");
+    expect(hexes).not.toContain("#ffffff");
+    const dark = palette.find((c) => c.hex === "#0f172a");
+    expect(dark?.sources).toEqual(["attribute"]);
+  });
+
+  it("ignores colors that only appear inside <script> blocks", () => {
+    const html = `<script>const c = "#ff0000"; const r = "rgb(0,255,0)";</script>`;
+    expect(extractColorPalette(html)).toEqual([]);
+  });
+
+  it("sorts by frequency descending and respects the limit", () => {
+    const html = `
+      <style>
+        .a { color: #111111; background: #111111; border: 1px solid #111111; }
+        .b { color: #222222; background: #222222; }
+        .c { color: #333333; }
+        .d { color: #444444; }
+      </style>
+    `;
+    const palette = extractColorPalette(html, 2);
+    expect(palette.map((c) => c.hex)).toEqual(["#111111", "#222222"]);
+    expect(palette[0].count).toBe(3);
+    expect(palette[1].count).toBe(2);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(extractColorPalette("")).toEqual([]);
+  });
+});
+
 describe("extractMetadata (integration)", () => {
   it("returns a full enrichment record", () => {
     const html = `
       <html>
         <head>
           <meta name="color-scheme" content="light dark" />
-          <style>@media (prefers-color-scheme: dark) { body { background:#000; } }</style>
+          <style>
+            @media (prefers-color-scheme: dark) { body { background:#000; } }
+            body { background: #ffffff; color: #1a1a1a; }
+          </style>
         </head>
-        <body>
+        <body bgcolor="#ffffff">
           <div style="display:none;font-size:0">Hidden preview line for inbox</div>
-          <h1>Spring sale</h1>
+          <h1 style="color:#1A1A1A">Spring sale</h1>
           <img src="https://cdn.example.com/banner.gif" />
           <a href="https://shop.example.com/sale?utm_source=klaviyo&utm_campaign=spring2026">Shop</a>
         </body>
@@ -258,5 +347,10 @@ describe("extractMetadata (integration)", () => {
     expect(meta.utm_index[0]).toMatchObject({ source: "klaviyo", campaign: "spring2026" });
     expect(meta.subject_metadata.word_count).toBeGreaterThan(0);
     expect(meta.auth_results).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass" });
+
+    const paletteHexes = meta.palette_colors.map((c) => c.hex);
+    expect(paletteHexes).toContain("#000000");
+    expect(paletteHexes).toContain("#ffffff");
+    expect(paletteHexes).toContain("#1a1a1a");
   });
 });

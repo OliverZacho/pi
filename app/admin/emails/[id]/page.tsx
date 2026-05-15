@@ -172,6 +172,24 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
         <>
           <section className="card">
             <h2>Classification &amp; signals</h2>
+            {email.paletteColors.length > 0 ? (
+              <div className="palette-row" aria-label="Layout color palette">
+                <span className="palette-label">Palette</span>
+                <ul className="palette-swatches">
+                  {email.paletteColors.map((color) => (
+                    <li key={color.hex}>
+                      <span
+                        className="palette-swatch"
+                        style={{ backgroundColor: color.hex }}
+                        aria-hidden="true"
+                      />
+                      <code className="palette-hex">{color.hex}</code>
+                      <span className="palette-count">{color.count}x</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <dl className="detail-grid">
               <div>
                 <dt>Category</dt>
