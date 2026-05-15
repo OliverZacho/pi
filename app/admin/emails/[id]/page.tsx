@@ -190,6 +190,26 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 </ul>
               </div>
             ) : null}
+            {email.fontFamilies.length > 0 ? (
+              <div className="palette-row" aria-label="Email fonts">
+                <span className="palette-label">Fonts</span>
+                <ul className="palette-swatches font-list">
+                  {email.fontFamilies.map((font) => (
+                    <li key={font.family}>
+                      <span
+                        className="font-sample"
+                        style={{ fontFamily: `'${font.family}', sans-serif` }}
+                        aria-hidden="true"
+                      >
+                        Aa
+                      </span>
+                      <span className="font-name">{font.family}</span>
+                      <span className="palette-count">{font.count}x</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <dl className="detail-grid">
               <div>
                 <dt>Category</dt>

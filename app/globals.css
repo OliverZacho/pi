@@ -846,6 +846,31 @@ th.sortable-header.is-active .sortable-header-indicator {
   font-variant-numeric: tabular-nums;
 }
 
+.font-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.78rem;
+  line-height: 1;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.font-name {
+  font-size: 0.78rem;
+  color: #0f172a;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

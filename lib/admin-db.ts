@@ -8,6 +8,8 @@ import {
   type CompanySubscription,
   type EmailCategory,
   type EspProvider,
+  type FontFamily,
+  type FontFamilySource,
   type PaletteColor,
   type PaletteColorSource
 } from "./admin-types";
@@ -219,6 +221,7 @@ export async function getEmailDetailFromDb(
     processedAt: data.processed_at ?? null,
     authResults: parseAuthResults(data.auth_results),
     paletteColors: parsePaletteColors(data.metadata),
+    fontFamilies: parseFontFamilies(data.metadata),
     metadata: parseMetadata(data.metadata)
   };
 }
@@ -252,6 +255,40 @@ function parsePaletteColors(value: unknown): PaletteColor[] {
         typeof s === "string" && (PALETTE_SOURCE_VALUES as string[]).includes(s)
     );
     result.push({ hex, count, sources });
+  }
+  return result;
+}
+
+const FONT_SOURCE_VALUES: FontFamilySource[] = ["inline", "style_block", "attribute"];
+
+function parseFontFamilies(value: unknown): FontFamily[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const candidate = (value as Record<string, unknown>).font_families;
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+  const result: FontFamily[] = [];
+  for (const item of candidate) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const family = typeof entry.family === "string" ? entry.family.trim() : "";
+    if (!family) {
+      continue;
+    }
+    const count =
+      typeof entry.count === "number" && Number.isFinite(entry.count)
+        ? Math.max(0, Math.floor(entry.count))
+        : 0;
+    const rawSources = Array.isArray(entry.sources) ? entry.sources : [];
+    const sources = rawSources.filter(
+      (s): s is FontFamilySource =>
+        typeof s === "string" && (FONT_SOURCE_VALUES as string[]).includes(s)
+    );
+    result.push({ family, count, sources });
   }
   return result;
 }

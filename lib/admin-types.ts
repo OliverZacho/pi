@@ -124,6 +124,14 @@ export type PaletteColor = {
   sources: PaletteColorSource[];
 };
 
+export type FontFamilySource = "inline" | "style_block" | "attribute";
+
+export type FontFamily = {
+  family: string;
+  count: number;
+  sources: FontFamilySource[];
+};
+
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
   htmlContent: string;
@@ -136,6 +144,7 @@ export type CapturedEmailDetail = CapturedEmail & {
   processedAt: string | null;
   authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
   paletteColors: PaletteColor[];
+  fontFamilies: FontFamily[];
   metadata: Record<string, unknown> | null;
 };
 

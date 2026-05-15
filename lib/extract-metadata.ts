@@ -34,6 +34,14 @@ export type PaletteColor = {
   sources: PaletteSource[];
 };
 
+export type FontSource = "inline" | "style_block" | "attribute";
+
+export type FontFamily = {
+  family: string;
+  count: number;
+  sources: FontSource[];
+};
+
 export type EmailMetadata = {
   preheader: string | null;
   has_gif: boolean;
@@ -49,6 +57,7 @@ export type EmailMetadata = {
   subject_metadata: SubjectMetadata;
   auth_results: AuthResults | null;
   palette_colors: PaletteColor[];
+  font_families: FontFamily[];
 };
 
 export type ExtractMetadataInput = {
@@ -103,7 +112,8 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
     utm_index,
     subject_metadata: subjectMeta,
     auth_results: extractAuthResults(input.headers ?? null),
-    palette_colors: extractColorPalette(html)
+    palette_colors: extractColorPalette(html),
+    font_families: extractFontFamilies(html)
   };
 }
 
@@ -232,6 +242,138 @@ export function extractColorPalette(
 
   const cap = Math.max(0, Math.floor(limit));
   return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+const FONT_DEFAULT_LIMIT = 16;
+const FONT_FAMILY_DECL_RE = /font-family\s*:\s*([^;}<]+)/gi;
+const FONT_FACE_ATTR_RE =
+  /<font\b[^>]*\bface\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/gi;
+
+// CSS generic family keywords, global CSS values, and system-stack tokens that
+// don't correspond to a specific typeface. We exclude these so the palette
+// surfaces the actual brand fonts being chosen.
+const FONT_GENERIC_KEYWORDS = new Set<string>([
+  "sans-serif",
+  "serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+  "ui-sans-serif",
+  "ui-serif",
+  "ui-monospace",
+  "ui-rounded",
+  "emoji",
+  "math",
+  "fangsong",
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "revert-layer",
+  "-apple-system",
+  "blinkmacsystemfont"
+]);
+
+/**
+ * Captures the typefaces an email actually references — every entry in a
+ * `font-family` stack (style blocks + inline style attrs) plus legacy
+ * `<font face="…">` attributes. CSS generic families (`sans-serif`,
+ * `system-ui`, …) and system-stack tokens are filtered so the result reflects
+ * the brand fonts being chosen rather than the always-present fallback chain.
+ */
+export function extractFontFamilies(
+  html: string,
+  limit: number = FONT_DEFAULT_LIMIT
+): FontFamily[] {
+  if (!html) {
+    return [];
+  }
+
+  const cleaned = html.replace(SCRIPT_BLOCK_RE, " ").replace(HTML_COMMENT_RE, " ");
+
+  const aggregate = new Map<
+    string,
+    { display: string; count: number; sources: Set<FontSource> }
+  >();
+
+  const record = (rawValue: string, source: FontSource): void => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (/^var\s*\(/i.test(trimmed)) {
+      return;
+    }
+    const key = trimmed.replace(/\s+/g, " ").toLowerCase();
+    if (!key || FONT_GENERIC_KEYWORDS.has(key)) {
+      return;
+    }
+    const existing = aggregate.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.sources.add(source);
+    } else {
+      aggregate.set(key, {
+        display: trimmed.replace(/\s+/g, " "),
+        count: 1,
+        sources: new Set([source])
+      });
+    }
+  };
+
+  const scanDeclarations = (text: string, source: FontSource): void => {
+    if (!text) {
+      return;
+    }
+    for (const match of text.matchAll(FONT_FAMILY_DECL_RE)) {
+      const value = match[1];
+      if (!value) {
+        continue;
+      }
+      for (const part of splitFontFamilyList(value)) {
+        record(part, source);
+      }
+    }
+  };
+
+  for (const block of cleaned.matchAll(STYLE_BLOCK_RE)) {
+    scanDeclarations(block[1] ?? "", "style_block");
+  }
+
+  for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
+    scanDeclarations(attr[1] ?? attr[2] ?? "", "inline");
+  }
+
+  for (const attr of cleaned.matchAll(FONT_FACE_ATTR_RE)) {
+    const raw = (attr[1] ?? attr[2] ?? attr[3] ?? "").trim();
+    if (!raw) {
+      continue;
+    }
+    for (const part of splitFontFamilyList(raw)) {
+      record(part, "attribute");
+    }
+  }
+
+  const entries: FontFamily[] = Array.from(aggregate.values())
+    .map((info) => ({
+      family: info.display,
+      count: info.count,
+      sources: Array.from(info.sources).sort()
+    }))
+    .sort((a, b) => b.count - a.count || a.family.localeCompare(b.family));
+
+  const cap = Math.max(0, Math.floor(limit));
+  return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+function splitFontFamilyList(value: string): string[] {
+  return value
+    .replace(/!important/gi, "")
+    .split(",")
+    .map((s) => s.trim())
+    .map((s) => s.replace(/^["']/, "").replace(/["']$/, "").trim())
+    .filter(Boolean);
 }
 
 function normaliseHex(hex: string): string | null {

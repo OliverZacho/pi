@@ -304,7 +304,8 @@ async function ingestEmailReceivedEvent(
     has_amp_html: metadata.has_amp_html,
     esp_candidates: espResult.candidates,
     image_mirror_map: imageMirrorMap,
-    palette_colors: metadata.palette_colors
+    palette_colors: metadata.palette_colors,
+    font_families: metadata.font_families
   };
 
   const stored = await runStage("store_email", () =>

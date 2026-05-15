@@ -4,6 +4,7 @@ import {
   detectHasGif,
   extractAuthResults,
   extractColorPalette,
+  extractFontFamilies,
   extractLinks,
   extractMetadata,
   extractPreheader,
@@ -304,6 +305,128 @@ describe("extractColorPalette", () => {
   });
 });
 
+describe("extractFontFamilies", () => {
+  it("captures fonts from <style> blocks and inline style attrs, splitting stacks", () => {
+    const html = `
+      <html>
+        <head>
+          <style>
+            body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+            .hero { font-family: 'Inter', sans-serif; }
+          </style>
+        </head>
+        <body>
+          <h1 style="font-family: 'Inter', sans-serif">Hi</h1>
+          <p style="font-family: Georgia, serif;">Hello</p>
+        </body>
+      </html>
+    `;
+    const fonts = extractFontFamilies(html);
+    const map = new Map(fonts.map((f) => [f.family.toLowerCase(), f]));
+
+    expect(map.get("inter")?.count).toBe(2);
+    expect(map.get("inter")?.sources.sort()).toEqual(["inline", "style_block"]);
+    expect(map.get("helvetica neue")?.count).toBe(1);
+    expect(map.get("helvetica")?.count).toBe(1);
+    expect(map.get("arial")?.count).toBe(1);
+    expect(map.get("georgia")?.count).toBe(1);
+    expect(map.has("sans-serif")).toBe(false);
+    expect(map.has("serif")).toBe(false);
+  });
+
+  it("preserves first-seen casing while aggregating case-insensitively", () => {
+    const html = `
+      <style>body { font-family: "Helvetica Neue"; }</style>
+      <p style="font-family: helvetica neue">x</p>
+      <p style="font-family: HELVETICA NEUE">y</p>
+    `;
+    const fonts = extractFontFamilies(html);
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0].family).toBe("Helvetica Neue");
+    expect(fonts[0].count).toBe(3);
+  });
+
+  it("captures @font-face declarations as style_block sources", () => {
+    const html = `
+      <style>
+        @font-face { font-family: 'Brand Display'; src: url('https://cdn.brand.com/fonts/brand.woff2'); }
+        h1 { font-family: 'Brand Display', serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const brand = fonts.find((f) => f.family === "Brand Display");
+    expect(brand).toBeDefined();
+    expect(brand?.count).toBe(2);
+    expect(brand?.sources).toEqual(["style_block"]);
+  });
+
+  it("captures legacy <font face=...> HTML attributes", () => {
+    const html = `
+      <font face="Arial">a</font>
+      <font face="'Helvetica Neue', Helvetica">b</font>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family.toLowerCase());
+    expect(families).toContain("arial");
+    expect(families).toContain("helvetica neue");
+    expect(families).toContain("helvetica");
+    const arial = fonts.find((f) => f.family.toLowerCase() === "arial");
+    expect(arial?.sources).toEqual(["attribute"]);
+  });
+
+  it("strips !important and skips CSS variables", () => {
+    const html = `
+      <style>
+        body { font-family: "Inter" !important; }
+        h2 { font-family: var(--brand-font); }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    expect(fonts.map((f) => f.family)).toEqual(["Inter"]);
+  });
+
+  it("filters generic family keywords and system-stack tokens", () => {
+    const html = `
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family);
+    expect(families).toEqual(expect.arrayContaining(["Segoe UI", "Roboto"]));
+    expect(families).not.toContain("-apple-system");
+    expect(families).not.toContain("BlinkMacSystemFont");
+    expect(families).not.toContain("sans-serif");
+  });
+
+  it("ignores font-family declarations inside <script> blocks", () => {
+    const html = `<script>const css = 'body { font-family: "Comic Sans MS"; }';</script>`;
+    expect(extractFontFamilies(html)).toEqual([]);
+  });
+
+  it("sorts by frequency descending and respects the limit", () => {
+    const html = `
+      <style>
+        .a { font-family: 'Inter'; }
+        .b { font-family: 'Inter'; }
+        .c { font-family: 'Inter'; }
+        .d { font-family: 'Roboto'; }
+        .e { font-family: 'Roboto'; }
+        .f { font-family: 'Georgia'; }
+        .g { font-family: 'Brand'; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html, 2);
+    expect(fonts.map((f) => f.family)).toEqual(["Inter", "Roboto"]);
+    expect(fonts[0].count).toBe(3);
+    expect(fonts[1].count).toBe(2);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(extractFontFamilies("")).toEqual([]);
+  });
+});
+
 describe("extractMetadata (integration)", () => {
   it("returns a full enrichment record", () => {
     const html = `
@@ -312,12 +435,12 @@ describe("extractMetadata (integration)", () => {
           <meta name="color-scheme" content="light dark" />
           <style>
             @media (prefers-color-scheme: dark) { body { background:#000; } }
-            body { background: #ffffff; color: #1a1a1a; }
+            body { background: #ffffff; color: #1a1a1a; font-family: "Inter", Arial, sans-serif; }
           </style>
         </head>
         <body bgcolor="#ffffff">
           <div style="display:none;font-size:0">Hidden preview line for inbox</div>
-          <h1 style="color:#1A1A1A">Spring sale</h1>
+          <h1 style="color:#1A1A1A;font-family:'Inter',sans-serif">Spring sale</h1>
           <img src="https://cdn.example.com/banner.gif" />
           <a href="https://shop.example.com/sale?utm_source=klaviyo&utm_campaign=spring2026">Shop</a>
         </body>
@@ -352,5 +475,13 @@ describe("extractMetadata (integration)", () => {
     expect(paletteHexes).toContain("#000000");
     expect(paletteHexes).toContain("#ffffff");
     expect(paletteHexes).toContain("#1a1a1a");
+
+    const fontFamilies = meta.font_families.map((f) => f.family);
+    expect(fontFamilies).toContain("Inter");
+    expect(fontFamilies).toContain("Arial");
+    expect(fontFamilies).not.toContain("sans-serif");
+    const inter = meta.font_families.find((f) => f.family === "Inter");
+    expect(inter?.count).toBe(2);
+    expect(inter?.sources.sort()).toEqual(["inline", "style_block"]);
   });
 });
