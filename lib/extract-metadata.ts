@@ -326,7 +326,12 @@ export function extractFontFamilies(
     if (!text) {
       return;
     }
-    for (const match of text.matchAll(FONT_FAMILY_DECL_RE)) {
+    // Inline `style="..."` attribute values typically encode the quotes
+    // around font names as `&quot;` / `&apos;`. We decode *after* the
+    // attribute has been captured so the trailing `;` of those entities no
+    // longer terminates our `font-family: …` value regex prematurely.
+    const decoded = decodeBasicHtmlEntities(text);
+    for (const match of decoded.matchAll(FONT_FAMILY_DECL_RE)) {
       const value = match[1];
       if (!value) {
         continue;
@@ -346,7 +351,7 @@ export function extractFontFamilies(
   }
 
   for (const attr of cleaned.matchAll(FONT_FACE_ATTR_RE)) {
-    const raw = (attr[1] ?? attr[2] ?? attr[3] ?? "").trim();
+    const raw = decodeBasicHtmlEntities((attr[1] ?? attr[2] ?? attr[3] ?? "").trim());
     if (!raw) {
       continue;
     }
@@ -374,6 +379,21 @@ function splitFontFamilyList(value: string): string[] {
     .map((s) => s.trim())
     .map((s) => s.replace(/^["']/, "").replace(/["']$/, "").trim())
     .filter(Boolean);
+}
+
+/**
+ * Decodes the handful of HTML entities that show up inside inline CSS values
+ * (typically the quotes wrapping font-family names). Order matters: named and
+ * numeric entities are resolved before `&amp;` so `&amp;quot;` is left alone.
+ */
+function decodeBasicHtmlEntities(text: string): string {
+  return text
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#34;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&");
 }
 
 function normaliseHex(hex: string): string | null {

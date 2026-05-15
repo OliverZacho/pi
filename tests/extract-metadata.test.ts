@@ -374,6 +374,21 @@ describe("extractFontFamilies", () => {
     expect(arial?.sources).toEqual(["attribute"]);
   });
 
+  it("decodes &quot;/&apos; entities so HTML-encoded inline styles parse correctly", () => {
+    const html = `
+      <p style="font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif">a</p>
+      <p style="font-family: &apos;Inter&apos;, Helvetica">b</p>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family);
+    expect(families).toContain("Helvetica Neue");
+    expect(families).toContain("Inter");
+    expect(families).toContain("Arial");
+    expect(families).toContain("Helvetica");
+    expect(families).not.toContain("&quot");
+    expect(families).not.toContain("&apos");
+  });
+
   it("strips !important and skips CSS variables", () => {
     const html = `
       <style>
