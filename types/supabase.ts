@@ -217,6 +217,10 @@ export type Database = {
           deleted_at: string | null
           domain: string
           id: string
+          logo_confidence: number | null
+          logo_source: string | null
+          logo_storage_path: string | null
+          logo_updated_at: string | null
           market: string | null
           name: string
           subscribed_since: string
@@ -227,6 +231,10 @@ export type Database = {
           deleted_at?: string | null
           domain: string
           id?: string
+          logo_confidence?: number | null
+          logo_source?: string | null
+          logo_storage_path?: string | null
+          logo_updated_at?: string | null
           market?: string | null
           name: string
           subscribed_since?: string
@@ -237,6 +245,10 @@ export type Database = {
           deleted_at?: string | null
           domain?: string
           id?: string
+          logo_confidence?: number | null
+          logo_source?: string | null
+          logo_storage_path?: string | null
+          logo_updated_at?: string | null
           market?: string | null
           name?: string
           subscribed_since?: string

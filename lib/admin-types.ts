@@ -50,6 +50,8 @@ export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
 
 export type ClassificationSource = "rules" | "llm" | "manual";
 
+export type CompanyLogoSource = "email_heuristic" | "email_frequency" | "manual";
+
 export type CompanySubscription = {
   id: string;
   name: string;
@@ -59,6 +61,14 @@ export type CompanySubscription = {
   subscribedAt: string;
   emailCount: number;
   lastEmailAt: string | null;
+  /**
+   * Short-lived signed URL into the `email-assets` bucket for a logo we
+   * extracted from one of the brand's emails. `null` until the first
+   * email lands and a candidate clears the heuristic threshold — in that
+   * case the UI renders a monogram fallback.
+   */
+  logoUrl: string | null;
+  logoSource: CompanyLogoSource | null;
 };
 
 export type EspProvider =

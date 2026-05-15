@@ -7,12 +7,29 @@ create table if not exists public.companies (
   market text,
   subscribed_since timestamptz not null default now(),
   deleted_at timestamptz,
+  logo_storage_path text,
+  logo_source text check (
+    logo_source is null
+    or logo_source in (
+      'email_heuristic',
+      'email_frequency',
+      'manual'
+    )
+  ),
+  logo_confidence numeric(4, 3) check (
+    logo_confidence is null
+    or (logo_confidence >= 0 and logo_confidence <= 1)
+  ),
+  logo_updated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create unique index if not exists companies_domain_unique on public.companies (lower(domain));
 create index if not exists companies_deleted_at_idx on public.companies (deleted_at) where deleted_at is null;
+create index if not exists companies_logo_missing_idx
+  on public.companies (id)
+  where logo_storage_path is null and deleted_at is null;
 
 create table if not exists public.company_inboxes (
   id uuid primary key default gen_random_uuid(),

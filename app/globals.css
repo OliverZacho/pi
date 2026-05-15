@@ -623,6 +623,36 @@ th.sortable-header.is-active .sortable-header-indicator {
   gap: 0.35rem;
 }
 
+.company-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.company-logo {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  object-fit: contain;
+  object-position: center;
+  border: 1px solid #e2e8f0;
+}
+
+.company-logo--monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #475569;
+  background: #e2e8f0;
+  text-transform: uppercase;
+}
+
 .copy-button {
   display: inline-flex;
   align-items: center;

@@ -2,11 +2,12 @@ import type { Resend } from "resend";
 import { storeProcessedEmail } from "./admin-db";
 import type { EmailCategory } from "./admin-types";
 import { classifyEmail } from "./classify";
+import { processEmailForCompanyLogo } from "./company-logos";
 import { extractImageUrlsFromHtml } from "./email-utils";
 import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
 import { getResend } from "./resend";
-import { mirrorRemoteImages, uploadEmailHtml } from "./storage";
+import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
 import {
   extractProductsFromHeroImage,
@@ -355,9 +356,70 @@ async function ingestEmailReceivedEvent(
       imageToTextRatio: metadata.image_to_text_ratio,
       mirroredAssets: mirror.stored
     });
+
+    await runLogoExtractionStage({
+      emailId: stored.id,
+      html,
+      mirroredAssets: mirror.stored
+    });
   }
 
   return stored;
+}
+
+async function runLogoExtractionStage(args: {
+  emailId: string;
+  html: string;
+  mirroredAssets: MirroredImage[];
+}): Promise<void> {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { data: emailRow, error: emailError } = await supabaseAdmin
+      .from("captured_emails")
+      .select("company_id, companies(domain)")
+      .eq("id", args.emailId)
+      .maybeSingle();
+
+    if (emailError || !emailRow?.company_id) {
+      return;
+    }
+
+    const company = Array.isArray(emailRow.companies)
+      ? emailRow.companies[0]
+      : emailRow.companies;
+    const companyDomain = company?.domain ?? null;
+    if (!companyDomain) {
+      return;
+    }
+
+    const { count } = await supabaseAdmin
+      .from("captured_emails")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", emailRow.company_id);
+
+    const result = await processEmailForCompanyLogo({
+      companyId: emailRow.company_id,
+      companyDomain,
+      html: args.html,
+      mirroredAssets: args.mirroredAssets,
+      emailCountForCompany: count ?? 1
+    });
+
+    if (result.applied) {
+      console.info("Company logo updated", {
+        emailId: args.emailId,
+        companyId: emailRow.company_id,
+        source: result.applied.source,
+        confidence: result.applied.confidence
+      });
+    }
+  } catch (error) {
+    console.warn("Logo extraction stage threw (non-blocking)", {
+      emailId: args.emailId,
+      error: error instanceof Error ? error.message : "unknown logo extraction error"
+    });
+  }
 }
 
 async function runVisionExtractionStage(args: {
