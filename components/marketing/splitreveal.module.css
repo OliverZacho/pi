@@ -1,0 +1,592 @@
+/* =========================================================
+   Split Reveal Hero
+   Left: faithful HAY email preview
+   Right: dark "intelligence" panel that builds itself in
+   ========================================================= */
+
+.splitWrap {
+  position: relative;
+  z-index: 25;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 6rem;
+}
+
+/* ---------- Caption row above the split ---------- */
+
+.captionRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+  text-align: center;
+}
+
+.captionTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(11, 11, 12, 0.08);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #6b6b70;
+}
+
+.captionTag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+  animation: pulse 2s ease-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.captionTitle {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #0b0b0c;
+}
+
+/* ---------- Split layout ---------- */
+
+.split {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.splitLeft,
+.splitRight {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   LEFT — Email preview
+   ========================================================= */
+
+.emailPreview {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(11, 11, 12, 0.08);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 30px 60px -30px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  animation: emailIn 600ms ease-out both;
+  animation-delay: 50ms;
+}
+
+@keyframes emailIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.emailMeta {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.1rem 1.25rem 0.9rem;
+  border-bottom: 1px solid rgba(11, 11, 12, 0.06);
+}
+
+.senderAvatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #0b0b0c;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+
+.senderInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.senderRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #6b6b70;
+  flex-wrap: wrap;
+}
+
+.senderName {
+  color: #0b0b0c;
+  font-weight: 600;
+}
+
+.senderEmail,
+.senderTime,
+.senderDot {
+  color: #8a8a90;
+}
+
+.emailSubject {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #0b0b0c;
+  letter-spacing: -0.01em;
+}
+
+.emailPreheader {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #8a8a90;
+}
+
+.emailBodyFrame {
+  flex: 1;
+  background: #f6f4ef;
+  padding: 1.1rem;
+}
+
+.emailBody {
+  background: #ffffff;
+  padding: 1.25rem 1.25rem 1rem;
+  max-width: 560px;
+  margin: 0 auto;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #0a0a0a;
+}
+
+.brandLogo {
+  display: grid;
+  place-items: center;
+  padding: 0.5rem 0 1.1rem;
+}
+
+.brandLogo img {
+  display: block;
+  max-width: 92px;
+  height: auto;
+}
+
+.heroImageWrap {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.heroImageWrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.emailHeading {
+  margin: 1rem 0 0.6rem;
+  font-size: 1.45rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #0a0a0a;
+}
+
+.emailCopy {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #0a0a0a;
+}
+
+.emailCta {
+  display: inline-block;
+  padding: 0.55rem 0.85rem;
+  background: #000000;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border-radius: 0;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+}
+
+.productGrid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 2px;
+}
+
+.emailDivider {
+  height: 1px;
+  background: #0a0a0a;
+  margin: 1.25rem 0 1rem;
+}
+
+.emailFooter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.4rem;
+}
+
+.emailFooter img {
+  max-width: 56px;
+  height: auto;
+}
+
+.footerLinks {
+  display: flex;
+  gap: 1rem;
+}
+
+.footerLinks a {
+  color: #0a0a0a;
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+
+/* =========================================================
+   RIGHT — Intelligence panel
+   ========================================================= */
+
+.panel {
+  height: 100%;
+  background: linear-gradient(180deg, #14141a 0%, #0c0c10 100%);
+  color: #e6e6ea;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 30px 60px -30px rgba(0, 0, 0, 0.65);
+  padding: 1.25rem 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  overflow: hidden;
+}
+
+/* Each section fades+lifts in once at its own delay */
+.panelHeader,
+.panelSection,
+.statCard {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: sectionIn 500ms ease-out forwards;
+}
+
+@keyframes sectionIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Panel header ---------- */
+
+.panelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.panelEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8c8cab;
+}
+
+.panelEyebrow .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #b8a4ff;
+  box-shadow: 0 0 12px rgba(184, 164, 255, 0.6);
+}
+
+.panelTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.brandBadge {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.divider {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.espBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+  border-radius: 999px;
+}
+
+/* ---------- Generic section pieces ---------- */
+
+.panelSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.sectionLabel {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7a7a96;
+}
+
+.sectionRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sectionMeta {
+  font-size: 0.78rem;
+  color: #b8b8d0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Palette swatches ---------- */
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+
+.swatch {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  transform: scale(0.6);
+  animation: swatchPop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  overflow: hidden;
+}
+
+@keyframes swatchPop {
+  to { opacity: 1; transform: scale(1); }
+}
+
+.swatchHex {
+  position: absolute;
+  left: 0.4rem;
+  bottom: 0.35rem;
+  font-size: 0.62rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Fonts ---------- */
+
+.fontList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fontRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  opacity: 0;
+  transform: translateX(-8px);
+  animation: fontIn 420ms ease-out forwards;
+}
+
+@keyframes fontIn {
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.fontName {
+  font-size: 0.95rem;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.fontRole {
+  font-size: 0.7rem;
+  color: #7a7a96;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ---------- Send time chart ---------- */
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 80px;
+  padding: 0.25rem 0 0;
+}
+
+.barCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+.bar {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  height: 0;
+  animation: barGrow 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  margin-bottom: 4px;
+}
+
+.barOn {
+  background: linear-gradient(180deg, #d4b8ff 0%, #8d6dff 100%);
+  box-shadow: 0 0 18px rgba(141, 109, 255, 0.55);
+}
+
+@keyframes barGrow {
+  from { height: 0; opacity: 0.4; }
+  to   { height: var(--bar-h, 30%); opacity: 1; }
+}
+
+.barLabel {
+  font-size: 0.62rem;
+  color: #6a6a8a;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  height: 0.8rem;
+}
+
+/* ---------- Big stat card ---------- */
+
+.statCard {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(184, 164, 255, 0.14) 0%, rgba(141, 109, 255, 0.06) 100%);
+  border: 1px solid rgba(184, 164, 255, 0.22);
+}
+
+.statNumber {
+  font-size: 2.6rem;
+  font-weight: 500;
+  line-height: 1;
+  color: #ffffff;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2ch;
+  text-align: right;
+}
+
+.statCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.statTitle {
+  font-size: 0.85rem;
+  color: #ffffff;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.statSubtitle {
+  font-size: 0.72rem;
+  color: #8c8cab;
+  letter-spacing: 0.02em;
+}
+
+.statBrands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.brandChip {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c8c8e0;
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .emailPreview,
+  .panelHeader,
+  .panelSection,
+  .statCard,
+  .swatch,
+  .fontRow,
+  .bar,
+  .captionTag::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    height: var(--bar-h, 30%);
+  }
+}
