@@ -3,6 +3,8 @@ import {
   detectDarkMode,
   detectHasGif,
   extractAuthResults,
+  extractColorPalette,
+  extractFontFamilies,
   extractLinks,
   extractMetadata,
   extractPreheader,
@@ -218,17 +220,288 @@ describe("extractAuthResults", () => {
   });
 });
 
+describe("extractColorPalette", () => {
+  it("captures hex colors from <style> blocks and inline style attrs", () => {
+    const html = `
+      <html>
+        <head>
+          <style>
+            body { background: #FFFFFF; color: #1a1a1a; }
+            .accent { color: #ff0066; border-color: #1A1A1A; }
+          </style>
+        </head>
+        <body>
+          <div style="background-color:#fff;color:#1a1a1a">Hi</div>
+        </body>
+      </html>
+    `;
+    const palette = extractColorPalette(html);
+    const map = new Map(palette.map((c) => [c.hex, c]));
+
+    expect(map.get("#ffffff")?.count).toBe(2);
+    expect(map.get("#1a1a1a")?.count).toBe(3);
+    expect(map.get("#ff0066")?.count).toBe(1);
+
+    expect(map.get("#1a1a1a")?.sources.sort()).toEqual(["inline", "style_block"]);
+    expect(map.get("#ff0066")?.sources).toEqual(["style_block"]);
+  });
+
+  it("normalises 3-char hex shorthand to 6-char and lowercases", () => {
+    const palette = extractColorPalette(`<div style="color:#FAB">x</div>`);
+    expect(palette).toEqual([
+      { hex: "#ffaabb", count: 1, sources: ["inline"] }
+    ]);
+  });
+
+  it("normalises rgb() and strips alpha from rgba()", () => {
+    const html = `
+      <style>.a { color: rgb(255, 102, 0); background: rgba(0, 0, 0, 0.5); }</style>
+      <p style="border:1px solid rgb(255,102,0)">x</p>
+    `;
+    const palette = extractColorPalette(html);
+    const map = new Map(palette.map((c) => [c.hex, c]));
+    expect(map.get("#ff6600")?.count).toBe(2);
+    expect(map.get("#000000")?.count).toBe(1);
+  });
+
+  it("captures legacy bgcolor and color HTML attributes", () => {
+    const html = `
+      <table bgcolor="#0F172A">
+        <tr><td><font color="white">hi</font></td></tr>
+        <tr><td bgcolor="rgb(34,34,34)">x</td></tr>
+      </table>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toContain("#0f172a");
+    expect(hexes).toContain("#222222");
+    expect(hexes).not.toContain("#ffffff");
+    const dark = palette.find((c) => c.hex === "#0f172a");
+    expect(dark?.sources).toEqual(["attribute"]);
+  });
+
+  it("ignores colors that only appear inside <script> blocks", () => {
+    const html = `<script>const c = "#ff0000"; const r = "rgb(0,255,0)";</script>`;
+    expect(extractColorPalette(html)).toEqual([]);
+  });
+
+  it("sorts by frequency descending and respects the limit", () => {
+    const html = `
+      <style>
+        .a { color: #111111; background: #111111; border: 1px solid #111111; }
+        .b { color: #222222; background: #222222; }
+        .c { color: #333333; }
+        .d { color: #444444; }
+      </style>
+    `;
+    const palette = extractColorPalette(html, 2);
+    expect(palette.map((c) => c.hex)).toEqual(["#111111", "#222222"]);
+    expect(palette[0].count).toBe(3);
+    expect(palette[1].count).toBe(2);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(extractColorPalette("")).toEqual([]);
+  });
+});
+
+describe("extractFontFamilies", () => {
+  it("captures fonts from <style> blocks and inline style attrs, splitting stacks", () => {
+    const html = `
+      <html>
+        <head>
+          <style>
+            body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+            .hero { font-family: 'Inter', sans-serif; }
+          </style>
+        </head>
+        <body>
+          <h1 style="font-family: 'Inter', sans-serif">Hi</h1>
+          <p style="font-family: Georgia, serif;">Hello</p>
+        </body>
+      </html>
+    `;
+    const fonts = extractFontFamilies(html);
+    const map = new Map(fonts.map((f) => [f.family.toLowerCase(), f]));
+
+    expect(map.get("inter")?.count).toBe(2);
+    expect(map.get("inter")?.primary_count).toBe(2);
+    expect(map.get("inter")?.sources.sort()).toEqual(["inline", "style_block"]);
+    expect(map.get("helvetica neue")?.count).toBe(1);
+    expect(map.get("helvetica neue")?.primary_count).toBe(1);
+    expect(map.get("helvetica")?.count).toBe(1);
+    expect(map.get("helvetica")?.primary_count).toBe(0);
+    expect(map.get("arial")?.count).toBe(1);
+    expect(map.get("arial")?.primary_count).toBe(0);
+    expect(map.get("georgia")?.count).toBe(1);
+    expect(map.get("georgia")?.primary_count).toBe(1);
+    expect(map.has("sans-serif")).toBe(false);
+    expect(map.has("serif")).toBe(false);
+  });
+
+  it("preserves first-seen casing while aggregating case-insensitively", () => {
+    const html = `
+      <style>body { font-family: "Helvetica Neue"; }</style>
+      <p style="font-family: helvetica neue">x</p>
+      <p style="font-family: HELVETICA NEUE">y</p>
+    `;
+    const fonts = extractFontFamilies(html);
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0].family).toBe("Helvetica Neue");
+    expect(fonts[0].count).toBe(3);
+    expect(fonts[0].primary_count).toBe(3);
+  });
+
+  it("distinguishes primary (first) fonts from fallback chain entries", () => {
+    const html = `
+      <style>
+        body { font-family: 'Brand Display', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        h1 { font-family: 'Brand Display', Georgia, serif; }
+        .footer { font-family: Arial, Helvetica, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const byName = new Map(fonts.map((f) => [f.family, f]));
+
+    expect(byName.get("Brand Display")?.primary_count).toBe(2);
+    expect(byName.get("Brand Display")?.count).toBe(2);
+
+    expect(byName.get("Arial")?.primary_count).toBe(1);
+    expect(byName.get("Arial")?.count).toBe(2);
+
+    expect(byName.get("Helvetica")?.primary_count).toBe(0);
+    expect(byName.get("Helvetica")?.count).toBe(2);
+
+    expect(byName.get("Helvetica Neue")?.primary_count).toBe(0);
+    expect(byName.get("Georgia")?.primary_count).toBe(0);
+
+    expect(fonts[0].family).toBe("Brand Display");
+  });
+
+  it("treats the first non-generic entry as primary, skipping system-stack tokens", () => {
+    const html = `
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const segoe = fonts.find((f) => f.family === "Segoe UI");
+    expect(segoe?.primary_count).toBe(1);
+    const roboto = fonts.find((f) => f.family === "Roboto");
+    expect(roboto?.primary_count).toBe(0);
+    expect(roboto?.count).toBe(1);
+  });
+
+  it("captures @font-face declarations as style_block sources", () => {
+    const html = `
+      <style>
+        @font-face { font-family: 'Brand Display'; src: url('https://cdn.brand.com/fonts/brand.woff2'); }
+        h1 { font-family: 'Brand Display', serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const brand = fonts.find((f) => f.family === "Brand Display");
+    expect(brand).toBeDefined();
+    expect(brand?.count).toBe(2);
+    expect(brand?.sources).toEqual(["style_block"]);
+  });
+
+  it("captures legacy <font face=...> HTML attributes", () => {
+    const html = `
+      <font face="Arial">a</font>
+      <font face="'Helvetica Neue', Helvetica">b</font>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family.toLowerCase());
+    expect(families).toContain("arial");
+    expect(families).toContain("helvetica neue");
+    expect(families).toContain("helvetica");
+    const arial = fonts.find((f) => f.family.toLowerCase() === "arial");
+    expect(arial?.sources).toEqual(["attribute"]);
+  });
+
+  it("decodes &quot;/&apos; entities so HTML-encoded inline styles parse correctly", () => {
+    const html = `
+      <p style="font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif">a</p>
+      <p style="font-family: &apos;Inter&apos;, Helvetica">b</p>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family);
+    expect(families).toContain("Helvetica Neue");
+    expect(families).toContain("Inter");
+    expect(families).toContain("Arial");
+    expect(families).toContain("Helvetica");
+    expect(families).not.toContain("&quot");
+    expect(families).not.toContain("&apos");
+  });
+
+  it("strips !important and skips CSS variables", () => {
+    const html = `
+      <style>
+        body { font-family: "Inter" !important; }
+        h2 { font-family: var(--brand-font); }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    expect(fonts.map((f) => f.family)).toEqual(["Inter"]);
+  });
+
+  it("filters generic family keywords and system-stack tokens", () => {
+    const html = `
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html);
+    const families = fonts.map((f) => f.family);
+    expect(families).toEqual(expect.arrayContaining(["Segoe UI", "Roboto"]));
+    expect(families).not.toContain("-apple-system");
+    expect(families).not.toContain("BlinkMacSystemFont");
+    expect(families).not.toContain("sans-serif");
+  });
+
+  it("ignores font-family declarations inside <script> blocks", () => {
+    const html = `<script>const css = 'body { font-family: "Comic Sans MS"; }';</script>`;
+    expect(extractFontFamilies(html)).toEqual([]);
+  });
+
+  it("sorts by primary_count desc, then total count, and respects the limit", () => {
+    const html = `
+      <style>
+        .a { font-family: 'Inter'; }
+        .b { font-family: 'Inter'; }
+        .c { font-family: 'Inter'; }
+        .d { font-family: 'Roboto'; }
+        .e { font-family: 'Roboto'; }
+        .f { font-family: 'Georgia'; }
+        .g { font-family: 'Brand'; }
+      </style>
+    `;
+    const fonts = extractFontFamilies(html, 2);
+    expect(fonts.map((f) => f.family)).toEqual(["Inter", "Roboto"]);
+    expect(fonts[0].primary_count).toBe(3);
+    expect(fonts[1].primary_count).toBe(2);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(extractFontFamilies("")).toEqual([]);
+  });
+});
+
 describe("extractMetadata (integration)", () => {
   it("returns a full enrichment record", () => {
     const html = `
       <html>
         <head>
           <meta name="color-scheme" content="light dark" />
-          <style>@media (prefers-color-scheme: dark) { body { background:#000; } }</style>
+          <style>
+            @media (prefers-color-scheme: dark) { body { background:#000; } }
+            body { background: #ffffff; color: #1a1a1a; font-family: "Inter", Arial, sans-serif; }
+          </style>
         </head>
-        <body>
+        <body bgcolor="#ffffff">
           <div style="display:none;font-size:0">Hidden preview line for inbox</div>
-          <h1>Spring sale</h1>
+          <h1 style="color:#1A1A1A;font-family:'Inter',sans-serif">Spring sale</h1>
           <img src="https://cdn.example.com/banner.gif" />
           <a href="https://shop.example.com/sale?utm_source=klaviyo&utm_campaign=spring2026">Shop</a>
         </body>
@@ -258,5 +531,21 @@ describe("extractMetadata (integration)", () => {
     expect(meta.utm_index[0]).toMatchObject({ source: "klaviyo", campaign: "spring2026" });
     expect(meta.subject_metadata.word_count).toBeGreaterThan(0);
     expect(meta.auth_results).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass" });
+
+    const paletteHexes = meta.palette_colors.map((c) => c.hex);
+    expect(paletteHexes).toContain("#000000");
+    expect(paletteHexes).toContain("#ffffff");
+    expect(paletteHexes).toContain("#1a1a1a");
+
+    const fontFamilies = meta.font_families.map((f) => f.family);
+    expect(fontFamilies).toContain("Inter");
+    expect(fontFamilies).toContain("Arial");
+    expect(fontFamilies).not.toContain("sans-serif");
+    const inter = meta.font_families.find((f) => f.family === "Inter");
+    expect(inter?.count).toBe(2);
+    expect(inter?.primary_count).toBe(2);
+    expect(inter?.sources.sort()).toEqual(["inline", "style_block"]);
+    const arial = meta.font_families.find((f) => f.family === "Arial");
+    expect(arial?.primary_count).toBe(0);
   });
 });

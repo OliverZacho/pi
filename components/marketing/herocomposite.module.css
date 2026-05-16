@@ -1,0 +1,270 @@
+/* =========================================================
+   Composite hero
+   Left:   scrollable HAY email preview (invisible scroll box)
+   Center: eyebrow + headline + subhead + CTA buttons
+   Right:  dark Pirol intelligence panel
+   Two synchronized pulse dots sit on each panel's inner edge.
+   ========================================================= */
+
+.wrap {
+  position: relative;
+  z-index: 25;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 4rem;
+}
+
+.grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+  /* Anchor the side panels at a comfortable, "above the fold" height. */
+  height: clamp(620px, calc(100vh - 140px), 820px);
+}
+
+.colLeft,
+.colCenter,
+.colRight {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+/* ---------- Left column: invisible scroll frame around the email ---------- */
+
+.scrollFrame {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Hide scrollbars but keep scrolling. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Keep scroll momentum inside the email, so wheeling past the end
+     doesn't try to scroll the page (the page has overflow:hidden anyway,
+     but this makes the boundary feel cleaner). */
+  overscroll-behavior: contain;
+  /* Touch devices: allow vertical scroll inside the email. */
+  touch-action: pan-y;
+  /* Subtle bottom fade so the email feels like it lives in a window. */
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+          mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+}
+
+.scrollFrame::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* The email preview was designed to stretch (height: 100%) inside the
+   old split layout. We need it to grow to its natural content height so
+   the scroll frame around it can actually scroll. !important is the
+   simplest way to defeat the rule on .emailPreview in splitreveal.module.css
+   regardless of stylesheet ordering. */
+.scrollFrame > article {
+  height: auto !important;
+  min-height: 0;
+  animation-delay: 0ms;
+}
+
+/* ---------- Center column: headline + CTA ---------- */
+
+.colCenter {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: center;
+  /* Align with the panel headers near the top of the side columns. */
+  padding: 2rem 0.25rem 0;
+}
+
+.centerInner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 32ch;
+  animation: centerIn 600ms ease-out both;
+}
+
+@keyframes centerIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.eyebrow {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: #0b0b0c;
+  margin: 0 0 1.1rem;
+  text-transform: uppercase;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(2rem, 3.4vw, 3.1rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+  color: #0b0b0c;
+}
+
+.subhead {
+  margin: 1.1rem auto 0;
+  max-width: 28ch;
+  color: #6b6b70;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 1.75rem;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.primaryBtn {
+  background: #0b0b0c;
+  color: #fff;
+}
+
+.primaryBtn:hover {
+  background: #1a1a1d;
+  transform: translateY(-1px);
+}
+
+.secondaryBtn {
+  background: #ffffff;
+  color: #0b0b0c;
+  border: 1px solid rgba(11, 11, 12, 0.08);
+}
+
+.secondaryBtn:hover {
+  background: #fafafa;
+  transform: translateY(-1px);
+}
+
+/* ---------- Link dots ----------
+   Two small synchronized pulsing dots, one on the right edge of the
+   email card and one on the left edge of the intelligence panel, at
+   the vertical middle. They imply "live connection" without drawing
+   a hard line across the center text. */
+
+.linkDot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(141, 109, 255, 0.9);
+  z-index: 1;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: linkFadeIn 600ms ease-out 400ms forwards,
+    linkPulse 2.4s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+
+/* Sit exactly on the inner edge of each side panel (the grid gap is
+   1.5rem = 24px, so we offset by that distance plus 1px to land on the
+   card edge rather than the empty gap). */
+.linkDotLeft { left: calc(-1.5rem - 1px); }
+.linkDotRight { left: calc(100% + 1.5rem + 1px); }
+
+@keyframes linkFadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes linkPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(141, 109, 255, 0.55),
+      0 0 12px rgba(141, 109, 255, 0.45);
+  }
+  60% {
+    box-shadow:
+      0 0 0 10px rgba(141, 109, 255, 0),
+      0 0 14px rgba(141, 109, 255, 0.7);
+  }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr 0.85fr 1fr;
+    gap: 1rem;
+  }
+  .headline {
+    font-size: clamp(1.7rem, 3vw, 2.4rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+    height: auto;
+    gap: 1.25rem;
+  }
+  .colLeft,
+  .colRight {
+    height: clamp(420px, 55vh, 560px);
+  }
+  .colCenter {
+    order: -1;
+    padding: 1.5rem 0.5rem 0.5rem;
+  }
+  .linkDot {
+    display: none;
+  }
+  .scrollFrame {
+    /* On mobile the mask can swallow the rounded edges of the card,
+       so just clip cleanly. */
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .centerInner,
+  .linkDot {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

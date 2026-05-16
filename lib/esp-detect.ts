@@ -27,6 +27,7 @@ export type EspProvider =
   | "mailjet"
   | "apsis"
   | "agillic"
+  | "peytzmail"
   | "unknown";
 
 export type EspSignal = {
@@ -441,6 +442,46 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/agillic\.com/i, /agilliccdn\.com/i],
     returnPathPatterns: [/agillic\.com/i, /agilliccdn\.com/i],
     xHeaderNames: ["x-agillic-message-id", "x-agillic-trace-id"]
+  },
+  {
+    provider: "peytzmail",
+    // Peytzmail (the Danish ESP from Peytz & Co) hosts every tenant on
+    // `<tenant>.peytzmail.com` for tracking + web-view + unsubscribe, serves
+    // resized images from `img.peytzmail.com` (a Cloudinary instance), and
+    // occasionally uses a shared `peytzmail.s3*.amazonaws.com` bucket for
+    // static template assets. Brand CNAMEs do exist in the wild, so we lean
+    // on the URL-shape patterns below for those cases.
+    hostPatterns: [
+      /(^|\.)peytzmail\.com$/i,
+      /(^|\.)peytzmail\.s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com$/i
+    ],
+    // The tracking URL shapes are highly distinctive:
+    //   /c/<3-char-id>/<24-hex-hash>/<token>/<context>/<numeric-id>?t=<dest>
+    //     → click redirect (the human-readable `<context>` slug like
+    //       `header-logo-image`, `article-title`, `text-social-media` is a
+    //       Peytzmail-only convention)
+    //   /r/<24-hex-hash>/<token>/<numeric-id>?[f=t&]t=<dest>
+    //     → image / open-pixel redirect (`?f=t&t=spacer.gif` is the
+    //       open-tracking pixel signature)
+    //   /v/<24-hex-hash>/<token>/<numeric-id>/send
+    //     → "Read online" web-view link
+    //   /unsubscribe/<24-hex-hash>/<numeric-id>?email=<recipient>
+    //     → list-unsubscribe link
+    htmlPatterns: [
+      /\bpeytzmail\.com\b/i,
+      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&(?:amp;)?)?t=/i,
+      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+    ],
+    linkUrlPatterns: [
+      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&)?t=/i,
+      /\/v\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\/send\b/i,
+      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+    ],
+    dkimPatterns: [/peytzmail\.com/i, /peytz\.dk/i],
+    returnPathPatterns: [/peytzmail\.com/i, /bounce[^@]*@[^>\s]*peytz/i],
+    xHeaderNames: ["x-peytzmail-id", "x-peytz-mailing-id"]
   }
 ];
 

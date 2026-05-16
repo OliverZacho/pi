@@ -40,7 +40,8 @@ const ESP_PROVIDERS: EspProvider[] = [
   "amazon_ses",
   "mailjet",
   "apsis",
-  "agillic"
+  "agillic",
+  "peytzmail"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -69,7 +70,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
   apsis: "APSIS / Efficy",
-  agillic: "Agillic"
+  agillic: "Agillic",
+  peytzmail: "Peytzmail"
 };
 
 type CompanySortKey =
@@ -177,6 +179,53 @@ function formatDateTime(value: string | null): string {
     return "-";
   }
   return parsed.toLocaleString();
+}
+
+function getCompanyInitials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "?";
+  }
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return "?";
+  }
+  const letters = tokens.length === 1
+    ? tokens[0].slice(0, 2)
+    : `${tokens[0][0] ?? ""}${tokens[1][0] ?? ""}`;
+  return letters.toUpperCase();
+}
+
+function CompanyLogo({
+  name,
+  url
+}: {
+  name: string;
+  url: string | null;
+}) {
+  if (url) {
+    return (
+      <img
+        className="company-logo"
+        src={url}
+        alt=""
+        loading="lazy"
+        width={28}
+        height={28}
+        // Logo.dev's monogram fallback already covers unknown domains, but a
+        // signed URL can still 404 if the asset was rotated. Hide so the
+        // browser doesn't paint a broken-image glyph.
+        onError={(event) => {
+          (event.currentTarget as HTMLImageElement).style.visibility = "hidden";
+        }}
+      />
+    );
+  }
+  return (
+    <span className="company-logo company-logo--monogram" aria-hidden="true">
+      {getCompanyInitials(name)}
+    </span>
+  );
 }
 
 function SortableHeader({
@@ -1220,7 +1269,12 @@ export default function AdminHomePage() {
             <tbody>
               {filteredCompanies.map((company) => (
                 <tr key={company.id}>
-                  <td>{company.name}</td>
+                  <td>
+                    <span className="company-cell">
+                      <CompanyLogo name={company.name} url={company.logoUrl} />
+                      <span>{company.name}</span>
+                    </span>
+                  </td>
                   <td>{company.market ? company.market : <span className="dim">-</span>}</td>
                   <td>{company.domain}</td>
                   <td>

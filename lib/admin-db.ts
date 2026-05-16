@@ -7,7 +7,11 @@ import {
   type CompanyDetail,
   type CompanySubscription,
   type EmailCategory,
-  type EspProvider
+  type EspProvider,
+  type FontFamily,
+  type FontFamilySource,
+  type PaletteColor,
+  type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { getSignedAssets, getSignedHtml } from "./storage";
@@ -116,7 +120,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, market, subscribed_since, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -130,7 +134,7 @@ export async function getOverviewFromDb(
     throw emailsError;
   }
 
-  const companies = (companiesRaw ?? []).map(rowToCompany);
+  const companies = await resolveCompanyLogos((companiesRaw ?? []).map(rowToCompany));
 
   const emailRows = emailsRaw ?? [];
   const hasMore = emailRows.length > pageSize;
@@ -216,8 +220,81 @@ export async function getEmailDetailFromDb(
     llmReasoning: data.llm_reasoning ?? null,
     processedAt: data.processed_at ?? null,
     authResults: parseAuthResults(data.auth_results),
+    paletteColors: parsePaletteColors(data.metadata),
+    fontFamilies: parseFontFamilies(data.metadata),
     metadata: parseMetadata(data.metadata)
   };
+}
+
+const PALETTE_SOURCE_VALUES: PaletteColorSource[] = ["inline", "style_block", "attribute"];
+
+function parsePaletteColors(value: unknown): PaletteColor[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const candidate = (value as Record<string, unknown>).palette_colors;
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+  const result: PaletteColor[] = [];
+  for (const item of candidate) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const hex = typeof entry.hex === "string" ? entry.hex.toLowerCase() : null;
+    if (!hex || !/^#[0-9a-f]{6}$/.test(hex)) {
+      continue;
+    }
+    const count = typeof entry.count === "number" && Number.isFinite(entry.count)
+      ? Math.max(0, Math.floor(entry.count))
+      : 0;
+    const rawSources = Array.isArray(entry.sources) ? entry.sources : [];
+    const sources = rawSources.filter(
+      (s): s is PaletteColorSource =>
+        typeof s === "string" && (PALETTE_SOURCE_VALUES as string[]).includes(s)
+    );
+    result.push({ hex, count, sources });
+  }
+  return result;
+}
+
+const FONT_SOURCE_VALUES: FontFamilySource[] = ["inline", "style_block", "attribute"];
+
+function parseFontFamilies(value: unknown): FontFamily[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const candidate = (value as Record<string, unknown>).font_families;
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+  const result: FontFamily[] = [];
+  for (const item of candidate) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const family = typeof entry.family === "string" ? entry.family.trim() : "";
+    if (!family) {
+      continue;
+    }
+    const count =
+      typeof entry.count === "number" && Number.isFinite(entry.count)
+        ? Math.max(0, Math.floor(entry.count))
+        : 0;
+    const primaryCount =
+      typeof entry.primary_count === "number" && Number.isFinite(entry.primary_count)
+        ? Math.max(0, Math.floor(entry.primary_count))
+        : 0;
+    const rawSources = Array.isArray(entry.sources) ? entry.sources : [];
+    const sources = rawSources.filter(
+      (s): s is FontFamilySource =>
+        typeof s === "string" && (FONT_SOURCE_VALUES as string[]).includes(s)
+    );
+    result.push({ family, count, primary_count: primaryCount, sources });
+  }
+  return result;
 }
 
 function parseImageMirrorMap(value: unknown): Record<string, string> {
@@ -244,7 +321,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, market, subscribed_since, deleted_at, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, market, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -276,8 +353,10 @@ export async function getCompanyDetailFromDb(
     throw countError;
   }
 
+  const [resolvedCompany] = await resolveCompanyLogos([rowToCompany(companyRow)]);
+
   return {
-    ...rowToCompany(companyRow),
+    ...resolvedCompany,
     recentEmails: (emailRows ?? []).map(rowToCapturedEmail),
     emailCount: count ?? 0
   };
@@ -313,8 +392,70 @@ type CompanyRow = {
   domain: string;
   market: string | null;
   subscribed_since: string;
+  logo_storage_path?: string | null;
+  logo_source?: string | null;
   company_inboxes?: { email_address: string; is_primary: boolean }[] | null;
   company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
+};
+
+const LOGO_SOURCE_VALUES: readonly CompanySubscription["logoSource"][] = [
+  "email_heuristic",
+  "email_frequency",
+  "manual"
+];
+
+function normalizeLogoSource(value: string | null | undefined): CompanySubscription["logoSource"] {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return (LOGO_SOURCE_VALUES as readonly (string | null)[]).includes(value)
+    ? (value as CompanySubscription["logoSource"])
+    : null;
+}
+
+/**
+ * Batch-signs the storage paths of every email-sourced logo, then returns
+ * the company list with `logoUrl` set to the short-lived signed URL.
+ */
+async function resolveCompanyLogos(
+  companies: CompanySubscription[]
+): Promise<CompanySubscription[]> {
+  const storagePathsByCompanyId = new Map<string, string>();
+  for (const company of companies) {
+    const storagePath = (company as CompanyWithRawLogo).__logoStoragePath;
+    if (storagePath) {
+      storagePathsByCompanyId.set(company.id, storagePath);
+    }
+  }
+
+  const allPaths = Array.from(new Set(storagePathsByCompanyId.values()));
+  const signed = allPaths.length > 0 ? await getSignedAssets(allPaths) : {};
+
+  return companies.map((company) => {
+    const raw = company as CompanyWithRawLogo;
+    const logoUrl =
+      raw.__logoStoragePath && signed[raw.__logoStoragePath]
+        ? signed[raw.__logoStoragePath]
+        : null;
+    return {
+      id: company.id,
+      name: company.name,
+      domain: company.domain,
+      market: company.market,
+      subscriptionEmail: company.subscriptionEmail,
+      subscribedAt: company.subscribedAt,
+      emailCount: company.emailCount,
+      lastEmailAt: company.lastEmailAt,
+      logoUrl,
+      logoSource: company.logoSource
+    };
+  });
+}
+
+/** Helper type used to thread the raw logo storage path through the row
+ * mapper without exposing it on the public CompanySubscription contract. */
+type CompanyWithRawLogo = CompanySubscription & {
+  __logoStoragePath?: string | null;
 };
 
 type EmailListRow = {
@@ -348,7 +489,7 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
   const primaryInbox =
     inboxes.find((inbox) => inbox.is_primary)?.email_address ?? "unassigned@pirol.app";
   const stats = relationFirst(row.company_email_stats);
-  return {
+  const base: CompanyWithRawLogo = {
     id: row.id,
     name: row.name,
     domain: row.domain,
@@ -356,8 +497,12 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     subscriptionEmail: primaryInbox,
     subscribedAt: row.subscribed_since,
     emailCount: stats?.email_count ?? 0,
-    lastEmailAt: stats?.last_received_at ?? null
+    lastEmailAt: stats?.last_received_at ?? null,
+    logoUrl: null,
+    logoSource: normalizeLogoSource(row.logo_source),
+    __logoStoragePath: row.logo_storage_path ?? null
   };
+  return base;
 }
 
 function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
@@ -465,6 +610,9 @@ export async function createCompanySubscriptionInDb(
     throw inboxError;
   }
 
+  // Logos are populated lazily by the ingest pipeline once we have email
+  // content for the brand. Until the first email lands the UI renders a
+  // tasteful monogram fallback derived from the company name.
   return {
     id: company.id,
     name: company.name,
@@ -473,7 +621,9 @@ export async function createCompanySubscriptionInDb(
     subscriptionEmail,
     subscribedAt: company.subscribed_since,
     emailCount: 0,
-    lastEmailAt: null
+    lastEmailAt: null,
+    logoUrl: null,
+    logoSource: null
   };
 }
 

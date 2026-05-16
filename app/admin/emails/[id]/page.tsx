@@ -37,7 +37,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   amazon_ses: "Amazon SES",
   mailjet: "Mailjet",
   apsis: "APSIS / Efficy",
-  agillic: "Agillic"
+  agillic: "Agillic",
+  peytzmail: "Peytzmail"
 };
 
 type EmailTab = "inbox" | "raw";
@@ -172,6 +173,60 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
         <>
           <section className="card">
             <h2>Classification &amp; signals</h2>
+            {email.paletteColors.length > 0 ? (
+              <div className="palette-row" aria-label="Layout color palette">
+                <span className="palette-label">Palette</span>
+                <ul className="palette-swatches">
+                  {email.paletteColors.map((color) => (
+                    <li key={color.hex}>
+                      <span
+                        className="palette-swatch"
+                        style={{ backgroundColor: color.hex }}
+                        aria-hidden="true"
+                      />
+                      <code className="palette-hex">{color.hex}</code>
+                      <span className="palette-count">{color.count}x</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {(() => {
+              const primaryFonts = email.fontFamilies.filter(
+                (font) => font.primary_count > 0
+              );
+              if (primaryFonts.length === 0) {
+                return null;
+              }
+              return (
+                <div className="palette-row" aria-label="Email fonts">
+                  <span
+                    className="palette-label"
+                    title="Number of CSS declarations where this font is the first (non-fallback) choice."
+                  >
+                    Fonts
+                  </span>
+                  <ul className="palette-swatches font-list">
+                    {primaryFonts.map((font) => (
+                      <li
+                        key={font.family}
+                        title={`${font.family}: primary in ${font.primary_count} declaration${font.primary_count === 1 ? "" : "s"} (appears ${font.count} time${font.count === 1 ? "" : "s"} total, including fallback positions)`}
+                      >
+                        <span
+                          className="font-sample"
+                          style={{ fontFamily: `'${font.family}', sans-serif` }}
+                          aria-hidden="true"
+                        >
+                          Aa
+                        </span>
+                        <span className="font-name">{font.family}</span>
+                        <span className="palette-count">{font.primary_count}x</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
             <dl className="detail-grid">
               <div>
                 <dt>Category</dt>

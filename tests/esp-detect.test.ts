@@ -446,6 +446,73 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Peytzmail on a tenant subdomain plus tracking URL shapes (no headers)", () => {
+    // Distilled from a real TAKT welcome send. The tracking + web-view +
+    // unsubscribe host is `<tenant>.peytzmail.com`, the image CDN is
+    // `img.peytzmail.com`, and there's a shared static-asset bucket on
+    // `peytzmail.s3.amazonaws.com`. The URL-shape patterns also carry the
+    // detection if a customer ever points a brand CNAME at Peytzmail.
+    const html = `
+      <a href="https://taktcph.peytzmail.com/c/axt/6a07454bd82488c8968ecd77/izfbkj/header-logo-image/1814546243?t=https%3A%2F%2Ftaktcph.com%2F">
+        <img src="https://taktcph.peytzmail.com/r/6a07454bd82488c8968ecd77/izfbkj/3729378504?t=https%3A%2F%2Fimg.peytzmail.com%2Fimage%2Fupload%2Flogo.png" />
+      </a>
+      <img src="https://img.peytzmail.com/image/upload/c_lfill,h_400,q_auto,w_325/v1554135643/taktcph/forrest-tduablctcwlvxvaeoclu.jpg" />
+      <a href="https://taktcph.peytzmail.com/c/jua/6a07454bd82488c8968ecd77/izfbkj/article-title/4133251808?t=https%3A%2F%2Ftaktcph.com%2Fliving-responsibly%2F">100% Eco-Certified</a>
+      <img src="https://peytzmail.s3.amazonaws.com/taktcph/images/black_arrow.png" />
+      <a href="https://taktcph.peytzmail.com/v/6a07454bd82488c8968ecd77/izfbkj/0840583223/send">Read Online</a>
+      <a href="https://taktcph.peytzmail.com/unsubscribe/6a07454bd82488c8968ecd77/2704248890?email=takt-20260515%40pirol.app">Unsubscribe</a>
+      <img src="https://taktcph.peytzmail.com/r/6a07454bd82488c8968ecd77/izfbkj/1190018407?f=t&amp;t=spacer.gif" width="1" height="1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://taktcph.peytzmail.com/c/axt/6a07454bd82488c8968ecd77/izfbkj/header-logo-image/1814546243?t=https%3A%2F%2Ftaktcph.com%2F"),
+        link("https://taktcph.peytzmail.com/c/jua/6a07454bd82488c8968ecd77/izfbkj/article-title/4133251808?t=https%3A%2F%2Ftaktcph.com%2Fliving-responsibly%2F"),
+        link("https://taktcph.peytzmail.com/v/6a07454bd82488c8968ecd77/izfbkj/0840583223/send"),
+        link("https://taktcph.peytzmail.com/unsubscribe/6a07454bd82488c8968ecd77/2704248890?email=takt-20260515%40pirol.app")
+      ],
+      resourceHosts: [
+        "taktcph.peytzmail.com",
+        "img.peytzmail.com",
+        "peytzmail.s3.amazonaws.com"
+      ]
+    });
+    expect(result.provider).toBe("peytzmail");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Peytzmail on a brand-CNAMEd tracking host using only URL shapes", () => {
+    // If a customer points e.g. `email.brand.com` at Peytzmail, the host
+    // patterns won't match — the `/c/<id>/<hash>/<token>/<context>/<id>?t=`,
+    // `/r/<hash>/<token>/<id>?t=` and `/unsubscribe/<hash>/<id>?email=`
+    // shapes still let us recognise the send.
+    const html = `
+      <a href="https://email.brand.com/c/axt/6a07454bd82488c8968ecd77/izfbkj/header-logo-image/1814546243?t=https%3A%2F%2Fbrand.com%2F">Logo</a>
+      <a href="https://email.brand.com/c/jua/6a07454bd82488c8968ecd77/izfbkj/article-title/4133251808?t=https%3A%2F%2Fbrand.com%2Farticle%2F">Title</a>
+      <img src="https://email.brand.com/r/6a07454bd82488c8968ecd77/izfbkj/1190018407?f=t&amp;t=spacer.gif" />
+      <a href="https://email.brand.com/unsubscribe/6a07454bd82488c8968ecd77/2704248890?email=foo%40bar.com">Unsubscribe</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://email.brand.com/c/axt/6a07454bd82488c8968ecd77/izfbkj/header-logo-image/1814546243?t=https%3A%2F%2Fbrand.com%2F"),
+        link("https://email.brand.com/c/jua/6a07454bd82488c8968ecd77/izfbkj/article-title/4133251808?t=https%3A%2F%2Fbrand.com%2Farticle%2F"),
+        link("https://email.brand.com/unsubscribe/6a07454bd82488c8968ecd77/2704248890?email=foo%40bar.com")
+      ],
+      resourceHosts: ["email.brand.com"]
+    });
+    expect(result.provider).toBe("peytzmail");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

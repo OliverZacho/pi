@@ -1,15 +1,12 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import Header from "@/components/marketing/Header";
+import HeroComposite from "@/components/marketing/HeroComposite";
+import styles from "@/components/marketing/landing.module.css";
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect("/admin");
-  }
-
-  redirect("/login");
+export default function Home() {
+  return (
+    <main className={styles.page}>
+      <Header />
+      <HeroComposite />
+    </main>
+  );
 }

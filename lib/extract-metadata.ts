@@ -26,6 +26,30 @@ export type AuthResults = {
   dmarc: "pass" | "fail" | "neutral" | "softfail" | "temperror" | "permerror" | "none" | null;
 };
 
+export type PaletteSource = "inline" | "style_block" | "attribute";
+
+export type PaletteColor = {
+  hex: string;
+  count: number;
+  sources: PaletteSource[];
+};
+
+export type FontSource = "inline" | "style_block" | "attribute";
+
+export type FontFamily = {
+  family: string;
+  /** Total occurrences across every `font-family` declaration (any position). */
+  count: number;
+  /**
+   * How often this font was the *first non-generic* entry in a `font-family`
+   * stack — i.e. the typeface the author actually intended to render.
+   * Fallbacks (e.g. Arial / Helvetica trailing every stack) have a high
+   * `count` but a `primary_count` of 0.
+   */
+  primary_count: number;
+  sources: FontSource[];
+};
+
 export type EmailMetadata = {
   preheader: string | null;
   has_gif: boolean;
@@ -40,6 +64,8 @@ export type EmailMetadata = {
   utm_index: ParsedLink["utm"][];
   subject_metadata: SubjectMetadata;
   auth_results: AuthResults | null;
+  palette_colors: PaletteColor[];
+  font_families: FontFamily[];
 };
 
 export type ExtractMetadataInput = {
@@ -93,7 +119,9 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
     resource_hosts: resourceHosts,
     utm_index,
     subject_metadata: subjectMeta,
-    auth_results: extractAuthResults(input.headers ?? null)
+    auth_results: extractAuthResults(input.headers ?? null),
+    palette_colors: extractColorPalette(html),
+    font_families: extractFontFamilies(html)
   };
 }
 
@@ -113,6 +141,321 @@ export function extractResourceHosts(html: string): string[] {
     seen.add(host);
   }
   return Array.from(seen);
+}
+
+const PALETTE_DEFAULT_LIMIT = 24;
+const HEX_TOKEN_RE = /#([0-9a-f]{6}|[0-9a-f]{3})\b/gi;
+const RGB_TOKEN_RE = /rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)/gi;
+const STYLE_BLOCK_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+const STYLE_ATTR_RE = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+const COLOR_ATTR_RE =
+  /\b(?:bgcolor|color)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/gi;
+const SCRIPT_BLOCK_RE = /<script\b[\s\S]*?<\/script>/gi;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+/**
+ * Captures the hex/rgb color tokens that appear in the email's HTML/CSS layout
+ * (style blocks, inline `style` attributes, and legacy `bgcolor`/`color` attrs).
+ * Image pixel data is intentionally not inspected — we only look at colour
+ * tokens declared in the markup itself. RGB/RGBA values are normalised to
+ * lowercase 6-char hex; alpha channels are stripped.
+ */
+export function extractColorPalette(
+  html: string,
+  limit: number = PALETTE_DEFAULT_LIMIT
+): PaletteColor[] {
+  if (!html) {
+    return [];
+  }
+
+  const cleaned = html.replace(SCRIPT_BLOCK_RE, " ").replace(HTML_COMMENT_RE, " ");
+
+  const aggregate = new Map<string, { count: number; sources: Set<PaletteSource> }>();
+
+  const record = (hex: string, source: PaletteSource): void => {
+    const normalised = normaliseHex(hex);
+    if (!normalised) {
+      return;
+    }
+    const existing = aggregate.get(normalised);
+    if (existing) {
+      existing.count += 1;
+      existing.sources.add(source);
+    } else {
+      aggregate.set(normalised, { count: 1, sources: new Set([source]) });
+    }
+  };
+
+  const scanColors = (text: string, source: PaletteSource): void => {
+    if (!text) {
+      return;
+    }
+    for (const match of text.matchAll(HEX_TOKEN_RE)) {
+      record(`#${match[1]}`, source);
+    }
+    for (const match of text.matchAll(RGB_TOKEN_RE)) {
+      record(
+        channelsToHex(
+          clampChannel(Number(match[1])),
+          clampChannel(Number(match[2])),
+          clampChannel(Number(match[3]))
+        ),
+        source
+      );
+    }
+  };
+
+  for (const block of cleaned.matchAll(STYLE_BLOCK_RE)) {
+    scanColors(block[1] ?? "", "style_block");
+  }
+
+  for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
+    scanColors(attr[1] ?? attr[2] ?? "", "inline");
+  }
+
+  for (const attr of cleaned.matchAll(COLOR_ATTR_RE)) {
+    const value = (attr[1] ?? attr[2] ?? attr[3] ?? "").trim();
+    if (!value) {
+      continue;
+    }
+    if (value.startsWith("#")) {
+      const hexMatch = value.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i);
+      if (hexMatch) {
+        record(`#${hexMatch[1]}`, "attribute");
+      }
+      continue;
+    }
+    const rgbMatch = value.match(
+      /^rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)/i
+    );
+    if (rgbMatch) {
+      record(
+        channelsToHex(
+          clampChannel(Number(rgbMatch[1])),
+          clampChannel(Number(rgbMatch[2])),
+          clampChannel(Number(rgbMatch[3]))
+        ),
+        "attribute"
+      );
+    }
+  }
+
+  const entries: PaletteColor[] = Array.from(aggregate.entries())
+    .map(([hex, info]) => ({
+      hex,
+      count: info.count,
+      sources: Array.from(info.sources).sort()
+    }))
+    .sort((a, b) => b.count - a.count || a.hex.localeCompare(b.hex));
+
+  const cap = Math.max(0, Math.floor(limit));
+  return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+const FONT_DEFAULT_LIMIT = 16;
+const FONT_FAMILY_DECL_RE = /font-family\s*:\s*([^;}<]+)/gi;
+const FONT_FACE_ATTR_RE =
+  /<font\b[^>]*\bface\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/gi;
+
+// CSS generic family keywords, global CSS values, and system-stack tokens that
+// don't correspond to a specific typeface. We exclude these so the palette
+// surfaces the actual brand fonts being chosen.
+const FONT_GENERIC_KEYWORDS = new Set<string>([
+  "sans-serif",
+  "serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+  "ui-sans-serif",
+  "ui-serif",
+  "ui-monospace",
+  "ui-rounded",
+  "emoji",
+  "math",
+  "fangsong",
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "revert-layer",
+  "-apple-system",
+  "blinkmacsystemfont"
+]);
+
+/**
+ * Captures the typefaces an email actually references — every entry in a
+ * `font-family` stack (style blocks + inline style attrs) plus legacy
+ * `<font face="…">` attributes. CSS generic families (`sans-serif`,
+ * `system-ui`, …) and system-stack tokens are filtered so the result reflects
+ * the brand fonts being chosen rather than the always-present fallback chain.
+ */
+export function extractFontFamilies(
+  html: string,
+  limit: number = FONT_DEFAULT_LIMIT
+): FontFamily[] {
+  if (!html) {
+    return [];
+  }
+
+  const cleaned = html.replace(SCRIPT_BLOCK_RE, " ").replace(HTML_COMMENT_RE, " ");
+
+  const aggregate = new Map<
+    string,
+    {
+      display: string;
+      count: number;
+      primary_count: number;
+      sources: Set<FontSource>;
+    }
+  >();
+
+  // Records one entry from a font-family stack. `isPrimary` marks the *first
+  // non-generic* (= first accepted) entry of the surrounding declaration as
+  // the author's intended typeface; the remaining entries are fallbacks.
+  // Returns whether the entry was accepted (so callers can advance the
+  // "primary slot" past filtered-out entries like `-apple-system`).
+  const record = (rawValue: string, source: FontSource, isPrimary: boolean): boolean => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return false;
+    }
+    if (/^var\s*\(/i.test(trimmed)) {
+      return false;
+    }
+    const key = trimmed.replace(/\s+/g, " ").toLowerCase();
+    if (!key || FONT_GENERIC_KEYWORDS.has(key)) {
+      return false;
+    }
+    const existing = aggregate.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (isPrimary) {
+        existing.primary_count += 1;
+      }
+      existing.sources.add(source);
+    } else {
+      aggregate.set(key, {
+        display: trimmed.replace(/\s+/g, " "),
+        count: 1,
+        primary_count: isPrimary ? 1 : 0,
+        sources: new Set([source])
+      });
+    }
+    return true;
+  };
+
+  const recordList = (parts: string[], source: FontSource): void => {
+    let primaryAssigned = false;
+    for (const part of parts) {
+      const accepted = record(part, source, !primaryAssigned);
+      if (accepted && !primaryAssigned) {
+        primaryAssigned = true;
+      }
+    }
+  };
+
+  const scanDeclarations = (text: string, source: FontSource): void => {
+    if (!text) {
+      return;
+    }
+    // Inline `style="..."` attribute values typically encode the quotes
+    // around font names as `&quot;` / `&apos;`. We decode *after* the
+    // attribute has been captured so the trailing `;` of those entities no
+    // longer terminates our `font-family: …` value regex prematurely.
+    const decoded = decodeBasicHtmlEntities(text);
+    for (const match of decoded.matchAll(FONT_FAMILY_DECL_RE)) {
+      const value = match[1];
+      if (!value) {
+        continue;
+      }
+      recordList(splitFontFamilyList(value), source);
+    }
+  };
+
+  for (const block of cleaned.matchAll(STYLE_BLOCK_RE)) {
+    scanDeclarations(block[1] ?? "", "style_block");
+  }
+
+  for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
+    scanDeclarations(attr[1] ?? attr[2] ?? "", "inline");
+  }
+
+  for (const attr of cleaned.matchAll(FONT_FACE_ATTR_RE)) {
+    const raw = decodeBasicHtmlEntities((attr[1] ?? attr[2] ?? attr[3] ?? "").trim());
+    if (!raw) {
+      continue;
+    }
+    recordList(splitFontFamilyList(raw), "attribute");
+  }
+
+  const entries: FontFamily[] = Array.from(aggregate.values())
+    .map((info) => ({
+      family: info.display,
+      count: info.count,
+      primary_count: info.primary_count,
+      sources: Array.from(info.sources).sort()
+    }))
+    .sort(
+      (a, b) =>
+        b.primary_count - a.primary_count ||
+        b.count - a.count ||
+        a.family.localeCompare(b.family)
+    );
+
+  const cap = Math.max(0, Math.floor(limit));
+  return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+function splitFontFamilyList(value: string): string[] {
+  return value
+    .replace(/!important/gi, "")
+    .split(",")
+    .map((s) => s.trim())
+    .map((s) => s.replace(/^["']/, "").replace(/["']$/, "").trim())
+    .filter(Boolean);
+}
+
+/**
+ * Decodes the handful of HTML entities that show up inside inline CSS values
+ * (typically the quotes wrapping font-family names). Order matters: named and
+ * numeric entities are resolved before `&amp;` so `&amp;quot;` is left alone.
+ */
+function decodeBasicHtmlEntities(text: string): string {
+  return text
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#34;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&");
+}
+
+function normaliseHex(hex: string): string | null {
+  const match = hex.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i);
+  if (!match) {
+    return null;
+  }
+  let value = match[1].toLowerCase();
+  if (value.length === 3) {
+    value = value
+      .split("")
+      .map((ch) => ch + ch)
+      .join("");
+  }
+  return `#${value}`;
+}
+
+function clampChannel(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function channelsToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number): string => n.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 export function extractPreheader(html: string): string | null {

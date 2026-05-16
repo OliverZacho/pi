@@ -50,6 +50,8 @@ export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
 
 export type ClassificationSource = "rules" | "llm" | "manual";
 
+export type CompanyLogoSource = "email_heuristic" | "email_frequency" | "manual";
+
 export type CompanySubscription = {
   id: string;
   name: string;
@@ -59,6 +61,14 @@ export type CompanySubscription = {
   subscribedAt: string;
   emailCount: number;
   lastEmailAt: string | null;
+  /**
+   * Short-lived signed URL into the `email-assets` bucket for a logo we
+   * extracted from one of the brand's emails. `null` until the first
+   * email lands and a candidate clears the heuristic threshold — in that
+   * case the UI renders a monogram fallback.
+   */
+  logoUrl: string | null;
+  logoSource: CompanyLogoSource | null;
 };
 
 export type EspProvider =
@@ -87,7 +97,8 @@ export type EspProvider =
   | "amazon_ses"
   | "mailjet"
   | "apsis"
-  | "agillic";
+  | "agillic"
+  | "peytzmail";
 
 export type CapturedEmail = {
   id: string;
@@ -116,6 +127,29 @@ export type CapturedEmail = {
   primaryCtaUrl: string | null;
 };
 
+export type PaletteColorSource = "inline" | "style_block" | "attribute";
+
+export type PaletteColor = {
+  hex: string;
+  count: number;
+  sources: PaletteColorSource[];
+};
+
+export type FontFamilySource = "inline" | "style_block" | "attribute";
+
+export type FontFamily = {
+  family: string;
+  /** Total `font-family` declarations the name appears in (any stack position). */
+  count: number;
+  /**
+   * How often the font was the *first non-generic* entry of its declaration
+   * — i.e. the typeface the author actually wanted to render. Fallbacks (e.g.
+   * Arial trailing every stack) have a high `count` but `primary_count: 0`.
+   */
+  primary_count: number;
+  sources: FontFamilySource[];
+};
+
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
   htmlContent: string;
@@ -127,6 +161,8 @@ export type CapturedEmailDetail = CapturedEmail & {
   llmReasoning: string | null;
   processedAt: string | null;
   authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
+  paletteColors: PaletteColor[];
+  fontFamilies: FontFamily[];
   metadata: Record<string, unknown> | null;
 };
 
