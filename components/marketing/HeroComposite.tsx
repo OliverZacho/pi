@@ -1,15 +1,68 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import AnalysisPanel from "./AnalysisPanel";
 import EmailPreview from "./EmailPreview";
+import { HERO_ROTATION } from "@/lib/marketing/hero-data";
 import styles from "./herocomposite.module.css";
 
+// Time each newsletter sits on screen before the next one slides in.
+// The analysis panel finishes its full reveal at ~5.1s, so 9s leaves
+// a comfortable beat to read the result before rotation.
+const ROTATION_INTERVAL_MS = 9000;
+
 export default function HeroComposite() {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const intervalRef = useRef<number | null>(null);
+
+  // Auto-rotate, but pause on hover, when the tab is hidden, or when
+  // the user prefers reduced motion.
+  useEffect(() => {
+    if (paused) return;
+    if (typeof window === "undefined") return;
+
+    const prefersReduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (prefersReduced) return;
+
+    intervalRef.current = window.setInterval(() => {
+      setIndex((i) => (i + 1) % HERO_ROTATION.length);
+    }, ROTATION_INTERVAL_MS);
+
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [paused]);
+
+  // Pause the rotation while the tab is hidden so we don't burn cycles
+  // (and so a returning user sees the current email for the full beat
+  // instead of catching the tail end of an animation).
+  useEffect(() => {
+    const onVisibility = () => setPaused(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  const slot = HERO_ROTATION[index];
+
   return (
-    <section className={styles.wrap} aria-labelledby="hero-title">
+    <section
+      className={styles.wrap}
+      aria-labelledby="hero-title"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <div className={styles.grid}>
         <div className={styles.colLeft}>
           <div className={styles.scrollFrame}>
-            <EmailPreview />
+            {/* key remount re-runs the email card's entrance animation */}
+            <EmailPreview key={`email-${slot.email.id}`} email={slot.email} />
           </div>
         </div>
 
@@ -49,11 +102,37 @@ export default function HeroComposite() {
                 Get a demo
               </Link>
             </div>
+
+            <div
+              className={styles.rotationDots}
+              role="tablist"
+              aria-label="Featured newsletters"
+            >
+              {HERO_ROTATION.map((s, i) => (
+                <button
+                  key={s.email.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Show ${s.email.brand.name}`}
+                  className={`${styles.rotationDot} ${
+                    i === index ? styles.rotationDotActive : ""
+                  }`}
+                  onClick={() => setIndex(i)}
+                >
+                  <span aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className={styles.colRight}>
-          <AnalysisPanel />
+          <AnalysisPanel
+            key={`analysis-${slot.email.id}`}
+            email={slot.email}
+            analytics={slot.analytics}
+          />
         </div>
       </div>
     </section>

@@ -171,6 +171,26 @@
   padding: 1.1rem;
 }
 
+/* ---------- Real captured-email iframe ----------
+   Fills the rest of the card. The iframe loads a static .html file from
+   /public/hero-emails/{id}.html — the actual HTML that was captured at
+   ingest time, so the preview is the real email, not a facsimile. */
+
+.emailRenderFrame {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.emailRenderIframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
 .emailBody {
   background: #ffffff;
   padding: 1.25rem 1.25rem 1rem;
