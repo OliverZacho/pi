@@ -29,6 +29,13 @@
 /* ---------- Header ---------- */
 
 .header {
+  /* Self-contained tokens so the Header works on any page background
+     (not only inside .page). Page-level overrides still win. */
+  --ink: #0b0b0c;
+  --ink-soft: #6b6b70;
+  --line: rgba(11, 11, 12, 0.08);
+  --surface: #ffffff;
+
   position: relative;
   z-index: 30;
   display: grid;
@@ -169,7 +176,7 @@
   padding: 0.55rem 0.9rem;
   border-radius: 999px;
   background: transparent;
-  color: var(--ink);
+  color: var(--header-fg, var(--ink));
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
@@ -177,7 +184,7 @@
 }
 
 .linkBtn:hover {
-  background: rgba(11, 11, 12, 0.06);
+  background: var(--header-fg-hover, rgba(11, 11, 12, 0.06));
 }
 
 .primaryBtn {
