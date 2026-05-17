@@ -102,9 +102,12 @@ export default function EmailPreview({ email = HERO_EMAIL }: Props) {
             // Render the iframe tall enough that any vertical clipping happens
             // outside its document — the bottom mask on the hero card fades
             // it out naturally.
-            height: `${Math.round(100 / scale)}%`,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left"
+            height: `${Math.round(100 / (scale ?? 1))}%`,
+            transform: `scale(${scale ?? 1})`,
+            transformOrigin: "top left",
+            // Hide until we've measured to avoid a single frame of 640px
+            // overflow before the layout effect runs.
+            opacity: scale === null ? 0 : 1
           }}
         />
       </div>
