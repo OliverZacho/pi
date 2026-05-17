@@ -231,10 +231,38 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)acemlnpages\.com$/i,
       /(^|\.)acemlnpc\.com$/i
     ],
+    // ActiveCampaign leaves four very distinctive URL shapes that survive
+    // brand-CNAMEd tracking hosts (e.g. `news.<brand>.com` pointed at AC):
+    //   /lt.php?x=<urlsafe-base64>
+    //     → link-click tracker (also reused as open pixel when emitted as an <img>)
+    //   /proc.php?nl=<num>&c=<num>&m=<num>&s=<hex>&act=unsub&runid=<num>
+    //     → list-unsubscribe processor — the `act=unsub` + `runid=` combo is
+    //       unique to AC's unsubscribe handler
+    //   /p_v.php?l=<num>&c=<num>&m=<num>
+    //     → "View in browser" web-view link
+    //   /content/<TENANT>/<YYYY>/<MM>/<DD>/<uuid>.<ext>
+    //     → AC's hosted asset / content-image path (survives Cloudflare's
+    //       `/cdn-cgi/image/.../content/<TENANT>/<DATE>/<uuid>` wrapper that
+    //       AC enables for image resizing on custom tracking domains)
+    // The URL-shape patterns are listed FIRST so that the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints.
     htmlPatterns: [
+      /\/lt\.php\?x=[A-Za-z0-9._~/+=-]{6,}/i,
+      /\/proc\.php\?[^"'<>\s]*\bact=unsub(?:&amp;|&)runid=\d+/i,
+      /\/p_v\.php\?l=\d+(?:&amp;|&)c=\d+(?:&amp;|&)m=\d+/i,
+      /\/content\/[A-Z0-9]{4,}\/\d{4}\/\d{2}\/\d{2}\/[a-f0-9-]{8,}\.[a-z]{2,4}/i,
       /(^|\.)acemln[a-z]\.com\//i,
       /\.acemln[a-z]\.com\/(?:lt|proc|p_v|open)\.php\b/i,
       /(^|\.)activehosted\.com\/(?:lt|proc|p_v|open)\.php\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us an
+    // extra `link_url`-weight signal that clears the 0.6 confidence threshold
+    // confidently on real-world sends through brand CNAMEs (where no DKIM /
+    // Return-Path / x- headers are available to us).
+    linkUrlPatterns: [
+      /\/lt\.php\?x=[A-Za-z0-9._~/+=-]{6,}/i,
+      /\/proc\.php\?[^"'<>\s]*\bact=unsub(?:&amp;|&)runid=\d+/i,
+      /\/p_v\.php\?l=\d+(?:&amp;|&)c=\d+(?:&amp;|&)m=\d+/i
     ],
     dkimPatterns: [/activehosted\.com/i, /activecampaign\.com/i, /acemln[a-z]\.com/i],
     returnPathPatterns: [/activehosted\.com/i, /acemln[a-z]\.com/i],

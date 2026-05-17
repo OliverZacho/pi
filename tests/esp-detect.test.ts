@@ -248,6 +248,46 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies ActiveCampaign on a brand-CNAMEd tracking domain using URL shapes (no headers)", () => {
+    // Distilled from a real Mater Design send. The tracking + unsubscribe +
+    // web-view host is CNAMEd to `news.materdesign.com`, so the original
+    // host-anchored HTML patterns never fire. The `lt.php?x=…` click tracker,
+    // `proc.php?…&act=unsub&runid=…` unsubscribe processor and
+    // `/content/<TENANT>/<YYYY>/<MM>/<DD>/<uuid>` content-asset URL shapes
+    // (including Cloudflare's `/cdn-cgi/image/.../content/…` wrapper that AC
+    // enables on custom tracking domains) carry the detection. One image
+    // still loads directly from `<tenant>.activehosted.com`, providing the
+    // host-pattern signal.
+    const html = `
+      <a target="_blank" href="https://news.materdesign.com/lt.php?x=41Zy~GDGJaHPDK4u__PKh.Oc3KIjiwTvlecwZHY4JFOaE5Ws-0y.z.lv5XUomN~2nuowY.I5k3eZUs.8.Q_7UeNv2e3m-ND">
+        <img src="https://materdesign.activehosted.com/content/G7EEMP/2025/05/01/68fc6a23-876c-4669-bb65-2fd63d5b6234.png" height="30" />
+      </a>
+      <a target="_blank" href="https://news.materdesign.com/lt.php?x=41Zy~GDGJaHPDK4u__PKh.Oc3KIjiwTvlecwZHY4JFOaE5Ws-0y.z.lv5XUomN~2nuowXuI5k3eZUs.8.Q_7UeNv2e3m-ND">
+        <img src="https://news.materdesign.com/cdn-cgi/image/format=auto,onerror=redirect,width=650,dpr=2,fit=scale-down/content/G7EEMP/2026/04/28/5d840283-e507-4249-b9d0-29453563145b.png" width="580" />
+      </a>
+      <a target="_blank" href="https://news.materdesign.com/proc.php?nl=18&c=94&m=98&s=34afbaed95d3a8f33f182195c731e9cc&act=unsub&runid=2345">unsubscribe</a>
+      <img src="https://news.materdesign.com/lt.php?x=4TZy~GDGJaHPDK4u__PKh.Oc3KIjiwTvlecwZHY4JFOaE5Ws-02DjFJs3O3T-dfy_xIhZHl2VeKg5w41NAoFhR7cEu2i" width="1" height="1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://news.materdesign.com/lt.php?x=41Zy~GDGJaHPDK4u__PKh.Oc3KIjiwTvlecwZHY4JFOaE5Ws-0y.z.lv5XUomN~2nuowY.I5k3eZUs.8.Q_7UeNv2e3m-ND"),
+        link("https://news.materdesign.com/lt.php?x=41Zy~GDGJaHPDK4u__PKh.Oc3KIjiwTvlecwZHY4JFOaE5Ws-0y.z.lv5XUomN~2nuowXuI5k3eZUs.8.Q_7UeNv2e3m-ND"),
+        link("https://news.materdesign.com/proc.php?nl=18&c=94&m=98&s=34afbaed95d3a8f33f182195c731e9cc&act=unsub&runid=2345")
+      ],
+      resourceHosts: [
+        "materdesign.activehosted.com",
+        "news.materdesign.com"
+      ]
+    });
+    expect(result.provider).toBe("activecampaign");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("identifies Constant Contact", () => {
     const result = detectEsp({
       headers: {
