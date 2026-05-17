@@ -123,7 +123,7 @@
   height: 100%;
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: 28px;
 }
 
 .column {
@@ -145,8 +145,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
-  padding: 14px 0;
+  gap: 36px;
+  padding: 18px 0;
 }
 
 /* ---------- Icon tiles ---------- */
@@ -168,15 +168,8 @@
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 12px 28px -18px rgba(0, 0, 0, 0.22);
-  transition: transform 0.32s ease, box-shadow 0.32s ease, outline 0.32s ease;
-  outline: 0 solid transparent;
+  transition: transform 0.32s ease, box-shadow 0.32s ease;
   user-select: none;
-}
-
-.tileBlank {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 8px 18px -14px rgba(0, 0, 0, 0.16);
 }
 
 .tileGlyph {
@@ -202,8 +195,6 @@
 }
 
 .tileActive {
-  outline: 1px solid rgba(11, 11, 12, 0.16);
-  outline-offset: 2px;
   transform: scale(1.04);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.08),
@@ -226,23 +217,38 @@
   gap: 16px;
   /* Vertically centre the row on the tile's centre line */
   transform: translateY(-50%);
-  transition: opacity 0.6s ease;
+  /* Default (no .spotlightVisible class) is the EXIT transition — used
+     when the spotlight is fading out during teardown. It's intentionally
+     quick so the handoff between cycles feels immediate. */
   opacity: 0;
+  transition: opacity 0.18s ease-out;
 }
 
 .spotlightVisible {
   opacity: 1;
+  /* Slower entry transition gives the typewriter callout a moment to
+     settle in before typing begins. */
+  transition: opacity 0.45s ease;
 }
 
-.spotlightFading {
-  opacity: 0;
-}
-
+/*
+  The line and text are always rendered text-then-line in the DOM, and
+  CSS `order` puts them in the right visual sequence per side. This way
+  the DOM nodes stay stable across side flips and their transitions
+  don't reset.
+*/
 .spotlightLeft {
-  /* Flex order: text -- line -- (tile is to the right) */
   flex-direction: row;
   text-align: right;
-  /* `right` and `left` are set via inline style by the component */
+}
+
+.spotlightLeft .spotlightText {
+  order: 1;
+}
+
+.spotlightLeft .spotlightLine {
+  order: 2;
+  transform-origin: right center;
 }
 
 .spotlightRight {
@@ -250,22 +256,30 @@
   text-align: left;
 }
 
+.spotlightRight .spotlightText {
+  order: 2;
+}
+
+.spotlightRight .spotlightLine {
+  order: 1;
+  transform-origin: left center;
+}
+
 .spotlightLine {
   height: 1px;
   background: rgba(11, 11, 12, 0.4);
-  transform-origin: left center;
   transform: scaleX(0);
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Fast retract by default (mirrors the spotlight opacity exit). */
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   flex-grow: 0;
 }
 
-.spotlightLeft .spotlightLine {
-  transform-origin: right center;
-}
-
 .spotlightLineRevealed {
   transform: scaleX(1);
+  /* Slower reveal so the line draws out gracefully when a new cycle
+     starts. */
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .spotlightText {
@@ -276,7 +290,9 @@
   letter-spacing: 0;
   white-space: pre-wrap;
   word-break: normal;
-  width: 16ch;
+  /* Roughly 20% wider than before so 2–3 word lines stay on a single
+     row. */
+  width: 19ch;
   flex-shrink: 0;
   flex-grow: 0;
 }
@@ -306,10 +322,12 @@
   .scroller {
     transform: none !important;
   }
-  .spotlight {
+  .spotlight,
+  .spotlightVisible {
     transition: none;
   }
-  .spotlightLine {
+  .spotlightLine,
+  .spotlightLineRevealed {
     transition: none;
   }
   .cursor {
@@ -372,6 +390,6 @@
 
   .spotlightText {
     font-size: 0.72rem;
-    max-width: 18ch;
+    width: 16ch;
   }
 }

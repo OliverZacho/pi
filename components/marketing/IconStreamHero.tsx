@@ -27,8 +27,15 @@ const SCROLL_SPEED_PX_PER_SEC = 18;
 const PRE_TYPE_DELAY_MS = 280;
 const TYPING_MS_PER_CHAR = 44;
 const HOLD_MS = 2600;
-const FADE_MS = 600;
-const GAP_MS = 800;
+// Backspace is intentionally much quicker than typing (5x faster) —
+// feels like holding down the delete key.
+const DELETE_MS_PER_CHAR = Math.round(TYPING_MS_PER_CHAR / 5);
+// Brief window for the connector line to retract and the spotlight
+// opacity to fade before the next cycle picks up on the other column.
+const TEARDOWN_MS = 220;
+// Quiet beat after the spotlight has fully retracted, before the next
+// cycle begins. Gives the reader a moment to digest the previous stat.
+const REST_MS = 1200;
 
 // Horizontal offset from the active tile's edge to the connector line
 const TILE_EDGE_OFFSET = 10;
@@ -36,7 +43,13 @@ const TILE_EDGE_OFFSET = 10;
 const LINE_LENGTH_PX = 40;
 
 type Side = "left" | "right";
-type Phase = "idle" | "revealing" | "typing" | "hold" | "fading";
+type Phase =
+  | "idle"
+  | "revealing"
+  | "typing"
+  | "hold"
+  | "deleting"
+  | "teardown";
 
 type SpotlightState = {
   side: Side;
@@ -214,8 +227,6 @@ export default function IconStreamHero() {
 
       let best: { item: IconStreamItem; dist: number } | null = null;
       for (const item of list) {
-        // Blank placeholder tiles never get a callout.
-        if (!item.glyph) continue;
         const el = refs.get(item.id);
         if (!el) continue;
         const r = el.getBoundingClientRect();
@@ -279,22 +290,41 @@ export default function IconStreamHero() {
         await wait(HOLD_MS);
         if (cancelled) return;
 
-        // Fade out.
+        // Backspace: tear the text down char-by-char, much faster than
+        // the typing pass — feels like holding the delete key.
         setSpotlight((s) =>
-          s.itemId === item.id ? { ...s, phase: "fading" } : s
+          s.itemId === item.id ? { ...s, phase: "deleting" } : s
         );
-        await wait(FADE_MS);
+        if (reducedMotion) {
+          setSpotlight((s) =>
+            s.itemId === item.id ? { ...s, typedText: "" } : s
+          );
+        } else {
+          for (let i = text.length - 1; i >= 0; i--) {
+            await wait(DELETE_MS_PER_CHAR);
+            if (cancelled) return;
+            setSpotlight((s) =>
+              s.itemId === item.id
+                ? { ...s, typedText: text.slice(0, i) }
+                : s
+            );
+          }
+        }
+
+        // Teardown: keep the same itemId (so the spotlight stays
+        // positioned at the old tile while it gracefully retracts), but
+        // flip the phase so the line shrinks back and the container
+        // fades out.
+        setSpotlight((s) =>
+          s.itemId === item.id ? { ...s, phase: "teardown" } : s
+        );
+        await wait(TEARDOWN_MS);
         if (cancelled) return;
 
-        // Idle gap before next cycle.
-        setSpotlight({
-          side: nextSide,
-          itemId: null,
-          fullText: "",
-          typedText: "",
-          phase: "idle"
-        });
-        await wait(GAP_MS);
+        // Quiet rest before the next cycle — the spotlight is already
+        // invisible at this point, this is just deliberate dead air so
+        // the previous stat has time to settle.
+        await wait(REST_MS);
         if (cancelled) return;
 
         nextSide = nextSide === "left" ? "right" : "left";
@@ -309,9 +339,18 @@ export default function IconStreamHero() {
     };
   }, [reducedMotion]);
 
-  const spotlightActive = spotlight.itemId !== null;
+  // The line + opacity stay revealed for every phase EXCEPT teardown
+  // and idle. We use phase here instead of itemId so the teardown phase
+  // (which keeps itemId set, to anchor the spotlight to the old tile
+  // while it retracts) correctly triggers the exit transitions.
+  const spotlightActive =
+    spotlight.itemId !== null &&
+    spotlight.phase !== "idle" &&
+    spotlight.phase !== "teardown";
   const showCursor =
-    spotlight.phase === "typing" || spotlight.phase === "hold";
+    spotlight.phase === "typing" ||
+    spotlight.phase === "hold" ||
+    spotlight.phase === "deleting";
 
   return (
     <section className={styles.hero} aria-label="Brand intelligence preview">
@@ -365,6 +404,14 @@ export default function IconStreamHero() {
         </div>
 
         <div className={styles.spotlightLayer}>
+          {/*
+            The line and text are always rendered in the same DOM order
+            (text first, line second). The visual order is flipped per
+            side via CSS `order` on the children of `.spotlightLeft` /
+            `.spotlightRight`. Keeping the DOM stable means React never
+            re-mounts these nodes when the side flips, so their
+            transform/opacity transitions don't reset mid-flight.
+          */}
           <div
             ref={spotlightElRef}
             className={[
@@ -372,52 +419,27 @@ export default function IconStreamHero() {
               spotlight.side === "left"
                 ? styles.spotlightLeft
                 : styles.spotlightRight,
-              spotlightActive && spotlight.phase !== "fading"
-                ? styles.spotlightVisible
-                : "",
-              spotlight.phase === "fading" ? styles.spotlightFading : ""
+              spotlightActive ? styles.spotlightVisible : ""
             ]
               .filter(Boolean)
               .join(" ")}
             aria-live="polite"
           >
-            {spotlight.side === "left" ? (
-              <>
-                <span className={styles.spotlightText}>
-                  {spotlight.typedText}
-                  <span
-                    className={`${styles.cursor} ${
-                      showCursor ? "" : styles.cursorHidden
-                    }`}
-                    aria-hidden
-                  />
-                </span>
-                <div
-                  className={`${styles.spotlightLine} ${
-                    spotlightActive ? styles.spotlightLineRevealed : ""
-                  }`}
-                  style={{ width: `${LINE_LENGTH_PX}px` }}
-                />
-              </>
-            ) : (
-              <>
-                <div
-                  className={`${styles.spotlightLine} ${
-                    spotlightActive ? styles.spotlightLineRevealed : ""
-                  }`}
-                  style={{ width: `${LINE_LENGTH_PX}px` }}
-                />
-                <span className={styles.spotlightText}>
-                  {spotlight.typedText}
-                  <span
-                    className={`${styles.cursor} ${
-                      showCursor ? "" : styles.cursorHidden
-                    }`}
-                    aria-hidden
-                  />
-                </span>
-              </>
-            )}
+            <span className={styles.spotlightText}>
+              {spotlight.typedText}
+              <span
+                className={`${styles.cursor} ${
+                  showCursor ? "" : styles.cursorHidden
+                }`}
+                aria-hidden
+              />
+            </span>
+            <div
+              className={`${styles.spotlightLine} ${
+                spotlightActive ? styles.spotlightLineRevealed : ""
+              }`}
+              style={{ width: `${LINE_LENGTH_PX}px` }}
+            />
           </div>
         </div>
       </div>
@@ -475,44 +497,33 @@ function Tile({
   isActive: boolean;
   registerRef: ((el: HTMLDivElement | null) => void) | null;
 }) {
-  const isBlank = !item.glyph;
-  const glyphLong = item.glyph !== undefined && item.glyph.length > 1;
+  const glyphLong = item.glyph.length > 1;
   // Treat lowercase, multi-char glyphs as a "wordmark" placeholder
   // styled like the gisou/Marais reference logo.
   const isScript =
-    item.glyph !== undefined &&
-    item.glyph.length > 2 &&
-    item.glyph === item.glyph.toLowerCase();
+    item.glyph.length > 2 && item.glyph === item.glyph.toLowerCase();
 
   return (
     <div
       ref={registerRef ?? undefined}
-      className={[
-        styles.tile,
-        isBlank ? styles.tileBlank : "",
-        isActive ? styles.tileActive : ""
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={`${styles.tile} ${isActive ? styles.tileActive : ""}`}
       style={{ background: item.bg, color: item.fg }}
       aria-hidden="true"
     >
-      {item.glyph ? (
-        <span
-          className={[
-            styles.tileGlyph,
-            isScript
-              ? styles.tileGlyphScript
-              : glyphLong
-                ? styles.tileGlyphLong
-                : ""
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          {item.glyph}
-        </span>
-      ) : null}
+      <span
+        className={[
+          styles.tileGlyph,
+          isScript
+            ? styles.tileGlyphScript
+            : glyphLong
+              ? styles.tileGlyphLong
+              : ""
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {item.glyph}
+      </span>
     </div>
   );
 }

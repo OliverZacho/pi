@@ -18,11 +18,11 @@ export type IconStreamItem = {
   /** Glyph color. */
   fg: string;
   /**
-   * Optional centred glyph (1–3 chars). Omit for "blank" placeholder
-   * tiles — soft gray squares that recreate the screenshot's neutral
-   * fill near the fade edges.
+   * Centred glyph (1–3 chars, or a short lowercase wordmark for the
+   * "script" variant). Every tile carries a glyph — there are no blank
+   * placeholders.
    */
-  glyph?: string;
+  glyph: string;
   /**
    * Short newsletter insight in the same voice as the reference
    * screenshot (e.g. "IKEA sends out 12% fewer mails than
@@ -32,16 +32,14 @@ export type IconStreamItem = {
   stat: string;
 };
 
-const BLANK_BG = "#ececea";
-const BLANK_FG = "#ececea";
-
 export const LEFT_COLUMN: IconStreamItem[] = [
   {
-    id: "L-blank-a",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand sends one campaign per week on average."
+    id: "L-solace",
+    name: "Solace",
+    bg: "#0d4a4e",
+    fg: "#e8d9b0",
+    glyph: "S",
+    stat: "Solace has run the same hero typography across every send this year."
   },
   {
     id: "L-northwind",
@@ -76,11 +74,12 @@ export const LEFT_COLUMN: IconStreamItem[] = [
     stat: "Aster averages 4.2 newsletters per month, mostly on Thursdays."
   },
   {
-    id: "L-blank-b",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand averages a 28% open rate."
+    id: "L-wisp",
+    name: "Wisp",
+    bg: "#d6cee8",
+    fg: "#2b1f54",
+    glyph: "W",
+    stat: "Wisp opens every promo with a single line of body copy, never more."
   },
   {
     id: "L-fjord",
@@ -107,11 +106,12 @@ export const LEFT_COLUMN: IconStreamItem[] = [
     stat: "Paloma's average newsletter is 1.4 screens long on mobile."
   },
   {
-    id: "L-blank-c",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand sends from a no-reply address."
+    id: "L-glade",
+    name: "Glade",
+    bg: "#2d4838",
+    fg: "#bcd3aa",
+    glyph: "G",
+    stat: "Glade includes an unsubscribe link in the preheader of every send."
   },
   {
     id: "L-meridian",
@@ -138,21 +138,23 @@ export const LEFT_COLUMN: IconStreamItem[] = [
     stat: "Orbit changed its newsletter typeface from Inter to GT America in March."
   },
   {
-    id: "L-blank-d",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand has run the same hero layout for six months."
+    id: "L-tellurian",
+    name: "Tellurian",
+    bg: "#d4b896",
+    fg: "#3a2818",
+    glyph: "Te",
+    stat: "Tellurian sends three sales emails for every editorial newsletter."
   }
 ];
 
 export const RIGHT_COLUMN: IconStreamItem[] = [
   {
-    id: "R-blank-a",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand has not sent a campaign in 41 days."
+    id: "R-bramble",
+    name: "Bramble",
+    bg: "#3d2817",
+    fg: "#f3e2c4",
+    glyph: "Br",
+    stat: "Bramble's preheader has read the same five words for nine months."
   },
   {
     id: "R-pandora",
@@ -187,11 +189,12 @@ export const RIGHT_COLUMN: IconStreamItem[] = [
     stat: "Arbor's preheader copy averages 7 words across the last 30 sends."
   },
   {
-    id: "R-blank-b",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand A/B tests every subject line."
+    id: "R-quart",
+    name: "Quart",
+    bg: "#f4b48a",
+    fg: "#3d1f0e",
+    glyph: "Q",
+    stat: "Quart sends from a personal-looking name 100% of the time."
   },
   {
     id: "R-cobalt",
@@ -218,11 +221,12 @@ export const RIGHT_COLUMN: IconStreamItem[] = [
     stat: "Vellum's average subject line is 38 characters — twice the category median."
   },
   {
-    id: "R-blank-c",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand uses a static template with no images."
+    id: "R-vox",
+    name: "Vox",
+    bg: "#3a1d63",
+    fg: "#d8c4ee",
+    glyph: "V",
+    stat: "Vox newsletters average 980px tall — twice the category median."
   },
   {
     id: "R-kindling",
@@ -249,10 +253,11 @@ export const RIGHT_COLUMN: IconStreamItem[] = [
     stat: "Isle's CTAs read 'Discover' in 81% of sends across the last year."
   },
   {
-    id: "R-blank-d",
-    name: "Placeholder",
-    bg: BLANK_BG,
-    fg: BLANK_FG,
-    stat: "Placeholder brand has not changed its footer in over a year."
+    id: "R-hush",
+    name: "Hush",
+    bg: "#fae08a",
+    fg: "#3d2a0a",
+    glyph: "H",
+    stat: "Hush always centers its hero image, with the body copy below it."
   }
 ];
