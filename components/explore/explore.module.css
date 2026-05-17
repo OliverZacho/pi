@@ -1,0 +1,468 @@
+/* =========================================================
+   Explore page (/explore)
+   - Two-column shell: persistent sidebar + scrollable grid
+   - Cards live-render real captured emails via iframes
+   - Save / Copy actions fade in on hover (no behaviour yet,
+     per the prototype brief)
+   ========================================================= */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 0.85rem 1rem;
+  gap: 1rem;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.15rem 0.4rem 0.4rem;
+}
+
+.brandName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.brandToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.brandToggle:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.navItem:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.navItem.active {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.navIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.navItem.active .navIcon {
+  color: #0f172a;
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.2rem 0.55rem 0.1rem;
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.sectionAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.sectionAdd:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.spacer {
+  flex: 1;
+  min-height: 0.5rem;
+}
+
+.usageCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.85rem 0.95rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.usageHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.usageDot {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #f0abfc, #c084fc 60%, #6366f1);
+  flex-shrink: 0;
+}
+
+.usageText {
+  font-size: 0.78rem;
+  color: #334155;
+  line-height: 1.35;
+}
+
+.usageMuted {
+  display: block;
+  margin-top: 0.1rem;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.upgradeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.55rem;
+  border-radius: 7px;
+  color: #334155;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.settingsRow:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* ---------- Main panel ---------- */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 2.4rem 2.6rem 4rem;
+  overflow-x: hidden;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.heading p {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
+}
+
+.searchRow {
+  margin: 1.5rem 0 2rem;
+}
+
+.searchField {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  cursor: text;
+}
+
+.searchField svg {
+  flex-shrink: 0;
+}
+
+/* ---------- Grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.empty {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+/* ---------- Card ---------- */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 160ms ease, transform 160ms ease,
+    border-color 160ms ease;
+  isolation: isolate;
+}
+
+.card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  transform: translateY(-2px);
+}
+
+.cardPreview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.05;
+  background: #f8fafc;
+  overflow: hidden;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/*
+ * The iframe renders the email at its real width (~600px is typical).
+ * We render it at full size and scale it down with transform so the
+ * email's internal layout (media queries, fixed-width tables) lays out
+ * exactly as it does in a real client, then we fit the result into the
+ * card.
+ */
+.cardFrame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 600px;
+  height: calc(600px * 1.05);
+  border: 0;
+  background: #ffffff;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.cardSkeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  background: linear-gradient(
+    90deg,
+    #f8fafc 0%,
+    #eef2f7 50%,
+    #f8fafc 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0) 0%,
+    rgba(15, 23, 42, 0.05) 35%,
+    rgba(15, 23, 42, 0.55) 100%
+  );
+  opacity: 0;
+  transition: opacity 160ms ease;
+  z-index: 2;
+}
+
+.card:hover .cardOverlay,
+.card:focus-within .cardOverlay {
+  opacity: 1;
+}
+
+.overlayButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.4);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.overlayButton:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.overlayButton.primary {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.overlayButton.primary:hover {
+  background: #1e293b;
+}
+
+.cardMeta {
+  padding: 0.7rem 0.85rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: #ffffff;
+}
+
+.cardBrand {
+  font-size: 0.75rem;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+.cardSubject {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0f172a;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.cardBadge {
+  font-size: 0.7rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+.cardBadge.discount {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.cardBadge.promo {
+  background: #fef3c7;
+  color: #92400e;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
