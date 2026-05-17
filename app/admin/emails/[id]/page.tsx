@@ -329,6 +329,48 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 {email.authResults.dkim ?? "-"}, DMARC {email.authResults.dmarc ?? "-"}
               </p>
             ) : null}
+            {email.listHeaders ? (
+              <p>
+                <strong>Mailing-list headers:</strong>{" "}
+                {email.listHeaders.has_list_unsubscribe ? (
+                  <>
+                    List-Unsubscribe present
+                    {email.listHeaders.has_one_click_post
+                      ? " (RFC 8058 one-click)"
+                      : " (no one-click POST)"}
+                    {email.listHeaders.unsubscribe_mailto || email.listHeaders.unsubscribe_url
+                      ? " — "
+                      : null}
+                    {email.listHeaders.unsubscribe_mailto ? (
+                      <code className="muted">{email.listHeaders.unsubscribe_mailto}</code>
+                    ) : null}
+                    {email.listHeaders.unsubscribe_mailto && email.listHeaders.unsubscribe_url
+                      ? ", "
+                      : null}
+                    {email.listHeaders.unsubscribe_url ? (
+                      <a
+                        href={email.listHeaders.unsubscribe_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {email.listHeaders.unsubscribe_url}
+                      </a>
+                    ) : null}
+                    {email.listHeaders.list_id ? (
+                      <>
+                        ; List-Id <code className="muted">{email.listHeaders.list_id}</code>
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="dim">
+                    No List-Unsubscribe header — Apple Mail will not show its built-in
+                    Unsubscribe button or the &ldquo;message is from a mailing list&rdquo;
+                    disclosure, and Gmail/Yahoo&apos;s 2024 bulk-sender rules are not met.
+                  </span>
+                )}
+              </p>
+            ) : null}
           </section>
 
           <section className="card">

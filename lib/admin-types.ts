@@ -150,6 +150,25 @@ export type FontFamily = {
   sources: FontFamilySource[];
 };
 
+/**
+ * Bulk-sender / mailing-list disclosure header signals (`List-Unsubscribe`,
+ * `List-Unsubscribe-Post`, `List-Id`). Mirrors `lib/extract-metadata.ts`'s
+ * `ListHeaders` type so the admin layer doesn't depend on the extractor.
+ *
+ * `null` at the field level means we never had headers to inspect (legacy /
+ * pre-feature rows). A populated object with everything `false` / `null`
+ * means we *did* see headers and these specific signals were genuinely
+ * absent — that's the case worth flagging because it's what hurts inbox
+ * placement and removes Apple Mail's built-in Unsubscribe button.
+ */
+export type ListHeaders = {
+  has_list_unsubscribe: boolean;
+  unsubscribe_mailto: string | null;
+  unsubscribe_url: string | null;
+  has_one_click_post: boolean;
+  list_id: string | null;
+};
+
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
   htmlContent: string;
@@ -161,6 +180,7 @@ export type CapturedEmailDetail = CapturedEmail & {
   llmReasoning: string | null;
   processedAt: string | null;
   authResults: { spf: string | null; dkim: string | null; dmarc: string | null } | null;
+  listHeaders: ListHeaders | null;
   paletteColors: PaletteColor[];
   fontFamilies: FontFamily[];
   metadata: Record<string, unknown> | null;

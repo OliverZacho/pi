@@ -26,6 +26,44 @@ export type AuthResults = {
   dmarc: "pass" | "fail" | "neutral" | "softfail" | "temperror" | "permerror" | "none" | null;
 };
 
+/**
+ * Captures the bulk-sender / mailing-list disclosure headers that mailbox
+ * providers care about — most importantly the inputs Apple Mail uses to render
+ * its built-in "Unsubscribe" button + the "This message is from a mailing
+ * list" badge, and the inputs Gmail / Yahoo's 2024 bulk-sender rules require
+ * (RFC 8058 one-click).
+ *
+ * `null` means we never had headers to inspect (e.g. backfill rows where the
+ * raw payload didn't include them). A populated object with everything `false`
+ * / `null` means we *did* have headers and these signals were genuinely absent
+ * — that's the case worth flagging in the UI.
+ */
+export type ListHeaders = {
+  /**
+   * True iff a non-empty `List-Unsubscribe` header is present. This is what
+   * makes Apple Mail show its built-in Unsubscribe button + mailing-list
+   * disclosure, and is the minimum bar for Gmail's bulk-sender requirements.
+   */
+  has_list_unsubscribe: boolean;
+  /** Mailto URI from `List-Unsubscribe` (angle brackets stripped), if any. */
+  unsubscribe_mailto: string | null;
+  /** http(s) URI from `List-Unsubscribe` (angle brackets stripped), if any. */
+  unsubscribe_url: string | null;
+  /**
+   * True iff the message also has `List-Unsubscribe-Post: List-Unsubscribe=
+   * One-Click` (RFC 8058). This is the one Gmail / Yahoo's 2024 sender rules
+   * actually require for bulk senders — having it materially helps inbox
+   * reputation.
+   */
+  has_one_click_post: boolean;
+  /**
+   * Inner identifier of the `List-Id` header (RFC 2919) with the optional
+   * label and angle brackets stripped. Together with `has_list_unsubscribe`
+   * this is the strongest "this is a mailing list" signal.
+   */
+  list_id: string | null;
+};
+
 export type PaletteSource = "inline" | "style_block" | "attribute";
 
 export type PaletteColor = {
@@ -64,6 +102,7 @@ export type EmailMetadata = {
   utm_index: ParsedLink["utm"][];
   subject_metadata: SubjectMetadata;
   auth_results: AuthResults | null;
+  list_headers: ListHeaders | null;
   palette_colors: PaletteColor[];
   font_families: FontFamily[];
 };
@@ -120,6 +159,7 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
     utm_index,
     subject_metadata: subjectMeta,
     auth_results: extractAuthResults(input.headers ?? null),
+    list_headers: extractListHeaders(input.headers ?? null),
     palette_colors: extractColorPalette(html),
     font_families: extractFontFamilies(html)
   };
@@ -595,6 +635,75 @@ export function extractAuthResults(
     dkim: pickAuthResult(blob, "dkim"),
     dmarc: pickAuthResult(blob, "dmarc")
   };
+}
+
+/**
+ * Extracts the bulk-sender / mailing-list disclosure headers (`List-Unsubscribe`,
+ * `List-Unsubscribe-Post`, `List-Id`). Returns `null` when no headers were
+ * provided at all — vs. a populated object with everything `false` / `null`
+ * when headers were present but these specific fields were absent (which is
+ * the case the UI wants to flag, since "no built-in unsubscribe" hurts
+ * deliverability).
+ */
+export function extractListHeaders(
+  headers: Record<string, string> | null
+): ListHeaders | null {
+  if (!headers) {
+    return null;
+  }
+
+  const lookup: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof key === "string" && typeof value === "string") {
+      lookup[key.toLowerCase()] = value;
+    }
+  }
+
+  const listUnsubscribe = (lookup["list-unsubscribe"] ?? "").trim();
+  const listUnsubscribePost = (lookup["list-unsubscribe-post"] ?? "").trim();
+  const listId = (lookup["list-id"] ?? "").trim();
+
+  return {
+    has_list_unsubscribe: listUnsubscribe.length > 0,
+    unsubscribe_mailto: parseListUnsubscribeUri(listUnsubscribe, "mailto"),
+    unsubscribe_url: parseListUnsubscribeUri(listUnsubscribe, "http"),
+    has_one_click_post: ONE_CLICK_RE.test(listUnsubscribePost),
+    list_id: parseListId(listId)
+  };
+}
+
+// RFC 8058 §3.1 — the post body is exactly `List-Unsubscribe=One-Click`, but
+// real-world senders pad it with whitespace and casing varies, so we match
+// case-insensitively against the canonical token pair.
+const ONE_CLICK_RE = /\blist-unsubscribe\s*=\s*one-click\b/i;
+
+const ANGLE_BRACKETED_RE = /<([^>]+)>/g;
+
+function parseListUnsubscribeUri(value: string, scheme: "mailto" | "http"): string | null {
+  if (!value) return null;
+  const matcher = scheme === "mailto" ? /^mailto:/i : /^https?:\/\//i;
+  for (const match of value.matchAll(ANGLE_BRACKETED_RE)) {
+    const uri = match[1].trim();
+    if (matcher.test(uri)) {
+      return uri;
+    }
+  }
+  return null;
+}
+
+function parseListId(value: string): string | null {
+  if (!value) return null;
+  // RFC 2919: List-Id = ["display-label" SP] "<" list-id ">"
+  // e.g. `"Brand Newsletter" <newsletter.brand.com>` or just `<news.brand.com>`.
+  // Some senders omit the angle brackets — accept that too, stripping the
+  // optional quoted label first.
+  const angle = value.match(/<([^>]+)>/);
+  if (angle) {
+    const inner = angle[1].trim();
+    return inner.length > 0 ? inner : null;
+  }
+  const stripped = value.replace(/^"[^"]*"\s*/, "").trim();
+  return stripped.length > 0 ? stripped : null;
 }
 
 const AUTH_VALUES = new Set([
