@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
 import EmailCard from "./EmailCard";
+import EmailModal from "./EmailModal";
 import styles from "./explore.module.css";
 
 type SortKey =
@@ -194,8 +195,17 @@ export default function ExploreClient({ emails }: Props) {
   const [receivedAfter, setReceivedAfter] = useState("");
   const [receivedBefore, setReceivedBefore] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
 
   const filterRowRef = useRef<HTMLDivElement | null>(null);
+
+  const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
+    setOpenEmail(email);
+  }, []);
+
+  const handleCloseEmail = useCallback(() => {
+    setOpenEmail(null);
+  }, []);
 
   // Close any open popover when the user clicks outside the filter row
   // or presses Escape — feels like a native menu without pulling in a
@@ -814,10 +824,14 @@ export default function ExploreClient({ emails }: Props) {
       ) : (
         <div className={styles.grid}>
           {filteredSorted.map((email) => (
-            <EmailCard key={email.id} email={email} />
+            <EmailCard key={email.id} email={email} onOpen={handleOpenEmail} />
           ))}
         </div>
       )}
+
+      {openEmail ? (
+        <EmailModal email={openEmail} onClose={handleCloseEmail} />
+      ) : null}
     </>
   );
 }

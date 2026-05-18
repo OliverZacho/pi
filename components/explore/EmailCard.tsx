@@ -8,6 +8,7 @@ const RENDER_WIDTH = 600;
 
 type Props = {
   email: ExploreEmailCard;
+  onOpen: (email: ExploreEmailCard) => void;
 };
 
 /**
@@ -21,7 +22,7 @@ type Props = {
  * an `<img>`. The DOM around the preview is intentionally identical to
  * what an `<img>`-based card would need.
  */
-export default function EmailCard({ email }: Props) {
+export default function EmailCard({ email, onOpen }: Props) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scale, setScale] = useState<number | null>(null);
@@ -63,9 +64,26 @@ export default function EmailCard({ email }: Props) {
         }
       : { visibility: "hidden" as const };
 
+  function handleOpen() {
+    onOpen(email);
+  }
+
   return (
     <article className={styles.card}>
-      <div className={styles.cardPreview} ref={previewRef}>
+      <div
+        role="button"
+        tabIndex={0}
+        className={styles.cardPreview}
+        ref={previewRef}
+        onClick={handleOpen}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleOpen();
+          }
+        }}
+        aria-label={`Open ${email.companyName} — ${email.subject || "email"}`}
+      >
         {!loaded ? (
           <div className={styles.cardSkeleton} aria-hidden="true">
             Rendering preview…
@@ -83,13 +101,22 @@ export default function EmailCard({ email }: Props) {
           onLoad={() => setLoaded(true)}
         />
         <div className={styles.cardOverlay}>
-          <button type="button" className={styles.overlayButton} tabIndex={-1}>
+          <button
+            type="button"
+            className={styles.overlayButton}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpen();
+            }}
+          >
             Open
           </button>
           <button
             type="button"
             className={`${styles.overlayButton} ${styles.primary}`}
-            tabIndex={-1}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
           >
             Save
           </button>
