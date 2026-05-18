@@ -344,6 +344,7 @@ async function ingestEmailReceivedEvent(
         hasDarkMode: metadata.has_dark_mode,
         primaryCtaUrl,
         authResults: metadata.auth_results,
+        listHeaders: metadata.list_headers,
         metadata: enrichmentMetadata
       }
     })

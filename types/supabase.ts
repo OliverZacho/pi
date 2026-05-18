@@ -50,6 +50,7 @@ export type Database = {
           id: string
           image_urls: string[]
           inbox_id: string | null
+          list_headers: Json | null
           llm_model: string | null
           llm_reasoning: string | null
           metadata: Json
@@ -89,6 +90,7 @@ export type Database = {
           id?: string
           image_urls?: string[]
           inbox_id?: string | null
+          list_headers?: Json | null
           llm_model?: string | null
           llm_reasoning?: string | null
           metadata?: Json
@@ -128,6 +130,7 @@ export type Database = {
           id?: string
           image_urls?: string[]
           inbox_id?: string | null
+          list_headers?: Json | null
           llm_model?: string | null
           llm_reasoning?: string | null
           metadata?: Json

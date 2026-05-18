@@ -94,6 +94,7 @@ create table if not exists public.captured_emails (
   primary_cta_text text,
   primary_cta_url text,
   auth_results jsonb,
+  list_headers jsonb,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   constraint captured_emails_esp_confidence_range
@@ -129,6 +130,10 @@ create index if not exists captured_emails_has_dark_mode_idx
 create index if not exists captured_emails_promo_code_idx
   on public.captured_emails (promo_code)
   where promo_code is not null;
+create index if not exists captured_emails_list_unsubscribe_missing_idx
+  on public.captured_emails (received_at desc)
+  where list_headers is not null
+    and (list_headers ->> 'has_list_unsubscribe')::boolean is not true;
 
 create table if not exists public.email_products (
   id uuid primary key default gen_random_uuid(),

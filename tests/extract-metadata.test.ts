@@ -6,6 +6,7 @@ import {
   extractColorPalette,
   extractFontFamilies,
   extractLinks,
+  extractListHeaders,
   extractMetadata,
   extractPreheader,
   extractResourceHosts,
@@ -217,6 +218,93 @@ describe("extractAuthResults", () => {
   it("returns null when no auth header is present", () => {
     expect(extractAuthResults({ "Other-Header": "x" })).toBeNull();
     expect(extractAuthResults(null)).toBeNull();
+  });
+});
+
+describe("extractListHeaders", () => {
+  it("returns null when no headers were provided at all", () => {
+    expect(extractListHeaders(null)).toBeNull();
+  });
+
+  it("flags absence when headers exist but List-* are missing", () => {
+    expect(extractListHeaders({ "Other-Header": "x" })).toEqual({
+      has_list_unsubscribe: false,
+      unsubscribe_mailto: null,
+      unsubscribe_url: null,
+      has_one_click_post: false,
+      list_id: null
+    });
+  });
+
+  it("parses both mailto: and https URIs from List-Unsubscribe", () => {
+    const headers = {
+      "List-Unsubscribe":
+        "<mailto:unsub@brand.example?subject=unsubscribe>, <https://brand.example/unsub?id=42>"
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: "mailto:unsub@brand.example?subject=unsubscribe",
+      unsubscribe_url: "https://brand.example/unsub?id=42",
+      has_one_click_post: false,
+      list_id: null
+    });
+  });
+
+  it("parses mailto-only and https-only variants", () => {
+    expect(extractListHeaders({ "List-Unsubscribe": "<mailto:u@b.example>" })).toMatchObject({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: "mailto:u@b.example",
+      unsubscribe_url: null
+    });
+
+    expect(extractListHeaders({ "List-Unsubscribe": "<https://b.example/u>" })).toMatchObject({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: null,
+      unsubscribe_url: "https://b.example/u"
+    });
+  });
+
+  it("flags RFC 8058 one-click POST", () => {
+    const headers = {
+      "List-Unsubscribe": "<https://b.example/u>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+    };
+    expect(extractListHeaders(headers)?.has_one_click_post).toBe(true);
+  });
+
+  it("does not match unrelated List-Unsubscribe-Post values as one-click", () => {
+    const headers = {
+      "List-Unsubscribe": "<https://b.example/u>",
+      "List-Unsubscribe-Post": "Some-Other=Value"
+    };
+    expect(extractListHeaders(headers)?.has_one_click_post).toBe(false);
+  });
+
+  it("strips the angle brackets and quoted label from List-Id", () => {
+    expect(
+      extractListHeaders({ "List-Id": '"Brand Newsletter" <news.brand.example>' })?.list_id
+    ).toBe("news.brand.example");
+    expect(
+      extractListHeaders({ "List-Id": "<news.brand.example>" })?.list_id
+    ).toBe("news.brand.example");
+    expect(
+      extractListHeaders({ "List-Id": "news.brand.example" })?.list_id
+    ).toBe("news.brand.example");
+  });
+
+  it("matches header keys case-insensitively", () => {
+    const headers = {
+      "list-unsubscribe": "<mailto:u@b.example>",
+      "LIST-UNSUBSCRIBE-POST": "list-unsubscribe=one-click",
+      "List-ID": "<n.b.example>"
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: "mailto:u@b.example",
+      unsubscribe_url: null,
+      has_one_click_post: true,
+      list_id: "n.b.example"
+    });
   });
 });
 

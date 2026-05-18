@@ -1,15 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HERO_ANALYTICS, HERO_EMAIL } from "@/lib/marketing/hero-data";
+import {
+  HERO_ANALYTICS,
+  HERO_EMAIL,
+  type HeroAnalytics,
+  type HeroEmail
+} from "@/lib/marketing/hero-data";
 import styles from "./splitreveal.module.css";
 
 const COUNTER_START_MS = 4200;
 const COUNTER_DURATION_MS = 900;
 
-export default function AnalysisPanel() {
-  const a = HERO_ANALYTICS;
-  const email = HERO_EMAIL;
+type Props = {
+  email?: HeroEmail;
+  analytics?: HeroAnalytics;
+};
+
+export default function AnalysisPanel({
+  email = HERO_EMAIL,
+  analytics = HERO_ANALYTICS
+}: Props) {
+  const a = analytics;
   const target = a.competitorWindow.count;
 
   const [count, setCount] = useState(0);

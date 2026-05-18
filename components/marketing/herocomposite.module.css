@@ -32,23 +32,16 @@
   height: 100%;
 }
 
-/* ---------- Left column: invisible scroll frame around the email ---------- */
+/* ---------- Left column: frame around the captured-email iframe ----------
+   The iframe inside handles its own scrolling, so this frame just clips
+   the corners and paints a soft fade at the bottom edge so the email
+   feels like it lives in a window. */
 
 .scrollFrame {
   position: relative;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* Hide scrollbars but keep scrolling. */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  /* Keep scroll momentum inside the email, so wheeling past the end
-     doesn't try to scroll the page (the page has overflow:hidden anyway,
-     but this makes the boundary feel cleaner). */
-  overscroll-behavior: contain;
-  /* Touch devices: allow vertical scroll inside the email. */
-  touch-action: pan-y;
+  overflow: hidden;
   /* Subtle bottom fade so the email feels like it lives in a window. */
   -webkit-mask-image: linear-gradient(
     180deg,
@@ -64,20 +57,7 @@
   );
 }
 
-.scrollFrame::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-/* The email preview was designed to stretch (height: 100%) inside the
-   old split layout. We need it to grow to its natural content height so
-   the scroll frame around it can actually scroll. !important is the
-   simplest way to defeat the rule on .emailPreview in splitreveal.module.css
-   regardless of stylesheet ordering. */
 .scrollFrame > article {
-  height: auto !important;
-  min-height: 0;
   animation-delay: 0ms;
 }
 
@@ -178,6 +158,65 @@
   transform: translateY(-1px);
 }
 
+/* ---------- Rotation dots ----------
+   Three tappable indicators below the CTA row showing which featured
+   newsletter is on stage. The active one fills with a subtle bar that
+   "drains" over the rotation interval, matching the auto-cycle. */
+
+.rotationDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(11, 11, 12, 0.04);
+  border: 1px solid rgba(11, 11, 12, 0.06);
+}
+
+.rotationDot {
+  position: relative;
+  width: 22px;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(11, 11, 12, 0.18);
+  cursor: pointer;
+  transition: background 0.2s ease, width 0.2s ease;
+  overflow: hidden;
+}
+
+.rotationDot:hover {
+  background: rgba(11, 11, 12, 0.32);
+}
+
+.rotationDot > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #8d6dff;
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+}
+
+.rotationDotActive {
+  width: 38px;
+  background: rgba(141, 109, 255, 0.18);
+}
+
+.rotationDotActive > span {
+  opacity: 1;
+  animation: rotationFill 9000ms linear forwards;
+}
+
+@keyframes rotationFill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 /* ---------- Link dots ----------
    Two small synchronized pulsing dots, one on the right edge of the
    email card and one on the left edge of the intelligence panel, at
@@ -266,5 +305,9 @@
   .linkDot {
     animation: none !important;
     opacity: 1 !important;
+  }
+  .rotationDotActive > span {
+    animation: none !important;
+    transform: scaleX(1);
   }
 }

@@ -1,4 +1,7 @@
-import { HERO_EMAIL } from "@/lib/marketing/hero-data";
+"use client";
+
+import { useLayoutEffect, useRef, useState } from "react";
+import { HERO_EMAIL, type HeroEmail } from "@/lib/marketing/hero-data";
 import styles from "./splitreveal.module.css";
 
 function formatRelative(iso: string): string {
@@ -12,13 +15,60 @@ function formatRelative(iso: string): string {
   return sent.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-export default function EmailPreview() {
-  const email = HERO_EMAIL;
+type Props = { email?: HeroEmail };
+
+// Most marketing emails are designed around a 600–680px outer table.
+// We scale the iframe down to fit the (narrower) hero column so the
+// full design stays visible top-to-bottom instead of getting clipped
+// on the right edge.
+const NOMINAL_EMAIL_WIDTH = 640;
+
+/**
+ * Renders the inbox-style "envelope" (sender, subject, preheader) at the top
+ * and embeds the **real** captured email HTML in a sandboxed iframe below it.
+ *
+ * The HTML is snapshotted by `scripts/snapshot-hero-emails.ts` into
+ * `public/hero-emails/{id}.html` so the landing page can serve it statically
+ * without any DB calls at request time.
+ *
+ * The iframe is force-rendered at NOMINAL_EMAIL_WIDTH and CSS-scaled down to
+ * fit the available column. That way the email looks the way the brand
+ * designed it (cards, hero image, type) rather than reflowing into a
+ * narrow phone-size layout.
+ */
+export default function EmailPreview({ email = HERO_EMAIL }: Props) {
   const sender = `newsletter@${email.brand.domain}`;
   const relative = formatRelative(email.sentAt);
+  const renderSrc = `/hero-emails/${email.id}.html`;
+
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  // scale === null means we haven't measured yet → hide the iframe to avoid
+  // a single frame of 640px overflow before the layout effect runs.
+  const [scale, setScale] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const node = frameRef.current;
+    if (!node) return;
+
+    const update = () => {
+      const width = node.clientWidth;
+      if (width <= 0) return;
+      // Never scale up — only shrink when the column is narrower than the
+      // email's nominal width.
+      setScale(Math.min(1, width / NOMINAL_EMAIL_WIDTH));
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
 
   return (
-    <article className={styles.emailPreview} aria-label={`Newsletter from ${email.brand.name}`}>
+    <article
+      className={styles.emailPreview}
+      aria-label={`Newsletter from ${email.brand.name}`}
+    >
       <header className={styles.emailMeta}>
         <div className={styles.senderAvatar} aria-hidden="true">
           {email.brand.name.charAt(0)}
@@ -35,62 +85,31 @@ export default function EmailPreview() {
         </div>
       </header>
 
-      <div className={styles.emailBodyFrame}>
-        <div className={styles.emailBody}>
-          <div className={styles.brandLogo}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={email.brand.logoSrc}
-              alt={email.brand.logoAlt}
-              width={92}
-              height={36}
-              loading="eager"
-            />
-          </div>
-
-          <div className={styles.heroImageWrap}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={email.heroImage.src}
-              alt={email.heroImage.alt}
-              loading="eager"
-            />
-          </div>
-
-          <h3 className={styles.emailHeading}>{email.heading}</h3>
-          <p className={styles.emailCopy}>{email.body}</p>
-
-          <a href={email.cta.href} className={styles.emailCta}>
-            {email.cta.label}
-          </a>
-
-          <div className={styles.productGrid}>
-            {email.productImages.map((img) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={img.src} src={img.src} alt={img.alt} loading="lazy" />
-            ))}
-          </div>
-
-          <div className={styles.emailDivider} />
-
-          <footer className={styles.emailFooter}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={email.brand.logoSrc}
-              alt=""
-              aria-hidden="true"
-              width={56}
-              height={22}
-            />
-            <nav className={styles.footerLinks}>
-              {email.footerLinks.map((l) => (
-                <a key={l.label} href={l.href}>
-                  {l.label}
-                </a>
-              ))}
-            </nav>
-          </footer>
-        </div>
+      <div ref={frameRef} className={styles.emailRenderFrame}>
+        <iframe
+          src={renderSrc}
+          title={`${email.brand.name} — ${email.subject}`}
+          // Sandboxed: no scripts, no top-level navigation. The captured HTML
+          // is from trusted captured_emails rows we vendor at build time, but
+          // we still belt-and-braces this since marketing emails contain
+          // arbitrary third-party markup.
+          sandbox="allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          className={styles.emailRenderIframe}
+          style={{
+            width: `${NOMINAL_EMAIL_WIDTH}px`,
+            // Render the iframe tall enough that any vertical clipping happens
+            // outside its document — the bottom mask on the hero card fades
+            // it out naturally.
+            height: `${Math.round(100 / (scale ?? 1))}%`,
+            transform: `scale(${scale ?? 1})`,
+            transformOrigin: "top left",
+            // Hide until we've measured to avoid a single frame of 640px
+            // overflow before the layout effect runs.
+            opacity: scale === null ? 0 : 1
+          }}
+        />
       </div>
     </article>
   );

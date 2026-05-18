@@ -163,7 +163,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, auth_results, metadata, companies(id, name)"
+      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, auth_results, list_headers, metadata, companies(id, name)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -220,6 +220,7 @@ export async function getEmailDetailFromDb(
     llmReasoning: data.llm_reasoning ?? null,
     processedAt: data.processed_at ?? null,
     authResults: parseAuthResults(data.auth_results),
+    listHeaders: parseListHeaders(data.list_headers),
     paletteColors: parsePaletteColors(data.metadata),
     fontFamilies: parseFontFamilies(data.metadata),
     metadata: parseMetadata(data.metadata)
@@ -557,6 +558,26 @@ function parseAuthResults(value: unknown): CapturedEmailDetail["authResults"] {
   };
 }
 
+function parseListHeaders(value: unknown): CapturedEmailDetail["listHeaders"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  const bool = (key: string): boolean =>
+    typeof candidate[key] === "boolean" ? (candidate[key] as boolean) : false;
+  const str = (key: string): string | null => {
+    const v = candidate[key];
+    return typeof v === "string" && v.length > 0 ? v : null;
+  };
+  return {
+    has_list_unsubscribe: bool("has_list_unsubscribe"),
+    unsubscribe_mailto: str("unsubscribe_mailto"),
+    unsubscribe_url: str("unsubscribe_url"),
+    has_one_click_post: bool("has_one_click_post"),
+    list_id: str("list_id")
+  };
+}
+
 function parseMetadata(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -661,6 +682,7 @@ export type StoreProcessedEmailInput = {
     hasDarkMode?: boolean | null;
     primaryCtaUrl?: string | null;
     authResults?: unknown;
+    listHeaders?: unknown;
     metadata?: unknown;
   };
 };
@@ -747,6 +769,7 @@ export async function storeProcessedEmail(
       primary_cta_text: input.classification.primaryCtaText ?? null,
       primary_cta_url: enrichment.primaryCtaUrl ?? null,
       auth_results: (enrichment.authResults ?? null) as Json | null,
+      list_headers: (enrichment.listHeaders ?? null) as Json | null,
       metadata: ((enrichment.metadata ?? {}) as Json) ?? ({} as Json)
     })
     .select("id")
