@@ -4,9 +4,11 @@ import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import {
   EMAIL_CATEGORY_LABELS,
+  classifyListHeaders,
   type CapturedEmailDetail,
   type EmailCategory,
-  type EspProvider
+  type EspProvider,
+  type ListHeadersComplianceLevel
 } from "@/lib/admin-types";
 
 const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
@@ -91,6 +93,176 @@ function senderInitial(value: string): string {
   if (!trimmed) return "?";
   const character = trimmed.charAt(0);
   return character.toUpperCase();
+}
+
+const COMPLIANCE_BADGE_LABEL: Record<ListHeadersComplianceLevel, string> = {
+  unknown: "no headers captured",
+  missing: "not implemented",
+  mailto_only: "mailto only — not RFC 8058",
+  missing_post_header: "missing one-click POST header",
+  missing_https_url: "malformed",
+  compliant: "RFC 8058 one-click"
+};
+
+const COMPLIANCE_BADGE_TONE: Record<ListHeadersComplianceLevel, string> = {
+  unknown: "muted",
+  missing: "discount",
+  mailto_only: "promo",
+  missing_post_header: "promo",
+  missing_https_url: "discount",
+  compliant: "gif"
+};
+
+type ChecklistRowProps = {
+  state: "ok" | "missing" | "info" | "neutral";
+  label: React.ReactNode;
+  detail?: React.ReactNode;
+  hint?: React.ReactNode;
+};
+
+function ChecklistRow({ state, label, detail, hint }: ChecklistRowProps) {
+  const marker =
+    state === "ok" ? "✓" : state === "missing" ? "✗" : state === "info" ? "•" : "—";
+  const className =
+    state === "ok" ? "ok" : state === "missing" ? "warn" : state === "info" ? "info" : "muted";
+  return (
+    <li className={`list-headers-row list-headers-row-${className}`}>
+      <span aria-hidden className="list-headers-marker">
+        {marker}
+      </span>
+      <span className="list-headers-body">
+        <span className="list-headers-label">{label}</span>
+        {detail ? <span className="list-headers-detail"> {detail}</span> : null}
+        {hint ? <span className="list-headers-hint"> — {hint}</span> : null}
+      </span>
+    </li>
+  );
+}
+
+function ListHeadersChecklist({
+  headers
+}: {
+  headers: CapturedEmailDetail["listHeaders"];
+}) {
+  const verdict = classifyListHeaders(headers);
+
+  if (verdict.level === "unknown") {
+    return (
+      <p>
+        <strong>Mailing-list headers:</strong>{" "}
+        <span className="dim">No header snapshot captured for this email yet.</span>
+      </p>
+    );
+  }
+
+  const presentList = headers?.has_list_unsubscribe ?? false;
+  const presentHttps = Boolean(headers?.unsubscribe_url);
+  const presentMailto = Boolean(headers?.unsubscribe_mailto);
+  const presentPost = headers?.has_one_click_post ?? false;
+  const presentListId = Boolean(headers?.list_id);
+
+  return (
+    <div className="list-headers-block">
+      <div className="list-headers-header">
+        <strong>Mailing-list headers</strong>
+        <span className={`badge ${COMPLIANCE_BADGE_TONE[verdict.level]}`}>
+          {COMPLIANCE_BADGE_LABEL[verdict.level]}
+        </span>
+      </div>
+      <ul className="list-headers-checklist">
+        <ChecklistRow
+          state={presentList ? "ok" : "missing"}
+          label={
+            <>
+              <code>List-Unsubscribe</code> header
+            </>
+          }
+          detail={presentList ? "present" : "missing"}
+          hint={
+            presentList
+              ? "drives Apple Mail's built-in Unsubscribe button (RFC 2369)"
+              : "Apple Mail will not show its Unsubscribe button"
+          }
+        />
+        <ChecklistRow
+          state={presentHttps ? "ok" : presentList ? "missing" : "neutral"}
+          label={<>https URL inside List-Unsubscribe</>}
+          detail={
+            presentHttps && headers?.unsubscribe_url ? (
+              <a href={headers.unsubscribe_url} target="_blank" rel="noreferrer">
+                {headers.unsubscribe_url}
+              </a>
+            ) : (
+              "missing"
+            )
+          }
+          hint={
+            presentHttps
+              ? "required by RFC 8058 — gives the one-click POST somewhere to land"
+              : "RFC 8058 one-click requires an https URL here"
+          }
+        />
+        <ChecklistRow
+          state={presentMailto ? "info" : "neutral"}
+          label={<>mailto: inside List-Unsubscribe</>}
+          detail={
+            presentMailto && headers?.unsubscribe_mailto ? (
+              <code className="muted">{headers.unsubscribe_mailto}</code>
+            ) : (
+              "absent"
+            )
+          }
+          hint={
+            presentMailto
+              ? "older RFC 2369 mechanism — fine alongside an https URL, but does not count as one-click on its own"
+              : "optional — the older RFC 2369 mechanism, not required for one-click"
+          }
+        />
+        <ChecklistRow
+          state={presentPost ? "ok" : "missing"}
+          label={
+            <>
+              <code>List-Unsubscribe-Post: List-Unsubscribe=One-Click</code>
+            </>
+          }
+          detail={presentPost ? "present" : "missing"}
+          hint={
+            presentPost
+              ? "tells mailbox providers the URL above accepts a single POST with no user confirmation"
+              : "required by RFC 8058 — without it, Gmail / Yahoo's 2024 bulk-sender rules are not met"
+          }
+        />
+        <ChecklistRow
+          state={presentListId ? "info" : "neutral"}
+          label={
+            <>
+              <code>List-Id</code>
+            </>
+          }
+          detail={
+            presentListId && headers?.list_id ? (
+              <code className="muted">{headers.list_id}</code>
+            ) : (
+              "absent"
+            )
+          }
+          hint={
+            presentListId
+              ? "RFC 2919 — strongest 'this is a mailing list' signal alongside List-Unsubscribe"
+              : "optional but reinforces the mailing-list disclosure"
+          }
+        />
+      </ul>
+      <p className="list-headers-summary muted">{verdict.summary}</p>
+      <p className="list-headers-summary muted">
+        Apple Mail Unsubscribe button:{" "}
+        <strong>{verdict.apple_mail_button ? "yes" : "no"}</strong>
+        {" · "}
+        Gmail / Yahoo one-click compliant:{" "}
+        <strong>{verdict.gmail_yahoo_one_click ? "yes" : "no"}</strong>
+      </p>
+    </div>
+  );
 }
 
 type DetailPageProps = {
@@ -329,48 +501,8 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 {email.authResults.dkim ?? "-"}, DMARC {email.authResults.dmarc ?? "-"}
               </p>
             ) : null}
-            {email.listHeaders ? (
-              <p>
-                <strong>Mailing-list headers:</strong>{" "}
-                {email.listHeaders.has_list_unsubscribe ? (
-                  <>
-                    List-Unsubscribe present
-                    {email.listHeaders.has_one_click_post
-                      ? " (RFC 8058 one-click)"
-                      : " (no one-click POST)"}
-                    {email.listHeaders.unsubscribe_mailto || email.listHeaders.unsubscribe_url
-                      ? " — "
-                      : null}
-                    {email.listHeaders.unsubscribe_mailto ? (
-                      <code className="muted">{email.listHeaders.unsubscribe_mailto}</code>
-                    ) : null}
-                    {email.listHeaders.unsubscribe_mailto && email.listHeaders.unsubscribe_url
-                      ? ", "
-                      : null}
-                    {email.listHeaders.unsubscribe_url ? (
-                      <a
-                        href={email.listHeaders.unsubscribe_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {email.listHeaders.unsubscribe_url}
-                      </a>
-                    ) : null}
-                    {email.listHeaders.list_id ? (
-                      <>
-                        ; List-Id <code className="muted">{email.listHeaders.list_id}</code>
-                      </>
-                    ) : null}
-                  </>
-                ) : (
-                  <span className="dim">
-                    No List-Unsubscribe header — Apple Mail will not show its built-in
-                    Unsubscribe button or the &ldquo;message is from a mailing list&rdquo;
-                    disclosure, and Gmail/Yahoo&apos;s 2024 bulk-sender rules are not met.
-                  </span>
-                )}
-              </p>
-            ) : null}
+            <ListHeadersChecklist headers={email.listHeaders} />
+
           </section>
 
           <section className="card">

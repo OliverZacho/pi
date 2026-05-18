@@ -308,6 +308,7 @@ describe("extractListHeaders", () => {
   });
 });
 
+
 describe("extractColorPalette", () => {
   it("captures hex colors from <style> blocks and inline style attrs", () => {
     const html = `
