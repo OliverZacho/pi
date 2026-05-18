@@ -83,15 +83,15 @@ export default function EmailCard({ email }: Props) {
           onLoad={() => setLoaded(true)}
         />
         <div className={styles.cardOverlay}>
+          <button type="button" className={styles.overlayButton} tabIndex={-1}>
+            Open
+          </button>
           <button
             type="button"
             className={`${styles.overlayButton} ${styles.primary}`}
             tabIndex={-1}
           >
             Save
-          </button>
-          <button type="button" className={styles.overlayButton} tabIndex={-1}>
-            Copy
           </button>
         </div>
       </div>
