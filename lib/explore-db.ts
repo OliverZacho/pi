@@ -7,6 +7,7 @@ export type ExploreEmailCard = {
   preheader: string | null;
   companyName: string;
   companyDomain: string | null;
+  companyMarket: string | null;
   receivedAt: string;
   category: string;
   hasGif: boolean;
@@ -34,7 +35,7 @@ export async function getExploreEmails(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, companies(name, domain)"
+      "id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, companies(name, domain, market)"
     )
     .order("received_at", { ascending: false })
     .limit(PAGE_SIZE);
@@ -53,6 +54,7 @@ export async function getExploreEmails(
       preheader: row.preheader ?? null,
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
+      companyMarket: company?.market ?? null,
       receivedAt: row.received_at,
       category: row.category,
       hasGif: row.has_gif ?? false,

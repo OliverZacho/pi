@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getExploreEmails } from "@/lib/explore-db";
-import EmailCard from "@/components/explore/EmailCard";
+import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
 
@@ -46,37 +46,7 @@ export default async function ExplorePage() {
           <p>Browse marketing emails from competing brands</p>
         </header>
 
-        <div className={styles.searchRow}>
-          <div className={styles.searchField} aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span>Search emails</span>
-          </div>
-        </div>
-
-        {emails.length === 0 ? (
-          <p className={styles.empty}>
-            No captured emails yet. Once your subscriptions start receiving
-            newsletters they will appear here.
-          </p>
-        ) : (
-          <div className={styles.grid}>
-            {emails.map((email) => (
-              <EmailCard key={email.id} email={email} />
-            ))}
-          </div>
-        )}
+        <ExploreClient emails={emails} />
       </main>
     </div>
   );
