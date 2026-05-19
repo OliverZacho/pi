@@ -192,6 +192,15 @@ const COLOR_ATTR_RE =
   /\b(?:bgcolor|color)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/gi;
 const SCRIPT_BLOCK_RE = /<script\b[\s\S]*?<\/script>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+const INVISIBLE_STYLE_RE =
+  /(?:mso-hide\s*:\s*all|display\s*:\s*none|visibility\s*:\s*hidden)/i;
+// Interaction pseudo-classes only apply to user states, not the default
+// rendered email — so their declarations don't represent the brand's
+// visual identity. Eva Solo's bright `#003dcc` "blue" came entirely from
+// `.es-button-border:hover { border-color: #003dcc … }` boilerplate
+// embedded by their ESP, which the brand never customised.
+const INTERACTION_PSEUDO_RE =
+  /:(?:hover|focus|focus-visible|focus-within|active|visited|link|target)\b/i;
 
 /**
  * Captures the hex/rgb color tokens that appear in the email's HTML/CSS layout
@@ -256,7 +265,18 @@ export function extractColorPalette(
   }
 
   for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
-    scanColors(attr[1] ?? attr[2] ?? "", "inline");
+    const styleText = attr[1] ?? attr[2] ?? "";
+    // Skip styles that explicitly opt the element out of the rendered view.
+    // `mso-hide:all` is the standard Outlook-only fallback marker used by
+    // ESPs (Sendinblue, ActiveCampaign, …) to declare invisible duplicate
+    // buttons whose `border-color` / `background` would otherwise pollute
+    // the brand palette with default-template blues and greens that no
+    // recipient ever actually sees. `display:none` / `visibility:hidden`
+    // cover the same intent for non-Outlook clients.
+    if (INVISIBLE_STYLE_RE.test(styleText)) {
+      continue;
+    }
+    scanColors(styleText, "inline");
   }
 
   for (const attr of cleaned.matchAll(COLOR_ATTR_RE)) {
@@ -455,26 +475,28 @@ export function extractFontFamilies(
 
 /**
  * Returns just the *declaration values* inside a CSS source string — i.e.
- * the text that appears after `property:` and before the next `;` / `}`.
- * Everything else (selectors at any depth, at-rule preludes, property
- * names, comments-already-stripped, …) is discarded.
+ * the text that appears after `property:` and before the next `;` / `}`,
+ * with rules whose selector contains an interaction pseudo-class
+ * (`:hover`, `:focus`, `:active`, …) dropped entirely.
  *
- * This is intentionally stricter than "anything inside `{ … }`". Mailchimp
- * (and other ESPs) wraps its mobile overrides in `@media` queries:
+ * This is intentionally stricter than "anything inside `{ … }`":
  *
- *   `@media (max-width: 600px) { #b24, #b67 { padding: 12px; } }`
+ *   1. Selector text is never scanned. Hex tokens that appear in the
+ *      selector part of a stylesheet are ID selectors, not colors —
+ *      Mailchimp templates routinely emit `#d13 p, #d13 h1 { … }` and
+ *      wrap their mobile overrides in `@media (...) { #b24, #b67 { … } }`,
+ *      both of which would otherwise pollute the palette with whatever
+ *      the section ids happen to look like in hex.
+ *   2. Rules behind `:hover` / `:focus` / `:active` etc. are skipped.
+ *      These are interaction states the recipient never sees by default,
+ *      and ESP boilerplate (Sendinblue's `.es-button-border:hover`) often
+ *      leaves a default platform color there that has nothing to do with
+ *      the brand.
  *
- * The inner `#b24` / `#b67` sit *inside* the outer braces but are still
- * ID selectors, not colors — naive brace-tracking would keep them and
- * pollute the brand palette with whatever the section ids happen to look
- * like in hex. Restricting to post-`:` value text avoids that entirely
- * because colors are only ever legal as property values.
- *
- * Property names are never colors, so we ignore the `property` part of
- * each declaration. The `:` in pseudo-selectors (`a:hover`, `::before`)
- * harmlessly enables value mode mid-selector, but selectors never contain
- * hex/rgb tokens that survive the downstream regex, so the output is
- * still correct.
+ * Pseudo-class `:`s inside selectors (`.btn:hover`) are distinguished
+ * from declaration `:`s (`color:#fff`) via a small look-ahead: a `:` is a
+ * property/value separator iff the next `;` or `}` comes *before* the
+ * next `{`.
  */
 function extractCssRuleBodies(css: string): string {
   if (!css) {
@@ -482,38 +504,81 @@ function extractCssRuleBodies(css: string): string {
   }
   let depth = 0;
   let inValue = false;
+  let pending = ""; // accumulates selector or property-name chars
   let out = "";
+  const skipUntilDepth: number[] = [];
+
   for (let i = 0; i < css.length; i += 1) {
-    const ch = css.charCodeAt(i);
-    if (ch === 0x7b /* { */) {
+    const ch = css[i];
+    if (ch === "{") {
+      const isInteraction = INTERACTION_PSEUDO_RE.test(pending);
       depth += 1;
+      if (isInteraction) {
+        skipUntilDepth.push(depth);
+      }
+      pending = "";
       inValue = false;
       continue;
     }
-    if (ch === 0x7d /* } */) {
+    if (ch === "}") {
+      if (
+        skipUntilDepth.length > 0 &&
+        skipUntilDepth[skipUntilDepth.length - 1] === depth
+      ) {
+        skipUntilDepth.pop();
+      }
       if (depth > 0) depth -= 1;
+      pending = "";
       inValue = false;
+      continue;
+    }
+    if (skipUntilDepth.length > 0) {
       continue;
     }
     if (depth === 0) {
-      // Top-level selector / at-rule prelude — never a color.
+      pending += ch;
       continue;
     }
-    if (ch === 0x3b /* ; */) {
+    if (ch === ";") {
+      pending = "";
       inValue = false;
       out += " ";
       continue;
     }
-    if (ch === 0x3a /* : */ && !inValue) {
-      inValue = true;
-      out += " ";
+    if (ch === ":" && !inValue) {
+      if (isPseudoSelectorColon(css, i)) {
+        pending += ch;
+      } else {
+        // Property name preceded the `:` — discard it, the value follows.
+        pending = "";
+        inValue = true;
+        out += " ";
+      }
       continue;
     }
     if (inValue) {
-      out += css[i];
+      out += ch;
+    } else {
+      pending += ch;
     }
   }
   return out;
+}
+
+/**
+ * A `:` is part of a pseudo-class (e.g. `.btn:hover`) iff there's a `{`
+ * before the next `;` / `}` — that means the surrounding token is a
+ * selector that's about to open a rule body, not a property/value pair.
+ * Tiny look-ahead bounded by the next statement terminator, so the cost
+ * is amortised O(1) per declaration.
+ */
+function isPseudoSelectorColon(css: string, from: number): boolean {
+  for (let j = from + 1; j < css.length; j += 1) {
+    const c = css[j];
+    if (c === "{") return true;
+    if (c === ";" || c === "}") return false;
+  }
+  return false;
 }
 
 function splitFontFamilyList(value: string): string[] {

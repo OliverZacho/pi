@@ -599,7 +599,19 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
             const hex =
               typeof entry.hex === "string" ? entry.hex.toLowerCase() : null;
             if (hex && /^#[0-9a-f]{6}$/.test(hex)) {
-              palette.set(hex, (palette.get(hex) ?? 0) + 1);
+              // Weight by the color's *within-email* occurrence count
+              // rather than "+1 vote per email it appears in". Otherwise a
+              // single transactional/confirmation send (Mailchimp-default
+              // greens and blues) outranks the actual brand colors that
+              // dominate every campaign — that's what was pushing Eva
+              // Solo's `#004cff` and `#b6d7a8` into the top 10 even
+              // though their share of the rendered surface is tiny.
+              const raw = entry.count;
+              const within =
+                typeof raw === "number" && Number.isFinite(raw) && raw > 0
+                  ? Math.floor(raw)
+                  : 1;
+              palette.set(hex, (palette.get(hex) ?? 0) + within);
             }
           }
         }

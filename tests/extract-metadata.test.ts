@@ -421,6 +421,43 @@ describe("extractColorPalette", () => {
     expect(hexes).toEqual(["#00ff88"]);
   });
 
+  it("skips colors declared only on interaction pseudo-classes", () => {
+    // Default ESP templates (Sendinblue's `.es-button-border:hover`,
+    // Mailchimp's `a:hover`) often leave a stock platform color on the
+    // hover state that the brand never customises. Those colors are never
+    // visible by default so they shouldn't count toward the brand DNA.
+    const html = `
+      <style>
+        .btn { background: #ffffff; color: #111111; }
+        .btn:hover { background: #003dcc; border-color: #003dcc; }
+        a:focus, a:active { outline-color: #ff00aa; }
+        @media (max-width: 600px) {
+          .btn:hover { background: #00ff00; }
+        }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes.sort()).toEqual(["#111111", "#ffffff"]);
+  });
+
+  it("skips inline styles flagged as invisible (mso-hide, display:none, …)", () => {
+    // Outlook-only fallback buttons routinely declare a default ESP
+    // accent color (Eva Solo: #004cff) on `border-color` while also
+    // setting `border-width: 0`, then mark the wrapper element with
+    // `mso-hide:all` so non-Outlook clients hide it. The recipient
+    // never sees these colors, so they mustn't dominate the palette.
+    const html = `
+      <a style="background:#ffffff;color:#000000">Visible</a>
+      <span style="border-color:#004cff;background:#bf967e;border-width:0px;mso-hide:all">Outlook</span>
+      <span style="display:none;background:#ff00ff">Hidden</span>
+      <span style="visibility:hidden;color:#00ffff">Hidden</span>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex).sort();
+    expect(hexes).toEqual(["#000000", "#ffffff"]);
+  });
+
   it("returns [] for empty input", () => {
     expect(extractColorPalette("")).toEqual([]);
   });
