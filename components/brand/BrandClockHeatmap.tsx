@@ -267,9 +267,22 @@ function polar(cx: number, cy: number, r: number, clockDeg: number) {
   // SVG/math: 0 = right, 90 = down. Subtract 90° to convert.
   const rad = ((clockDeg - 90) * Math.PI) / 180;
   return {
-    x: cx + r * Math.cos(rad),
-    y: cy + r * Math.sin(rad)
+    x: snap(cx + r * Math.cos(rad)),
+    y: snap(cy + r * Math.sin(rad))
   };
+}
+
+/**
+ * `Math.sin` / `Math.cos` are implementation-defined in ECMAScript:
+ * Node's V8 build and the browser's V8 build can return values that
+ * differ in the last ULP. That's harmless visually but produces a
+ * hydration mismatch when React sees `x1="59.00000000000002"` on the
+ * server and `x1={59.000000000000014}` on the client. Snapping to a
+ * fixed grid (1e-4 of an SVG user unit — well below a pixel at any
+ * realistic display size) makes the two outputs byte-identical.
+ */
+function snap(value: number): number {
+  return Math.round(value * 1e4) / 1e4;
 }
 
 function annularPath(

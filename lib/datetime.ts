@@ -25,6 +25,18 @@
 /** The platform's default IANA time zone. */
 export const PLATFORM_TIMEZONE = "Europe/Copenhagen" as const;
 
+/**
+ * The platform's default BCP-47 locale.
+ *
+ * Pinning a locale (rather than letting `Intl` fall back to the host's
+ * default) is what keeps server-rendered HTML and client-side React
+ * trees byte-identical. Without this, Node would format dates as
+ * "Mon, May 18, 2026" while a UK-locale browser would render them as
+ * "Mon, 18 May 2026", and Next.js would throw a hydration mismatch
+ * for every date-bearing attribute on the page.
+ */
+export const PLATFORM_LOCALE = "en-US" as const;
+
 /** Convenient alias for callers that want to be explicit about intent. */
 export type TimeZone = string;
 
@@ -38,6 +50,15 @@ export type TimeZone = string;
  */
 export function getActiveTimeZone(): TimeZone {
   return PLATFORM_TIMEZONE;
+}
+
+/**
+ * Returns the active locale for the current request / render. Mirrors
+ * {@link getActiveTimeZone}: a single hook to extend later when we
+ * add per-user locale preferences.
+ */
+export function getActiveLocale(): string {
+  return PLATFORM_LOCALE;
 }
 
 /**
@@ -325,10 +346,18 @@ function getFormatter(
   zone: TimeZone,
   opts: Intl.DateTimeFormatOptions
 ): Intl.DateTimeFormat {
-  const key = `${locale ?? ""}|${zone}|${JSON.stringify(opts)}`;
+  // Resolve the locale eagerly so callers that pass `undefined` (the
+  // common case) still get a stable, identical formatter across the
+  // server/client boundary. See {@link PLATFORM_LOCALE} for the
+  // hydration-correctness rationale.
+  const resolvedLocale = locale ?? getActiveLocale();
+  const key = `${resolvedLocale}|${zone}|${JSON.stringify(opts)}`;
   let cached = formatterCache.get(key);
   if (!cached) {
-    cached = new Intl.DateTimeFormat(locale, { ...opts, timeZone: zone });
+    cached = new Intl.DateTimeFormat(resolvedLocale, {
+      ...opts,
+      timeZone: zone
+    });
     formatterCache.set(key, cached);
   }
   return cached;
