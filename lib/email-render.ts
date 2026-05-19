@@ -12,6 +12,15 @@ const STYLE_TAG_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 const STYLE_ATTR_RE = /(\sstyle\s*=\s*)("([^"]*)"|'([^']*)')/gi;
 const URL_FN_RE = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
 
+// Tags whose default behaviour can navigate the viewer away from the
+// preview (`<a>`, `<area>` image-map regions) or send them through a
+// preference flow (`<form>`). We deliberately leave `<link>` alone so
+// stylesheets keep loading, and `<base>` alone so relative image URLs
+// still resolve against the original sender.
+const NAVIGABLE_TAG_RE = /<(a|area|form)\b([^>]*)>/gi;
+const NAVIGABLE_ATTR_RE =
+  /\s(?:href|xlink:href|action|formaction|ping)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
+
 export type RewriteOptions = {
   /** Map of original remote URL → mirrored Supabase Storage path. */
   mirrorMap: Record<string, string>;
@@ -23,6 +32,7 @@ export type RewriteResult = {
   html: string;
   rewritten: number;
   total: number;
+  linksStripped: number;
 };
 
 /**
@@ -34,7 +44,7 @@ export type RewriteResult = {
  */
 export function rewriteEmailHtml(html: string, options: RewriteOptions): RewriteResult {
   if (!html) {
-    return { html: "", rewritten: 0, total: 0 };
+    return { html: "", rewritten: 0, total: 0, linksStripped: 0 };
   }
 
   const lookup = buildLookup(options);
@@ -91,11 +101,42 @@ export function rewriteEmailHtml(html: string, options: RewriteOptions): Rewrite
       return `${prefix}"${escapeAttr(next)}"`;
     });
 
+  const stripped = stripEmailLinks(withRewrittenStyles);
+
   return {
-    html: withRewrittenStyles,
+    html: stripped.html,
     rewritten,
-    total
+    total,
+    linksStripped: stripped.stripped
   };
+}
+
+/**
+ * Removes navigation targets from `<a>`, `<area>`, and `<form>` tags so
+ * the rendered preview cannot trigger an unsubscribe, preference change,
+ * or any other destructive action against the original sender. Visible
+ * content (label text, button images, form fields) is preserved — only
+ * the navigation attributes (`href`, `ping`, `action`, `formaction`)
+ * are dropped.
+ *
+ * Defense in depth: the iframe sandbox we set on the renderer already
+ * blocks scripts and form submissions, but it allows `<a>` clicks to
+ * open in a new tab (`allow-popups`). Stripping the href is the only
+ * way to fully neutralise the link.
+ */
+export function stripEmailLinks(html: string): { html: string; stripped: number } {
+  if (!html) return { html: "", stripped: 0 };
+
+  let stripped = 0;
+  const next = html.replace(NAVIGABLE_TAG_RE, (_match, tag: string, attrs: string) => {
+    const cleaned = attrs.replace(NAVIGABLE_ATTR_RE, () => {
+      stripped += 1;
+      return "";
+    });
+    return `<${tag}${cleaned}>`;
+  });
+
+  return { html: next, stripped };
 }
 
 type Lookup = {
