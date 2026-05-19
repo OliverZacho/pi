@@ -78,6 +78,31 @@ describe("classifyFromRules", () => {
     expect(result.category).toBe("loyalty");
   });
 
+  it("prefers welcome over sale when the subject is a signup greeting with a signup discount", () => {
+    const result = classifyFromRules(
+      "Welcome to STINE GOYA",
+      "<p>10% off your first order with code GOYAFRIEND.</p>"
+    );
+    expect(result.category).toBe("welcome");
+    expect(result.confidence).toBeGreaterThan(0.85);
+  });
+
+  it("treats Scandinavian 'velkommen til <brand>' subjects as welcome even with a gift inside", () => {
+    const result = classifyFromRules(
+      "Bird, velkommen til GANNI",
+      "<p>Vi har en gave til dig — 15% off din første ordre.</p>"
+    );
+    expect(result.category).toBe("welcome");
+  });
+
+  it("treats a standalone 'Welcome!' subject as welcome, not sale", () => {
+    const result = classifyFromRules(
+      "Welcome!",
+      "<p>Ready to discover a universe of new perspectives — enjoy a 10% off discount on us.</p>"
+    );
+    expect(result.category).toBe("welcome");
+  });
+
   it("matches product showcase keywords as 'products'", () => {
     const result = classifyFromRules(
       "Shop the new collection",
