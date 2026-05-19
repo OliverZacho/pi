@@ -250,6 +250,39 @@ function InfoPanel({
     EMAIL_CATEGORY_LABELS[email.category as EmailCategory] ?? email.category;
   const espLabel = detail?.espProvider ? ESP_LABELS[detail.espProvider] : null;
 
+  // The pill row is a "what is this email?" summary at a glance — every
+  // entry is a categorical attribute that fits in one or two words. Tone
+  // is reserved for things the eye should jump to (offer + promo); the
+  // rest stay neutral so the strip doesn't turn into a rainbow.
+  const pills: { key: string; label: string; tone: PillTone }[] = [
+    { key: "category", label: categoryLabel, tone: "neutral" }
+  ];
+  if (detail?.subcategory) {
+    pills.push({ key: "subcategory", label: detail.subcategory, tone: "neutral" });
+  }
+  if (espLabel) {
+    pills.push({ key: "esp", label: espLabel, tone: "neutral" });
+  }
+  if (email.discountPercent !== null) {
+    pills.push({
+      key: "discount",
+      label: `${Math.round(email.discountPercent)}% off`,
+      tone: "bad"
+    });
+  }
+  if (email.promoCode) {
+    pills.push({ key: "promo", label: email.promoCode, tone: "warn" });
+  }
+  if (email.hasGif) pills.push({ key: "gif", label: "GIF", tone: "neutral" });
+  if (email.hasDarkMode) {
+    pills.push({ key: "dark", label: "Dark mode", tone: "neutral" });
+  }
+
+  const hasOfferDetails =
+    detail?.primaryCtaText ||
+    detail?.primaryCtaUrl ||
+    (detail?.discountAmount !== null && detail?.discountAmount !== undefined);
+
   return (
     <>
       <div className={styles.infoActions}>
@@ -264,84 +297,92 @@ function InfoPanel({
         </button>
       </div>
 
-      <div className={styles.infoBrandRow}>
-        <div className={styles.infoBrandMonogram} aria-hidden="true">
-          {email.companyName.charAt(0).toUpperCase()}
-        </div>
+      {/*
+        Whole row is a button so it's keyboard-focusable and reads as
+        "View {brand} details" to assistive tech. The destination — a
+        per-company analytics / patterns page — doesn't exist yet, so the
+        click handler is intentionally a no-op until the route lands.
+      */}
+      <button
+        type="button"
+        className={styles.infoBrandRow}
+        onClick={() => {
+          // TODO: route to /company/[email.companyId] once the
+          // company-detail page (statistics + patterns) is built.
+        }}
+        aria-label={`View ${email.companyName} details`}
+      >
+        <CompanyAvatar
+          name={email.companyName}
+          logoUrl={email.companyLogoUrl}
+        />
         <div className={styles.infoBrandText}>
           <div className={styles.infoBrandName}>{email.companyName}</div>
           {email.companyDomain ? (
-            <a
-              href={`https://${email.companyDomain}`}
-              className={styles.infoBrandDomain}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {email.companyDomain}
-            </a>
+            <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
           ) : null}
         </div>
+        <span className={styles.infoBrandChevron} aria-hidden="true">
+          <ChevronRightIcon />
+        </span>
+      </button>
+
+      <div className={styles.infoHero}>
+        <div className={styles.infoSubject}>
+          {email.subject || "(no subject)"}
+        </div>
+        {email.preheader ? (
+          <div className={styles.infoPreheader}>{email.preheader}</div>
+        ) : null}
+        <div className={styles.infoMeta}>{dateLabel}</div>
       </div>
 
-      <InfoSection title="Email">
-        <InfoRow label="From" value={detail?.sender ?? "—"} mono />
-        <InfoRow label="Subject" value={email.subject || "(no subject)"} />
-        <InfoRow
-          label="Preview"
-          value={email.preheader || "—"}
-          muted={!email.preheader}
+      <div className={styles.pillRow}>
+        {pills.map((pill) => (
+          <Pill key={pill.key} tone={pill.tone}>
+            {pill.label}
+          </Pill>
+        ))}
+      </div>
+
+      <div className={styles.statGrid}>
+        <Stat
+          label="HTML size"
+          value={
+            htmlSize !== null
+              ? formatBytes(htmlSize)
+              : detailLoading
+              ? "…"
+              : "—"
+          }
         />
-        <InfoRow label="Sent" value={dateLabel} />
+        <Stat
+          label="Images"
+          value={
+            detail
+              ? `${detail.imageUrls.length}`
+              : detailLoading
+              ? "…"
+              : "—"
+          }
+        />
+      </div>
+
+      <Accordion title="Addresses">
+        <InfoRow label="From" value={detail?.sender ?? "—"} mono />
         {detail?.recipient ? (
           <InfoRow label="To" value={detail.recipient} mono />
         ) : null}
-      </InfoSection>
+      </Accordion>
 
-      <InfoSection title="Classification">
-        <InfoRow label="Category" value={<Pill>{categoryLabel}</Pill>} />
-        {detail?.subcategory ? (
-          <InfoRow label="Subcategory" value={detail.subcategory} />
-        ) : null}
-        {detail ? (
-          <InfoRow
-            label="Source"
-            value={`${detail.classificationSource}${
-              detail.llmModel ? ` (${detail.llmModel})` : ""
-            }`}
-          />
-        ) : null}
-        {detail ? (
-          <InfoRow
-            label="Confidence"
-            value={`${Math.round(detail.classificationConfidence * 100)}%`}
-          />
-        ) : null}
-      </InfoSection>
-
-      {(email.discountPercent !== null ||
-        email.promoCode ||
-        detail?.primaryCtaText ||
-        detail?.primaryCtaUrl ||
-        detail?.discountAmount) && (
-        <InfoSection title="Offer">
-          {email.discountPercent !== null ? (
+      {hasOfferDetails ? (
+        <Accordion title="Offer">
+          {detail?.discountAmount !== null && detail?.discountAmount !== undefined ? (
             <InfoRow
-              label="Discount"
-              value={`${Math.round(email.discountPercent)}% off`}
-            />
-          ) : null}
-          {detail?.discountAmount ? (
-            <InfoRow
-              label="Discount amount"
+              label="Amount"
               value={`${detail.discountAmount}${
-                detail.currency ? ` ${detail.currency}` : ""
+                detail?.currency ? ` ${detail.currency}` : ""
               }`}
-            />
-          ) : null}
-          {email.promoCode ? (
-            <InfoRow
-              label="Promo code"
-              value={<code className={styles.promoChip}>{email.promoCode}</code>}
             />
           ) : null}
           {detail?.primaryCtaText ? (
@@ -349,7 +390,7 @@ function InfoPanel({
           ) : null}
           {detail?.primaryCtaUrl ? (
             <InfoRow
-              label="CTA URL"
+              label="Link"
               value={
                 <a
                   href={detail.primaryCtaUrl}
@@ -363,15 +404,13 @@ function InfoPanel({
               mono
             />
           ) : null}
-        </InfoSection>
-      )}
+        </Accordion>
+      ) : null}
 
-      <InfoSection title="Design">
-        <InfoRow
-          label="Fonts"
-          value={primaryFonts.length > 0 ? primaryFonts.join(", ") : "—"}
-          muted={primaryFonts.length === 0}
-        />
+      <Accordion title="Design">
+        {primaryFonts.length > 0 ? (
+          <InfoRow label="Fonts" value={primaryFonts.join(", ")} />
+        ) : null}
         {detail && detail.paletteColors.length > 0 ? (
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Palette</span>
@@ -387,46 +426,14 @@ function InfoPanel({
             </div>
           </div>
         ) : null}
-        <InfoRow label="Has GIF" value={email.hasGif ? "Yes" : "No"} />
-        <InfoRow label="Dark mode" value={email.hasDarkMode ? "Yes" : "No"} />
-      </InfoSection>
-
-      <InfoSection title="Tech">
-        <InfoRow
-          label="ESP"
-          value={
-            espLabel
-              ? `${espLabel}${
-                  detail?.espConfidence !== null && detail?.espConfidence !== undefined
-                    ? ` (${Math.round(detail.espConfidence * 100)}%)`
-                    : ""
-                }`
-              : detailLoading
-              ? "…"
-              : "Unknown"
-          }
-          muted={!espLabel}
-        />
-        <InfoRow
-          label="HTML size"
-          value={htmlSize !== null ? formatBytes(htmlSize) : detailLoading ? "…" : "—"}
-        />
-        <InfoRow
-          label="Image size"
-          value={
-            detail
-              ? `${detail.imageUrls.length} ${
-                  detail.imageUrls.length === 1 ? "image" : "images"
-                }`
-              : detailLoading
-              ? "…"
-              : "—"
-          }
-        />
-      </InfoSection>
+        {primaryFonts.length === 0 &&
+        (!detail || detail.paletteColors.length === 0) ? (
+          <div className={styles.accordionEmpty}>No design data captured.</div>
+        ) : null}
+      </Accordion>
 
       {detail?.authResults ? (
-        <InfoSection title="Authentication">
+        <Accordion title="Authentication">
           <InfoRow
             label="SPF"
             value={<AuthBadge result={detail.authResults.spf} />}
@@ -439,13 +446,13 @@ function InfoPanel({
             label="DMARC"
             value={<AuthBadge result={detail.authResults.dmarc} />}
           />
-        </InfoSection>
+        </Accordion>
       ) : null}
 
       {compliance ? (
-        <InfoSection title="Unsubscribe">
+        <Accordion title="Deliverability">
           <InfoRow
-            label="Compliance"
+            label="Unsubscribe"
             value={
               <Pill tone={complianceTone(compliance.level)}>
                 {complianceLabel(compliance.level)}
@@ -454,16 +461,21 @@ function InfoPanel({
           />
           <InfoRow
             label="Apple Mail"
-            value={compliance.apple_mail_button ? "Yes" : "No"}
+            value={
+              <Pill tone={compliance.apple_mail_button ? "good" : "bad"}>
+                {compliance.apple_mail_button ? "Supported" : "Not supported"}
+              </Pill>
+            }
           />
           <InfoRow
             label="Gmail / Yahoo"
-            value={compliance.gmail_yahoo_one_click ? "Yes" : "No"}
+            value={
+              <Pill tone={compliance.gmail_yahoo_one_click ? "good" : "bad"}>
+                {compliance.gmail_yahoo_one_click ? "Supported" : "Not supported"}
+              </Pill>
+            }
           />
-          {detail?.listHeaders?.list_id ? (
-            <InfoRow label="List-Id" value={detail.listHeaders.list_id} mono />
-          ) : null}
-        </InfoSection>
+        </Accordion>
       ) : null}
 
       {detailError ? (
@@ -472,6 +484,75 @@ function InfoPanel({
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Brand avatar shown next to the company name in the right pane. Uses the
+ * brand's stored logo when we have one (extracted from a previous email
+ * by the ingest pipeline) and falls back to a monogram of the first
+ * letter when the logo is missing or fails to load. Same visual footprint
+ * either way so the row layout doesn't shift.
+ */
+function CompanyAvatar({
+  name,
+  logoUrl
+}: {
+  name: string;
+  logoUrl: string | null;
+}) {
+  const [errored, setErrored] = useState(false);
+  const showLogo = Boolean(logoUrl) && !errored;
+
+  return (
+    <span className={styles.infoBrandAvatar} aria-hidden="true">
+      {showLogo ? (
+        <img
+          src={logoUrl as string}
+          alt=""
+          className={styles.infoBrandLogo}
+          onError={() => setErrored(true)}
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className={styles.infoBrandMonogramText}>
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className={styles.statTile}>
+      <div className={styles.statLabel}>{label}</div>
+      <div className={styles.statValue}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Native `<details>`-based accordion. We get keyboard support, focus
+ * management, and `Find in page` hits inside collapsed sections for free
+ * — and there's no JS state to manage. The visual chrome (chevron rotate,
+ * spacing) is all CSS.
+ */
+function Accordion({
+  title,
+  children
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className={styles.accordion}>
+      <summary className={styles.accordionSummary}>
+        <span className={styles.accordionTitle}>{title}</span>
+        <ChevronDownIcon />
+      </summary>
+      <div className={styles.accordionBody}>{children}</div>
+    </details>
   );
 }
 
@@ -693,21 +774,6 @@ function tokenizeTag(tag: string): HtmlToken[] {
   return tokens;
 }
 
-function InfoSection({
-  title,
-  children
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={styles.infoSection}>
-      <div className={styles.infoSectionTitle}>{title}</div>
-      <div className={styles.infoSectionBody}>{children}</div>
-    </section>
-  );
-}
-
 function InfoRow({
   label,
   value,
@@ -733,12 +799,14 @@ function InfoRow({
   );
 }
 
+type PillTone = "neutral" | "good" | "warn" | "bad";
+
 function Pill({
   children,
   tone = "neutral"
 }: {
   children: React.ReactNode;
-  tone?: "neutral" | "good" | "warn" | "bad";
+  tone?: PillTone;
 }) {
   return (
     <span className={`${styles.pill} ${styles[`pill_${tone}`]}`}>{children}</span>
@@ -750,7 +818,7 @@ function AuthBadge({ result }: { result: string | null }) {
     return <span className={styles.infoValueMuted}>—</span>;
   }
   const lower = result.toLowerCase();
-  const tone: "good" | "warn" | "bad" | "neutral" = lower.includes("pass")
+  const tone: PillTone = lower.includes("pass")
     ? "good"
     : lower.includes("fail")
     ? "bad"
@@ -762,7 +830,7 @@ function AuthBadge({ result }: { result: string | null }) {
 
 function complianceTone(
   level: ReturnType<typeof classifyListHeaders>["level"]
-): "good" | "warn" | "bad" | "neutral" {
+): PillTone {
   switch (level) {
     case "compliant":
       return "good";
@@ -928,6 +996,42 @@ function DownloadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="9 6 15 12 9 18" />
     </svg>
   );
 }

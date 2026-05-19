@@ -68,22 +68,25 @@ export default function EmailCard({ email, onOpen }: Props) {
     onOpen(email);
   }
 
+  // The whole card is the click target (modern tile pattern). We use an
+  // <article> with role="button" + tabIndex so keyboard users can still
+  // focus and activate it, and inner buttons (Save, etc.) stop propagation
+  // so they don't double-trigger the open action.
   return (
-    <article className={styles.card}>
-      <div
-        role="button"
-        tabIndex={0}
-        className={styles.cardPreview}
-        ref={previewRef}
-        onClick={handleOpen}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleOpen();
-          }
-        }}
-        aria-label={`Open ${email.companyName} — ${email.subject || "email"}`}
-      >
+    <article
+      className={styles.card}
+      role="button"
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleOpen();
+        }
+      }}
+      aria-label={`Open ${email.companyName} — ${email.subject || "email"}`}
+    >
+      <div className={styles.cardPreview} ref={previewRef}>
         {!loaded ? (
           <div className={styles.cardSkeleton} aria-hidden="true">
             Rendering preview…

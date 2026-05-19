@@ -1,13 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
 export type ExploreEmailCard = {
   id: string;
   subject: string;
   preheader: string | null;
+  companyId: string | null;
   companyName: string;
   companyDomain: string | null;
   companyMarket: string | null;
+  /**
+   * Short-lived signed URL into the `email-assets` bucket for the brand
+   * logo we extracted from one of its emails. `null` if we haven't picked
+   * a logo yet (the UI falls back to a monogram in that case).
+   */
+  companyLogoUrl: string | null;
   receivedAt: string;
   category: string;
   hasGif: boolean;
@@ -35,7 +43,7 @@ export async function getExploreEmails(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, companies(name, domain, market)"
+      "id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, companies(id, name, domain, market, logo_storage_path)"
     )
     .order("received_at", { ascending: false })
     .limit(PAGE_SIZE);
@@ -44,17 +52,36 @@ export async function getExploreEmails(
     throw error;
   }
 
-  return (data ?? []).map((row) => {
+  const rows = data ?? [];
+
+  // Batch-sign every distinct logo path so the grid pays one round-trip
+  // for assets instead of one per card.
+  const logoPaths = new Set<string>();
+  for (const row of rows) {
     const company = Array.isArray(row.companies)
       ? row.companies[0] ?? null
       : row.companies ?? null;
+    if (company?.logo_storage_path) {
+      logoPaths.add(company.logo_storage_path);
+    }
+  }
+  const signed =
+    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+
+  return rows.map((row) => {
+    const company = Array.isArray(row.companies)
+      ? row.companies[0] ?? null
+      : row.companies ?? null;
+    const logoPath = company?.logo_storage_path ?? null;
     return {
       id: row.id,
       subject: row.subject,
       preheader: row.preheader ?? null,
+      companyId: company?.id ?? null,
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
       companyMarket: company?.market ?? null,
+      companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
       receivedAt: row.received_at,
       category: row.category,
       hasGif: row.has_gif ?? false,
