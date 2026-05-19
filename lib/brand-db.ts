@@ -61,6 +61,29 @@ export type BrandPageData = {
     avgLength: number | null;
     samples: string[];
   };
+  /**
+   * Per-day activity timeline used to render the GitHub-style heatmap
+   * on the brand dashboard. `start` and `end` define the contiguous
+   * window the grid should cover (the client fills in empty days), and
+   * `days` carries one entry per day that actually had a send, with
+   * every email's id, subject, category and send timestamp so the
+   * client can colour the cell and populate the hover tooltip without
+   * a follow-up request.
+   */
+  calendar: {
+    start: string;
+    end: string;
+    days: {
+      date: string;
+      emails: {
+        id: string;
+        subject: string;
+        category: string;
+        categoryLabel: string;
+        receivedAt: string;
+      }[];
+    }[];
+  };
   recentEmails: ExploreEmailCard[];
 };
 
@@ -228,6 +251,7 @@ export async function getBrandPageData(
   const esp = computeEsp(emailRows);
   const design = computeDesign(emailRows);
   const subjects = computeSubjects(emailRows);
+  const calendar = computeCalendar(emailRows);
   const recentEmails = mapRecentEmails(
     emailRows.slice(0, RECENT_CARD_COUNT),
     {
@@ -263,8 +287,72 @@ export async function getBrandPageData(
     esp,
     design,
     subjects,
+    calendar,
     recentEmails
   };
+}
+
+function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
+  // Anchor the grid to the current calendar year: start at January 1
+  // (snapped backward to the Monday of that ISO week so the first
+  // column is always a full Mon-Sun strip) and end on today (UTC
+  // midnight). This year-to-date framing matches how readers
+  // intuitively think about "what has this brand sent this year"
+  // — the first month label on the heatmap is always "Jan".
+  const end = new Date();
+  end.setUTCHours(0, 0, 0, 0);
+
+  const startRaw = new Date(
+    Date.UTC(end.getUTCFullYear(), 0, 1)
+  );
+  const startDay = startRaw.getUTCDay();
+  const backToMonday = (startDay + 6) % 7;
+  startRaw.setUTCDate(startRaw.getUTCDate() - backToMonday);
+
+  const startISO = startRaw.toISOString().slice(0, 10);
+  const endISO = end.toISOString().slice(0, 10);
+  const startMs = startRaw.getTime();
+  const endMs = end.getTime() + 24 * 60 * 60 * 1000 - 1;
+
+  // Bucket per ISO date in UTC. Doing the date math in UTC keeps the
+  // calendar deterministic across deploys regardless of host timezone —
+  // hover times below are formatted locally on the client.
+  const byDay = new Map<
+    string,
+    BrandPageData["calendar"]["days"][number]["emails"]
+  >();
+
+  for (const row of rows) {
+    const ts = new Date(row.received_at);
+    const t = ts.getTime();
+    if (Number.isNaN(t) || t < startMs || t > endMs) continue;
+    const key = ts.toISOString().slice(0, 10);
+    const list = byDay.get(key) ?? [];
+    const cat = row.category || "other";
+    list.push({
+      id: row.id,
+      subject: row.subject,
+      category: cat,
+      categoryLabel:
+        EMAIL_CATEGORY_LABELS[cat as EmailCategory] ??
+        formatMarketLabel(cat),
+      receivedAt: row.received_at
+    });
+    byDay.set(key, list);
+  }
+
+  // Sort each day's emails chronologically. The brand dashboard tooltip
+  // stacks earliest-on-top, latest-at-bottom so the user's mental
+  // model of "first email of the day, then the next one" matches the
+  // popup reading order.
+  const days: BrandPageData["calendar"]["days"] = [];
+  for (const [date, emails] of byDay) {
+    emails.sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+    days.push({ date, emails });
+  }
+  days.sort((a, b) => a.date.localeCompare(b.date));
+
+  return { start: startISO, end: endISO, days };
 }
 
 function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {

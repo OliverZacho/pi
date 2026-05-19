@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
+import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
@@ -24,8 +25,17 @@ type Props = {
  *   7. Show me their recent work            (recent emails grid)
  */
 export default function BrandDashboard({ data }: Props) {
-  const { brand, totals, cadence, promo, categories, esp, design, subjects } =
-    data;
+  const {
+    brand,
+    totals,
+    cadence,
+    promo,
+    categories,
+    esp,
+    design,
+    subjects,
+    calendar
+  } = data;
 
   return (
     <main className={styles.main}>
@@ -58,6 +68,13 @@ export default function BrandDashboard({ data }: Props) {
         </div>
       ) : (
         <>
+          <section className={styles.recentSection}>
+            <BrandActivityCalendar
+              brandName={brand.name}
+              calendar={calendar}
+            />
+          </section>
+
           <section className={styles.sectionGrid}>
             <CadenceCard cadence={cadence} totals={totals} />
             <CategoryCard categories={categories} sample={totals.sampleSize} />

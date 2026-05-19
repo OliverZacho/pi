@@ -738,6 +738,261 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Activity calendar (GitHub-style heatmap) ---------- */
+
+.calendarSummary {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+  min-width: 0;
+  text-align: right;
+}
+
+.calendarSummaryValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendarSummaryLabel {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+/* GitHub-style fixed cell sizing keeps the grid layout deterministic
+   across viewports. Squares stay legible and uniform; horizontal
+   scroll handles narrow screens. */
+.calendarScroller {
+  --cell-size: 12px;
+  --cell-gap: 3px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-color: #e2e8f0 transparent;
+  scrollbar-width: thin;
+  padding-bottom: 0.2rem;
+}
+
+.calendarLayout {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.calendarDayLabels {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell-size));
+  gap: var(--cell-gap);
+  /* Push the labels down to clear the month-label row above the grid. */
+  padding-top: calc(14px + var(--cell-gap));
+}
+
+.calendarDayLabel {
+  display: flex;
+  align-items: center;
+  height: var(--cell-size);
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.calendarBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+}
+
+.calendarMonthRow {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--col-count, 53),
+    var(--cell-size)
+  );
+  gap: var(--cell-gap);
+  height: 14px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.calendarMonthLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--col-count, 53),
+    var(--cell-size)
+  );
+  grid-template-rows: repeat(7, var(--cell-size));
+  grid-auto-flow: column;
+  gap: var(--cell-gap);
+}
+
+.calendarCell {
+  display: block;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: 2px;
+  background: #f1f5f9;
+  outline: none;
+  transition: transform 90ms ease, box-shadow 90ms ease;
+  cursor: default;
+}
+
+.calendarCell:focus-visible {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb;
+}
+
+.calendarCellGhost {
+  visibility: hidden;
+}
+
+.calendarCellEmpty {
+  background: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+}
+
+.calendarCell:not(.calendarCellEmpty):hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18),
+    0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.calendarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.9rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.calendarLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: #475569;
+}
+
+.calendarLegendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* ---------- Calendar tooltip (hover popup) ----------
+   Designed to read like a native macOS / Linear popover: white
+   surface, a single 1 px hairline border, a soft layered shadow.
+   No tinted pill-with-outline chips, no all-caps tracking-wide
+   header — those flourishes were what made the old version look
+   like a stock dashboard mock. */
+
+.calendarTooltip {
+  position: fixed;
+  z-index: 60;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 0.6rem 0.7rem 0.65rem;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+  transition: opacity 90ms ease;
+  font-family: inherit;
+}
+
+.calendarTooltipDate {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.005em;
+  margin-bottom: 0.5rem;
+}
+
+.calendarTooltipList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.calendarTooltipItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.calendarTooltipItem:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.calendarTooltipChipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.calendarTooltipChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #4b5563;
+  letter-spacing: 0;
+  /* `color` is overridden inline per-category so the dot blends with
+     a slightly darker label — but the chip itself stays a plain
+     text-and-dot row, no pill, no border. */
+}
+
+.calendarTooltipChipDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.calendarTooltipTime {
+  font-size: 0.74rem;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.calendarTooltipSubject {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #374151;
+  word-break: break-word;
+}
+
 /* ---------- Recent campaigns grid ---------- */
 
 .recentSection {
