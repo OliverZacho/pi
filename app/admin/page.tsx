@@ -6,6 +6,7 @@ import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
   type AdminOverview,
+  type CompanyInbox,
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
@@ -299,6 +300,10 @@ export default function AdminHomePage() {
     dropped: number;
   } | null>(null);
   const [skippingDomain, setSkippingDomain] = useState<string | null>(null);
+  const [addingInboxForCompanyId, setAddingInboxForCompanyId] = useState<
+    string | null
+  >(null);
+  const [addInboxError, setAddInboxError] = useState<string | null>(null);
   const createFormRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -324,6 +329,35 @@ export default function AdminHomePage() {
       setCreatedEmailCopied(true);
     } catch {
       // ignore clipboard failures silently
+    }
+  }
+
+  async function addInboxToCompany(companyId: string) {
+    if (addingInboxForCompanyId) {
+      return;
+    }
+    setAddingInboxForCompanyId(companyId);
+    setAddInboxError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/companies/${companyId}/inboxes`,
+        { method: "POST" }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        inbox?: CompanyInbox;
+        error?: string;
+      };
+      if (!response.ok || !body.inbox) {
+        setAddInboxError(body.error ?? "Could not add an additional inbox.");
+        return;
+      }
+      setCreatedEmail(body.inbox.emailAddress);
+      setCreatedEmailCopied(false);
+      await loadOverview(filters);
+    } catch {
+      setAddInboxError("Could not add an additional inbox.");
+    } finally {
+      setAddingInboxForCompanyId(null);
     }
   }
 
@@ -772,7 +806,8 @@ export default function AdminHomePage() {
         company.name,
         company.domain,
         company.market ?? "",
-        company.subscriptionEmail
+        company.subscriptionEmail,
+        ...company.inboxes.map((inbox) => inbox.emailAddress)
       ]
         .join(" ")
         .toLowerCase();
@@ -1207,6 +1242,7 @@ export default function AdminHomePage() {
             {filteredCompanies.length} of {sortedCompanies.length} shown
           </span>
         </div>
+        {addInboxError ? <p className="error">{addInboxError}</p> : null}
         {loading ? (
           <p>Loading...</p>
         ) : sortedCompanies.length === 0 ? (
@@ -1274,53 +1310,94 @@ export default function AdminHomePage() {
                   <td>{company.market ? company.market : <span className="dim">-</span>}</td>
                   <td>{company.domain}</td>
                   <td>
-                    <span className="email-cell">
-                      <code>{company.subscriptionEmail}</code>
+                    <div className="inbox-stack">
+                      {(company.inboxes.length > 0
+                        ? company.inboxes
+                        : [
+                            {
+                              id: `fallback-${company.id}`,
+                              emailAddress: company.subscriptionEmail,
+                              isPrimary: true,
+                              createdAt: company.subscribedAt
+                            }
+                          ]
+                      ).map((inbox) => (
+                        <span key={inbox.id} className="email-cell">
+                          <code>{inbox.emailAddress}</code>
+                          {company.inboxes.length > 1 ? (
+                            <span
+                              className={`inbox-badge${
+                                inbox.isPrimary ? " is-primary" : ""
+                              }`}
+                              title={
+                                inbox.isPrimary
+                                  ? "Primary inbox (shown on brand pages)"
+                                  : "Additional inbox routed to the same company"
+                              }
+                            >
+                              {inbox.isPrimary ? "Primary" : "Extra"}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="copy-button"
+                            onClick={() => {
+                              void copySubscriptionEmail(inbox.emailAddress);
+                            }}
+                            aria-label={`Copy ${inbox.emailAddress}`}
+                            title={
+                              copiedEmail === inbox.emailAddress
+                                ? "Copied!"
+                                : "Copy email"
+                            }
+                          >
+                            {copiedEmail === inbox.emailAddress ? (
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            ) : (
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                            )}
+                          </button>
+                        </span>
+                      ))}
                       <button
                         type="button"
-                        className="copy-button"
+                        className="add-inbox-button"
                         onClick={() => {
-                          void copySubscriptionEmail(company.subscriptionEmail);
+                          void addInboxToCompany(company.id);
                         }}
-                        aria-label={`Copy ${company.subscriptionEmail}`}
-                        title={
-                          copiedEmail === company.subscriptionEmail
-                            ? "Copied!"
-                            : "Copy email"
-                        }
+                        disabled={addingInboxForCompanyId === company.id}
+                        title="Generate an additional inbox for this company (e.g. a separate list)"
                       >
-                        {copiedEmail === company.subscriptionEmail ? (
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        )}
+                        {addingInboxForCompanyId === company.id
+                          ? "Adding…"
+                          : "+ Add inbox"}
                       </button>
-                    </span>
+                    </div>
                   </td>
                   <td>{formatDateTime(company.subscribedAt)}</td>
                   <td className="numeric">{company.emailCount}</td>

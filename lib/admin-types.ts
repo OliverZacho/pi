@@ -52,12 +52,37 @@ export type ClassificationSource = "rules" | "llm" | "manual";
 
 export type CompanyLogoSource = "email_heuristic" | "email_frequency" | "manual";
 
+/**
+ * A single Pirol-side inbox address a company is subscribed under. A
+ * company can have many of these (for example one for men's mailing list
+ * and one for women's), but only one can be marked `isPrimary` — enforced
+ * by a partial unique index in the database.
+ */
+export type CompanyInbox = {
+  id: string;
+  emailAddress: string;
+  isPrimary: boolean;
+  createdAt: string;
+};
+
 export type CompanySubscription = {
   id: string;
   name: string;
   domain: string;
   market: string | null;
+  /**
+   * Primary inbox email — kept for backwards compatibility and for the
+   * many UI surfaces that only need to display one address. For
+   * brand-level views, prefer `inboxes` (sorted with primary first).
+   */
   subscriptionEmail: string;
+  /**
+   * Every inbox attached to the company, primary first then by creation
+   * time. Multiple inboxes are useful when a brand operates separate
+   * mailing lists (e.g. men / women / press) and we want to keep them
+   * all attributed to the same company record.
+   */
+  inboxes: CompanyInbox[];
   subscribedAt: string;
   emailCount: number;
   lastEmailAt: string | null;

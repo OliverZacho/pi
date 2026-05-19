@@ -5,6 +5,7 @@ import {
   type CapturedEmail,
   type CapturedEmailDetail,
   type CompanyDetail,
+  type CompanyInbox,
   type CompanySubscription,
   type EmailCategory,
   type EspProvider,
@@ -120,7 +121,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -322,7 +323,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, market, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, market, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -387,6 +388,13 @@ type CompanyStatsRow = {
   last_received_at: string | null;
 };
 
+type CompanyInboxRow = {
+  id: string;
+  email_address: string;
+  is_primary: boolean;
+  created_at: string;
+};
+
 type CompanyRow = {
   id: string;
   name: string;
@@ -395,9 +403,31 @@ type CompanyRow = {
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
-  company_inboxes?: { email_address: string; is_primary: boolean }[] | null;
+  company_inboxes?: CompanyInboxRow[] | null;
   company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
 };
+
+/**
+ * Sort inboxes for display: primary first, then by creation time
+ * (oldest first) so the "original" subscription address sits at the top
+ * and any additional inboxes added later appear below in the order they
+ * were created.
+ */
+function sortInboxesForDisplay(rows: CompanyInboxRow[]): CompanyInbox[] {
+  return [...rows]
+    .sort((a, b) => {
+      if (a.is_primary !== b.is_primary) {
+        return a.is_primary ? -1 : 1;
+      }
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    })
+    .map((row) => ({
+      id: row.id,
+      emailAddress: row.email_address,
+      isPrimary: row.is_primary,
+      createdAt: row.created_at
+    }));
+}
 
 const LOGO_SOURCE_VALUES: readonly CompanySubscription["logoSource"][] = [
   "email_heuristic",
@@ -444,6 +474,7 @@ async function resolveCompanyLogos(
       domain: company.domain,
       market: company.market,
       subscriptionEmail: company.subscriptionEmail,
+      inboxes: company.inboxes,
       subscribedAt: company.subscribedAt,
       emailCount: company.emailCount,
       lastEmailAt: company.lastEmailAt,
@@ -486,9 +517,9 @@ type EmailListRow = {
 };
 
 function rowToCompany(row: CompanyRow): CompanySubscription {
-  const inboxes = row.company_inboxes ?? [];
+  const inboxes = sortInboxesForDisplay(row.company_inboxes ?? []);
   const primaryInbox =
-    inboxes.find((inbox) => inbox.is_primary)?.email_address ?? "unassigned@pirol.app";
+    inboxes.find((inbox) => inbox.isPrimary)?.emailAddress ?? "unassigned@pirol.app";
   const stats = relationFirst(row.company_email_stats);
   const base: CompanyWithRawLogo = {
     id: row.id,
@@ -496,6 +527,7 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     domain: row.domain,
     market: row.market ?? null,
     subscriptionEmail: primaryInbox,
+    inboxes,
     subscribedAt: row.subscribed_since,
     emailCount: stats?.email_count ?? 0,
     lastEmailAt: stats?.last_received_at ?? null,
@@ -621,11 +653,15 @@ export async function createCompanySubscriptionInDb(
     throw companyError;
   }
 
-  const { error: inboxError } = await supabase.from("company_inboxes").insert({
-    company_id: company.id,
-    email_address: subscriptionEmail,
-    is_primary: true
-  });
+  const { data: inboxRow, error: inboxError } = await supabase
+    .from("company_inboxes")
+    .insert({
+      company_id: company.id,
+      email_address: subscriptionEmail,
+      is_primary: true
+    })
+    .select("id, email_address, is_primary, created_at")
+    .single();
 
   if (inboxError) {
     throw inboxError;
@@ -640,12 +676,100 @@ export async function createCompanySubscriptionInDb(
     domain: company.domain,
     market: company.market ?? null,
     subscriptionEmail,
+    inboxes: [
+      {
+        id: inboxRow.id,
+        emailAddress: inboxRow.email_address,
+        isPrimary: inboxRow.is_primary,
+        createdAt: inboxRow.created_at
+      }
+    ],
     subscribedAt: company.subscribed_since,
     emailCount: 0,
     lastEmailAt: null,
     logoUrl: null,
     logoSource: null
   };
+}
+
+/**
+ * Adds an additional (non-primary) inbox to an existing company. Useful
+ * when a brand runs multiple mailing lists (e.g. men / women / press)
+ * and Pirol wants to keep all of them attributed to the same company
+ * record without having to create a duplicate `companies` row.
+ *
+ * The address is generated by `buildUniqueSubscriptionEmail`, which
+ * appends a numeric suffix when the auto-generated `<slug>-<date>` form
+ * already exists. The new inbox is always inserted with
+ * `is_primary = false` so the per-company partial unique index on
+ * `is_primary = true` is preserved.
+ *
+ * Throws when the company is missing or soft-deleted so the API layer
+ * can translate the failure to a 404 instead of silently producing an
+ * orphaned inbox.
+ */
+export async function addCompanyInboxInDb(
+  supabase: PirolDb,
+  companyId: string
+): Promise<CompanyInbox> {
+  const { data: companyRow, error: companyError } = await supabase
+    .from("companies")
+    .select("id, name, deleted_at")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  if (companyError) {
+    throw companyError;
+  }
+
+  if (!companyRow || companyRow.deleted_at) {
+    throw new CompanyNotFoundError(companyId);
+  }
+
+  const { data: existingInboxes, error: inboxesError } = await supabase
+    .from("company_inboxes")
+    .select("email_address");
+
+  if (inboxesError) {
+    throw inboxesError;
+  }
+
+  const emailAddress = buildUniqueSubscriptionEmail(
+    companyRow.name,
+    (existingInboxes ?? []).map((item) => item.email_address)
+  );
+
+  const { data: inboxRow, error: insertError } = await supabase
+    .from("company_inboxes")
+    .insert({
+      company_id: companyRow.id,
+      email_address: emailAddress,
+      is_primary: false
+    })
+    .select("id, email_address, is_primary, created_at")
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  return {
+    id: inboxRow.id,
+    emailAddress: inboxRow.email_address,
+    isPrimary: inboxRow.is_primary,
+    createdAt: inboxRow.created_at
+  };
+}
+
+/**
+ * Distinct error type so the API layer can map "company missing /
+ * soft-deleted" to a 404 without string-matching on a generic Error.
+ */
+export class CompanyNotFoundError extends Error {
+  constructor(companyId: string) {
+    super(`Company ${companyId} not found or has been deleted`);
+    this.name = "CompanyNotFoundError";
+  }
 }
 
 export type StoreProcessedEmailInput = {
