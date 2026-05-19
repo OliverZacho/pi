@@ -98,7 +98,8 @@ export type EspProvider =
   | "mailjet"
   | "apsis"
   | "agillic"
-  | "peytzmail";
+  | "peytzmail"
+  | "pure360";
 
 export type CapturedEmail = {
   id: string;

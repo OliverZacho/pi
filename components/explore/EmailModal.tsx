@@ -40,7 +40,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   mailjet: "Mailjet",
   apsis: "APSIS / Efficy",
   agillic: "Agillic",
-  peytzmail: "Peytzmail"
+  peytzmail: "Peytzmail",
+  pure360: "Pure360 / Spotler"
 };
 
 type ViewMode = "desktop" | "phone" | "html";
