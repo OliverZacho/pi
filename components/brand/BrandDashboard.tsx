@@ -1,6 +1,11 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
+import {
+  formatMonthYear as formatMonthYearZoned,
+  formatRelativeDate as formatRelativeDateZoned,
+  formatShortDate as formatShortDateZoned
+} from "@/lib/datetime";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandRecentEmails from "./BrandRecentEmails";
@@ -742,36 +747,15 @@ function formatCadenceDays(days: number): string {
 }
 
 function formatMonthYear(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString(undefined, {
-    month: "short",
-    year: "numeric"
-  });
+  return formatMonthYearZoned(value, { fallback: value });
 }
 
 function formatShortDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric"
-  });
+  return formatShortDateZoned(value, { fallback: value });
 }
 
 function formatRelativeDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  const diffMs = Date.now() - parsed.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return "today";
-  if (diffDays === 1) return "yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) {
-    const weeks = Math.round(diffDays / 7);
-    return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
-  }
-  return formatMonthYear(value);
+  return formatRelativeDateZoned(value, { fallback: value });
 }
 
 function formatRangeStart(

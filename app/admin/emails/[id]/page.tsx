@@ -10,6 +10,11 @@ import {
   type EspProvider,
   type ListHeadersComplianceLevel
 } from "@/lib/admin-types";
+import {
+  formatDateTime as formatDateTimeZoned,
+  formatLongDate as formatLongDateZoned,
+  formatTime as formatTimeZoned
+} from "@/lib/datetime";
 
 const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
 
@@ -53,32 +58,22 @@ const TAB_LABELS: Record<EmailTab, string> = {
 const TABS: EmailTab[] = ["inbox", "raw"];
 
 function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-  return parsed.toLocaleString();
+  return formatDateTimeZoned(value);
 }
 
 function formatInboxDate(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-  return parsed.toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
+  if (!value) return "-";
+  // Compose the long calendar date with the clock time so the inbox
+  // header reads as "Mon, May 18, 2026, 09:30" — the date helper
+  // handles weekday/month/year, the time helper handles the clock.
+  // Both anchor in the platform zone so the shown wall clock matches
+  // what every user (and the brand dashboards) see elsewhere.
+  const date = formatLongDateZoned(value, { fallback: "" });
+  const time = formatTimeZoned(value, { fallback: "" });
+  if (!date && !time) return "-";
+  if (!date) return time;
+  if (!time) return date;
+  return `${date}, ${time}`;
 }
 
 function categoryLabel(slug: string): string {

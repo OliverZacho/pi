@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
+import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
 import styles from "./explore.module.css";
@@ -295,11 +296,16 @@ export default function ExploreClient({ emails }: Props) {
 
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const afterMs = receivedAfter ? new Date(receivedAfter).getTime() : null;
-    // Treat the "to" date as inclusive: the end of that day.
-    const beforeMs = receivedBefore
-      ? new Date(receivedBefore).getTime() + 24 * 60 * 60 * 1000 - 1
-      : null;
+    // The `<input type="date">` value is a `YYYY-MM-DD` calendar date
+    // with no zone. We interpret it as a date *in the platform zone*
+    // (`parseDayKey` lands on midday, which `startOfDayInZone` then
+    // snaps back to local midnight). That way "From: today, To:
+    // today" actually selects 00:00–23:59 Copenhagen time, not the
+    // UTC window which would silently miss late-evening sends.
+    const afterAnchor = receivedAfter ? parseDayKey(receivedAfter) : null;
+    const beforeAnchor = receivedBefore ? parseDayKey(receivedBefore) : null;
+    const afterMs = afterAnchor ? startOfDayInZone(afterAnchor).getTime() : null;
+    const beforeMs = beforeAnchor ? endOfDayInZone(beforeAnchor).getTime() : null;
 
     const result = emails.filter((email) => {
       if (

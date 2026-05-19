@@ -1,11 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
+import { getActiveTimeZone, getZoneAbbreviation } from "@/lib/datetime";
 import styles from "./brand.module.css";
 
 type Props = {
   brandName: string;
-  /** Length-24 array of send counts indexed by hour-of-day in UTC. */
+  /**
+   * Length-24 array of send counts indexed by hour-of-day in the
+   * platform time zone (Europe/Copenhagen).
+   */
   hourly: number[];
 };
 
@@ -22,6 +26,14 @@ type Props = {
  * narration ("3 PM: 12 emails, 18%") for free.
  */
 export default function BrandClockHeatmap({ brandName, hourly }: Props) {
+  // Derived once per render. The abbreviation switches between "CEST"
+  // (summer) and "CET" (winter) automatically, so the copy stays
+  // accurate without a year-round caveat.
+  const zoneAbbr = useMemo(
+    () => getZoneAbbreviation(new Date(), getActiveTimeZone()),
+    []
+  );
+
   const totalSends = useMemo(
     () => hourly.reduce((acc, count) => acc + count, 0),
     [hourly]
@@ -68,7 +80,7 @@ export default function BrandClockHeatmap({ brandName, hourly }: Props) {
           <p className={styles.cardSub}>
             When during the day {brandName} hits inboxes. Darker
             wedges represent hours with more sends; lighter wedges
-            are quieter. All times shown in UTC.
+            are quieter. All times shown in {zoneAbbr}.
           </p>
         </div>
       </div>

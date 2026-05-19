@@ -9,6 +9,7 @@ import {
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
+import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
@@ -171,14 +172,7 @@ function asOverview(value: unknown): AdminOverview {
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-  return parsed.toLocaleString();
+  return formatDateTimeZoned(value);
 }
 
 function getCompanyInitials(name: string): string {

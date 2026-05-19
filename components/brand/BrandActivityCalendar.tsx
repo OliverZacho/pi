@@ -10,11 +10,17 @@ import {
 } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
 import { colorForCategory } from "@/lib/category-colors";
+import {
+  formatLongDate as formatLongDateZoned,
+  formatTime as formatTimeZoned,
+  parseDayKey
+} from "@/lib/datetime";
 import styles from "./brand.module.css";
 
 type CalendarEmail = BrandPageData["calendar"]["days"][number]["emails"][number];
 
 type CalendarCell = {
+  /** Midday instant of the day this cell represents, in the platform zone. */
   date: Date;
   iso: string;
   emails: CalendarEmail[];
@@ -316,7 +322,7 @@ function CalendarTooltip({ state }: { state: TooltipState }) {
       role="tooltip"
     >
       <div className={styles.calendarTooltipDate}>
-        {formatLongDate(cell.date)}
+        {formatLongDateZoned(cell.date)}
       </div>
       <ul className={styles.calendarTooltipList}>
         {cell.emails.map((email) => (
@@ -330,7 +336,7 @@ function CalendarTooltip({ state }: { state: TooltipState }) {
                 {email.categoryLabel}
               </span>
               <span className={styles.calendarTooltipTime}>
-                {formatTime(new Date(email.receivedAt))}
+                {formatTimeZoned(email.receivedAt)}
               </span>
             </div>
             <div className={styles.calendarTooltipSubject}>
@@ -355,26 +361,32 @@ type MonthSpan = {
 };
 
 function buildGrid(calendar: BrandPageData["calendar"]) {
-  const start = parseISODate(calendar.start);
-  const end = parseISODate(calendar.end);
+  // The server emits `start` / `end` as `YYYY-MM-DD` calendar days
+  // anchored in the platform zone. We iterate by stepping the day
+  // string forward — that keeps the grid logic free of timezone math
+  // and the `iso` keys line up exactly with the per-day buckets the
+  // server already produced.
+  const startIso = calendar.start;
+  const endIso = calendar.end;
+
   const perDayLookup = new Map<string, CalendarEmail[]>();
   for (const day of calendar.days) {
     perDayLookup.set(day.date, day.emails);
   }
 
   const weeks: CalendarCell[][] = [];
-  const cursor = new Date(start);
   let currentWeek: CalendarCell[] = [];
-  const endMs = end.getTime();
-
+  let cursor = startIso;
+  // Build cells until we close the week that contains `endIso`. We
+  // always emit complete Mon-Sun strips so the grid stays rectangular.
   while (true) {
-    const iso = cursor.toISOString().slice(0, 10);
-    const cellDate = new Date(cursor);
-    const inRange = cellDate.getTime() <= endMs;
-    const emails = inRange ? perDayLookup.get(iso) ?? [] : [];
+    const inRange = cursor <= endIso;
+    const emails = inRange ? perDayLookup.get(cursor) ?? [] : [];
+    const cellInstant =
+      parseDayKey(cursor) ?? new Date(`${cursor}T12:00:00Z`);
     currentWeek.push({
-      date: cellDate,
-      iso,
+      date: cellInstant,
+      iso: cursor,
       emails,
       inRange
     });
@@ -384,26 +396,24 @@ function buildGrid(calendar: BrandPageData["calendar"]) {
       currentWeek = [];
     }
 
-    // Stop once we've finished the week that contains `end`.
-    if (cellDate.getTime() > endMs && currentWeek.length === 0) {
-      break;
-    }
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-    if (cursor.getTime() > endMs && currentWeek.length === 0) {
-      break;
-    }
+    if (cursor > endIso && currentWeek.length === 0) break;
+    cursor = stepDayKey(cursor, 1);
+    if (cursor > endIso && currentWeek.length === 0) break;
   }
 
   // Month spans: a label per calendar month, placed above the first
   // week column that contains the first of that month. We use the
-  // top-row cell (Monday) as the representative day for each column.
+  // top-row cell (Monday) as the representative day for each column,
+  // and pull the month directly from the iso so we don't accidentally
+  // re-introduce browser-locale ambiguity.
   const monthSpans: MonthSpan[] = [];
   let currentSpan: MonthSpan | null = null;
   for (let col = 0; col < weeks.length; col++) {
-    const monday = weeks[col][0]?.date;
-    if (!monday) continue;
-    const year = monday.getUTCFullYear();
-    const month = monday.getUTCMonth();
+    const mondayIso = weeks[col][0]?.iso;
+    if (!mondayIso) continue;
+    const [yearStr, monthStr] = mondayIso.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr) - 1;
     if (
       !currentSpan ||
       currentSpan.year !== year ||
@@ -425,6 +435,22 @@ function buildGrid(calendar: BrandPageData["calendar"]) {
   );
 
   return { weeks, monthSpans: filtered, perDayLookup };
+}
+
+/**
+ * Steps a `YYYY-MM-DD` calendar key forward / backward by `delta`
+ * days. We do the math against UTC because the input is a pure
+ * calendar string with no zone — the platform-zone instant for each
+ * day is reconstructed separately by `parseDayKey`.
+ */
+function stepDayKey(iso: string, delta: number): string {
+  const [y, m, d] = iso.split("-").map((n) => Number(n));
+  const ms = Date.UTC(y, m - 1, d) + delta * 86_400_000;
+  const next = new Date(ms);
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
 /* -----------------------------------------------------------------
@@ -463,34 +489,8 @@ function buildFill(colors: string[]): string {
    Formatting helpers
    ----------------------------------------------------------------- */
 
-function parseISODate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map((n) => Number(n));
-  const date = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
-  return date;
-}
-
-function formatLongDate(date: Date): string {
-  // "Mon, May 18, 2026" — short weekday + short month reads as a
-  // calendar entry rather than a stat-card subtitle. We keep the
-  // year so hovering Jan/Feb of the previous year is unambiguous.
-  return date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC"
-  });
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
 function describeCellForA11y(cell: CalendarCell): string {
-  const base = formatLongDate(cell.date);
+  const base = formatLongDateZoned(cell.date);
   if (cell.emails.length === 0) return `${base}: no emails`;
   const parts = cell.emails.map(
     (e) => `${e.categoryLabel} — ${e.subject || "(no subject)"}`

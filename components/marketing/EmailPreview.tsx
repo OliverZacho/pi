@@ -1,18 +1,20 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { differenceInCalendarDays, formatShortDate } from "@/lib/datetime";
 import { HERO_EMAIL, type HeroEmail } from "@/lib/marketing/hero-data";
 import styles from "./splitreveal.module.css";
 
 function formatRelative(iso: string): string {
-  const sent = new Date(iso);
-  const now = new Date();
-  const days = Math.max(0, Math.floor((now.getTime() - sent.getTime()) / 86_400_000));
+  // Calendar-day diff in the platform zone — "yesterday" must mean the
+  // previous Copenhagen calendar day, not "between 24 and 48 hours
+  // ago", which is what a raw ms-based diff produces near midnight.
+  const days = Math.max(0, differenceInCalendarDays(iso, new Date()));
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;
   if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return sent.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return formatShortDate(iso, { fallback: iso });
 }
 
 type Props = { email?: HeroEmail };

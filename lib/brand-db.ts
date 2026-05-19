@@ -5,6 +5,16 @@ import {
   type EspProvider
 } from "./admin-types";
 import { defaultBrandAccent, pickBrandAccent, type BrandAccent } from "./brand-accent";
+import {
+  addDaysInZone,
+  formatDayKey,
+  formatHourOfDay,
+  getActiveTimeZone,
+  getZonedParts,
+  startOfDayInZone,
+  startOfWeekInZone,
+  startOfYearInZone
+} from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
 import { getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
@@ -47,10 +57,11 @@ export type BrandPageData = {
     typicalDay: { index: number; label: string; share: number } | null;
     typicalHour: { hour: number; label: string; share: number } | null;
     /**
-     * Send counts bucketed into all 24 hours of the day (UTC). Index 0
-     * is midnight and index 23 is 11pm. Always 24 entries — zero-send
-     * hours are present so the radial heatmap can iterate the array
-     * directly without any indexing gymnastics.
+     * Send counts bucketed into all 24 hours of the day, expressed in
+     * the platform time zone (Europe/Copenhagen). Index 0 is midnight
+     * and index 23 is 11pm. Always 24 entries — zero-send hours are
+     * present so the radial heatmap can iterate the array directly
+     * without any indexing gymnastics.
      */
     hourly: number[];
   };
@@ -313,30 +324,31 @@ export async function getBrandPageData(
 }
 
 function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
-  // Anchor the grid to the current calendar year: start at January 1
-  // (snapped backward to the Monday of that ISO week so the first
-  // column is always a full Mon-Sun strip) and end on today (UTC
-  // midnight). This year-to-date framing matches how readers
-  // intuitively think about "what has this brand sent this year"
-  // — the first month label on the heatmap is always "Jan".
-  const end = new Date();
-  end.setUTCHours(0, 0, 0, 0);
+  // Anchor the grid to the current calendar year *in the platform
+  // zone*: start at January 1 (snapped backward to the Monday of that
+  // week so the first column is always a full Mon-Sun strip) and end
+  // on today's midnight Copenhagen time. The year-to-date framing
+  // matches how readers intuitively think about "what has this brand
+  // sent this year" — the first month label on the heatmap is always
+  // "Jan", and a 23:30 Copenhagen send the night before lands on the
+  // correct day instead of being pushed onto tomorrow's UTC bucket.
+  const zone = getActiveTimeZone();
+  const now = new Date();
+  const todayStart = startOfDayInZone(now, zone);
+  const yearStart = startOfYearInZone(now, zone);
+  const startRaw = startOfWeekInZone(yearStart, zone);
 
-  const startRaw = new Date(
-    Date.UTC(end.getUTCFullYear(), 0, 1)
-  );
-  const startDay = startRaw.getUTCDay();
-  const backToMonday = (startDay + 6) % 7;
-  startRaw.setUTCDate(startRaw.getUTCDate() - backToMonday);
-
-  const startISO = startRaw.toISOString().slice(0, 10);
-  const endISO = end.toISOString().slice(0, 10);
+  const startISO = formatDayKey(startRaw, zone);
+  const endISO = formatDayKey(todayStart, zone);
   const startMs = startRaw.getTime();
-  const endMs = end.getTime() + 24 * 60 * 60 * 1000 - 1;
+  // `todayStart` is the first instant of "today" in Copenhagen; the
+  // last instant of "today" is one day later minus 1ms.
+  const endMs = addDaysInZone(todayStart, 1, zone).getTime() - 1;
 
-  // Bucket per ISO date in UTC. Doing the date math in UTC keeps the
-  // calendar deterministic across deploys regardless of host timezone —
-  // hover times below are formatted locally on the client.
+  // Bucket per Copenhagen calendar day. Using `formatDayKey(zone)`
+  // keeps the keys deterministic across hosts (UTC servers, dev
+  // laptops, etc.) while still respecting the platform zone for
+  // boundary placement.
   const byDay = new Map<
     string,
     BrandPageData["calendar"]["days"][number]["emails"]
@@ -346,7 +358,7 @@ function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
     const ts = new Date(row.received_at);
     const t = ts.getTime();
     if (Number.isNaN(t) || t < startMs || t > endMs) continue;
-    const key = ts.toISOString().slice(0, 10);
+    const key = formatDayKey(ts, zone);
     const list = byDay.get(key) ?? [];
     const cat = row.category || "other";
     list.push({
@@ -396,24 +408,19 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     avgDaysBetween = meanMs / (1000 * 60 * 60 * 24);
   }
 
-  // Bucket emails into the last `WEEKS_IN_CADENCE` ISO-ish weeks (Mon
-  // start, in the server's UTC zone — fine for a sparkline). We iterate
-  // backward from "this week" so the chart's right edge is always today.
+  // Bucket emails into the last `WEEKS_IN_CADENCE` weeks anchored on
+  // the platform zone's Monday boundary. We iterate backward from
+  // "this week" so the chart's right edge is always today; using
+  // `addDaysInZone` (rather than ms-arithmetic) keeps the boundary at
+  // local midnight even when a DST transition falls inside the window.
+  const zone = getActiveTimeZone();
   const now = new Date();
   const buckets: { weekStart: string; count: number }[] = [];
-  const startOfWeek = (d: Date): Date => {
-    const copy = new Date(d);
-    copy.setUTCHours(0, 0, 0, 0);
-    const day = copy.getUTCDay(); // 0 = Sunday
-    const diff = (day + 6) % 7; // back to Monday
-    copy.setUTCDate(copy.getUTCDate() - diff);
-    return copy;
-  };
+  const thisWeekStart = startOfWeekInZone(now, zone);
 
   const weekStartTimes: number[] = [];
   for (let i = WEEKS_IN_CADENCE - 1; i >= 0; i--) {
-    const weekStart = startOfWeek(now);
-    weekStart.setUTCDate(weekStart.getUTCDate() - i * 7);
+    const weekStart = addDaysInZone(thisWeekStart, -i * 7, zone);
     buckets.push({ weekStart: weekStart.toISOString(), count: 0 });
     weekStartTimes.push(weekStart.getTime());
   }
@@ -430,15 +437,16 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     }
   }
 
-  // Day-of-week / hour-of-day mode. Reads as "they almost always send on
-  // Tuesday" / "around 9am UTC". We surface the share so the UI can dim
-  // the value when the signal is weak (e.g. 18% across 7 days = no
-  // pattern).
+  // Day-of-week / hour-of-day mode in the platform zone. Reads as
+  // "they almost always send on Tuesday" / "around 9am CEST". We
+  // surface the share so the UI can dim the value when the signal is
+  // weak (e.g. 18% across 7 days = no pattern).
   const dayCounts = new Array(7).fill(0);
   const hourCounts = new Array(24).fill(0);
   for (const date of dates) {
-    dayCounts[date.getUTCDay()] += 1;
-    hourCounts[date.getUTCHours()] += 1;
+    const parts = getZonedParts(date, zone);
+    dayCounts[parts.weekday] += 1;
+    hourCounts[parts.hour] += 1;
   }
 
   let typicalDay: BrandPageData["cadence"]["typicalDay"] = null;
@@ -462,7 +470,12 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     }
     typicalHour = {
       hour: bestIdx,
-      label: formatHour(bestIdx),
+      label: formatHourOfDay(bestIdx, {
+        case: "lower",
+        withZone: true,
+        zone,
+        referenceInstant: now
+      }),
       share: hourCounts[bestIdx] / dates.length
     };
   }
@@ -474,12 +487,6 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     typicalHour,
     hourly: hourCounts
   };
-}
-
-function formatHour(hour: number): string {
-  const h12 = hour % 12 === 0 ? 12 : hour % 12;
-  const ampm = hour < 12 ? "am" : "pm";
-  return `${h12}${ampm} UTC`;
 }
 
 function computePromo(rows: EmailRow[]): BrandPageData["promo"] {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getActiveTimeZone, getZoneAbbreviation } from "@/lib/datetime";
 import {
   FEED_NEWSLETTERS,
   LIVE_COUNTER_START,
@@ -240,6 +241,14 @@ function DataPanel({
   newsletter: FeedNewsletter;
   liveCounter: number;
 }) {
+  // Resolve the platform zone's short name once on mount. Marketing
+  // copy renders "CEST" in summer and "CET" in winter without anyone
+  // having to remember to swap the string twice a year.
+  const zoneAbbr = useMemo(
+    () => getZoneAbbreviation(new Date(), getActiveTimeZone()),
+    []
+  );
+
   return (
     <aside className={styles.panel} aria-live="polite">
       <div className={styles.panelHead}>
@@ -258,7 +267,7 @@ function DataPanel({
       <div className={styles.panelGrid}>
         <PanelStat
           label="Sent"
-          value={`${newsletter.sentDay} · ${newsletter.sentLocal} CET`}
+          value={`${newsletter.sentDay} · ${newsletter.sentLocal} ${zoneAbbr}`}
           changeKey={newsletter.id}
         />
         <PanelStat

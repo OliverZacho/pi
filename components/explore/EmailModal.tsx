@@ -9,6 +9,7 @@ import {
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
+import { formatFullDateTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import styles from "./explore.module.css";
 
@@ -888,16 +889,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatLongDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
+  return formatFullDateTime(value, { fallback: value });
 }
 
 function ViewIcon({ id }: { id: ViewMode }) {

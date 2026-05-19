@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOverviewFromDb } from "@/lib/admin-db";
 import { EMAIL_CATEGORIES, type EmailCategory, type EspProvider } from "@/lib/admin-types";
+import {
+  endOfDayInZone,
+  parseDayKey,
+  startOfDayInZone
+} from "@/lib/datetime";
 import { requireAdminSession } from "@/lib/require-admin-api";
 
 const VALID_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
@@ -49,14 +54,36 @@ function parseBoolean(raw: string | null): boolean | null {
   return null;
 }
 
-function parseIsoDate(raw: string | null): string | null {
-  if (!raw) {
-    return null;
+/**
+ * Anchors a `YYYY-MM-DD` (or full ISO timestamp) request parameter to
+ * either the start or the end of that calendar day in the platform
+ * time zone. Returns an ISO instant ready to feed straight into a
+ * `gte` / `lte` Supabase filter, or `null` when the input is empty
+ * or unparseable.
+ *
+ * Anchoring at the platform zone — rather than UTC — is what makes
+ * "Show me everything received on May 18" mean the same calendar day
+ * a Copenhagen user would point at, even for emails that landed at
+ * 23:30 local time (which is 21:30 UTC the same day, but UTC midnight
+ * filtering would have placed them on the wrong side of the bound).
+ */
+function parseDayBoundary(
+  raw: string | null,
+  edge: "start" | "end"
+): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Bare `YYYY-MM-DD` input (the common case, sent by `<input type="date">`).
+  const dayAnchor = parseDayKey(trimmed);
+  if (dayAnchor) {
+    const instant =
+      edge === "start" ? startOfDayInZone(dayAnchor) : endOfDayInZone(dayAnchor);
+    return instant.toISOString();
   }
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
+  // Full ISO timestamp — already an instant; trust it as-is once it parses.
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
 }
 
@@ -112,8 +139,14 @@ export async function GET(request: Request) {
       hasDarkMode: parseBoolean(url.searchParams.get("hasDarkMode")),
       hasPromoCode: parseBoolean(url.searchParams.get("hasPromoCode")),
       minDiscountPercent,
-      receivedAfter: parseIsoDate(url.searchParams.get("receivedAfter")),
-      receivedBefore: parseIsoDate(url.searchParams.get("receivedBefore")),
+      receivedAfter: parseDayBoundary(
+        url.searchParams.get("receivedAfter"),
+        "start"
+      ),
+      receivedBefore: parseDayBoundary(
+        url.searchParams.get("receivedBefore"),
+        "end"
+      ),
       search: url.searchParams.get("search")
     });
     return NextResponse.json(overview);
