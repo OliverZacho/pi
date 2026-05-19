@@ -83,6 +83,7 @@
   font: inherit;
   font-size: 0.88rem;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background 100ms ease, color 100ms ease;
 }
@@ -1301,12 +1302,18 @@
   color: inherit;
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background 120ms ease;
 }
 
-.infoBrandRow:hover {
+a.infoBrandRow:hover,
+button.infoBrandRow:hover {
   background: #f8fafc;
+}
+
+div.infoBrandRow {
+  cursor: default;
 }
 
 .infoBrandRow:focus-visible {

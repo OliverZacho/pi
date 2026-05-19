@@ -1,10 +1,23 @@
+import Link from "next/link";
 import styles from "./explore.module.css";
 
+type NavId = "explore" | "saved" | "boards" | "brands" | "search" | "more";
+
 type NavItem = {
-  id: string;
+  id: NavId;
   label: string;
   icon: React.ReactNode;
-  active?: boolean;
+  href?: string;
+};
+
+type Props = {
+  /**
+   * Which nav row should render as selected. The sidebar is shared
+   * across the Explore grid (`/explore`) and the per-brand dashboards
+   * (`/brands/[id]`); both pass an explicit `activeId` so the highlight
+   * tracks the page the user is actually on.
+   */
+  activeId?: NavId;
 };
 
 function CompassIcon() {
@@ -181,7 +194,7 @@ function PanelToggleIcon() {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "explore", label: "Explore", icon: <CompassIcon />, active: true },
+  { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
   { id: "saved", label: "Saved", icon: <BookmarkIcon /> },
   { id: "boards", label: "Boards", icon: <CollectionIcon /> },
   { id: "brands", label: "Brands", icon: <BrandsIcon /> },
@@ -193,7 +206,7 @@ const FOLDERS: { id: string; label: string }[] = [
   { id: "demo", label: "Demo folder" }
 ];
 
-export default function ExploreSidebar() {
+export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
   return (
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
@@ -209,18 +222,42 @@ export default function ExploreSidebar() {
       </div>
 
       <div className={styles.navGroup}>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`${styles.navItem}${item.active ? ` ${styles.active}` : ""}`}
-            tabIndex={-1}
-            aria-current={item.active ? "page" : undefined}
-          >
-            <span className={styles.navIcon}>{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.id === activeId;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          const ariaCurrent = isActive ? "page" : undefined;
+          // Real navigable items (Explore today; Brands as we build it
+          // out) get a Next.js Link; everything else stays a button until
+          // it has a destination, so the sidebar still demos as a full
+          // shell but unfinished rows aren't keyboard-focusable.
+          if (item.href) {
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={className}
+                aria-current={ariaCurrent}
+              >
+                <span className={styles.navIcon}>{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={className}
+              tabIndex={-1}
+              aria-current={ariaCurrent}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className={styles.navGroup}>

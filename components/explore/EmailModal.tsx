@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   EMAIL_CATEGORY_LABELS,
@@ -298,34 +299,48 @@ function InfoPanel({
       </div>
 
       {/*
-        Whole row is a button so it's keyboard-focusable and reads as
-        "View {brand} details" to assistive tech. The destination — a
-        per-company analytics / patterns page — doesn't exist yet, so the
-        click handler is intentionally a no-op until the route lands.
+        Whole row is a link so it's keyboard-focusable and navigates to
+        the per-brand dashboard at /brands/[id]. Falls back to a static
+        button when we don't yet have a companyId (legacy emails before
+        the company match landed).
       */}
-      <button
-        type="button"
-        className={styles.infoBrandRow}
-        onClick={() => {
-          // TODO: route to /company/[email.companyId] once the
-          // company-detail page (statistics + patterns) is built.
-        }}
-        aria-label={`View ${email.companyName} details`}
-      >
-        <CompanyAvatar
-          name={email.companyName}
-          logoUrl={email.companyLogoUrl}
-        />
-        <div className={styles.infoBrandText}>
-          <div className={styles.infoBrandName}>{email.companyName}</div>
-          {email.companyDomain ? (
-            <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
-          ) : null}
+      {email.companyId ? (
+        <Link
+          href={`/brands/${email.companyId}`}
+          className={styles.infoBrandRow}
+          aria-label={`View ${email.companyName} dashboard`}
+        >
+          <CompanyAvatar
+            name={email.companyName}
+            logoUrl={email.companyLogoUrl}
+          />
+          <div className={styles.infoBrandText}>
+            <div className={styles.infoBrandName}>{email.companyName}</div>
+            {email.companyDomain ? (
+              <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
+            ) : null}
+          </div>
+          <span className={styles.infoBrandChevron} aria-hidden="true">
+            <ChevronRightIcon />
+          </span>
+        </Link>
+      ) : (
+        <div
+          className={styles.infoBrandRow}
+          aria-label={`${email.companyName} details unavailable`}
+        >
+          <CompanyAvatar
+            name={email.companyName}
+            logoUrl={email.companyLogoUrl}
+          />
+          <div className={styles.infoBrandText}>
+            <div className={styles.infoBrandName}>{email.companyName}</div>
+            {email.companyDomain ? (
+              <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
+            ) : null}
+          </div>
         </div>
-        <span className={styles.infoBrandChevron} aria-hidden="true">
-          <ChevronRightIcon />
-        </span>
-      </button>
+      )}
 
       <div className={styles.infoHero}>
         <div className={styles.infoSubject}>
