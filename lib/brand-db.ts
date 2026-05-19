@@ -4,6 +4,7 @@ import {
   type EmailCategory,
   type EspProvider
 } from "./admin-types";
+import { defaultBrandAccent, pickBrandAccent, type BrandAccent } from "./brand-accent";
 import type { ExploreEmailCard } from "./explore-db";
 import { getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
@@ -26,6 +27,13 @@ export type BrandPageData = {
     logoUrl: string | null;
     subscribedSince: string;
     subscriptionEmail: string | null;
+    /**
+     * Auto-derived accent color used to tint the dashboard's stats
+     * and graphs (KPI icons, cadence bars, clock heatmap, etc.).
+     * Picked from the brand's extracted email palette so each brand
+     * page subtly inherits its own visual identity.
+     */
+    accent: BrandAccent;
   };
   totals: {
     emailCount: number;
@@ -38,6 +46,13 @@ export type BrandPageData = {
     weekly: { weekStart: string; count: number }[];
     typicalDay: { index: number; label: string; share: number } | null;
     typicalHour: { hour: number; label: string; share: number } | null;
+    /**
+     * Send counts bucketed into all 24 hours of the day (UTC). Index 0
+     * is midnight and index 23 is 11pm. Always 24 entries — zero-send
+     * hours are present so the radial heatmap can iterate the array
+     * directly without any indexing gymnastics.
+     */
+    hourly: number[];
   };
   promo: {
     discountEmails: number;
@@ -252,6 +267,10 @@ export async function getBrandPageData(
   const design = computeDesign(emailRows);
   const subjects = computeSubjects(emailRows);
   const calendar = computeCalendar(emailRows);
+  const accent =
+    design.palette.length > 0
+      ? pickBrandAccent(design.palette)
+      : defaultBrandAccent();
   const recentEmails = mapRecentEmails(
     emailRows.slice(0, RECENT_CARD_COUNT),
     {
@@ -273,7 +292,8 @@ export async function getBrandPageData(
         : null,
       logoUrl,
       subscribedSince: companyRow.subscribed_since,
-      subscriptionEmail: primaryInbox
+      subscriptionEmail: primaryInbox,
+      accent
     },
     totals: {
       emailCount: totalsCount,
@@ -447,7 +467,13 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     };
   }
 
-  return { avgDaysBetween, weekly: buckets, typicalDay, typicalHour };
+  return {
+    avgDaysBetween,
+    weekly: buckets,
+    typicalDay,
+    typicalHour,
+    hourly: hourCounts
+  };
 }
 
 function formatHour(hour: number): string {

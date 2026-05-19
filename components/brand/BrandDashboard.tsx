@@ -1,6 +1,8 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
 import BrandActivityCalendar from "./BrandActivityCalendar";
+import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
@@ -37,8 +39,18 @@ export default function BrandDashboard({ data }: Props) {
     calendar
   } = data;
 
+  // Wire the auto-picked brand accent into a small set of CSS custom
+  // properties on the dashboard root. Every tinted element below reads
+  // these via `var(--brand-accent, …)` so the page silently re-skins
+  // itself per brand without any per-element prop drilling.
+  const accentStyle = {
+    "--brand-accent": brand.accent.base,
+    "--brand-accent-fg": brand.accent.foreground,
+    "--brand-accent-soft": brand.accent.soft
+  } as CSSProperties;
+
   return (
-    <main className={styles.main}>
+    <main className={styles.main} style={accentStyle}>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
         <Link href="/explore" className={styles.breadcrumbLink}>
           <ChevronLeftIcon />
@@ -72,6 +84,13 @@ export default function BrandDashboard({ data }: Props) {
             <BrandActivityCalendar
               brandName={brand.name}
               calendar={calendar}
+            />
+          </section>
+
+          <section className={styles.recentSection}>
+            <BrandClockHeatmap
+              brandName={brand.name}
+              hourly={cadence.hourly}
             />
           </section>
 
