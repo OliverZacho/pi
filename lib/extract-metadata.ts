@@ -246,7 +246,13 @@ export function extractColorPalette(
   };
 
   for (const block of cleaned.matchAll(STYLE_BLOCK_RE)) {
-    scanColors(block[1] ?? "", "style_block");
+    // Restrict the scan to CSS rule bodies (`{ … }`). Hex tokens that appear
+    // in the selector part of a stylesheet are ID selectors, not colors —
+    // e.g. Mailchimp templates routinely emit `#d13 p, #d13 h1 { … }` for
+    // every section id, which the older naive scan was happily reporting as
+    // brand colors. Declaration values are the only valid place for a hex
+    // color, so we extract just those before running the token regex.
+    scanColors(extractCssRuleBodies(block[1] ?? ""), "style_block");
   }
 
   for (const attr of cleaned.matchAll(STYLE_ATTR_RE)) {
@@ -445,6 +451,69 @@ export function extractFontFamilies(
 
   const cap = Math.max(0, Math.floor(limit));
   return cap > 0 ? entries.slice(0, cap) : entries;
+}
+
+/**
+ * Returns just the *declaration values* inside a CSS source string — i.e.
+ * the text that appears after `property:` and before the next `;` / `}`.
+ * Everything else (selectors at any depth, at-rule preludes, property
+ * names, comments-already-stripped, …) is discarded.
+ *
+ * This is intentionally stricter than "anything inside `{ … }`". Mailchimp
+ * (and other ESPs) wraps its mobile overrides in `@media` queries:
+ *
+ *   `@media (max-width: 600px) { #b24, #b67 { padding: 12px; } }`
+ *
+ * The inner `#b24` / `#b67` sit *inside* the outer braces but are still
+ * ID selectors, not colors — naive brace-tracking would keep them and
+ * pollute the brand palette with whatever the section ids happen to look
+ * like in hex. Restricting to post-`:` value text avoids that entirely
+ * because colors are only ever legal as property values.
+ *
+ * Property names are never colors, so we ignore the `property` part of
+ * each declaration. The `:` in pseudo-selectors (`a:hover`, `::before`)
+ * harmlessly enables value mode mid-selector, but selectors never contain
+ * hex/rgb tokens that survive the downstream regex, so the output is
+ * still correct.
+ */
+function extractCssRuleBodies(css: string): string {
+  if (!css) {
+    return "";
+  }
+  let depth = 0;
+  let inValue = false;
+  let out = "";
+  for (let i = 0; i < css.length; i += 1) {
+    const ch = css.charCodeAt(i);
+    if (ch === 0x7b /* { */) {
+      depth += 1;
+      inValue = false;
+      continue;
+    }
+    if (ch === 0x7d /* } */) {
+      if (depth > 0) depth -= 1;
+      inValue = false;
+      continue;
+    }
+    if (depth === 0) {
+      // Top-level selector / at-rule prelude — never a color.
+      continue;
+    }
+    if (ch === 0x3b /* ; */) {
+      inValue = false;
+      out += " ";
+      continue;
+    }
+    if (ch === 0x3a /* : */ && !inValue) {
+      inValue = true;
+      out += " ";
+      continue;
+    }
+    if (inValue) {
+      out += css[i];
+    }
+  }
+  return out;
 }
 
 function splitFontFamilyList(value: string): string[] {

@@ -389,6 +389,38 @@ describe("extractColorPalette", () => {
     expect(palette[1].count).toBe(2);
   });
 
+  it("ignores ID selectors that look like 3-char hex tokens", () => {
+    // Mailchimp tags each section of a campaign with ids like `d13`, `b24`,
+    // `b67`, etc. and emits rules such as `#d13 p, #d13 h1 { … }`. Those are
+    // ID selectors, not colors — they must never leak into the palette.
+    const html = `
+      <style>
+        #d13 p, #d13 h1, #b24 h2, #b67 li { font-weight: 600; }
+        #d13 { background: #ff0000; }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toEqual(["#ff0000"]);
+  });
+
+  it("ignores ID selectors nested inside @media queries", () => {
+    // Mailchimp's mobile overrides wrap selectors in `@media (...) { ... }`
+    // so the inner `#b24, #b67 { padding: ... }` sits inside the outer
+    // braces. Only property values may be colors.
+    const html = `
+      <style>
+        @media (max-width: 600px) {
+          #b22 .x, #b23 .y, #b24, #b67 { padding: 12px 24px !important; }
+          #b24 .btn { background: #00ff88; }
+        }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toEqual(["#00ff88"]);
+  });
+
   it("returns [] for empty input", () => {
     expect(extractColorPalette("")).toEqual([]);
   });
