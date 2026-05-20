@@ -127,6 +127,43 @@ export type EspProvider =
   | "pure360"
   | "heyloyalty";
 
+/**
+ * Canonical user-facing labels for each ESP provider id. Shared between
+ * the brand dashboard, the brands explorer and the email modal so a
+ * single rename here propagates everywhere we surface ESPs.
+ */
+export const ESP_LABELS: Record<EspProvider, string> = {
+  mailchimp: "Mailchimp",
+  klaviyo: "Klaviyo",
+  hubspot: "HubSpot",
+  sendgrid: "SendGrid",
+  braze: "Braze",
+  iterable: "Iterable",
+  customerio: "Customer.io",
+  salesforce_mc: "Salesforce MC",
+  marketo: "Marketo",
+  omnisend: "Omnisend",
+  activecampaign: "ActiveCampaign",
+  constantcontact: "Constant Contact",
+  drip: "Drip",
+  attentive: "Attentive",
+  sendinblue: "Brevo / Sendinblue",
+  shopify_email: "Shopify Email",
+  substack: "Substack",
+  beehiiv: "beehiiv",
+  convertkit: "ConvertKit / Kit",
+  mailerlite: "MailerLite",
+  mailgun: "Mailgun",
+  postmark: "Postmark",
+  amazon_ses: "Amazon SES",
+  mailjet: "Mailjet",
+  apsis: "APSIS / Efficy",
+  agillic: "Agillic",
+  peytzmail: "Peytzmail",
+  pure360: "Pure360 / Spotler",
+  heyloyalty: "HeyLoyalty"
+};
+
 export type CapturedEmail = {
   id: string;
   companyId: string | null;

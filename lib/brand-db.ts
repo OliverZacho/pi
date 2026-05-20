@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   EMAIL_CATEGORY_LABELS,
+  ESP_LABELS,
   type EmailCategory,
   type EspProvider
 } from "./admin-types";
@@ -111,38 +112,6 @@ export type BrandPageData = {
     }[];
   };
   recentEmails: ExploreEmailCard[];
-};
-
-const ESP_LABELS: Record<EspProvider, string> = {
-  mailchimp: "Mailchimp",
-  klaviyo: "Klaviyo",
-  hubspot: "HubSpot",
-  sendgrid: "SendGrid",
-  braze: "Braze",
-  iterable: "Iterable",
-  customerio: "Customer.io",
-  salesforce_mc: "Salesforce MC",
-  marketo: "Marketo",
-  omnisend: "Omnisend",
-  activecampaign: "ActiveCampaign",
-  constantcontact: "Constant Contact",
-  drip: "Drip",
-  attentive: "Attentive",
-  sendinblue: "Brevo / Sendinblue",
-  shopify_email: "Shopify Email",
-  substack: "Substack",
-  beehiiv: "beehiiv",
-  convertkit: "ConvertKit / Kit",
-  mailerlite: "MailerLite",
-  mailgun: "Mailgun",
-  postmark: "Postmark",
-  amazon_ses: "Amazon SES",
-  mailjet: "Mailjet",
-  apsis: "APSIS / Efficy",
-  agillic: "Agillic",
-  peytzmail: "Peytzmail",
-  pure360: "Pure360 / Spotler",
-  heyloyalty: "HeyLoyalty"
 };
 
 const DAY_LABELS = [
