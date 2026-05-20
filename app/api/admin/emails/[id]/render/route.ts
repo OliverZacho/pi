@@ -7,7 +7,7 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const session = await requireAdminSession();
   if ("response" in session) {
     return session.response;
@@ -17,6 +17,12 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!id) {
     return NextResponse.json({ error: "Missing email id" }, { status: 400 });
   }
+
+  // Admin viewer opts out of link stripping via `?keepLinks=1` so the
+  // raw destinations stay clickable for inspection. Every other caller
+  // (Explore grid + modal) gets the default safe behaviour where links
+  // are neutralised before the iframe renders.
+  const keepLinks = new URL(request.url).searchParams.get("keepLinks") === "1";
 
   let email;
   try {
@@ -37,7 +43,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { html } = rewriteEmailHtml(email.htmlContent, {
     mirrorMap: email.imageMirrorMap,
-    signedAssets
+    signedAssets,
+    stripLinks: !keepLinks
   });
 
   // Wrap so the inner email body always has its own document context (some

@@ -113,6 +113,20 @@ describe("rewriteEmailHtml", () => {
     expect(result.html).toContain("Opt out");
     expect(result.linksStripped).toBe(4);
   });
+
+  it("keeps links intact when stripLinks is explicitly disabled", () => {
+    const html =
+      '<a href="https://list.example/unsub?u=42">Unsubscribe</a>' +
+      '<form action="https://list.example/optout"><button>Opt out</button></form>';
+    const result = rewriteEmailHtml(html, {
+      mirrorMap: MIRROR_MAP,
+      signedAssets: SIGNED_ASSETS,
+      stripLinks: false
+    });
+    expect(result.html).toContain('href="https://list.example/unsub?u=42"');
+    expect(result.html).toContain('action="https://list.example/optout"');
+    expect(result.linksStripped).toBe(0);
+  });
 });
 
 describe("stripEmailLinks", () => {

@@ -26,6 +26,13 @@ export type RewriteOptions = {
   mirrorMap: Record<string, string>;
   /** Map of mirrored storage path → short-lived signed URL. */
   signedAssets: Record<string, string>;
+  /**
+   * Whether to neutralise navigation targets on `<a>`, `<area>`, and
+   * `<form>` tags. Defaults to `true` so user-facing previews can never
+   * accidentally hit an unsubscribe / preference URL. The admin viewer
+   * opts out by passing `false` so links remain inspectable.
+   */
+  stripLinks?: boolean;
 };
 
 export type RewriteResult = {
@@ -46,6 +53,7 @@ export function rewriteEmailHtml(html: string, options: RewriteOptions): Rewrite
   if (!html) {
     return { html: "", rewritten: 0, total: 0, linksStripped: 0 };
   }
+  const shouldStripLinks = options.stripLinks !== false;
 
   const lookup = buildLookup(options);
 
@@ -101,7 +109,9 @@ export function rewriteEmailHtml(html: string, options: RewriteOptions): Rewrite
       return `${prefix}"${escapeAttr(next)}"`;
     });
 
-  const stripped = stripEmailLinks(withRewrittenStyles);
+  const stripped = shouldStripLinks
+    ? stripEmailLinks(withRewrittenStyles)
+    : { html: withRewrittenStyles, stripped: 0 };
 
   return {
     html: stripped.html,

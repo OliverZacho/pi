@@ -303,7 +303,10 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
     };
   }, [id]);
 
-  const renderUrl = email ? `/api/admin/emails/${email.id}/render` : null;
+  // Admin viewer keeps real links intact so they can be inspected or
+  // followed during review. The user-facing Explore previews call the
+  // same endpoint without `keepLinks`, which strips navigation targets.
+  const renderUrl = email ? `/api/admin/emails/${email.id}/render?keepLinks=1` : null;
 
   const metadataDump = useMemo(() => {
     if (!email?.metadata) return null;
