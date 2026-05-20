@@ -6,6 +6,10 @@ import {
   searchExploreEmails
 } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import {
+  listCollectionSummaries,
+  type CollectionSummary
+} from "@/lib/collections-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -64,9 +68,19 @@ export default async function ExplorePage() {
     console.error("Failed to load saved email IDs", err);
   }
 
+  // SSR the user's collections so the "Add to collection" popover on
+  // every card has data ready on first paint. Same swallow-errors
+  // strategy: a broken collections table shouldn't take down Explore.
+  let initialCollections: CollectionSummary[] = [];
+  try {
+    initialCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar />
+      <ExploreSidebar collections={initialCollections} />
 
       <main className={styles.main}>
         <header className={styles.heading}>
@@ -80,6 +94,7 @@ export default async function ExplorePage() {
           pageSize={EXPLORE_PAGE_SIZE}
           facets={facets}
           initialSavedIds={initialSavedIds}
+          initialCollections={initialCollections}
         />
       </main>
     </div>

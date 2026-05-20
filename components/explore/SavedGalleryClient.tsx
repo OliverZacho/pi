@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CollectionSummary } from "@/lib/collections-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import type { SavedEmailCard } from "@/lib/saved-emails-db";
 import EmailCard from "./EmailCard";
@@ -9,7 +10,15 @@ import styles from "./explore.module.css";
 
 type Props = {
   initialEmails: SavedEmailCard[];
+  /**
+   * Collections to surface in the per-card "Add to collection"
+   * popover. Same payload the Explore page passes down so the two
+   * stay in sync.
+   */
+  initialCollections: CollectionSummary[];
 };
+
+const EMPTY_ID_SET = new Set<string>();
 
 type SavedSortKey =
   | "saved_desc"
@@ -105,10 +114,21 @@ function ChevronIcon() {
  * so an extra round trip per keystroke would be wasteful, and lets
  * the controls feel instant.
  */
-export default function SavedGalleryClient({ initialEmails }: Props) {
+export default function SavedGalleryClient({
+  initialEmails,
+  initialCollections
+}: Props) {
   const [emails, setEmails] = useState<SavedEmailCard[]>(initialEmails);
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [collections, setCollections] =
+    useState<CollectionSummary[]>(initialCollections);
+  const [membershipByEmail, setMembershipByEmail] = useState<
+    Map<string, Set<string>>
+  >(() => new Map());
+  const membershipLoadedRef = useRef<Set<string>>(new Set());
+  const membershipPendingRef = useRef<Map<string, Promise<void>>>(new Map());
 
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -147,6 +167,101 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
       }
     },
     [emails, openEmail]
+  );
+
+  const requestMemberships = useCallback(async (emailId: string) => {
+    if (membershipLoadedRef.current.has(emailId)) return;
+    const inflight = membershipPendingRef.current.get(emailId);
+    if (inflight) return inflight;
+
+    const promise = (async () => {
+      try {
+        const res = await fetch(
+          `/api/collections/memberships?emailId=${emailId}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        const body = (await res.json()) as { collectionIds: string[] };
+        setMembershipByEmail((current) => {
+          const next = new Map(current);
+          next.set(emailId, new Set(body.collectionIds));
+          return next;
+        });
+        membershipLoadedRef.current.add(emailId);
+      } catch (err) {
+        console.error("Failed to load collection memberships", err);
+      } finally {
+        membershipPendingRef.current.delete(emailId);
+      }
+    })();
+
+    membershipPendingRef.current.set(emailId, promise);
+    return promise;
+  }, []);
+
+  const updateMembership = useCallback(
+    (emailId: string, collectionId: string, present: boolean) => {
+      setMembershipByEmail((current) => {
+        const next = new Map(current);
+        const existing = new Set(next.get(emailId) ?? []);
+        if (present) existing.add(collectionId);
+        else existing.delete(collectionId);
+        next.set(emailId, existing);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleToggleCollection = useCallback(
+    async (collectionId: string, emailId: string, next: boolean) => {
+      updateMembership(emailId, collectionId, next);
+      try {
+        const res = await fetch(
+          `/api/collections/${collectionId}/emails/${emailId}`,
+          { method: next ? "PUT" : "DELETE", credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+      } catch (err) {
+        updateMembership(emailId, collectionId, !next);
+        setError(
+          err instanceof Error ? err.message : "Failed to update collection"
+        );
+      }
+    },
+    [updateMembership]
+  );
+
+  const handleCreateCollection = useCallback(
+    async (name: string, emailId: string): Promise<CollectionSummary | null> => {
+      try {
+        const createRes = await fetch("/api/collections", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        if (!createRes.ok) throw new Error(`Failed (${createRes.status})`);
+        const created = (await createRes.json()) as {
+          collection: CollectionSummary;
+        };
+        setCollections((current) => [created.collection, ...current]);
+        updateMembership(emailId, created.collection.id, true);
+
+        const addRes = await fetch(
+          `/api/collections/${created.collection.id}/emails/${emailId}`,
+          { method: "PUT", credentials: "include" }
+        );
+        if (!addRes.ok) throw new Error(`Failed (${addRes.status})`);
+        return created.collection;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to create collection"
+        );
+        return null;
+      }
+    },
+    [updateMembership]
   );
 
   // Debounce the search input so we don't recompute the filtered /
@@ -314,6 +429,11 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
               onOpen={handleOpenEmail}
               isSaved={savedIds.has(email.id)}
               onToggleSave={handleToggleSave}
+              collections={collections}
+              membershipIds={membershipByEmail.get(email.id) ?? EMPTY_ID_SET}
+              onToggleCollection={handleToggleCollection}
+              onCreateCollection={handleCreateCollection}
+              onRequestMemberships={requestMemberships}
             />
           ))}
         </div>
@@ -325,6 +445,11 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
           onClose={handleCloseEmail}
           isSaved={savedIds.has(openEmail.id)}
           onToggleSave={handleToggleSave}
+          collections={collections}
+          membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
+          onToggleCollection={handleToggleCollection}
+          onCreateCollection={handleCreateCollection}
+          onRequestMemberships={requestMemberships}
         />
       ) : null}
     </>

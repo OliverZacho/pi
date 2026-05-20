@@ -315,6 +315,66 @@ export type Database = {
         }
         Relationships: []
       }
+      collections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          share_slug: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          share_slug: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          share_slug?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      collection_emails: {
+        Row: {
+          added_at: string
+          collection_id: string
+          email_id: string
+        }
+        Insert: {
+          added_at?: string
+          collection_id: string
+          email_id: string
+        }
+        Update: {
+          added_at?: string
+          collection_id?: string
+          email_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_emails_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collection_emails_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "captured_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_emails: {
         Row: {
           email_id: string

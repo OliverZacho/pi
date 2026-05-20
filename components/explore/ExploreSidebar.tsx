@@ -1,7 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { CollectionSummary } from "@/lib/collections-db";
 import styles from "./explore.module.css";
 
-type NavId = "explore" | "saved" | "brands" | "search" | "more";
+type NavId =
+  | "explore"
+  | "saved"
+  | "brands"
+  | "collections"
+  | "search"
+  | "more";
 
 type NavItem = {
   id: NavId;
@@ -13,12 +24,23 @@ type NavItem = {
 type Props = {
   /**
    * Which nav row should render as selected. The sidebar is shared
-   * across the Explore grid (`/explore`) and the per-brand dashboards
-   * (`/brands/[id]`); both pass an explicit `activeId` so the highlight
-   * tracks the page the user is actually on.
+   * across Explore (`/explore`), Saved (`/saved`), Brands, and
+   * Collections; each page passes an explicit `activeId` so the
+   * highlight tracks the page the user is actually on. A specific
+   * collection id can also be passed in (e.g. `"collection:<uuid>"`)
+   * so the matching row in the Collections section highlights.
    */
-  activeId?: NavId;
+  activeId?: NavId | `collection:${string}`;
+  /**
+   * User's collections fetched server-side by the page. We render the
+   * top few in the section and link "View all" to `/collections`.
+   */
+  collections?: CollectionSummary[];
 };
+
+// Number of collection rows surfaced in the section before falling back
+// to the "View all" link.
+const COLLECTION_PREVIEW_COUNT = 5;
 
 function CompassIcon() {
   return (
@@ -180,15 +202,76 @@ const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
   { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
   { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
+  {
+    id: "collections",
+    label: "Collections",
+    icon: <CollectionIcon />,
+    href: "/collections"
+  },
   { id: "search", label: "Search", icon: <SearchIcon /> },
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
-const COLLECTIONS: { id: string; label: string }[] = [
-  { id: "demo", label: "Demo collection" }
-];
+export default function ExploreSidebar({
+  activeId = "explore",
+  collections = []
+}: Props = {}) {
+  const router = useRouter();
+  const [items, setItems] = useState<CollectionSummary[]>(collections);
+  const [creating, setCreating] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createPending, setCreatePending] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const createInputRef = useRef<HTMLInputElement | null>(null);
 
-export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
+  // Keep local state in sync if the server re-renders the page with a
+  // different list (e.g. after a route change).
+  useEffect(() => {
+    setItems(collections);
+  }, [collections]);
+
+  useEffect(() => {
+    if (creating) {
+      requestAnimationFrame(() => createInputRef.current?.focus());
+    }
+  }, [creating]);
+
+  const activeCollectionId =
+    typeof activeId === "string" && activeId.startsWith("collection:")
+      ? activeId.slice("collection:".length)
+      : null;
+  const activeRowId = activeCollectionId ? "collections" : (activeId as NavId);
+
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = createName.trim();
+    if (!name || createPending) return;
+    setCreatePending(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/collections", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionSummary };
+      setItems((current) => [body.collection, ...current]);
+      setCreateName("");
+      setCreating(false);
+      // Refresh the server-rendered shell so the Collections grid (if
+      // the user is on it) and any other consumer see the new row.
+      router.refresh();
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create collection"
+      );
+    } finally {
+      setCreatePending(false);
+    }
+  }
+
   return (
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
@@ -205,15 +288,15 @@ export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
 
       <div className={styles.navGroup}>
         {NAV_ITEMS.map((item) => {
-          const isActive = item.id === activeId;
+          const isActive = item.id === activeRowId;
           const className = `${styles.navItem}${
             isActive ? ` ${styles.active}` : ""
           }`;
           const ariaCurrent = isActive ? "page" : undefined;
-          // Real navigable items (Explore today; Brands as we build it
-          // out) get a Next.js Link; everything else stays a button until
-          // it has a destination, so the sidebar still demos as a full
-          // shell but unfinished rows aren't keyboard-focusable.
+          // Real navigable items get a Next.js Link; everything else
+          // stays a button until it has a destination, so the sidebar
+          // still demos as a full shell but unfinished rows aren't
+          // keyboard-focusable.
           if (item.href) {
             return (
               <Link
@@ -244,35 +327,92 @@ export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
 
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
-          <span>Collections</span>
+          <span>Your collections</span>
           <button
             type="button"
             className={styles.sectionAdd}
             aria-label="Create collection"
-            tabIndex={-1}
+            onClick={() => setCreating((current) => !current)}
           >
             <PlusIcon />
           </button>
         </div>
-        {COLLECTIONS.map((collection) => (
-          <button
-            key={collection.id}
-            type="button"
-            className={styles.navItem}
-            tabIndex={-1}
-          >
-            <span className={styles.navIcon}>
-              <CollectionIcon />
-            </span>
-            <span>{collection.label}</span>
-          </button>
-        ))}
-        <button type="button" className={styles.navItem} tabIndex={-1}>
+
+        {creating ? (
+          <form onSubmit={handleCreate} className={styles.sidebarCreateForm}>
+            <input
+              ref={createInputRef}
+              type="text"
+              value={createName}
+              onChange={(event) => setCreateName(event.target.value)}
+              placeholder="Collection name"
+              maxLength={120}
+              className={styles.sidebarCreateInput}
+              aria-label="New collection name"
+              disabled={createPending}
+            />
+            <div className={styles.sidebarCreateButtons}>
+              <button
+                type="button"
+                className={styles.sidebarCreateCancel}
+                onClick={() => {
+                  setCreating(false);
+                  setCreateName("");
+                  setCreateError(null);
+                }}
+                disabled={createPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={styles.sidebarCreateSubmit}
+                disabled={createPending || createName.trim().length === 0}
+              >
+                {createPending ? "Creating…" : "Create"}
+              </button>
+            </div>
+            {createError ? (
+              <div className={styles.sidebarCreateError} role="alert">
+                {createError}
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+
+        {items.length === 0 && !creating ? (
+          <div className={styles.sidebarEmpty}>
+            No collections yet. Tap + to create one.
+          </div>
+        ) : null}
+
+        {items.slice(0, COLLECTION_PREVIEW_COUNT).map((collection) => {
+          const isActive = activeCollectionId === collection.id;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          return (
+            <Link
+              key={collection.id}
+              href={`/collections/${collection.id}`}
+              className={className}
+              aria-current={isActive ? "page" : undefined}
+              title={collection.name}
+            >
+              <span className={styles.navIcon}>
+                <CollectionIcon />
+              </span>
+              <span className={styles.navItemLabel}>{collection.name}</span>
+            </Link>
+          );
+        })}
+
+        <Link href="/collections" className={styles.navItem}>
           <span className={styles.navIcon}>
             <MoreIcon />
           </span>
           <span>View all</span>
-        </button>
+        </Link>
       </div>
 
       <div className={styles.spacer} />

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CollectionSummary } from "@/lib/collections-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
 
 const RENDER_WIDTH = 600;
@@ -21,6 +23,31 @@ type Props = {
    * can be lifted (and persisted) at the page level.
    */
   onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
+  /**
+   * User's full collections list. Passed down so the "Add to
+   * collection" popover can render without firing its own request.
+   * Optional so existing call sites (and the public share view, which
+   * never has collections) can keep working unchanged.
+   */
+  collections?: CollectionSummary[];
+  /** Collection ids that already contain this email. */
+  membershipIds?: Set<string>;
+  /**
+   * Membership toggle. Parent does the API call (so it can update its
+   * cached `membershipByEmail` map) and surfaces errors as toasts.
+   */
+  onToggleCollection?: (
+    collectionId: string,
+    emailId: string,
+    next: boolean
+  ) => Promise<void> | void;
+  /** Create a new collection and add this email to it in one go. */
+  onCreateCollection?: (
+    name: string,
+    emailId: string
+  ) => Promise<CollectionSummary | null>;
+  /** Pre-fetch membership for this email when the popover opens. */
+  onRequestMemberships?: (emailId: string) => Promise<void> | void;
 };
 
 /**
@@ -38,8 +65,17 @@ export default function EmailCard({
   email,
   onOpen,
   isSaved,
-  onToggleSave
+  onToggleSave,
+  collections,
+  membershipIds,
+  onToggleCollection,
+  onCreateCollection,
+  onRequestMemberships
 }: Props) {
+  const collectionsEnabled =
+    Array.isArray(collections) &&
+    typeof onToggleCollection === "function" &&
+    typeof onCreateCollection === "function";
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scale, setScale] = useState<number | null>(null);
@@ -168,6 +204,18 @@ export default function EmailCard({
             {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
             <span>{isSaved ? "Saved" : "Save"}</span>
           </button>
+          {collectionsEnabled ? (
+            <AddToCollectionButton
+              variant="overlay"
+              emailId={email.id}
+              collections={collections ?? []}
+              membershipIds={membershipIds ?? new Set()}
+              onToggleCollection={onToggleCollection!}
+              onCreateCollection={onCreateCollection!}
+              onRequestMemberships={onRequestMemberships}
+              align="right"
+            />
+          ) : null}
         </div>
       </div>
 

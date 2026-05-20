@@ -9,8 +9,10 @@ import {
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
+import type { CollectionSummary } from "@/lib/collections-db";
 import { formatFullDateTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -67,6 +69,24 @@ type Props = {
    * modal stays in sync with the card grid behind it.
    */
   onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
+  /**
+   * User's full collections list, plus this email's current
+   * memberships and toggle/create handlers. Optional so existing call
+   * sites (and the public share view) can keep using the modal
+   * without the collections feature.
+   */
+  collections?: CollectionSummary[];
+  membershipIds?: Set<string>;
+  onToggleCollection?: (
+    collectionId: string,
+    emailId: string,
+    next: boolean
+  ) => Promise<void> | void;
+  onCreateCollection?: (
+    name: string,
+    emailId: string
+  ) => Promise<CollectionSummary | null>;
+  onRequestMemberships?: (emailId: string) => Promise<void> | void;
 };
 
 /**
@@ -82,8 +102,17 @@ export default function EmailModal({
   email,
   onClose,
   isSaved,
-  onToggleSave
+  onToggleSave,
+  collections,
+  membershipIds,
+  onToggleCollection,
+  onCreateCollection,
+  onRequestMemberships
 }: Props) {
+  const collectionsEnabled =
+    Array.isArray(collections) &&
+    typeof onToggleCollection === "function" &&
+    typeof onCreateCollection === "function";
   const [view, setView] = useState<ViewMode>("desktop");
   const [detail, setDetail] = useState<CapturedEmailDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -256,6 +285,12 @@ export default function EmailModal({
             isSaved={isSaved}
             savePending={savePending}
             onToggleSave={handleToggleSave}
+            collectionsEnabled={collectionsEnabled}
+            collections={collections}
+            membershipIds={membershipIds}
+            onToggleCollection={onToggleCollection}
+            onCreateCollection={onCreateCollection}
+            onRequestMemberships={onRequestMemberships}
           />
         </aside>
       </div>
@@ -275,6 +310,19 @@ type InfoPanelProps = {
   isSaved: boolean;
   savePending: boolean;
   onToggleSave: () => void;
+  collectionsEnabled: boolean;
+  collections?: CollectionSummary[];
+  membershipIds?: Set<string>;
+  onToggleCollection?: (
+    collectionId: string,
+    emailId: string,
+    next: boolean
+  ) => Promise<void> | void;
+  onCreateCollection?: (
+    name: string,
+    emailId: string
+  ) => Promise<CollectionSummary | null>;
+  onRequestMemberships?: (emailId: string) => Promise<void> | void;
 };
 
 function InfoPanel({
@@ -288,7 +336,13 @@ function InfoPanel({
   dateLabel,
   isSaved,
   savePending,
-  onToggleSave
+  onToggleSave,
+  collectionsEnabled,
+  collections,
+  membershipIds,
+  onToggleCollection,
+  onCreateCollection,
+  onRequestMemberships
 }: InfoPanelProps) {
   const categoryLabel =
     EMAIL_CATEGORY_LABELS[email.category as EmailCategory] ?? email.category;
@@ -345,6 +399,18 @@ function InfoPanel({
         >
           {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
         </button>
+        {collectionsEnabled ? (
+          <AddToCollectionButton
+            variant="icon"
+            emailId={email.id}
+            collections={collections ?? []}
+            membershipIds={membershipIds ?? new Set()}
+            onToggleCollection={onToggleCollection!}
+            onCreateCollection={onCreateCollection!}
+            onRequestMemberships={onRequestMemberships}
+            align="right"
+          />
+        ) : null}
         <button type="button" className={styles.infoActionIcon} aria-label="Download email">
           <DownloadIcon />
         </button>

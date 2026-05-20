@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listSavedEmails } from "@/lib/saved-emails-db";
+import {
+  listCollectionSummaries,
+  type CollectionSummary
+} from "@/lib/collections-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import SavedGalleryClient from "@/components/explore/SavedGalleryClient";
 import styles from "@/components/explore/explore.module.css";
@@ -36,9 +40,16 @@ export default async function SavedPage() {
 
   const { items, total } = await listSavedEmails(supabase, user.id);
 
+  let initialCollections: CollectionSummary[] = [];
+  try {
+    initialCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar activeId="saved" />
+      <ExploreSidebar activeId="saved" collections={initialCollections} />
 
       <main className={styles.main}>
         <header className={styles.heading}>
@@ -50,7 +61,10 @@ export default async function SavedPage() {
           </p>
         </header>
 
-        <SavedGalleryClient initialEmails={items} />
+        <SavedGalleryClient
+          initialEmails={items}
+          initialCollections={initialCollections}
+        />
       </main>
     </div>
   );

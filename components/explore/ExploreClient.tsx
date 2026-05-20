@@ -6,6 +6,7 @@ import type {
   ExploreFacets,
   ExploreSortKey
 } from "@/lib/explore-db";
+import type { CollectionSummary } from "@/lib/collections-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
 import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import EmailCard from "./EmailCard";
@@ -27,6 +28,11 @@ const SORT_LABEL: Record<ExploreSortKey, string> = SORT_OPTIONS.reduce(
 
 const SEARCH_DEBOUNCE_MS = 250;
 
+// Stable empty Set so a card / modal that hasn't loaded membership yet
+// still gets the same reference each render — keeps memoized children
+// from invalidating just because the parent re-rendered. Never mutated.
+const EMPTY_ID_SET = new Set<string>();
+
 type Props = {
   initialEmails: ExploreEmailCard[];
   initialHasMore: boolean;
@@ -38,6 +44,11 @@ type Props = {
    * state without an extra round trip.
    */
   initialSavedIds: string[];
+  /**
+   * User's collections (lightweight `{ id, name, shareSlug }` rows).
+   * Powers the "Add to collection" popover on every card / modal.
+   */
+  initialCollections: CollectionSummary[];
 };
 
 function SearchIcon() {
@@ -200,7 +211,8 @@ export default function ExploreClient({
   initialHasMore,
   pageSize,
   facets,
-  initialSavedIds
+  initialSavedIds,
+  initialCollections
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -239,6 +251,19 @@ export default function ExploreClient({
   const [savedIds, setSavedIds] = useState<Set<string>>(
     () => new Set(initialSavedIds)
   );
+
+  // Collections + per-email membership are also lifted here so the
+  // popover on a card stays in sync with the same popover on the
+  // modal that opens above it.
+  const [collections, setCollections] =
+    useState<CollectionSummary[]>(initialCollections);
+  const [membershipByEmail, setMembershipByEmail] = useState<
+    Map<string, Set<string>>
+  >(() => new Map());
+  // Track which emails have already had their membership lookup
+  // resolved so we don't re-fetch on every popover open.
+  const membershipLoadedRef = useRef<Set<string>>(new Set());
+  const membershipPendingRef = useRef<Map<string, Promise<void>>>(new Map());
 
   const filterRowRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -288,6 +313,106 @@ export default function ExploreClient({
       }
     },
     []
+  );
+
+  const requestMemberships = useCallback(async (emailId: string) => {
+    if (membershipLoadedRef.current.has(emailId)) return;
+    // Coalesce: if a fetch is already in flight for this email (e.g.
+    // the user opened the popover on the card and then on the modal
+    // in quick succession) reuse the same promise.
+    const inflight = membershipPendingRef.current.get(emailId);
+    if (inflight) return inflight;
+
+    const promise = (async () => {
+      try {
+        const res = await fetch(
+          `/api/collections/memberships?emailId=${emailId}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        const body = (await res.json()) as { collectionIds: string[] };
+        setMembershipByEmail((current) => {
+          const next = new Map(current);
+          next.set(emailId, new Set(body.collectionIds));
+          return next;
+        });
+        membershipLoadedRef.current.add(emailId);
+      } catch (err) {
+        console.error("Failed to load collection memberships", err);
+      } finally {
+        membershipPendingRef.current.delete(emailId);
+      }
+    })();
+
+    membershipPendingRef.current.set(emailId, promise);
+    return promise;
+  }, []);
+
+  const updateMembership = useCallback(
+    (emailId: string, collectionId: string, present: boolean) => {
+      setMembershipByEmail((current) => {
+        const next = new Map(current);
+        const existing = new Set(next.get(emailId) ?? []);
+        if (present) existing.add(collectionId);
+        else existing.delete(collectionId);
+        next.set(emailId, existing);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleToggleCollection = useCallback(
+    async (collectionId: string, emailId: string, next: boolean) => {
+      updateMembership(emailId, collectionId, next);
+      try {
+        const res = await fetch(
+          `/api/collections/${collectionId}/emails/${emailId}`,
+          { method: next ? "PUT" : "DELETE", credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+      } catch (err) {
+        updateMembership(emailId, collectionId, !next);
+        const message =
+          err instanceof Error ? err.message : "Failed to update collection";
+        setError(message);
+      }
+    },
+    [updateMembership]
+  );
+
+  const handleCreateCollection = useCallback(
+    async (name: string, emailId: string): Promise<CollectionSummary | null> => {
+      try {
+        const createRes = await fetch("/api/collections", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        if (!createRes.ok) throw new Error(`Failed (${createRes.status})`);
+        const created = (await createRes.json()) as {
+          collection: CollectionSummary;
+        };
+        setCollections((current) => [created.collection, ...current]);
+        updateMembership(emailId, created.collection.id, true);
+
+        const addRes = await fetch(
+          `/api/collections/${created.collection.id}/emails/${emailId}`,
+          { method: "PUT", credentials: "include" }
+        );
+        if (!addRes.ok) {
+          throw new Error(`Failed (${addRes.status})`);
+        }
+        return created.collection;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to create collection";
+        setError(message);
+        return null;
+      }
+    },
+    [updateMembership]
   );
 
   // Debounce the search input so we don't fire a request on every
@@ -982,6 +1107,11 @@ export default function ExploreClient({
                 onOpen={handleOpenEmail}
                 isSaved={savedIds.has(email.id)}
                 onToggleSave={handleToggleSave}
+                collections={collections}
+                membershipIds={membershipByEmail.get(email.id) ?? EMPTY_ID_SET}
+                onToggleCollection={handleToggleCollection}
+                onCreateCollection={handleCreateCollection}
+                onRequestMemberships={requestMemberships}
               />
             ))}
           </div>
@@ -1002,6 +1132,11 @@ export default function ExploreClient({
           onClose={handleCloseEmail}
           isSaved={savedIds.has(openEmail.id)}
           onToggleSave={handleToggleSave}
+          collections={collections}
+          membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
+          onToggleCollection={handleToggleCollection}
+          onCreateCollection={handleCreateCollection}
+          onRequestMemberships={requestMemberships}
         />
       ) : null}
     </>

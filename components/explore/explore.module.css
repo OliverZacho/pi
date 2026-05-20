@@ -143,6 +143,100 @@
   color: #475569;
 }
 
+/* Collection-name row in the sidebar may exceed the sidebar width;
+ * clamp with an ellipsis so we never overflow horizontally. */
+.navItemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarEmpty {
+  padding: 0.4rem 0.6rem 0.5rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.sidebarCreateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem 0.45rem;
+}
+
+.sidebarCreateInput {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.sidebarCreateInput:focus {
+  border-color: #0f172a;
+}
+
+.sidebarCreateButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.sidebarCreateCancel {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sidebarCreateCancel:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sidebarCreateCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebarCreateSubmit {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sidebarCreateSubmit:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.sidebarCreateSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sidebarCreateError {
+  font-size: 0.74rem;
+  color: #b91c1c;
+}
+
 .spacer {
   flex: 1;
   min-height: 0.5rem;
