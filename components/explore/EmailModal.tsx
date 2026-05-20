@@ -41,7 +41,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   apsis: "APSIS / Efficy",
   agillic: "Agillic",
   peytzmail: "Peytzmail",
-  pure360: "Pure360 / Spotler"
+  pure360: "Pure360 / Spotler",
+  heyloyalty: "HeyLoyalty"
 };
 
 type ViewMode = "desktop" | "phone" | "html";
@@ -318,9 +319,6 @@ function InfoPanel({
           />
           <div className={styles.infoBrandText}>
             <div className={styles.infoBrandName}>{email.companyName}</div>
-            {email.companyDomain ? (
-              <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
-            ) : null}
           </div>
           <span className={styles.infoBrandChevron} aria-hidden="true">
             <ChevronRightIcon />
@@ -337,9 +335,6 @@ function InfoPanel({
           />
           <div className={styles.infoBrandText}>
             <div className={styles.infoBrandName}>{email.companyName}</div>
-            {email.companyDomain ? (
-              <span className={styles.infoBrandDomain}>{email.companyDomain}</span>
-            ) : null}
           </div>
         </div>
       )}

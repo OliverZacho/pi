@@ -29,6 +29,7 @@ export type EspProvider =
   | "agillic"
   | "peytzmail"
   | "pure360"
+  | "heyloyalty"
   | "unknown";
 
 export type EspSignal = {
@@ -580,6 +581,49 @@ const FINGERPRINTS: Fingerprint[] = [
       /spotlermail\.com/i
     ],
     xHeaderNames: ["x-pure360-id", "x-pure360-message-id", "x-spotler-message-id"]
+  },
+  {
+    provider: "heyloyalty",
+    // HeyLoyalty (the Danish/Nordic ESP) hosts everything on three subdomains
+    // of `heyloyalty.com`:
+    //   - `public.heyloyalty.com`  → click-redirect + open-tracking pixel
+    //   - `app.heyloyalty.com`     → web-view (`/view/<base64>`) and
+    //                                 unsubscribe (`/unsubscribe/<base64>/a<list>m<msg>`)
+    //   - `img.heyloyalty.com`     → image CDN (`/heyloyalty1/...`)
+    // Custom tracking domains via CNAME are uncommon on HeyLoyalty, but we
+    // still lean on the URL-shape patterns below so a brand-CNAMEd send
+    // (where the host fingerprint won't fire) still resolves.
+    hostPatterns: [
+      /(^|\.)heyloyalty\.com$/i
+    ],
+    // The click-redirect query-string shape
+    //   /redirectclick?tt=<digits>.<digits>&l=<5-char-id>&msgid=<digits>&m=<uuid>&url=…
+    // and the open-tracking pixel path
+    //   /track/<digits>/<uuid>/<channel-slug>/<digits>.<digits>/<digits>
+    // are HeyLoyalty-only. The `app.heyloyalty.com/view/` and
+    // `app.heyloyalty.com/unsubscribe/<hash>/a<list>m<msg>` paths are equally
+    // distinctive. The `data-uid="<5-char>"` attribute is emitted on every
+    // tracked link by the HeyLoyalty editor.
+    htmlPatterns: [
+      /\/redirectclick\?[^"'<>\s]*\btt=\d+(?:\.\d+)?(?:&amp;|&)l=[A-Za-z0-9]{4,}(?:&amp;|&)msgid=\d+(?:&amp;|&)m=[a-f0-9-]{16,}/i,
+      /\/track\/\d+\/[a-f0-9-]{16,}\/[a-z0-9_-]+\/\d+(?:\.\d+)?\/\d+/i,
+      /\bapp\.heyloyalty\.com\/view\//i,
+      /\bapp\.heyloyalty\.com\/unsubscribe\/[A-Za-z0-9+/=_-]{20,}\/a\d+m\d+/i,
+      /\bdata-uid\s*=\s*["'][A-Za-z0-9]{5}["']/,
+      /\bheyloyalty\.com\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us a
+    // `link_url`-weight signal (0.35) so HeyLoyalty clears the 0.6 threshold
+    // confidently even when only the URL strings are available (e.g. brand
+    // CNAMEs, or when only links — not the full HTML — are passed in).
+    linkUrlPatterns: [
+      /\/redirectclick\?[^"'<>\s]*\btt=\d+(?:\.\d+)?(?:&amp;|&)l=[A-Za-z0-9]{4,}(?:&amp;|&)msgid=\d+(?:&amp;|&)m=[a-f0-9-]{16,}/i,
+      /\bapp\.heyloyalty\.com\/view\//i,
+      /\bapp\.heyloyalty\.com\/unsubscribe\/[A-Za-z0-9+/=_-]{20,}\/a\d+m\d+/i
+    ],
+    dkimPatterns: [/heyloyalty\.com/i, /heyloyaltymail\.com/i],
+    returnPathPatterns: [/heyloyalty\.com/i, /bounce[^@]*@[^>\s]*heyloyalty/i],
+    xHeaderNames: ["x-heyloyalty-id", "x-heyloyalty-message-id", "x-hl-mailingid"]
   }
 ];
 

@@ -637,6 +637,67 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies HeyLoyalty on its public/app/img.heyloyalty.com subdomains plus tracking URL shapes (no headers)", () => {
+    // Distilled from a real ARoS Aarhus Kunstmuseum welcome send. HeyLoyalty
+    // hosts the click-redirect + open pixel on `public.heyloyalty.com`, the
+    // web-view + unsubscribe on `app.heyloyalty.com`, and the image CDN on
+    // `img.heyloyalty.com`. The `/redirectclick?tt=…&l=…&msgid=…&m=<uuid>`
+    // query-string shape, the `/track/<list>/<uuid>/<channel>/<tt>/<msgid>`
+    // open pixel path, and the `/unsubscribe/<hash>/a<list>m<msg>` slug are
+    // all HeyLoyalty-only.
+    const html = `
+      <img src="https://public.heyloyalty.com/track/19737/d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd/autoresponder/1779260065.2159/1919301" width="3" height="3" />
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=InfWr&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://www.aros.dk/da/" data-uid="InfWr">
+        <img src="https://img.heyloyalty.com/heyloyalty1/filemanager/abc/def.gif" alt="ARoS" />
+      </a>
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=nx301&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://www.aros.dk/da/besoeg/aarskort/" data-uid="nx301">Se alle dine medlemsfordele her</a>
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=OVE6c&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=app.heyloyalty.com/unsubscribe/ZXlKcGRpSTZJbFpSZVVaM01YRkZUWEZuZDJKNU9HdG1XVkpJZDFFOVBTSXM/a19737m1919301">Afmeld nyhedsbrev</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=InfWr&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://www.aros.dk/da/"),
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=nx301&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://www.aros.dk/da/besoeg/aarskort/"),
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=OVE6c&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=app.heyloyalty.com/unsubscribe/ZXlKcGRpSTZJbFpSZVVaM01YRkZUWEZuZDJKNU9HdG1XVkpJZDFFOVBTSXM/a19737m1919301")
+      ],
+      resourceHosts: [
+        "public.heyloyalty.com",
+        "img.heyloyalty.com"
+      ]
+    });
+    expect(result.provider).toBe("heyloyalty");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies HeyLoyalty via the redirectclick URL shape on a brand-CNAMEd tracking host (no headers)", () => {
+    // If a customer ever points e.g. `mail.brand.com` at HeyLoyalty's tracking
+    // edge, the host fingerprints won't match — the
+    // `/redirectclick?tt=…&l=…&msgid=…&m=<uuid>` query-string shape still
+    // carries the detection on its own (html_marker + link_url).
+    const html = `
+      <a href="https://mail.brand.com/redirectclick?tt=1779260065.2159&amp;l=InfWr&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://brand.com/" data-uid="InfWr">Shop</a>
+      <a href="https://mail.brand.com/redirectclick?tt=1779260065.2160&amp;l=nx301&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://brand.com/sale/" data-uid="nx301">Sale</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://mail.brand.com/redirectclick?tt=1779260065.2159&l=InfWr&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://brand.com/"),
+        link("https://mail.brand.com/redirectclick?tt=1779260065.2160&l=nx301&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://brand.com/sale/")
+      ],
+      resourceHosts: ["mail.brand.com"]
+    });
+    expect(result.provider).toBe("heyloyalty");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

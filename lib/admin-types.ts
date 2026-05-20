@@ -124,7 +124,8 @@ export type EspProvider =
   | "apsis"
   | "agillic"
   | "peytzmail"
-  | "pure360";
+  | "pure360"
+  | "heyloyalty";
 
 export type CapturedEmail = {
   id: string;

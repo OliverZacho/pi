@@ -141,7 +141,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   apsis: "APSIS / Efficy",
   agillic: "Agillic",
   peytzmail: "Peytzmail",
-  pure360: "Pure360 / Spotler"
+  pure360: "Pure360 / Spotler",
+  heyloyalty: "HeyLoyalty"
 };
 
 const DAY_LABELS = [
