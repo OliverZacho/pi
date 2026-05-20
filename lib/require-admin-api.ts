@@ -1,9 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 
-type AdminSessionOk = { supabase: SupabaseClient<Database> };
+type AdminSessionOk = { supabase: SupabaseClient<Database>; user: User };
 type AdminSessionErr = { response: NextResponse };
 
 export async function requireAdminSession(): Promise<AdminSessionOk | AdminSessionErr> {
@@ -27,5 +27,5 @@ export async function requireAdminSession(): Promise<AdminSessionOk | AdminSessi
     return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { supabase };
+  return { supabase, user };
 }

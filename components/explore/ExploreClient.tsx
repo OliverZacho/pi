@@ -32,6 +32,12 @@ type Props = {
   initialHasMore: boolean;
   pageSize: number;
   facets: ExploreFacets;
+  /**
+   * Set of email IDs the current user has already saved, looked up
+   * server-side so the first paint shows the correct Save / Saved
+   * state without an extra round trip.
+   */
+  initialSavedIds: string[];
 };
 
 function SearchIcon() {
@@ -193,7 +199,8 @@ export default function ExploreClient({
   initialEmails,
   initialHasMore,
   pageSize,
-  facets
+  facets,
+  initialSavedIds
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -226,6 +233,13 @@ export default function ExploreClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Bookmarks live in a single Set lifted to the page so every card
+  // stays in sync (e.g. when an email is hidden by a filter and re-
+  // appears later, its Saved state is still correct).
+  const [savedIds, setSavedIds] = useState<Set<string>>(
+    () => new Set(initialSavedIds)
+  );
+
   const filterRowRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -242,6 +256,39 @@ export default function ExploreClient({
   const handleCloseEmail = useCallback(() => {
     setOpenEmail(null);
   }, []);
+
+  // Optimistically flip the saved state, then fire the API call. On
+  // failure we roll back so the UI never lies about what's persisted.
+  const handleToggleSave = useCallback(
+    async (email: ExploreEmailCard, next: boolean) => {
+      setSavedIds((current) => {
+        const updated = new Set(current);
+        if (next) updated.add(email.id);
+        else updated.delete(email.id);
+        return updated;
+      });
+
+      try {
+        const res = await fetch(`/api/explore/saved/${email.id}`, {
+          method: next ? "PUT" : "DELETE",
+          credentials: "include"
+        });
+        if (!res.ok) {
+          throw new Error(`Failed (${res.status})`);
+        }
+      } catch (err) {
+        setSavedIds((current) => {
+          const updated = new Set(current);
+          if (next) updated.delete(email.id);
+          else updated.add(email.id);
+          return updated;
+        });
+        const message = err instanceof Error ? err.message : "Failed to save";
+        setError(message);
+      }
+    },
+    []
+  );
 
   // Debounce the search input so we don't fire a request on every
   // keystroke. Every other filter updates immediately because they're
@@ -929,7 +976,13 @@ export default function ExploreClient({
         <>
           <div className={styles.grid}>
             {emails.map((email) => (
-              <EmailCard key={email.id} email={email} onOpen={handleOpenEmail} />
+              <EmailCard
+                key={email.id}
+                email={email}
+                onOpen={handleOpenEmail}
+                isSaved={savedIds.has(email.id)}
+                onToggleSave={handleToggleSave}
+              />
             ))}
           </div>
 

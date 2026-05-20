@@ -315,6 +315,35 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_emails: {
+        Row: {
+          email_id: string
+          id: string
+          saved_at: string
+          user_id: string
+        }
+        Insert: {
+          email_id: string
+          id?: string
+          saved_at?: string
+          user_id: string
+        }
+        Update: {
+          email_id?: string
+          id?: string
+          saved_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_emails_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "captured_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           attempt_count: number

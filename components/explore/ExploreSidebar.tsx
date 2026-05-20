@@ -178,7 +178,7 @@ function PanelToggleIcon() {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
-  { id: "saved", label: "Saved", icon: <BookmarkIcon /> },
+  { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
   { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
   { id: "search", label: "Search", icon: <SearchIcon /> },
   { id: "more", label: "More", icon: <MoreIcon /> }

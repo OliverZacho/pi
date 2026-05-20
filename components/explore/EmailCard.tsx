@@ -9,6 +9,18 @@ const RENDER_WIDTH = 600;
 type Props = {
   email: ExploreEmailCard;
   onOpen: (email: ExploreEmailCard) => void;
+  /**
+   * Whether the current user has already saved this email. Drives both
+   * the Save button label ("Save" vs "Saved") and the pinned bookmark
+   * indicator that shows even when the card is not hovered.
+   */
+  isSaved: boolean;
+  /**
+   * Toggle handler. Parent owns the optimistic state + API call so the
+   * card stays a thin presentational component and Saved gallery state
+   * can be lifted (and persisted) at the page level.
+   */
+  onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
 };
 
 /**
@@ -22,11 +34,19 @@ type Props = {
  * an `<img>`. The DOM around the preview is intentionally identical to
  * what an `<img>`-based card would need.
  */
-export default function EmailCard({ email, onOpen }: Props) {
+export default function EmailCard({
+  email,
+  onOpen,
+  isSaved,
+  onToggleSave
+}: Props) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scale, setScale] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Per-card pending state so we can disable the Save button while the
+  // round-trip is in flight without blocking other cards on the grid.
+  const [pendingSave, setPendingSave] = useState(false);
 
   useEffect(() => {
     const previewEl = previewRef.current;
@@ -68,6 +88,16 @@ export default function EmailCard({ email, onOpen }: Props) {
     onOpen(email);
   }
 
+  async function handleToggleSave() {
+    if (pendingSave) return;
+    setPendingSave(true);
+    try {
+      await onToggleSave(email, !isSaved);
+    } finally {
+      setPendingSave(false);
+    }
+  }
+
   // The whole card is the click target (modern tile pattern). We use an
   // <article> with role="button" + tabIndex so keyboard users can still
   // focus and activate it, and inner buttons (Save, etc.) stop propagation
@@ -103,7 +133,17 @@ export default function EmailCard({ email, onOpen }: Props) {
           style={frameStyle}
           onLoad={() => setLoaded(true)}
         />
-        <div className={styles.cardOverlay}>
+        {isSaved ? (
+          <span
+            className={styles.cardSavedBadge}
+            aria-label="Saved to your gallery"
+            title="Saved"
+          >
+            <BookmarkFilledIcon />
+          </span>
+        ) : null}
+        <div className={styles.cardOverlay} aria-hidden="true" />
+        <div className={styles.cardActions}>
           <button
             type="button"
             className={styles.overlayButton}
@@ -116,12 +156,18 @@ export default function EmailCard({ email, onOpen }: Props) {
           </button>
           <button
             type="button"
-            className={`${styles.overlayButton} ${styles.primary}`}
+            className={`${styles.overlayButton} ${
+              isSaved ? styles.saved : styles.primary
+            }`}
             onClick={(event) => {
               event.stopPropagation();
+              void handleToggleSave();
             }}
+            aria-pressed={isSaved}
+            disabled={pendingSave}
           >
-            Save
+            {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
+            <span>{isSaved ? "Saved" : "Save"}</span>
           </button>
         </div>
       </div>
@@ -154,5 +200,43 @@ export default function EmailCard({ email, onOpen }: Props) {
         ) : null}
       </div>
     </article>
+  );
+}
+
+function BookmarkOutlineIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={styles.overlayIcon}
+      aria-hidden="true"
+    >
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function BookmarkFilledIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={styles.overlayIcon}
+      aria-hidden="true"
+    >
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
   );
 }

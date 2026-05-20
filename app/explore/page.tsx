@@ -5,6 +5,7 @@ import {
   getExploreFacets,
   searchExploreEmails
 } from "@/lib/explore-db";
+import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -50,6 +51,19 @@ export default async function ExplorePage() {
     getExploreFacets(supabase)
   ]);
 
+  // Pull the user's entire saved-id set up front so cards loaded later
+  // via infinite scroll already know whether they're saved without an
+  // extra round-trip. The payload is just UUIDs, so even users with a
+  // few thousand saves cost us a few hundred KB at most. We swallow
+  // errors here so a broken saves table never breaks Explore itself.
+  let initialSavedIds: string[] = [];
+  try {
+    const savedSet = await listSavedEmailIds(supabase, user.id);
+    initialSavedIds = Array.from(savedSet);
+  } catch (err) {
+    console.error("Failed to load saved email IDs", err);
+  }
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar />
@@ -65,6 +79,7 @@ export default async function ExplorePage() {
           initialHasMore={initialResult.hasMore}
           pageSize={EXPLORE_PAGE_SIZE}
           facets={facets}
+          initialSavedIds={initialSavedIds}
         />
       </main>
     </div>
