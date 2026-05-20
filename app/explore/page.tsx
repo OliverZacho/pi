@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getExploreEmails } from "@/lib/explore-db";
+import {
+  EXPLORE_PAGE_SIZE,
+  getExploreFacets,
+  searchExploreEmails
+} from "@/lib/explore-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -34,7 +38,17 @@ export default async function ExplorePage() {
     redirect("/access-denied");
   }
 
-  const emails = await getExploreEmails(supabase);
+  // Server-render the first page + facets so the grid is hydrated with
+  // real data on first paint. The client takes over for subsequent
+  // filtering / search / infinite scroll via the `/api/explore/*` routes.
+  const [initialResult, facets] = await Promise.all([
+    searchExploreEmails(supabase, {
+      page: 1,
+      pageSize: EXPLORE_PAGE_SIZE,
+      sort: "newest"
+    }),
+    getExploreFacets(supabase)
+  ]);
 
   return (
     <div className={styles.shell}>
@@ -46,7 +60,13 @@ export default async function ExplorePage() {
           <p>Browse marketing emails from competing brands</p>
         </header>
 
-        <ExploreClient emails={emails} />
+        <ExploreClient
+          initialEmails={initialResult.items}
+          initialTotal={initialResult.total}
+          initialHasMore={initialResult.hasMore}
+          pageSize={EXPLORE_PAGE_SIZE}
+          facets={facets}
+        />
       </main>
     </div>
   );

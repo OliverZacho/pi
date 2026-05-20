@@ -1,21 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ExploreEmailCard } from "@/lib/explore-db";
+import type {
+  ExploreEmailCard,
+  ExploreFacets,
+  ExploreSortKey
+} from "@/lib/explore-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
 import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
 import styles from "./explore.module.css";
 
-type SortKey =
-  | "newest"
-  | "oldest"
-  | "brand_asc"
-  | "brand_desc"
-  | "discount_desc";
-
-const SORT_OPTIONS: { id: SortKey; label: string }[] = [
+const SORT_OPTIONS: { id: ExploreSortKey; label: string }[] = [
   { id: "newest", label: "Newest first" },
   { id: "oldest", label: "Oldest first" },
   { id: "brand_asc", label: "Brand A–Z" },
@@ -23,13 +20,19 @@ const SORT_OPTIONS: { id: SortKey; label: string }[] = [
   { id: "discount_desc", label: "Highest discount" }
 ];
 
-const SORT_LABEL: Record<SortKey, string> = SORT_OPTIONS.reduce(
+const SORT_LABEL: Record<ExploreSortKey, string> = SORT_OPTIONS.reduce(
   (acc, opt) => ({ ...acc, [opt.id]: opt.label }),
-  {} as Record<SortKey, string>
+  {} as Record<ExploreSortKey, string>
 );
 
+const SEARCH_DEBOUNCE_MS = 250;
+
 type Props = {
-  emails: ExploreEmailCard[];
+  initialEmails: ExploreEmailCard[];
+  initialTotal: number;
+  initialHasMore: boolean;
+  pageSize: number;
+  facets: ExploreFacets;
 };
 
 function SearchIcon() {
@@ -179,13 +182,30 @@ function formatMarketLabel(market: string) {
 
 type PopoverName = "brands" | "categories" | "more" | "sort" | null;
 
-export default function ExploreClient({ emails }: Props) {
+type FetchResponse = {
+  items: ExploreEmailCard[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export default function ExploreClient({
+  initialEmails,
+  initialTotal,
+  initialHasMore,
+  pageSize,
+  facets
+}: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
-  const [query, setQuery] = useState("");
-  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
-  const [selectedBrandCategories, setSelectedBrandCategories] = useState<
-    Set<string>
-  >(new Set());
+  const [queryInput, setQueryInput] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selectedBrandIds, setSelectedBrandIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [selectedMarkets, setSelectedMarkets] = useState<Set<string>>(
+    new Set()
+  );
   const [brandView, setBrandView] = useState<"brands" | "categories">("brands");
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set()
@@ -195,10 +215,28 @@ export default function ExploreClient({ emails }: Props) {
   const [hasDarkMode, setHasDarkMode] = useState(false);
   const [receivedAfter, setReceivedAfter] = useState("");
   const [receivedBefore, setReceivedBefore] = useState("");
-  const [sort, setSort] = useState<SortKey>("newest");
+  const [sort, setSort] = useState<ExploreSortKey>("newest");
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
 
+  // Server-driven result state. `emails` is the union of every page
+  // fetched so far for the current filter combo; resetting it is how we
+  // start a fresh search.
+  const [emails, setEmails] = useState<ExploreEmailCard[]>(initialEmails);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(initialTotal);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const filterRowRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Skip the initial fetch on mount: the page already SSR'd the first
+  // page with the default filter combo, so refetching would just thrash
+  // the iframes for nothing.
+  const skipNextFetchRef = useRef(true);
+  const activeRequestRef = useRef<AbortController | null>(null);
 
   const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
@@ -207,6 +245,16 @@ export default function ExploreClient({ emails }: Props) {
   const handleCloseEmail = useCallback(() => {
     setOpenEmail(null);
   }, []);
+
+  // Debounce the search input so we don't fire a request on every
+  // keystroke. Every other filter updates immediately because they're
+  // discrete (toggles / clicks).
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedQuery(queryInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [queryInput]);
 
   // Close any open popover when the user clicks outside the filter row
   // or presses Escape — feels like a native menu without pulling in a
@@ -242,50 +290,187 @@ export default function ExploreClient({ emails }: Props) {
     }
   }, [openPopover]);
 
-  const brandOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const email of emails) {
-      if (email.companyName && !seen.has(email.companyName)) {
-        seen.set(email.companyName, email.companyName);
+  // Build the search URL the API route expects. Centralized so the
+  // initial fetch and the infinite-scroll fetch use identical encoding.
+  const buildSearchUrl = useCallback(
+    (nextPage: number) => {
+      const params = new URLSearchParams();
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      for (const id of selectedBrandIds) params.append("brand", id);
+      for (const market of selectedMarkets) params.append("market", market);
+      for (const category of selectedCategories) {
+        params.append("category", category);
       }
+      if (hasGif) params.set("hasGif", "1");
+      if (hasDarkMode) params.set("hasDarkMode", "1");
+
+      // Translate the day-keyed inputs into the same Copenhagen-zoned
+      // ISO instants the original client used so the server sees the
+      // same window the user picked in the date inputs.
+      if (receivedAfter) {
+        const anchor = parseDayKey(receivedAfter);
+        if (anchor) {
+          params.set("after", startOfDayInZone(anchor).toISOString());
+        }
+      }
+      if (receivedBefore) {
+        const anchor = parseDayKey(receivedBefore);
+        if (anchor) {
+          params.set("before", endOfDayInZone(anchor).toISOString());
+        }
+      }
+
+      params.set("sort", sort);
+      params.set("page", String(nextPage));
+      params.set("pageSize", String(pageSize));
+      return `/api/explore/emails?${params.toString()}`;
+    },
+    [
+      debouncedQuery,
+      selectedBrandIds,
+      selectedMarkets,
+      selectedCategories,
+      hasGif,
+      hasDarkMode,
+      receivedAfter,
+      receivedBefore,
+      sort,
+      pageSize
+    ]
+  );
+
+  // Refetch from page 1 whenever any filter / sort / debounced query
+  // changes. Initial mount is skipped via `skipNextFetchRef` because the
+  // server already rendered page 1 with the default combo.
+  useEffect(() => {
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
     }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" })
+
+    activeRequestRef.current?.abort();
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+
+    fetch(buildSearchUrl(1), {
+      credentials: "include",
+      signal: controller.signal
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        return (await res.json()) as FetchResponse;
+      })
+      .then((body) => {
+        if (controller.signal.aborted) return;
+        setEmails(body.items);
+        setTotal(body.total);
+        setPage(body.page);
+        setHasMore(body.hasMore);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "Failed to load");
+        setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [buildSearchUrl]);
+
+  const loadNextPage = useCallback(() => {
+    if (loadingMore || loading || !hasMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+
+    fetch(buildSearchUrl(nextPage), { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        return (await res.json()) as FetchResponse;
+      })
+      .then((body) => {
+        setEmails((current) => {
+          // Defensive de-dupe in case the dataset shifts between
+          // requests (a fresh email lands while paging).
+          const seen = new Set(current.map((email) => email.id));
+          const additions = body.items.filter((item) => !seen.has(item.id));
+          return [...current, ...additions];
+        });
+        setTotal(body.total);
+        setPage(body.page);
+        setHasMore(body.hasMore);
+        setLoadingMore(false);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Failed to load");
+        setLoadingMore(false);
+      });
+  }, [buildSearchUrl, page, hasMore, loading, loadingMore]);
+
+  // Infinite scroll. The sentinel sits ~600px below the grid; as soon
+  // as it enters the viewport we kick off the next page request. We
+  // attach the observer to the *element* (via ref callback) rather than
+  // a stable ref + effect so it re-evaluates whenever the sentinel
+  // mounts/unmounts (the empty-state and end-of-list both hide it).
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    if (!hasMore) return;
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            loadNextPage();
+            break;
+          }
+        }
+      },
+      { rootMargin: "600px 0px" }
     );
-  }, [emails]);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadNextPage, hasMore, emails.length]);
 
-  // Brand categories come from `companies.market` (a free-text vertical the
-  // taxonomy migration added). We dedupe on the raw value so filtering stays
-  // exact, but the UI label is title-cased for readability.
-  const brandCategoryOptions = useMemo(() => {
-    const seen = new Set<string>();
-    for (const email of emails) {
-      const market = email.companyMarket?.trim();
-      if (market) seen.add(market);
-    }
-    return Array.from(seen)
-      .map((id) => ({ id, label: formatMarketLabel(id) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [emails]);
+  const brandOptions = useMemo(
+    () =>
+      facets.brands.map((brand) => ({
+        id: brand.id,
+        label: brand.name
+      })),
+    [facets.brands]
+  );
 
-  const categoryOptions = useMemo(() => {
-    const present = new Set<string>();
-    for (const email of emails) {
-      if (email.category) present.add(email.category);
-    }
-    return Array.from(present)
-      .map((id) => ({
+  const brandCategoryOptions = useMemo(
+    () =>
+      facets.markets.map((market) => ({
+        id: market,
+        label: formatMarketLabel(market)
+      })),
+    [facets.markets]
+  );
+
+  const categoryOptions = useMemo(
+    () =>
+      facets.categories.map((id) => ({
         id,
         label:
           EMAIL_CATEGORY_LABELS[id as keyof typeof EMAIL_CATEGORY_LABELS] ?? id
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [emails]);
+      })),
+    [facets.categories]
+  );
 
   const filteredBrandOptions = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
     if (!q) return brandOptions;
-    return brandOptions.filter((name) => name.toLowerCase().includes(q));
+    return brandOptions.filter((option) =>
+      option.label.toLowerCase().includes(q)
+    );
   }, [brandOptions, brandQuery]);
 
   const moreFiltersCount =
@@ -294,106 +479,17 @@ export default function ExploreClient({ emails }: Props) {
     (receivedAfter ? 1 : 0) +
     (receivedBefore ? 1 : 0);
 
-  const filteredSorted = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    // The `<input type="date">` value is a `YYYY-MM-DD` calendar date
-    // with no zone. We interpret it as a date *in the platform zone*
-    // (`parseDayKey` lands on midday, which `startOfDayInZone` then
-    // snaps back to local midnight). That way "From: today, To:
-    // today" actually selects 00:00–23:59 Copenhagen time, not the
-    // UTC window which would silently miss late-evening sends.
-    const afterAnchor = receivedAfter ? parseDayKey(receivedAfter) : null;
-    const beforeAnchor = receivedBefore ? parseDayKey(receivedBefore) : null;
-    const afterMs = afterAnchor ? startOfDayInZone(afterAnchor).getTime() : null;
-    const beforeMs = beforeAnchor ? endOfDayInZone(beforeAnchor).getTime() : null;
-
-    const result = emails.filter((email) => {
-      if (
-        q &&
-        !email.subject.toLowerCase().includes(q) &&
-        !email.companyName.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-      // The Brands chip combines two selections (specific brands + brand
-      // categories). They union: an email passes if its brand is selected
-      // OR its market is one of the selected categories.
-      const hasBrandFilter =
-        selectedBrands.size > 0 || selectedBrandCategories.size > 0;
-      if (hasBrandFilter) {
-        const brandMatch = selectedBrands.has(email.companyName);
-        const market = email.companyMarket?.trim() ?? "";
-        const categoryMatch =
-          market.length > 0 && selectedBrandCategories.has(market);
-        if (!brandMatch && !categoryMatch) return false;
-      }
-      if (
-        selectedCategories.size > 0 &&
-        !selectedCategories.has(email.category)
-      ) {
-        return false;
-      }
-      if (hasGif && !email.hasGif) return false;
-      if (hasDarkMode && !email.hasDarkMode) return false;
-
-      if (afterMs !== null || beforeMs !== null) {
-        const receivedMs = new Date(email.receivedAt).getTime();
-        if (Number.isNaN(receivedMs)) return false;
-        if (afterMs !== null && receivedMs < afterMs) return false;
-        if (beforeMs !== null && receivedMs > beforeMs) return false;
-      }
-
-      return true;
-    });
-
-    result.sort((a, b) => {
-      switch (sort) {
-        case "oldest":
-          return (
-            new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
-          );
-        case "brand_asc":
-          return a.companyName.localeCompare(b.companyName);
-        case "brand_desc":
-          return b.companyName.localeCompare(a.companyName);
-        case "discount_desc": {
-          const da = a.discountPercent ?? -Infinity;
-          const db = b.discountPercent ?? -Infinity;
-          return db - da;
-        }
-        case "newest":
-        default:
-          return (
-            new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-          );
-      }
-    });
-
-    return result;
-  }, [
-    emails,
-    query,
-    selectedBrands,
-    selectedBrandCategories,
-    selectedCategories,
-    hasGif,
-    hasDarkMode,
-    receivedAfter,
-    receivedBefore,
-    sort
-  ]);
-
-  function toggleBrand(name: string) {
-    setSelectedBrands((current) => {
+  function toggleBrand(id: string) {
+    setSelectedBrandIds((current) => {
       const next = new Set(current);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
   function toggleBrandCategory(id: string) {
-    setSelectedBrandCategories((current) => {
+    setSelectedMarkets((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -421,6 +517,20 @@ export default function ExploreClient({ emails }: Props) {
     setOpenPopover((current) => (current === name ? null : name));
   }
 
+  const brandFilterCount = selectedBrandIds.size + selectedMarkets.size;
+  const hasAnyFilter =
+    brandFilterCount > 0 ||
+    selectedCategories.size > 0 ||
+    moreFiltersCount > 0 ||
+    debouncedQuery.length > 0;
+
+  const resultCountLabel = useMemo(() => {
+    if (loading && emails.length === 0) return "Loading…";
+    if (total === 0) return "No results";
+    const noun = total === 1 ? "email" : "emails";
+    return `${total.toLocaleString()} ${noun}`;
+  }, [loading, emails.length, total]);
+
   return (
     <>
       <div className={styles.filterRow} ref={filterRowRef}>
@@ -428,8 +538,8 @@ export default function ExploreClient({ emails }: Props) {
           <SearchIcon />
           <input
             type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={queryInput}
+            onChange={(event) => setQueryInput(event.target.value)}
             placeholder="Search emails"
             className={styles.searchInput}
             aria-label="Search emails"
@@ -441,19 +551,15 @@ export default function ExploreClient({ emails }: Props) {
             <button
               type="button"
               className={`${styles.filterChip}${
-                selectedBrands.size + selectedBrandCategories.size > 0
-                  ? ` ${styles.filterChipActive}`
-                  : ""
+                brandFilterCount > 0 ? ` ${styles.filterChipActive}` : ""
               }${openPopover === "brands" ? ` ${styles.filterChipOpen}` : ""}`}
               onClick={() => togglePopover("brands")}
               aria-haspopup="true"
               aria-expanded={openPopover === "brands"}
             >
               <span>Brands</span>
-              {selectedBrands.size + selectedBrandCategories.size > 0 ? (
-                <span className={styles.filterCount}>
-                  {selectedBrands.size + selectedBrandCategories.size}
-                </span>
+              {brandFilterCount > 0 ? (
+                <span className={styles.filterCount}>{brandFilterCount}</span>
               ) : null}
               <ChevronIcon />
             </button>
@@ -473,9 +579,9 @@ export default function ExploreClient({ emails }: Props) {
                       <span className={styles.popoverHeaderLabel}>
                         Search by brand category
                       </span>
-                      {selectedBrandCategories.size > 0 ? (
+                      {selectedMarkets.size > 0 ? (
                         <span className={styles.popoverHeaderCount}>
-                          {selectedBrandCategories.size}
+                          {selectedMarkets.size}
                         </span>
                       ) : null}
                       <span className={styles.popoverNavChevron}>
@@ -499,16 +605,16 @@ export default function ExploreClient({ emails }: Props) {
                           No brands found
                         </div>
                       ) : (
-                        filteredBrandOptions.map((name) => {
-                          const checked = selectedBrands.has(name);
+                        filteredBrandOptions.map((option) => {
+                          const checked = selectedBrandIds.has(option.id);
                           return (
                             <button
-                              key={name}
+                              key={option.id}
                               type="button"
                               role="menuitemcheckbox"
                               aria-checked={checked}
                               className={styles.checkRow}
-                              onClick={() => toggleBrand(name)}
+                              onClick={() => toggleBrand(option.id)}
                             >
                               <span
                                 className={`${styles.checkBox}${
@@ -517,20 +623,22 @@ export default function ExploreClient({ emails }: Props) {
                               >
                                 {checked ? <CheckIcon /> : null}
                               </span>
-                              <span className={styles.checkLabel}>{name}</span>
+                              <span className={styles.checkLabel}>
+                                {option.label}
+                              </span>
                             </button>
                           );
                         })
                       )}
                     </div>
-                    {selectedBrands.size + selectedBrandCategories.size > 0 ? (
+                    {brandFilterCount > 0 ? (
                       <div className={styles.popoverFooter}>
                         <button
                           type="button"
                           className={styles.popoverClear}
                           onClick={() => {
-                            setSelectedBrands(new Set());
-                            setSelectedBrandCategories(new Set());
+                            setSelectedBrandIds(new Set());
+                            setSelectedMarkets(new Set());
                           }}
                         >
                           Clear
@@ -560,9 +668,7 @@ export default function ExploreClient({ emails }: Props) {
                         </div>
                       ) : (
                         brandCategoryOptions.map((option) => {
-                          const checked = selectedBrandCategories.has(
-                            option.id
-                          );
+                          const checked = selectedMarkets.has(option.id);
                           return (
                             <button
                               key={option.id}
@@ -587,14 +693,12 @@ export default function ExploreClient({ emails }: Props) {
                         })
                       )}
                     </div>
-                    {selectedBrandCategories.size > 0 ? (
+                    {selectedMarkets.size > 0 ? (
                       <div className={styles.popoverFooter}>
                         <button
                           type="button"
                           className={styles.popoverClear}
-                          onClick={() =>
-                            setSelectedBrandCategories(new Set())
-                          }
+                          onClick={() => setSelectedMarkets(new Set())}
                         >
                           Clear
                         </button>
@@ -821,18 +925,48 @@ export default function ExploreClient({ emails }: Props) {
         </div>
       </div>
 
-      {filteredSorted.length === 0 ? (
+      <div className={styles.resultBar} aria-live="polite">
+        <span className={styles.resultCount}>{resultCountLabel}</span>
+        {loading && emails.length > 0 ? (
+          <span className={styles.resultStatus}>Updating…</span>
+        ) : null}
+        {error ? (
+          <span className={styles.resultError}>{error}</span>
+        ) : null}
+      </div>
+
+      {emails.length === 0 && !loading ? (
         <p className={styles.empty}>
-          {emails.length === 0
-            ? "No captured emails yet. Once your subscriptions start receiving newsletters they will appear here."
-            : "No emails match the current filters."}
+          {hasAnyFilter
+            ? "No emails match the current filters."
+            : "No captured emails yet. Once your subscriptions start receiving newsletters they will appear here."}
         </p>
       ) : (
-        <div className={styles.grid}>
-          {filteredSorted.map((email) => (
-            <EmailCard key={email.id} email={email} onOpen={handleOpenEmail} />
-          ))}
-        </div>
+        <>
+          <div className={styles.grid}>
+            {emails.map((email) => (
+              <EmailCard key={email.id} email={email} onOpen={handleOpenEmail} />
+            ))}
+          </div>
+
+          {hasMore ? (
+            <div
+              ref={sentinelRef}
+              className={styles.loadMoreSentinel}
+              aria-hidden="true"
+            >
+              {loadingMore ? "Loading more…" : ""}
+            </div>
+          ) : emails.length > 0 ? (
+            <div className={styles.endOfList}>
+              {total > 0
+                ? `End of results — ${total.toLocaleString()} ${
+                    total === 1 ? "email" : "emails"
+                  }`
+                : "End of results"}
+            </div>
+          ) : null}
+        </>
       )}
 
       {openEmail ? (
