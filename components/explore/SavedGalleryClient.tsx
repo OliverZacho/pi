@@ -1,32 +1,120 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import type { SavedEmailCard } from "@/lib/saved-emails-db";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
 import styles from "./explore.module.css";
 
 type Props = {
-  initialEmails: ExploreEmailCard[];
+  initialEmails: SavedEmailCard[];
 };
 
+type SavedSortKey =
+  | "saved_desc"
+  | "saved_asc"
+  | "newest"
+  | "oldest"
+  | "brand_asc"
+  | "brand_desc"
+  | "discount_desc";
+
+const SORT_OPTIONS: { id: SavedSortKey; label: string }[] = [
+  { id: "saved_desc", label: "Recently saved" },
+  { id: "saved_asc", label: "Earliest saved" },
+  { id: "newest", label: "Newest email" },
+  { id: "oldest", label: "Oldest email" },
+  { id: "brand_asc", label: "Brand A–Z" },
+  { id: "brand_desc", label: "Brand Z–A" },
+  { id: "discount_desc", label: "Highest discount" }
+];
+
+const SORT_LABEL: Record<SavedSortKey, string> = SORT_OPTIONS.reduce(
+  (acc, opt) => ({ ...acc, [opt.id]: opt.label }),
+  {} as Record<SavedSortKey, string>
+);
+
+const SEARCH_DEBOUNCE_MS = 150;
+
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function SortIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="6" y1="6" x2="18" y2="6" />
+      <line x1="6" y1="12" x2="14" y2="12" />
+      <line x1="6" y1="18" x2="10" y2="18" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
 /**
- * Lightweight client wrapper for the /saved gallery. Reuses the same
- * `EmailCard` + `EmailModal` machinery as Explore so the visual
- * language is identical and there's only one place to maintain the
- * preview-frame logic.
+ * Saved gallery client. Reuses the Explore `EmailCard` + `EmailModal`
+ * primitives so the visual language is identical, but the controls
+ * above the grid are intentionally trimmed: a free-text search and a
+ * sort dropdown — no filters (per product spec).
  *
- * Saved gallery semantics:
- *   - Every card starts in the "saved" state (that's why it's here).
- *   - Tapping Save *un*-saves it; the row is removed from the grid
- *     locally so the gallery stays focused on the actual saved set.
- *   - We don't re-fetch on unsave — the optimistic removal IS the
- *     truth, and the next visit re-loads from the server anyway.
+ * Search + sort run entirely client-side over the in-memory saved
+ * list. The gallery is naturally small (a single user's bookmarks)
+ * so an extra round trip per keystroke would be wasteful, and lets
+ * the controls feel instant.
  */
 export default function SavedGalleryClient({ initialEmails }: Props) {
-  const [emails, setEmails] = useState<ExploreEmailCard[]>(initialEmails);
+  const [emails, setEmails] = useState<SavedEmailCard[]>(initialEmails);
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [queryInput, setQueryInput] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [sort, setSort] = useState<SavedSortKey>("saved_desc");
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortWrapRef = useRef<HTMLDivElement | null>(null);
 
   const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
@@ -39,11 +127,14 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
   const handleToggleSave = useCallback(
     async (email: ExploreEmailCard, next: boolean) => {
       // The gallery only ever surfaces saved items, so a toggle here
-      // always means "remove from saved". Save the previous list so we
-      // can roll back if the API call fails.
+      // always means "remove from saved" — and is only triggered from
+      // a card or modal where the email was already saved.
       if (next) return;
       const previous = emails;
       setEmails((current) => current.filter((item) => item.id !== email.id));
+      if (openEmail?.id === email.id) {
+        setOpenEmail(null);
+      }
       try {
         const res = await fetch(`/api/explore/saved/${email.id}`, {
           method: "DELETE",
@@ -55,12 +146,83 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
         setError(err instanceof Error ? err.message : "Failed to unsave");
       }
     },
-    [emails]
+    [emails, openEmail]
   );
 
-  // Quick reuse of the `Set` interface EmailCard expects for the saved
-  // check; we keep it as a memo so the identity is stable across
-  // renders even though every card is, by definition, saved.
+  // Debounce the search input so we don't recompute the filtered /
+  // sorted view on every keystroke for large saved sets. We keep it
+  // short (150ms) since the work is in-memory.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedQuery(queryInput.trim().toLowerCase());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [queryInput]);
+
+  // Close the sort popover when clicking outside or pressing Escape.
+  useEffect(() => {
+    if (!sortOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      const wrap = sortWrapRef.current;
+      if (!wrap) return;
+      if (event.target instanceof Node && !wrap.contains(event.target)) {
+        setSortOpen(false);
+      }
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setSortOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [sortOpen]);
+
+  const visibleEmails = useMemo(() => {
+    const q = debouncedQuery;
+    const filtered = q
+      ? emails.filter((email) => {
+          if (email.subject?.toLowerCase().includes(q)) return true;
+          if (email.preheader?.toLowerCase().includes(q)) return true;
+          if (email.companyName?.toLowerCase().includes(q)) return true;
+          if (email.promoCode?.toLowerCase().includes(q)) return true;
+          return false;
+        })
+      : emails;
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "saved_asc":
+          return a.savedAt.localeCompare(b.savedAt);
+        case "newest":
+          return b.receivedAt.localeCompare(a.receivedAt);
+        case "oldest":
+          return a.receivedAt.localeCompare(b.receivedAt);
+        case "brand_asc":
+          return a.companyName.localeCompare(b.companyName, undefined, {
+            sensitivity: "base"
+          });
+        case "brand_desc":
+          return b.companyName.localeCompare(a.companyName, undefined, {
+            sensitivity: "base"
+          });
+        case "discount_desc": {
+          const ad = a.discountPercent ?? -1;
+          const bd = b.discountPercent ?? -1;
+          if (bd !== ad) return bd - ad;
+          return b.receivedAt.localeCompare(a.receivedAt);
+        }
+        case "saved_desc":
+        default:
+          return b.savedAt.localeCompare(a.savedAt);
+      }
+    });
+    return sorted;
+  }, [emails, debouncedQuery, sort]);
+
   const savedIds = useMemo(
     () => new Set(emails.map((email) => email.id)),
     [emails]
@@ -68,6 +230,68 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
 
   return (
     <>
+      <div className={styles.filterRow}>
+        <label className={styles.searchField}>
+          <SearchIcon />
+          <input
+            type="search"
+            value={queryInput}
+            onChange={(event) => setQueryInput(event.target.value)}
+            placeholder="Search saved emails"
+            className={styles.searchInput}
+            aria-label="Search saved emails"
+          />
+        </label>
+
+        <div className={styles.sortWrap} ref={sortWrapRef}>
+          <button
+            type="button"
+            className={`${styles.filterChip} ${styles.sortChip}${
+              sortOpen ? ` ${styles.filterChipOpen}` : ""
+            }`}
+            onClick={() => setSortOpen((current) => !current)}
+            aria-haspopup="true"
+            aria-expanded={sortOpen}
+          >
+            <SortIcon />
+            <span>
+              Sort: <strong>{SORT_LABEL[sort]}</strong>
+            </span>
+            <ChevronIcon />
+          </button>
+          {sortOpen ? (
+            <div
+              className={`${styles.popover} ${styles.popoverList} ${styles.popoverRight}`}
+              role="menu"
+            >
+              {SORT_OPTIONS.map((option) => {
+                const checked = sort === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={checked}
+                    className={styles.checkRow}
+                    onClick={() => {
+                      setSort(option.id);
+                      setSortOpen(false);
+                    }}
+                  >
+                    <span
+                      className={`${styles.radioDot}${
+                        checked ? ` ${styles.radioDotChecked}` : ""
+                      }`}
+                    />
+                    <span className={styles.checkLabel}>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       {error ? (
         <div className={styles.resultError} role="alert">
           {error}
@@ -79,9 +303,11 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
           You haven&apos;t saved any emails yet. Hover over any card in
           Explore and tap Save to start building your gallery.
         </p>
+      ) : visibleEmails.length === 0 ? (
+        <p className={styles.empty}>No saved emails match your search.</p>
       ) : (
         <div className={styles.grid}>
-          {emails.map((email) => (
+          {visibleEmails.map((email) => (
             <EmailCard
               key={email.id}
               email={email}

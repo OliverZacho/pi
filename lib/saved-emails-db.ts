@@ -75,16 +75,26 @@ export async function unsaveEmail(
   if (error) throw error;
 }
 
+/**
+ * Same shape as `ExploreEmailCard`, plus the moment the user bookmarked
+ * the email. Lets the saved gallery sort by "Recently saved" without a
+ * second lookup.
+ */
+export type SavedEmailCard = ExploreEmailCard & {
+  savedAt: string;
+};
+
 export type SavedEmailsResult = {
-  items: ExploreEmailCard[];
+  items: SavedEmailCard[];
   total: number;
 };
 
 /**
- * Returns the user's saved emails as full `ExploreEmailCard` rows ready
- * for the gallery grid. Ordered by `saved_at` desc so the most recently
- * saved entries appear first — matches the user expectation set by
- * "bookmarks" UIs across most products.
+ * Returns the user's saved emails as `SavedEmailCard` rows ready for the
+ * gallery grid. Ordered by `saved_at` desc so the most recently saved
+ * entries appear first — matches the user expectation set by
+ * "bookmarks" UIs across most products. The client is responsible for
+ * any further sorting / searching.
  */
 export async function listSavedEmails(
   supabase: SupabaseClient<Database>,
@@ -121,9 +131,9 @@ export async function listSavedEmails(
   const signed =
     logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
 
-  const items: ExploreEmailCard[] = rows
+  const items: SavedEmailCard[] = rows
     .map((row) => toExploreCard(row, signed))
-    .filter((card): card is ExploreEmailCard => card !== null);
+    .filter((card): card is SavedEmailCard => card !== null);
 
   const total = typeof count === "number" ? count : items.length;
   return { items, total };
@@ -197,7 +207,7 @@ function pickCompany(value: CompaniesField) {
 function toExploreCard(
   row: SavedRow,
   signed: Record<string, string>
-): ExploreEmailCard | null {
+): SavedEmailCard | null {
   const email = pickEmail(row.captured_emails);
   if (!email) return null;
   const company = pickCompany(email.companies);
@@ -220,6 +230,7 @@ function toExploreCard(
       email.discount_percent === null || email.discount_percent === undefined
         ? null
         : Number(email.discount_percent),
-    promoCode: email.promo_code ?? null
+    promoCode: email.promo_code ?? null,
+    savedAt: row.saved_at
   };
 }
