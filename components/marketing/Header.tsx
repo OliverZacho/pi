@@ -22,7 +22,10 @@ export default function Header() {
             Explore
           </Link>
           <Link href="#" className={styles.navLink}>
-            Careers
+            Docs
+          </Link>
+          <Link href="#" className={styles.navLink}>
+            Pricing
           </Link>
         </nav>
       </div>
