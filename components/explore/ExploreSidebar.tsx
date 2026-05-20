@@ -1,7 +1,7 @@
 import Link from "next/link";
 import styles from "./explore.module.css";
 
-type NavId = "explore" | "saved" | "boards" | "brands" | "search" | "more";
+type NavId = "explore" | "saved" | "brands" | "search" | "more";
 
 type NavItem = {
   id: NavId;
@@ -53,27 +53,6 @@ function BookmarkIcon() {
       aria-hidden="true"
     >
       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function CollectionIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
     </svg>
   );
 }
@@ -137,7 +116,9 @@ function MoreIcon() {
   );
 }
 
-function FolderIcon() {
+function CollectionIcon() {
+  // Stacked layers — reads as "a curated set" rather than a filing folder,
+  // matching the Collections rebrand away from the folder metaphor.
   return (
     <svg
       viewBox="0 0 24 24"
@@ -150,7 +131,9 @@ function FolderIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <rect x="4" y="9" width="16" height="11" rx="2" />
+      <path d="M6 6h12" />
+      <path d="M8 3h8" />
     </svg>
   );
 }
@@ -196,14 +179,13 @@ function PanelToggleIcon() {
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
   { id: "saved", label: "Saved", icon: <BookmarkIcon /> },
-  { id: "boards", label: "Boards", icon: <CollectionIcon /> },
   { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
   { id: "search", label: "Search", icon: <SearchIcon /> },
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
-const FOLDERS: { id: string; label: string }[] = [
-  { id: "demo", label: "Demo folder" }
+const COLLECTIONS: { id: string; label: string }[] = [
+  { id: "demo", label: "Demo collection" }
 ];
 
 export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
@@ -262,27 +244,27 @@ export default function ExploreSidebar({ activeId = "explore" }: Props = {}) {
 
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
-          <span>Folders</span>
+          <span>Collections</span>
           <button
             type="button"
             className={styles.sectionAdd}
-            aria-label="Create folder"
+            aria-label="Create collection"
             tabIndex={-1}
           >
             <PlusIcon />
           </button>
         </div>
-        {FOLDERS.map((folder) => (
+        {COLLECTIONS.map((collection) => (
           <button
-            key={folder.id}
+            key={collection.id}
             type="button"
             className={styles.navItem}
             tabIndex={-1}
           >
             <span className={styles.navIcon}>
-              <FolderIcon />
+              <CollectionIcon />
             </span>
-            <span>{folder.label}</span>
+            <span>{collection.label}</span>
           </button>
         ))}
         <button type="button" className={styles.navItem} tabIndex={-1}>
