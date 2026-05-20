@@ -62,7 +62,6 @@ export default async function ExplorePage() {
 
         <ExploreClient
           initialEmails={initialResult.items}
-          initialTotal={initialResult.total}
           initialHasMore={initialResult.hasMore}
           pageSize={EXPLORE_PAGE_SIZE}
           facets={facets}

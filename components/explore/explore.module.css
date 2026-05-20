@@ -746,49 +746,22 @@
   font-size: 0.9rem;
 }
 
-/* ---------- Result bar (count + status) ---------- */
-
-.resultBar {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0 0.1rem 0.6rem;
-  font-size: 0.8rem;
-  color: #475569;
-  min-height: 1.5rem;
-}
-
-.resultCount {
-  font-weight: 500;
-}
-
-.resultStatus {
-  color: #64748b;
-  font-style: italic;
-}
+/* ---------- Inline error notice ---------- */
 
 .resultError {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #fef2f2;
   color: #b91c1c;
+  font-size: 0.85rem;
 }
 
-/* ---------- Infinite scroll affordances ---------- */
+/* ---------- Infinite scroll sentinel ---------- */
 
 .loadMoreSentinel {
   margin-top: 1.5rem;
-  padding: 1.25rem 1rem 2rem;
-  text-align: center;
-  font-size: 0.85rem;
-  color: #64748b;
   min-height: 2.5rem;
-}
-
-.endOfList {
-  margin-top: 2rem;
-  padding: 1rem;
-  text-align: center;
-  font-size: 0.8rem;
-  color: #94a3b8;
-  border-top: 1px solid #e5e7eb;
 }
 
 /* ---------- Card ---------- */

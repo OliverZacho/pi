@@ -29,7 +29,6 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 type Props = {
   initialEmails: ExploreEmailCard[];
-  initialTotal: number;
   initialHasMore: boolean;
   pageSize: number;
   facets: ExploreFacets;
@@ -192,7 +191,6 @@ type FetchResponse = {
 
 export default function ExploreClient({
   initialEmails,
-  initialTotal,
   initialHasMore,
   pageSize,
   facets
@@ -223,7 +221,6 @@ export default function ExploreClient({
   // start a fresh search.
   const [emails, setEmails] = useState<ExploreEmailCard[]>(initialEmails);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(initialTotal);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -366,7 +363,6 @@ export default function ExploreClient({
       .then((body) => {
         if (controller.signal.aborted) return;
         setEmails(body.items);
-        setTotal(body.total);
         setPage(body.page);
         setHasMore(body.hasMore);
         setLoading(false);
@@ -398,7 +394,6 @@ export default function ExploreClient({
           const additions = body.items.filter((item) => !seen.has(item.id));
           return [...current, ...additions];
         });
-        setTotal(body.total);
         setPage(body.page);
         setHasMore(body.hasMore);
         setLoadingMore(false);
@@ -523,13 +518,6 @@ export default function ExploreClient({
     selectedCategories.size > 0 ||
     moreFiltersCount > 0 ||
     debouncedQuery.length > 0;
-
-  const resultCountLabel = useMemo(() => {
-    if (loading && emails.length === 0) return "Loading…";
-    if (total === 0) return "No results";
-    const noun = total === 1 ? "email" : "emails";
-    return `${total.toLocaleString()} ${noun}`;
-  }, [loading, emails.length, total]);
 
   return (
     <>
@@ -925,15 +913,11 @@ export default function ExploreClient({
         </div>
       </div>
 
-      <div className={styles.resultBar} aria-live="polite">
-        <span className={styles.resultCount}>{resultCountLabel}</span>
-        {loading && emails.length > 0 ? (
-          <span className={styles.resultStatus}>Updating…</span>
-        ) : null}
-        {error ? (
-          <span className={styles.resultError}>{error}</span>
-        ) : null}
-      </div>
+      {error ? (
+        <div className={styles.resultError} role="alert">
+          {error}
+        </div>
+      ) : null}
 
       {emails.length === 0 && !loading ? (
         <p className={styles.empty}>
@@ -954,17 +938,7 @@ export default function ExploreClient({
               ref={sentinelRef}
               className={styles.loadMoreSentinel}
               aria-hidden="true"
-            >
-              {loadingMore ? "Loading more…" : ""}
-            </div>
-          ) : emails.length > 0 ? (
-            <div className={styles.endOfList}>
-              {total > 0
-                ? `End of results — ${total.toLocaleString()} ${
-                    total === 1 ? "email" : "emails"
-                  }`
-                : "End of results"}
-            </div>
+            />
           ) : null}
         </>
       )}
