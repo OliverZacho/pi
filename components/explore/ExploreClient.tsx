@@ -997,7 +997,12 @@ export default function ExploreClient({
       )}
 
       {openEmail ? (
-        <EmailModal email={openEmail} onClose={handleCloseEmail} />
+        <EmailModal
+          email={openEmail}
+          onClose={handleCloseEmail}
+          isSaved={savedIds.has(openEmail.id)}
+          onToggleSave={handleToggleSave}
+        />
       ) : null}
     </>
   );

@@ -100,7 +100,12 @@ export default function BrandRecentEmails({ emails }: Props) {
         ))}
       </div>
       {openEmail ? (
-        <EmailModal email={openEmail} onClose={handleClose} />
+        <EmailModal
+          email={openEmail}
+          onClose={handleClose}
+          isSaved={savedIds.has(openEmail.id)}
+          onToggleSave={handleToggleSave}
+        />
       ) : null}
     </>
   );

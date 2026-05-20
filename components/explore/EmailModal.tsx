@@ -56,6 +56,17 @@ const VIEW_OPTIONS: { id: ViewMode; label: string }[] = [
 type Props = {
   email: ExploreEmailCard;
   onClose: () => void;
+  /**
+   * Whether the email is currently saved by the viewing user. Drives
+   * the bookmark icon's filled / outline state and the active styling
+   * on the right-pane action button.
+   */
+  isSaved: boolean;
+  /**
+   * Toggle handler — parent owns the optimistic state + API call so the
+   * modal stays in sync with the card grid behind it.
+   */
+  onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
 };
 
 /**
@@ -67,11 +78,31 @@ type Props = {
  * inspect classification, ESP, branding, deliverability, etc. without
  * leaving the modal.
  */
-export default function EmailModal({ email, onClose }: Props) {
+export default function EmailModal({
+  email,
+  onClose,
+  isSaved,
+  onToggleSave
+}: Props) {
   const [view, setView] = useState<ViewMode>("desktop");
   const [detail, setDetail] = useState<CapturedEmailDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
+  // Single per-modal pending flag, since the only async action surfaced
+  // from this view is the Save toggle. We use it to disable the button
+  // while the round-trip is in flight so rapid double-clicks don't
+  // fire competing PUT + DELETE requests.
+  const [savePending, setSavePending] = useState(false);
+
+  async function handleToggleSave() {
+    if (savePending) return;
+    setSavePending(true);
+    try {
+      await onToggleSave(email, !isSaved);
+    } finally {
+      setSavePending(false);
+    }
+  }
 
   // Lock body scroll while the modal is open so the page underneath
   // doesn't drift around when the user scrolls inside the email iframe.
@@ -222,6 +253,9 @@ export default function EmailModal({ email, onClose }: Props) {
             primaryFonts={primaryFonts}
             compliance={compliance}
             dateLabel={dateLabel}
+            isSaved={isSaved}
+            savePending={savePending}
+            onToggleSave={handleToggleSave}
           />
         </aside>
       </div>
@@ -238,6 +272,9 @@ type InfoPanelProps = {
   primaryFonts: string[];
   compliance: ReturnType<typeof classifyListHeaders> | null;
   dateLabel: string;
+  isSaved: boolean;
+  savePending: boolean;
+  onToggleSave: () => void;
 };
 
 function InfoPanel({
@@ -248,7 +285,10 @@ function InfoPanel({
   htmlSize,
   primaryFonts,
   compliance,
-  dateLabel
+  dateLabel,
+  isSaved,
+  savePending,
+  onToggleSave
 }: InfoPanelProps) {
   const categoryLabel =
     EMAIL_CATEGORY_LABELS[email.category as EmailCategory] ?? email.category;
@@ -293,8 +333,17 @@ function InfoPanel({
         <button type="button" className={styles.infoActionPrimary}>
           Follow
         </button>
-        <button type="button" className={styles.infoActionIcon} aria-label="Add to folder">
-          <FolderPlusIcon />
+        <button
+          type="button"
+          className={`${styles.infoActionIcon}${
+            isSaved ? ` ${styles.infoActionIconSaved}` : ""
+          }`}
+          aria-label={isSaved ? "Remove from saved" : "Save email"}
+          aria-pressed={isSaved}
+          disabled={savePending}
+          onClick={onToggleSave}
+        >
+          {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
         </button>
         <button type="button" className={styles.infoActionIcon} aria-label="Download email">
           <DownloadIcon />
@@ -963,7 +1012,7 @@ function CloseIcon() {
   );
 }
 
-function FolderPlusIcon() {
+function BookmarkOutlineIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -976,9 +1025,25 @@ function FolderPlusIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      <line x1="12" y1="11" x2="12" y2="17" />
-      <line x1="9" y1="14" x2="15" y2="14" />
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function BookmarkFilledIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

@@ -94,7 +94,12 @@ export default function SavedGalleryClient({ initialEmails }: Props) {
       )}
 
       {openEmail ? (
-        <EmailModal email={openEmail} onClose={handleCloseEmail} />
+        <EmailModal
+          email={openEmail}
+          onClose={handleCloseEmail}
+          isSaved={savedIds.has(openEmail.id)}
+          onToggleSave={handleToggleSave}
+        />
       ) : null}
     </>
   );

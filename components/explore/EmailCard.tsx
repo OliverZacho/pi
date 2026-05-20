@@ -142,8 +142,7 @@ export default function EmailCard({
             <BookmarkFilledIcon />
           </span>
         ) : null}
-        <div className={styles.cardOverlay} aria-hidden="true" />
-        <div className={styles.cardActions}>
+        <div className={styles.cardOverlay}>
           <button
             type="button"
             className={styles.overlayButton}
