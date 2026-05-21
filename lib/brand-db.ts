@@ -65,6 +65,15 @@ export type BrandPageData = {
      * without any indexing gymnastics.
      */
     hourly: number[];
+    /**
+     * Per-day send counts for the last {@link DAILY_TIMELINE_DAYS}
+     * days, in chronological order ending today. Every day is present
+     * with at least a zero so the compare dashboard's stacked bar
+     * chart can render every lookback window without any gap-filling.
+     * Drives the 1-week / 1-month / 6-month / 12-month picker in the
+     * comparison "send frequency" panel.
+     */
+    dailyTimeline: { date: string; count: number }[];
   };
   promo: {
     discountEmails: number;
@@ -142,6 +151,13 @@ const STATS_ROW_CAP = 500;
 const RECENT_CARD_COUNT = 8;
 /** How many weeks of history power the cadence sparkline. */
 const WEEKS_IN_CADENCE = 26;
+/**
+ * Length of the daily-cadence timeline (in days) shipped to the
+ * compare dashboard. 365 covers the longest lookback the comparison
+ * "send frequency" picker exposes (12 months) while still being
+ * negligible JSON weight (a few KB per brand).
+ */
+const DAILY_TIMELINE_DAYS = 365;
 
 type CompanyRow = {
   id: string;
@@ -464,12 +480,47 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
     };
   }
 
+  // Daily timeline for the compare dashboard. We initialise every day
+  // in the lookback window so the chart can iterate a fixed-length
+  // array (no gap-filling on the client) and so the user always sees
+  // visible empty days rather than the chart collapsing.
+  const todayStartDaily = startOfDayInZone(now, zone);
+  const dailyTimeline: { date: string; count: number }[] = [];
+  const dailyStartMs: number[] = [];
+  for (let i = DAILY_TIMELINE_DAYS - 1; i >= 0; i--) {
+    const dayStart = addDaysInZone(todayStartDaily, -i, zone);
+    dailyTimeline.push({
+      date: formatDayKey(dayStart, zone),
+      count: 0
+    });
+    dailyStartMs.push(dayStart.getTime());
+  }
+  const dailyEndMs =
+    addDaysInZone(todayStartDaily, 1, zone).getTime() - 1;
+  for (const date of dates) {
+    const t = date.getTime();
+    if (t < dailyStartMs[0] || t > dailyEndMs) continue;
+    // Binary search the bucket whose [start, start+1d) range contains t.
+    // Linear scan would be fine for 365 entries × a few hundred dates,
+    // but the binary search keeps this O(n log m) so we stay snappy
+    // even when STATS_ROW_CAP grows.
+    let lo = 0;
+    let hi = dailyStartMs.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      if (dailyStartMs[mid] <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    dailyTimeline[lo].count += 1;
+  }
+
   return {
     avgDaysBetween,
     weekly: buckets,
     typicalDay,
     typicalHour,
-    hourly: hourCounts
+    hourly: hourCounts,
+    dailyTimeline
   };
 }
 

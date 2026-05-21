@@ -8,30 +8,26 @@ import type {
   CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import BrandSearchPicker, {
+  type BrandSearchOption
+} from "./BrandSearchPicker";
 import styles from "./compare.module.css";
-
-type BrandOption = {
-  id: string;
-  name: string;
-  market: string | null;
-  logoUrl: string | null;
-};
 
 type Props = {
   sets: CompetitorSetSummary[];
   /**
-   * Lightweight brand directory used by the picker. The server hydrates
-   * this with every tracked brand (filtered to those with captured
-   * emails) so the picker is fully responsive without an extra fetch
-   * once the page lands.
-   */
-  brands: BrandOption[];
-  /**
    * Brand ids selected via `?brands=...` deep-link (e.g. from the
    * /brands "Compare selected" shortcut). When present we seed the
-   * tray and bias the layout toward "you're already comparing".
+   * picker's chip tray and bias the layout toward "you're already
+   * comparing".
    */
   initialBrandIds: string[];
+  /**
+   * Hydration payload for the initial chip tray. Lets us render the
+   * brand name + logo for every deep-linked brand id without an extra
+   * client roundtrip on the first paint.
+   */
+  initialBrandOptions: BrandSearchOption[];
   /** Preview row for each saved set (first ~4 brands by added_at). */
   setPreviews: Record<string, CompetitorSetBrand[]>;
 };
@@ -42,55 +38,62 @@ type Props = {
  *  - The ad-hoc brand picker that powers `/compare?brands=...` and
  *    "Save as set" creation.
  *
- * Kept as a single client island so the picker state (selected ids,
- * search input, save form) can stay reactive without us round-tripping
- * to the server. The dashboard itself, when `?brands=` is present in
- * the URL, is rendered by the server page below this component — we
- * only own the picker UI.
+ * The picker no longer renders the full brand directory inline — the
+ * catalogue is large enough that an always-on grid is just visual
+ * noise. Instead the user searches by name or category (the brand's
+ * market label) and picks from a short result list. Selected brands
+ * stack into a chip tray above the search so it stays clear what
+ * cohort is about to be compared.
  */
 export default function CompareLandingClient({
   sets,
-  brands,
   initialBrandIds,
+  initialBrandOptions,
   setPreviews
 }: Props) {
   const router = useRouter();
 
   const [selectedIds, setSelectedIds] = useState<string[]>(initialBrandIds);
-  const [query, setQuery] = useState("");
+  const [knownBrands, setKnownBrands] = useState<Map<string, BrandSearchOption>>(
+    () => {
+      const map = new Map<string, BrandSearchOption>();
+      for (const brand of initialBrandOptions) {
+        map.set(brand.id, brand);
+      }
+      return map;
+    }
+  );
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const brandById = useMemo(() => {
-    const map = new Map<string, BrandOption>();
-    for (const brand of brands) map.set(brand.id, brand);
-    return map;
-  }, [brands]);
+  const remainingSlots = MAX_BRANDS_PER_COMPARISON - selectedIds.length;
+  // Picker has no notion of "already saved" on the landing flow —
+  // everything in the tray is brand-new ad-hoc picks. The empty set
+  // is memoised so the picker's `useMemo` deps don't churn on every
+  // render.
+  const alreadySelectedIds = useMemo(() => new Set<string>(), []);
 
-  const filteredBrands = useMemo(() => {
-    const trimmed = query.trim().toLowerCase();
-    if (!trimmed) return brands;
-    return brands.filter(
-      (b) =>
-        b.name.toLowerCase().includes(trimmed) ||
-        (b.market ?? "").toLowerCase().includes(trimmed)
-    );
-  }, [brands, query]);
+  function handleAddFromPicker(nextPending: string[]) {
+    // The picker hands back the full pending list, capped to the
+    // global max so a stale ref can never exceed it. `rememberBrand`
+    // below has already cached the metadata for any ids the picker
+    // surfaced, so the chip tray can render names + logos without an
+    // extra fetch.
+    const ids = nextPending.slice(0, MAX_BRANDS_PER_COMPARISON);
+    setSelectedIds(ids);
+  }
 
-  const isSelected = (id: string) => selectedIds.includes(id);
-  const atLimit = selectedIds.length >= MAX_BRANDS_PER_COMPARISON;
-
-  function toggle(id: string) {
-    setSelectedIds((current) => {
-      if (current.includes(id)) {
-        return current.filter((x) => x !== id);
-      }
-      if (current.length >= MAX_BRANDS_PER_COMPARISON) {
-        return current;
-      }
-      return [...current, id];
+  // When the search picker hydrates a row we haven't seen before,
+  // memoise it so the chip tray can render the logo + name without
+  // an extra fetch.
+  function rememberBrand(brand: BrandSearchOption) {
+    setKnownBrands((current) => {
+      if (current.has(brand.id)) return current;
+      const next = new Map(current);
+      next.set(brand.id, brand);
+      return next;
     });
   }
 
@@ -98,6 +101,10 @@ export default function CompareLandingClient({
     setSelectedIds([]);
     setSaveOpen(false);
     setSaveName("");
+  }
+
+  function removeChip(id: string) {
+    setSelectedIds((current) => current.filter((x) => x !== id));
   }
 
   function handleCompare() {
@@ -208,8 +215,8 @@ export default function CompareLandingClient({
           <div>
             <h2>Build a comparison</h2>
             <p>
-              Pick up to {MAX_BRANDS_PER_COMPARISON} brands to view a
-              side-by-side dashboard.
+              Search for brands by name or category and add up to{" "}
+              {MAX_BRANDS_PER_COMPARISON} to a comparison.
             </p>
           </div>
           {selectedIds.length > 0 ? (
@@ -223,48 +230,37 @@ export default function CompareLandingClient({
           ) : null}
         </div>
 
-        <div className={styles.pickerSearchRow}>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search brands by name or market…"
-            className={styles.pickerSearch}
-            aria-label="Search brands"
-          />
-        </div>
-
         <div className={styles.pickerSelectedTray} aria-live="polite">
           {selectedIds.length === 0 ? (
             <span className={styles.pickerChipEmpty}>
-              No brands selected yet.
+              No brands selected yet — start typing below.
             </span>
           ) : (
             selectedIds.map((id) => {
-              const brand = brandById.get(id);
-              if (!brand) return null;
+              const brand = knownBrands.get(id);
+              const displayName = brand?.name ?? "Loading…";
               return (
                 <span key={id} className={styles.pickerChip}>
                   <span
                     className={styles.pickerChipLogo}
                     aria-hidden="true"
                   >
-                    {brand.logoUrl ? (
+                    {brand?.logoUrl ? (
                       <img
                         src={brand.logoUrl}
                         alt=""
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      brand.name.charAt(0).toUpperCase()
+                      displayName.charAt(0).toUpperCase()
                     )}
                   </span>
-                  <span>{brand.name}</span>
+                  <span>{displayName}</span>
                   <button
                     type="button"
                     className={styles.pickerChipRemove}
-                    aria-label={`Remove ${brand.name}`}
-                    onClick={() => toggle(id)}
+                    aria-label={`Remove ${displayName}`}
+                    onClick={() => removeChip(id)}
                   >
                     ×
                   </button>
@@ -274,47 +270,13 @@ export default function CompareLandingClient({
           )}
         </div>
 
-        <div className={styles.pickerList}>
-          {filteredBrands.length === 0 ? (
-            <span className={styles.empty}>No brands match your search.</span>
-          ) : (
-            filteredBrands.map((brand) => {
-              const selected = isSelected(brand.id);
-              const disabled = !selected && atLimit;
-              const className = `${styles.pickerRow} ${
-                selected ? styles.pickerRow_selected : ""
-              } ${disabled ? styles.pickerRow_disabled : ""}`.trim();
-              return (
-                <button
-                  key={brand.id}
-                  type="button"
-                  className={className}
-                  onClick={() => toggle(brand.id)}
-                  disabled={disabled}
-                  aria-pressed={selected}
-                >
-                  <span className={styles.pickerRowLogo} aria-hidden="true">
-                    {brand.logoUrl ? (
-                      <img
-                        src={brand.logoUrl}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      brand.name.charAt(0).toUpperCase()
-                    )}
-                  </span>
-                  <span className={styles.pickerRowName}>{brand.name}</span>
-                  {brand.market ? (
-                    <span className={styles.pickerRowMarket}>
-                      {formatMarketLabel(brand.market)}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })
-          )}
-        </div>
+        <BrandSearchPicker
+          alreadySelectedIds={alreadySelectedIds}
+          remainingSlots={remainingSlots}
+          pendingIds={selectedIds}
+          onChange={handleAddFromPicker}
+          onBrandSeen={rememberBrand}
+        />
 
         <div className={styles.pickerActions}>
           <button
@@ -334,7 +296,7 @@ export default function CompareLandingClient({
             {saveOpen ? "Cancel save" : "Save as set…"}
           </button>
           <span className={styles.pickerHint}>
-            {atLimit
+            {remainingSlots <= 0
               ? `Max ${MAX_BRANDS_PER_COMPARISON} brands per comparison`
               : `${selectedIds.length} / ${MAX_BRANDS_PER_COMPARISON} selected`}
           </span>
@@ -384,15 +346,6 @@ export default function CompareLandingClient({
   );
 }
 
-function formatMarketLabel(market: string): string {
-  return market
-    .split(/[\s_-]+/)
-    .map((word) =>
-      word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)
-    )
-    .join(" ");
-}
-
 function formatRelativeDate(value: string): string {
   const ts = new Date(value);
   if (Number.isNaN(ts.getTime())) return "—";
@@ -403,5 +356,13 @@ function formatRelativeDate(value: string): string {
   if (diff < 2 * day) return "yesterday";
   if (diff < 7 * day) return `${Math.round(diff / day)}d ago`;
   if (diff < 30 * day) return `${Math.round(diff / (7 * day))}w ago`;
-  return ts.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  // Pinned locale + timezone — see the equivalent helper in
+  // CadenceStack.tsx. `toLocaleDateString(undefined, …)` would render
+  // differently on Node (en-US) versus an en-GB browser and trigger
+  // a hydration mismatch on the saved-sets grid.
+  return ts.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC"
+  });
 }

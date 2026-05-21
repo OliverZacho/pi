@@ -52,9 +52,10 @@ describe("dedupeBrandIds", () => {
 });
 
 describe("MAX_BRANDS_PER_COMPARISON", () => {
-  it("is set so the comparison stays readable but lets the user build a real cohort", () => {
-    // Locked at 6: tighter than this and a user can't model 3 vs 3
-    // matchups; looser and the per-brand charts/legends get crowded.
-    expect(MAX_BRANDS_PER_COMPARISON).toBe(6);
+  it("is wide enough to support a category-wide cohort", () => {
+    // Locked at 20: the aggregate views (stacked send-frequency bars,
+    // KPI tiles with drill-down) absorb the extra brands while keeping
+    // the heatmap and legend readable.
+    expect(MAX_BRANDS_PER_COMPARISON).toBe(20);
   });
 });

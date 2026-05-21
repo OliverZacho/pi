@@ -8,7 +8,6 @@ import {
   type CompetitorSetBrand
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
-import { searchBrands } from "@/lib/brands-explore-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
@@ -70,19 +69,15 @@ export default async function ComparePage({ searchParams }: PageProps) {
         : []
   ).slice(0, MAX_BRANDS_PER_COMPARISON);
 
-  // Parallelise the four sources of data the landing needs: saved
-  // sets, the brand directory (capped at the largest practical page
-  // size since the picker is client-filtered), collections (for the
-  // sidebar), and — if we're rendering the ad-hoc dashboard — the full
-  // comparison payload. Skipping the last one when no brands are
-  // selected saves a fan-out of `getBrandPageData` calls.
-  const [sets, brandsResult, collections, comparison] = await Promise.all([
+  // Parallelise the three sources of data the landing needs: saved
+  // sets, collections (for the sidebar), and — if we're rendering the
+  // ad-hoc dashboard — the full comparison payload. Skipping the last
+  // one when no brands are selected saves a fan-out of
+  // `getBrandPageData` calls. The picker itself searches the brand
+  // directory on demand via `/api/brands/list`, so we no longer
+  // prefetch the catalogue here.
+  const [sets, collections, comparison] = await Promise.all([
     listCompetitorSetSummaries(supabase, user.id),
-    searchBrands(supabase, {
-      page: 1,
-      pageSize: 96,
-      sort: "name_asc"
-    }),
     listCollectionSummaries(supabase, user.id),
     requestedBrandIds.length > 0
       ? getCompetitorComparison(supabase, requestedBrandIds)
@@ -136,11 +131,14 @@ export default async function ComparePage({ searchParams }: PageProps) {
     }
   }
 
-  const brandOptions = brandsResult.items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    market: item.market,
-    logoUrl: item.logoUrl
+  // Seed the chip tray with whatever the comparison payload already
+  // resolved so deep-linked brand chips render their logo + name on
+  // first paint instead of flashing a "Loading…" placeholder.
+  const initialBrandOptions = comparison.brands.map((b) => ({
+    id: b.brand.id,
+    name: b.brand.name,
+    market: b.brand.market,
+    logoUrl: b.brand.logoUrl
   }));
 
   const dashboardBrands = comparison.brands;
@@ -168,8 +166,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
         <CompareLandingClient
           sets={sets}
-          brands={brandOptions}
           initialBrandIds={requestedBrandIds}
+          initialBrandOptions={initialBrandOptions}
           setPreviews={setPreviews}
         />
 

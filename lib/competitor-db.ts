@@ -19,11 +19,13 @@ const MAX_NAME_LENGTH = 120;
 
 /**
  * Maximum number of brands the compare dashboard will render at once.
- * Past six the charts get crowded, legends overflow, and per-brand
- * accent colours start to clash visually. Set to 6 deliberately so the
- * 3-column layouts also pack neatly on a 2-row grid.
+ * The dashboard's aggregate views (stacked send-frequency bars,
+ * aggregated KPI tiles with per-brand drill-down) keep crowding bounded
+ * even when the cohort is sizable, so 20 strikes a good balance: large
+ * enough to model a category-wide benchmark, small enough that the
+ * per-brand heatmap rows + drill-down legend stay readable.
  */
-export const MAX_BRANDS_PER_COMPARISON = 6;
+export const MAX_BRANDS_PER_COMPARISON = 20;
 
 /**
  * Sidebar / picker shape — just enough metadata to render the row.
