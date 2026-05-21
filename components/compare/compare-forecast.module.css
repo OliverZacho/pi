@@ -1,0 +1,218 @@
+/* =========================================================
+   Compare tab — "Predicted inbox crowding" panel.
+   --
+   Lives in its own CSS module for the same reason
+   `compare-v2.module.css` exists: appending new class
+   selectors to an already-loaded module mid-session leaves
+   Turbopack with a stale class-name map, so the new rules
+   are imported but never applied (the section renders with
+   default browser styles). A fresh module file forces a
+   fresh parse and a fresh class map.
+   ========================================================= */
+
+.callouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.callout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.callout_quiet {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.08) 0%,
+    rgba(16, 185, 129, 0.02) 100%
+  );
+}
+
+.callout_busy {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(239, 68, 68, 0.08) 0%,
+    rgba(239, 68, 68, 0.02) 100%
+  );
+}
+
+.calloutLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.callout_quiet .calloutLabel {
+  color: #047857;
+}
+
+.callout_busy .calloutLabel {
+  color: #b91c1c;
+}
+
+.calloutDay {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.calloutMeta {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.strip {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.column {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.45rem 0.3rem 0.55rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+  color: inherit;
+  outline: none;
+  transition: background 120ms ease, border-color 120ms ease;
+  min-width: 0;
+}
+
+.column:hover,
+.column:focus {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: #e2e8f0;
+}
+
+.band_quiet {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.band_quiet:hover,
+.band_quiet:focus {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.band_busy {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.band_busy:hover,
+.band_busy:focus {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.barTrack {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 9rem;
+  width: 100%;
+}
+
+.bar {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  width: 70%;
+  max-width: 2.2rem;
+  min-height: 4px;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.seg {
+  display: block;
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.seg:first-child {
+  border-top: 0;
+}
+
+.day {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.date {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.footnote {
+  margin: 0.85rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  max-width: 60ch;
+}
+
+.tooltipBand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.74rem;
+  color: #cbd5e1;
+}
+
+.bandDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #94a3b8;
+  display: inline-block;
+}
+
+.bandDot_quiet {
+  background: #34d399;
+}
+
+.bandDot_busy {
+  background: #f87171;
+}
+
+.bandDot_normal {
+  background: #94a3b8;
+}
+
+.tooltipEmpty {
+  display: block;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}

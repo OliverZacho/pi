@@ -5,6 +5,7 @@ import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
+import InboxForecast from "./InboxForecast";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -23,12 +24,13 @@ type Props = {
  * most when sizing up a competitor cohort:
  *   1. KPI tiles  — aggregate snapshot; click for per-brand drill-down
  *   2. Cadence    — stacked aggregate bar chart with lookback selector
- *   3. Send-time  — 24h heatmap with an aggregated row + per-brand rows
- *   4. Promo      — per-brand promo aggressiveness blocks
- *   5. Design DNA — per-brand palettes / fonts / flags
- *   6. Subjects   — per-brand subject samples
- *   7. CTA voice  — per-brand mini tag-cloud
- *   8. Recent     — merged chronological feed
+ *   3. Forecast   — 7 / 14-day prediction of cohort inbox crowding
+ *   4. Send-time  — 24h heatmap with an aggregated row + per-brand rows
+ *   5. Promo      — per-brand promo aggressiveness blocks
+ *   6. Design DNA — per-brand palettes / fonts / flags
+ *   7. Subjects   — per-brand subject samples
+ *   8. CTA voice  — per-brand mini tag-cloud
+ *   9. Recent     — merged chronological feed
  *
  * The KPI tile and cadence sections are client islands because they
  * own interactive UI (modal + lookback selector + hover tooltip);
@@ -57,6 +59,7 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
 
       <KpiTiles brands={brands} />
       <CadenceStack brands={brands} />
+      <InboxForecast brands={brands} />
       <SendTimeStrips brands={brands} />
       <PromoBlocks brands={brands} />
       <DesignDna brands={brands} />
