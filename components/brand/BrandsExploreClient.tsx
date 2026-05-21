@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -16,6 +17,7 @@ import type {
   BrandsFacets,
   BrandsSortKey
 } from "@/lib/brands-explore-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
 import {
   endOfDayInZone,
   parseDayKey,
@@ -112,6 +114,18 @@ export default function BrandsExploreClient({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Select mode lets the user pick a handful of brands and jump
+  // straight into a side-by-side compare. State is kept local — when
+  // the user wants to persist the group they hit "Save as set", which
+  // round-trips to the API and navigates to the set's page.
+  const router = useRouter();
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const filterRowRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -355,6 +369,80 @@ export default function BrandsExploreClient({
 
   function togglePopover(name: PopoverName) {
     setOpenPopover((current) => (current === name ? null : name));
+  }
+
+  const selectedSet = useMemo(
+    () => new Set(selectedBrandIds),
+    [selectedBrandIds]
+  );
+
+  function toggleBrand(id: string) {
+    setSelectedBrandIds((current) => {
+      if (current.includes(id)) {
+        return current.filter((x) => x !== id);
+      }
+      if (current.length >= MAX_BRANDS_PER_COMPARISON) {
+        return current;
+      }
+      return [...current, id];
+    });
+  }
+
+  function clearSelection() {
+    setSelectedBrandIds([]);
+    setSaveOpen(false);
+    setSaveName("");
+    setSaveError(null);
+  }
+
+  function exitSelectMode() {
+    clearSelection();
+    setSelectMode(false);
+  }
+
+  function handleCompareSelected() {
+    if (selectedBrandIds.length === 0) return;
+    const qs = new URLSearchParams();
+    for (const id of selectedBrandIds) qs.append("brands", id);
+    router.push(`/compare?${qs.toString()}`);
+  }
+
+  async function handleSaveSelectedAsSet(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    const trimmed = saveName.trim();
+    if (!trimmed || savePending) return;
+    if (selectedBrandIds.length === 0) {
+      setSaveError("Pick at least one brand first");
+      return;
+    }
+    setSavePending(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/competitor-sets", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          brandIds: selectedBrandIds
+        })
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(body?.error ?? `Failed (${res.status})`);
+      }
+      const body = (await res.json()) as { set: { id: string } };
+      router.push(`/compare/${body.set.id}`);
+      router.refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavePending(false);
+    }
   }
 
   const hasAnyFilter =
@@ -744,6 +832,24 @@ export default function BrandsExploreClient({
           </div>
         </div>
 
+        <button
+          type="button"
+          className={`${styles.selectToggle}${
+            selectMode ? ` ${styles.selectToggle_active}` : ""
+          }`}
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          aria-pressed={selectMode}
+          title="Toggle compare-select mode"
+        >
+          <span>
+            {selectMode
+              ? selectedBrandIds.length > 0
+                ? `${selectedBrandIds.length} selected`
+                : "Select…"
+              : "Select to compare"}
+          </span>
+        </button>
+
         <div className={styles.sortWrap}>
           <button
             type="button"
@@ -821,7 +927,18 @@ export default function BrandsExploreClient({
 
           <div className={styles.grid}>
             {brands.map((brand) => (
-              <BrandGridCard key={brand.id} brand={brand} />
+              <BrandGridCard
+                key={brand.id}
+                brand={brand}
+                selectMode={selectMode}
+                selected={selectedSet.has(brand.id)}
+                disabled={
+                  selectMode &&
+                  !selectedSet.has(brand.id) &&
+                  selectedBrandIds.length >= MAX_BRANDS_PER_COMPARISON
+                }
+                onToggle={toggleBrand}
+              />
             ))}
           </div>
 
@@ -834,6 +951,85 @@ export default function BrandsExploreClient({
           ) : null}
         </>
       )}
+
+      {selectMode && selectedBrandIds.length > 0 ? (
+        <div className={styles.compareBar} role="region" aria-label="Compare selected brands">
+          <span className={styles.compareBarCount}>
+            {selectedBrandIds.length} brand
+            {selectedBrandIds.length === 1 ? "" : "s"} selected
+          </span>
+          {saveOpen ? (
+            <form
+              onSubmit={handleSaveSelectedAsSet}
+              className={styles.compareSaveForm}
+            >
+              <input
+                type="text"
+                value={saveName}
+                onChange={(event) => setSaveName(event.target.value)}
+                maxLength={120}
+                placeholder="Name this set…"
+                className={styles.compareSaveInput}
+                disabled={savePending}
+                autoFocus
+                aria-label="Name for new competitor set"
+              />
+              <button
+                type="submit"
+                className={styles.compareBarPrimary}
+                disabled={
+                  savePending ||
+                  saveName.trim().length === 0 ||
+                  selectedBrandIds.length === 0
+                }
+              >
+                {savePending ? "Saving…" : "Save & open"}
+              </button>
+              <button
+                type="button"
+                className={styles.compareBarSecondary}
+                onClick={() => {
+                  setSaveOpen(false);
+                  setSaveError(null);
+                }}
+                disabled={savePending}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <>
+              <span className={styles.compareBarSpacer} />
+              <button
+                type="button"
+                className={styles.compareBarPrimary}
+                onClick={handleCompareSelected}
+              >
+                Compare ({selectedBrandIds.length})
+              </button>
+              <button
+                type="button"
+                className={styles.compareBarSecondary}
+                onClick={() => setSaveOpen(true)}
+              >
+                Save as set…
+              </button>
+              <button
+                type="button"
+                className={styles.compareBarSecondary}
+                onClick={clearSelection}
+              >
+                Clear
+              </button>
+            </>
+          )}
+          {saveError ? (
+            <span className={styles.compareBarError} role="alert">
+              {saveError}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 }
@@ -842,13 +1038,34 @@ export default function BrandsExploreClient({
    Brand card
    ----------------------------------------------------------------- */
 
-function BrandGridCard({ brand }: { brand: BrandsExploreCard }) {
-  return (
-    <Link
-      href={`/brands/${brand.id}`}
-      className={styles.card}
-      aria-label={`Open ${brand.name} dashboard`}
-    >
+type BrandGridCardProps = {
+  brand: BrandsExploreCard;
+  selectMode?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+  onToggle?: (id: string) => void;
+};
+
+function BrandGridCard({
+  brand,
+  selectMode = false,
+  selected = false,
+  disabled = false,
+  onToggle
+}: BrandGridCardProps) {
+  const cardBody = (
+    <>
+      {selectMode ? (
+        <span
+          className={`${styles.cardCheck}${
+            selected ? ` ${styles.cardCheck_on}` : ""
+          }`}
+          aria-hidden="true"
+        >
+          {selected ? <CheckIcon /> : null}
+        </span>
+      ) : null}
+
       <span className={styles.cardAvatar} aria-hidden="true">
         {brand.logoUrl ? (
           <img
@@ -889,6 +1106,34 @@ function BrandGridCard({ brand }: { brand: BrandsExploreCard }) {
           ) : null}
         </div>
       ) : null}
+    </>
+  );
+
+  if (selectMode) {
+    const className = `${styles.card} ${styles.cardSelectable} ${styles.cardSelectableButton}${
+      selected ? ` ${styles.cardSelected}` : ""
+    }`;
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={() => onToggle?.(brand.id)}
+        disabled={disabled}
+        aria-pressed={selected}
+        aria-label={`${selected ? "Unselect" : "Select"} ${brand.name}`}
+      >
+        {cardBody}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/brands/${brand.id}`}
+      className={styles.card}
+      aria-label={`Open ${brand.name} dashboard`}
+    >
+      {cardBody}
     </Link>
   );
 }

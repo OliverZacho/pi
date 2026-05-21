@@ -1,6 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getBrandPageData } from "@/lib/brand-db";
+import {
+  listCollectionSummaries,
+  type CollectionSummary
+} from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/brand/brand.module.css";
@@ -62,9 +70,26 @@ export default async function BrandPage({ params }: RouteParams) {
     notFound();
   }
 
+  let sidebarCollections: CollectionSummary[] = [];
+  try {
+    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+  let sidebarSets: CompetitorSetSummary[] = [];
+  try {
+    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar activeId="brands" />
+      <ExploreSidebar
+        activeId="brands"
+        collections={sidebarCollections}
+        competitorSets={sidebarSets}
+      />
       <BrandDashboard data={data} />
     </div>
   );

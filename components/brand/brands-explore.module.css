@@ -901,3 +901,181 @@
   color: #94a3b8;
   flex-shrink: 0;
 }
+
+/* ---------- Select mode (multi-select for Compare) ---------- */
+
+.selectToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.selectToggle:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.selectToggle_active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.selectToggle_active:hover {
+  background: #0f172a;
+}
+
+.cardSelectable {
+  position: relative;
+}
+
+.cardSelectableButton {
+  /* The card's normal `cursor: pointer` already covers this, but in
+   * select mode we replace the Link wrapper with a button — keep the
+   * box / focus model identical. */
+  font: inherit;
+  text-align: inherit;
+  appearance: none;
+}
+
+.cardCheck {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 6px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: background 120ms ease, border-color 120ms ease,
+    transform 120ms ease;
+  color: #ffffff;
+}
+
+.cardCheck_on {
+  background: #0f172a;
+  border-color: #0f172a;
+  transform: scale(1.05);
+}
+
+.cardSelected {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.compareBar {
+  position: sticky;
+  bottom: 1.2rem;
+  margin: 1.5rem auto 0;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 1rem;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.compareBarCount {
+  font-size: 0.92rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.compareBarSpacer {
+  flex: 1;
+}
+
+.compareBarPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
+  border: 0;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.compareBarPrimary:hover {
+  transform: translateY(-1px);
+}
+
+.compareBarPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.compareBarSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.compareBarSecondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.compareBarSecondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.compareSaveForm {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  gap: 0.4rem;
+}
+
+.compareSaveInput {
+  flex: 1;
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.compareSaveInput::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.compareBarError {
+  width: 100%;
+  font-size: 0.78rem;
+  color: #fecaca;
+}

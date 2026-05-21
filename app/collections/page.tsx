@@ -5,6 +5,10 @@ import {
   listCollectionsWithPreviews,
   type CollectionSummary
 } from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import CollectionsGridClient from "@/components/collections/CollectionsGridClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -57,11 +61,19 @@ export default async function CollectionsPage() {
     }
   }
 
+  let sidebarSets: CompetitorSetSummary[] = [];
+  try {
+    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
         activeId="collections"
         collections={sidebarCollections}
+        competitorSets={sidebarSets}
       />
 
       <main className={styles.main}>

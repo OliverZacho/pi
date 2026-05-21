@@ -5,6 +5,10 @@ import {
   listCollectionSummaries,
   type CollectionSummary
 } from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import SavedGalleryClient from "@/components/explore/SavedGalleryClient";
 import styles from "@/components/explore/explore.module.css";
@@ -47,9 +51,23 @@ export default async function SavedPage() {
     console.error("Failed to load collections", err);
   }
 
+  let initialCompetitorSets: CompetitorSetSummary[] = [];
+  try {
+    initialCompetitorSets = await listCompetitorSetSummaries(
+      supabase,
+      user.id
+    );
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar activeId="saved" collections={initialCollections} />
+      <ExploreSidebar
+        activeId="saved"
+        collections={initialCollections}
+        competitorSets={initialCompetitorSets}
+      />
 
       <main className={styles.main}>
         <header className={styles.heading}>

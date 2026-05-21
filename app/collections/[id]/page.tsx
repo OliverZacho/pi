@@ -5,6 +5,10 @@ import {
   listCollectionSummaries,
   type CollectionSummary
 } from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -79,11 +83,19 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     console.error("Failed to load collections", err);
   }
 
+  let competitorSets: CompetitorSetSummary[] = [];
+  try {
+    competitorSets = await listCompetitorSetSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
         activeId={`collection:${collection.id}`}
         collections={collections}
+        competitorSets={competitorSets}
       />
 
       <main className={styles.main}>

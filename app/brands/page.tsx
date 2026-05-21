@@ -5,6 +5,14 @@ import {
   getBrandsFacets,
   searchBrands
 } from "@/lib/brands-explore-db";
+import {
+  listCollectionSummaries,
+  type CollectionSummary
+} from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/brand/brands-explore.module.css";
@@ -57,9 +65,26 @@ export default async function BrandsPage() {
     getBrandsFacets(supabase)
   ]);
 
+  let sidebarCollections: CollectionSummary[] = [];
+  try {
+    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+  let sidebarSets: CompetitorSetSummary[] = [];
+  try {
+    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar activeId="brands" />
+      <ExploreSidebar
+        activeId="brands"
+        collections={sidebarCollections}
+        competitorSets={sidebarSets}
+      />
 
       <main className={styles.main}>
         <header className={styles.heading}>

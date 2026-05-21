@@ -375,6 +375,63 @@ export type Database = {
           },
         ]
       }
+      competitor_sets: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      competitor_set_members: {
+        Row: {
+          added_at: string
+          company_id: string
+          set_id: string
+        }
+        Insert: {
+          added_at?: string
+          company_id: string
+          set_id: string
+        }
+        Update: {
+          added_at?: string
+          company_id?: string
+          set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_set_members_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_set_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_emails: {
         Row: {
           email_id: string

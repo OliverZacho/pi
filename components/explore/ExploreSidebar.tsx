@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import styles from "./explore.module.css";
 
 type NavId =
@@ -11,7 +12,7 @@ type NavId =
   | "saved"
   | "brands"
   | "collections"
-  | "search"
+  | "compare"
   | "more";
 
 type NavItem = {
@@ -24,23 +25,34 @@ type NavItem = {
 type Props = {
   /**
    * Which nav row should render as selected. The sidebar is shared
-   * across Explore (`/explore`), Saved (`/saved`), Brands, and
-   * Collections; each page passes an explicit `activeId` so the
+   * across Explore (`/explore`), Saved (`/saved`), Brands, Collections,
+   * and Compare; each page passes an explicit `activeId` so the
    * highlight tracks the page the user is actually on. A specific
    * collection id can also be passed in (e.g. `"collection:<uuid>"`)
-   * so the matching row in the Collections section highlights.
+   * so the matching row in the Collections section highlights. Same
+   * trick for saved competitor sets via `"compare:<uuid>"`.
    */
-  activeId?: NavId | `collection:${string}`;
+  activeId?:
+    | NavId
+    | `collection:${string}`
+    | `compare:${string}`;
   /**
    * User's collections fetched server-side by the page. We render the
    * top few in the section and link "View all" to `/collections`.
    */
   collections?: CollectionSummary[];
+  /**
+   * User's saved competitor sets. Same shape as `collections`: server
+   * fetches them once per page render and the sidebar renders the top
+   * few with a "View all" link to `/compare`.
+   */
+  competitorSets?: CompetitorSetSummary[];
 };
 
 // Number of collection rows surfaced in the section before falling back
 // to the "View all" link.
 const COLLECTION_PREVIEW_COUNT = 5;
+const COMPETITOR_SET_PREVIEW_COUNT = 5;
 
 // Stable empty default for `collections`. Using a module-level constant
 // (rather than an inline `= []` default) keeps the reference identical
@@ -48,6 +60,7 @@ const COLLECTION_PREVIEW_COUNT = 5;
 // render and cause an infinite update loop on pages that don't pass a
 // `collections` prop (e.g. /brands).
 const EMPTY_COLLECTIONS: CollectionSummary[] = [];
+const EMPTY_COMPETITOR_SETS: CompetitorSetSummary[] = [];
 
 function CompassIcon() {
   return (
@@ -86,7 +99,10 @@ function BookmarkIcon() {
   );
 }
 
-function SearchIcon() {
+function CompareIcon() {
+  // Two overlapping circles — Venn-diagram shorthand for "compare".
+  // Reads as distinct from the BrandsIcon (stacked layers) at the small
+  // sidebar size.
   return (
     <svg
       viewBox="0 0 24 24"
@@ -99,8 +115,8 @@ function SearchIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <circle cx="9" cy="12" r="6" />
+      <circle cx="15" cy="12" r="6" />
     </svg>
   );
 }
@@ -215,16 +231,18 @@ const NAV_ITEMS: NavItem[] = [
     icon: <CollectionIcon />,
     href: "/collections"
   },
-  { id: "search", label: "Search", icon: <SearchIcon /> },
+  { id: "compare", label: "Compare", icon: <CompareIcon />, href: "/compare" },
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
 export default function ExploreSidebar({
   activeId = "explore",
-  collections = EMPTY_COLLECTIONS
+  collections = EMPTY_COLLECTIONS,
+  competitorSets = EMPTY_COMPETITOR_SETS
 }: Props = {}) {
   const router = useRouter();
   const [items, setItems] = useState<CollectionSummary[]>(collections);
+  const [sets, setSets] = useState<CompetitorSetSummary[]>(competitorSets);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createPending, setCreatePending] = useState(false);
@@ -238,6 +256,10 @@ export default function ExploreSidebar({
   }, [collections]);
 
   useEffect(() => {
+    setSets(competitorSets);
+  }, [competitorSets]);
+
+  useEffect(() => {
     if (creating) {
       requestAnimationFrame(() => createInputRef.current?.focus());
     }
@@ -247,7 +269,15 @@ export default function ExploreSidebar({
     typeof activeId === "string" && activeId.startsWith("collection:")
       ? activeId.slice("collection:".length)
       : null;
-  const activeRowId = activeCollectionId ? "collections" : (activeId as NavId);
+  const activeCompetitorSetId =
+    typeof activeId === "string" && activeId.startsWith("compare:")
+      ? activeId.slice("compare:".length)
+      : null;
+  const activeRowId: NavId = activeCollectionId
+    ? "collections"
+    : activeCompetitorSetId
+      ? "compare"
+      : (activeId as NavId);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -420,6 +450,56 @@ export default function ExploreSidebar({
           </span>
           <span>View all</span>
         </Link>
+      </div>
+
+      <div className={styles.navGroup}>
+        <div className={styles.sectionLabel}>
+          <span>Your competitors</span>
+          <Link
+            href="/compare"
+            className={styles.sectionAdd}
+            aria-label="Build a new comparison"
+            title="Build a new comparison"
+          >
+            <PlusIcon />
+          </Link>
+        </div>
+
+        {sets.length === 0 ? (
+          <div className={styles.sidebarEmpty}>
+            No saved sets yet. Open Compare to build one.
+          </div>
+        ) : null}
+
+        {sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT).map((set) => {
+          const isActive = activeCompetitorSetId === set.id;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          return (
+            <Link
+              key={set.id}
+              href={`/compare/${set.id}`}
+              className={className}
+              aria-current={isActive ? "page" : undefined}
+              title={set.name}
+            >
+              <span className={styles.navIcon}>
+                <CompareIcon />
+              </span>
+              <span className={styles.navItemLabel}>{set.name}</span>
+            </Link>
+          );
+        })}
+
+        {sets.length > 0 ? (
+          <Link href="/compare" className={styles.navItem}>
+            <span className={styles.navIcon}>
+              <MoreIcon />
+            </span>
+            <span>View all</span>
+          </Link>
+        ) : null}
       </div>
 
       <div className={styles.spacer} />

@@ -10,6 +10,10 @@ import {
   listCollectionSummaries,
   type CollectionSummary
 } from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -78,9 +82,25 @@ export default async function ExplorePage() {
     console.error("Failed to load collections", err);
   }
 
+  // Same idea for saved competitor sets — feeds the sidebar's
+  // "Your competitors" section. Swallow errors so a missing table
+  // never breaks Explore.
+  let initialCompetitorSets: CompetitorSetSummary[] = [];
+  try {
+    initialCompetitorSets = await listCompetitorSetSummaries(
+      supabase,
+      user.id
+    );
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
   return (
     <div className={styles.shell}>
-      <ExploreSidebar collections={initialCollections} />
+      <ExploreSidebar
+        collections={initialCollections}
+        competitorSets={initialCompetitorSets}
+      />
 
       <main className={styles.main}>
         <header className={styles.heading}>
