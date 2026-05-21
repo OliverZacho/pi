@@ -170,25 +170,21 @@ export default function EmailCard({
           onLoad={() => setLoaded(true)}
         />
         {isSaved ? (
-          <span
-            className={styles.cardSavedBadge}
-            aria-label="Saved to your gallery"
-            title="Saved"
-          >
-            <BookmarkFilledIcon />
-          </span>
-        ) : null}
-        <div className={styles.cardOverlay}>
           <button
             type="button"
-            className={styles.overlayButton}
+            className={styles.cardSavedBadge}
             onClick={(event) => {
               event.stopPropagation();
-              handleOpen();
+              void handleToggleSave();
             }}
+            disabled={pendingSave}
+            aria-label="Remove from your gallery"
+            title="Click to unsave"
           >
-            Open
+            <BookmarkFilledIcon />
           </button>
+        ) : null}
+        <div className={styles.cardOverlay}>
           <button
             type="button"
             className={`${styles.overlayButton} ${

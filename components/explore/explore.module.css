@@ -1054,12 +1054,32 @@
   justify-content: center;
   width: 26px;
   height: 26px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: rgba(22, 163, 74, 0.95);
   color: #ffffff;
   box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.35);
   z-index: 3;
-  pointer-events: none;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.cardSavedBadge:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.95);
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4);
+}
+
+.cardSavedBadge:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.cardSavedBadge:disabled {
+  cursor: progress;
+  opacity: 0.75;
 }
 
 .cardMeta {
