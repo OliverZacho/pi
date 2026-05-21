@@ -742,6 +742,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The CTA tag cloud renders its own chrome via inline styles inside
+   `<CtaCloud />` so it stays robust against any CSS-modules HMR
+   caching weirdness in dev. No selectors live here. */
+
 /* ---------- Send-hours clock heatmap (radial polar histogram) ---------- */
 
 .clockPair {

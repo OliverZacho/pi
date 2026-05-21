@@ -89,6 +89,16 @@ export type BrandPageData = {
     samples: string[];
   };
   /**
+   * The most-used primary call-to-action labels for this brand. We
+   * surface this as a tag cloud on the dashboard so the operator can
+   * tell at a glance what verbs / phrases the brand leans on
+   * ("Shop now", "Discover", "Read more", …). Entries are normalised
+   * case-insensitively but presented in their most common casing so
+   * branded all-caps CTAs ("SHOP THE SALE") still look like the brand
+   * wrote them.
+   */
+  ctas: { text: string; count: number }[];
+  /**
    * Per-day activity timeline used to render the GitHub-style heatmap
    * on the brand dashboard. `start` and `end` define the contiguous
    * window the grid should cover (the client fills in empty days), and
@@ -162,6 +172,7 @@ type EmailRow = {
   has_dark_mode: boolean | null;
   discount_percent: number | string | null;
   promo_code: string | null;
+  primary_cta_text: string | null;
   esp_provider: string | null;
   metadata: unknown;
 };
@@ -216,7 +227,7 @@ export async function getBrandPageData(
   const { data: emailRowsRaw, error: emailError } = await supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, esp_provider, metadata"
+      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, esp_provider, metadata"
     )
     .eq("company_id", companyId)
     .order("received_at", { ascending: false })
@@ -248,6 +259,7 @@ export async function getBrandPageData(
   const esp = computeEsp(emailRows);
   const design = computeDesign(emailRows);
   const subjects = computeSubjects(emailRows);
+  const ctas = computeCtas(emailRows);
   const calendar = computeCalendar(emailRows);
   const accent =
     design.palette.length > 0
@@ -289,6 +301,7 @@ export async function getBrandPageData(
     esp,
     design,
     subjects,
+    ctas,
     calendar,
     recentEmails
   };
@@ -650,6 +663,58 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
     avgLength: counted > 0 ? total / counted : null,
     samples
   };
+}
+
+/**
+ * Aggregates the brand's most-used primary CTA labels into a frequency
+ * list suitable for a tag cloud.
+ *
+ * Normalisation rules — chosen to behave well on real data without
+ * being clever enough to surprise:
+ *   - Trim and collapse internal whitespace so "Shop  now" and
+ *     "Shop now " bucket together.
+ *   - Group case-insensitively (key = lowercase) so "Shop now" and
+ *     "SHOP NOW" don't fight each other in the cloud.
+ *   - Within a bucket, display the *most-seen* original casing so a
+ *     brand that writes its CTAs in all-caps still reads as all-caps.
+ *   - Drop anything longer than 60 chars — long sentences are almost
+ *     always either accidental headlines or marketing copy mis-tagged
+ *     as the CTA, and they wreck the tag cloud's layout.
+ *   - Cap the cloud at 30 tags so visual weight stays readable; the
+ *     long tail is more noise than signal anyway.
+ */
+function computeCtas(rows: EmailRow[]): BrandPageData["ctas"] {
+  type Bucket = { count: number; variants: Map<string, number> };
+  const buckets = new Map<string, Bucket>();
+
+  for (const row of rows) {
+    const raw = (row.primary_cta_text ?? "").replace(/\s+/g, " ").trim();
+    if (!raw || raw.length > 60) continue;
+    const key = raw.toLowerCase();
+    const bucket = buckets.get(key) ?? {
+      count: 0,
+      variants: new Map<string, number>()
+    };
+    bucket.count += 1;
+    bucket.variants.set(raw, (bucket.variants.get(raw) ?? 0) + 1);
+    buckets.set(key, bucket);
+  }
+
+  const entries: BrandPageData["ctas"] = [];
+  for (const bucket of buckets.values()) {
+    let bestText = "";
+    let bestCount = -1;
+    for (const [variant, count] of bucket.variants) {
+      if (count > bestCount) {
+        bestCount = count;
+        bestText = variant;
+      }
+    }
+    entries.push({ text: bestText, count: bucket.count });
+  }
+
+  entries.sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
+  return entries.slice(0, 30);
 }
 
 function mapRecentEmails(

@@ -8,6 +8,7 @@ import {
 } from "@/lib/datetime";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
+import BrandCtaCloud from "./BrandCtaCloud";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
@@ -41,6 +42,7 @@ export default function BrandDashboard({ data }: Props) {
     esp,
     design,
     subjects,
+    ctas,
     calendar
   } = data;
 
@@ -107,6 +109,10 @@ export default function BrandDashboard({ data }: Props) {
           <section className={styles.sectionGrid}>
             <DesignCard design={design} subjects={subjects} />
             <PromoCard promo={promo} sample={totals.sampleSize} />
+          </section>
+
+          <section className={styles.recentSection}>
+            <CtaCloudCard ctas={ctas} sample={totals.sampleSize} />
           </section>
 
           <section className={styles.recentSection}>
@@ -726,6 +732,52 @@ function DesignCard({
     </article>
   );
 }
+
+/* -----------------------------------------------------------------
+   CTA tag cloud
+   ----------------------------------------------------------------- */
+
+/**
+ * Tag cloud of the brand's most-used primary CTA labels. Font size
+ * scales linearly between the lowest and highest counts in the
+ * supplied list so the visual weight tracks frequency without one
+ * runaway outlier flattening everything else into 0.85rem soup.
+ *
+ * Each tag also gets a low-opacity accent fill keyed to the brand
+ * accent so a glance at the card immediately reads as "this brand's
+ * voice", not a generic widget. Hover surfaces the exact count for
+ * folks who want the number behind the visual.
+ */
+function CtaCloudCard({
+  ctas,
+  sample
+}: {
+  ctas: BrandPageData["ctas"];
+  sample: number;
+}) {
+  return (
+    <article className={styles.card}>
+      <div className={styles.cardHead}>
+        <div>
+          <span className={styles.cardEyebrow}>Voice</span>
+          <h2 className={styles.cardTitle}>Most used calls to action</h2>
+          <p className={styles.cardSub}>
+            The button labels this brand reaches for most often, across{" "}
+            {sample} recent emails. Larger words appear more frequently.
+          </p>
+        </div>
+      </div>
+      {ctas.length === 0 ? (
+        <div className={styles.cardSub}>
+          No CTA labels captured yet.
+        </div>
+      ) : (
+        <BrandCtaCloud ctas={ctas} />
+      )}
+    </article>
+  );
+}
+
 
 /* -----------------------------------------------------------------
    Formatting helpers
