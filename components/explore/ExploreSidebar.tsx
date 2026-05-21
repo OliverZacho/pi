@@ -42,6 +42,13 @@ type Props = {
 // to the "View all" link.
 const COLLECTION_PREVIEW_COUNT = 5;
 
+// Stable empty default for `collections`. Using a module-level constant
+// (rather than an inline `= []` default) keeps the reference identical
+// across renders, so the prop-mirror effect below doesn't fire on every
+// render and cause an infinite update loop on pages that don't pass a
+// `collections` prop (e.g. /brands).
+const EMPTY_COLLECTIONS: CollectionSummary[] = [];
+
 function CompassIcon() {
   return (
     <svg
@@ -214,7 +221,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function ExploreSidebar({
   activeId = "explore",
-  collections = []
+  collections = EMPTY_COLLECTIONS
 }: Props = {}) {
   const router = useRouter();
   const [items, setItems] = useState<CollectionSummary[]>(collections);
