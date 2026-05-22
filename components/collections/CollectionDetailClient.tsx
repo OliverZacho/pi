@@ -10,6 +10,7 @@ import type {
   CollectionDetail,
   CollectionRules,
   CollectionRuleCondition,
+  CollectionRuleScope,
   CollectionSummary
 } from "@/lib/collections-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
@@ -569,6 +570,22 @@ function RulesSummary({
         <SparkleIcon /> Auto-rules
       </span>
       <ul className={styles.rulesSummaryList}>
+        {rules.scope !== "all" ? (
+          <li style={{ display: "contents" }}>
+            <span
+              className={`${styles.rulesSummaryChip} ${styles.rulesSummaryChipScope}`}
+              title={
+                rules.appliedAt
+                  ? new Date(rules.appliedAt).toLocaleString()
+                  : undefined
+              }
+            >
+              <span className={styles.rulesSummaryChipLabel}>Scope</span>
+              {describeScope(rules.scope, rules.appliedAt)}
+            </span>
+            <span className={styles.rulesSummaryJoiner}>AND</span>
+          </li>
+        ) : null}
         {rules.conditions.map((condition, index) => (
           <li key={condition.id} style={{ display: "contents" }}>
             {index > 0 ? (
@@ -666,6 +683,28 @@ function describeCondition(
       );
     }
   }
+}
+
+function describeScope(
+  scope: CollectionRuleScope,
+  appliedAt: string | null
+): string {
+  if (scope === "all") return "All emails";
+  const formatted = appliedAt
+    ? new Date(appliedAt).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      })
+    : null;
+  if (scope === "future") {
+    return formatted
+      ? `Only new emails (since ${formatted})`
+      : "Only new emails";
+  }
+  return formatted
+    ? `Only existing emails (up to ${formatted})`
+    : "Only existing emails";
 }
 
 /**

@@ -84,10 +84,30 @@ export type CollectionRuleCondition =
 
 export type CollectionRuleCombinator = "AND" | "OR";
 
+/**
+ * Time-window scope:
+ *
+ *  - `all`     → match every email regardless of when it arrived
+ *                (the original "passive collection" behaviour).
+ *  - `future`  → only emails received at-or-after `appliedAt`
+ *                ("from now on, collect new matching emails").
+ *  - `past`    → only emails received strictly before `appliedAt`
+ *                ("snapshot what already exists; ignore new arrivals").
+ *
+ * `appliedAt` is the timestamp anchor for `future` / `past`. It's
+ * always `null` when scope is `all`. The API layer sets / preserves it
+ * — see `resolveAppliedAt`.
+ */
+export const COLLECTION_RULE_SCOPES = ["all", "future", "past"] as const;
+export type CollectionRuleScope = (typeof COLLECTION_RULE_SCOPES)[number];
+
 export type CollectionRules = {
   version: 1;
   combinator: CollectionRuleCombinator;
   conditions: CollectionRuleCondition[];
+  scope: CollectionRuleScope;
+  /** ISO timestamp; required when `scope !== "all"`, otherwise `null`. */
+  appliedAt: string | null;
 };
 
 const UUID_PATTERN =
@@ -156,11 +176,79 @@ export function parseCollectionRules(input: unknown): CollectionRules | null {
     conditions.push(parseCondition(c, index));
   }
 
+  // Scope defaults to "all" so rule rows that predate this column keep
+  // working unchanged.
+  const scopeRaw = raw.scope;
+  let scope: CollectionRuleScope = "all";
+  if (scopeRaw !== undefined && scopeRaw !== null) {
+    if (
+      typeof scopeRaw !== "string" ||
+      !(COLLECTION_RULE_SCOPES as readonly string[]).includes(scopeRaw)
+    ) {
+      throw new CollectionRulesValidationError(
+        'rules.scope must be "all", "future" or "past"'
+      );
+    }
+    scope = scopeRaw as CollectionRuleScope;
+  }
+
+  // `appliedAt` is server-managed but we accept what the caller sends
+  // so we can validate it. The API layer overrides the final value
+  // before persistence.
+  let appliedAt: string | null = null;
+  if (raw.appliedAt !== undefined && raw.appliedAt !== null) {
+    if (typeof raw.appliedAt !== "string") {
+      throw new CollectionRulesValidationError(
+        "rules.appliedAt must be an ISO timestamp string"
+      );
+    }
+    const parsed = Date.parse(raw.appliedAt);
+    if (!Number.isFinite(parsed)) {
+      throw new CollectionRulesValidationError(
+        "rules.appliedAt is not a parseable timestamp"
+      );
+    }
+    appliedAt = new Date(parsed).toISOString();
+  }
+
+  // Scope=all and appliedAt are mutually exclusive — normalise here so
+  // the rest of the code can rely on the invariant.
+  if (scope === "all") {
+    appliedAt = null;
+  }
+
   return {
     version: 1,
     combinator,
-    conditions
+    conditions,
+    scope,
+    appliedAt
   };
+}
+
+/**
+ * Decide what `appliedAt` the next persisted version of the rule
+ * should carry. The policy is:
+ *
+ *  - scope=all → always `null`.
+ *  - scope changed (or rule is brand new) → "now".
+ *  - scope unchanged and the existing rule already had an anchor →
+ *    preserve it, so editing unrelated parts of the rule (e.g.
+ *    adding a brand) doesn't silently reset the cutoff.
+ */
+export function resolveAppliedAt(
+  existing: CollectionRules | null,
+  incomingScope: CollectionRuleScope
+): string | null {
+  if (incomingScope === "all") return null;
+  if (
+    existing &&
+    existing.scope === incomingScope &&
+    existing.appliedAt
+  ) {
+    return existing.appliedAt;
+  }
+  return new Date().toISOString();
 }
 
 function parseCondition(
@@ -370,7 +458,7 @@ export async function listCollectionsWithPreviews(
 ): Promise<CollectionCardData[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug, created_at, updated_at")
+    .select("id, name, share_slug, created_at, updated_at, rules")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
@@ -379,30 +467,62 @@ export async function listCollectionsWithPreviews(
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
-  // Pull membership rows for every collection in one go and bucket
-  // them client-side. This is a single linear scan of at most
-  // `collections × emails` rows, which is fine while users have at most
-  // a few hundred collections; we'd swap to a stored procedure if that
-  // ever grew.
-  const collectionIds = rows.map((row) => row.id);
-  const { data: memberRows, error: memberError } = await supabase
-    .from("collection_emails")
-    .select("collection_id, email_id, added_at")
-    .in("collection_id", collectionIds)
-    .order("added_at", { ascending: false });
-
-  if (memberError) throw memberError;
+  // Split the rows into the two membership modes up-front. Manual
+  // collections share a single batched lookup against
+  // `collection_emails`; rule-based ones each get their own evaluator
+  // call (one per collection — small N, dominant cost is already the
+  // emails query itself).
+  const manualRows: typeof rows = [];
+  const ruleRows: { row: (typeof rows)[number]; rules: CollectionRules }[] = [];
+  for (const row of rows) {
+    const parsed = safeParseStoredRules(row.rules);
+    if (parsed) ruleRows.push({ row, rules: parsed });
+    else manualRows.push(row);
+  }
 
   const counts = new Map<string, number>();
   const previews = new Map<string, string[]>();
-  for (const row of memberRows ?? []) {
-    counts.set(row.collection_id, (counts.get(row.collection_id) ?? 0) + 1);
-    const bucket = previews.get(row.collection_id) ?? [];
-    if (bucket.length < PREVIEW_EMAIL_COUNT) {
-      bucket.push(row.email_id);
-      previews.set(row.collection_id, bucket);
+
+  if (manualRows.length > 0) {
+    const manualIds = manualRows.map((row) => row.id);
+    const { data: memberRows, error: memberError } = await supabase
+      .from("collection_emails")
+      .select("collection_id, email_id, added_at")
+      .in("collection_id", manualIds)
+      .order("added_at", { ascending: false });
+
+    if (memberError) throw memberError;
+
+    for (const row of memberRows ?? []) {
+      counts.set(row.collection_id, (counts.get(row.collection_id) ?? 0) + 1);
+      const bucket = previews.get(row.collection_id) ?? [];
+      if (bucket.length < PREVIEW_EMAIL_COUNT) {
+        bucket.push(row.email_id);
+        previews.set(row.collection_id, bucket);
+      }
     }
   }
+
+  // Rule-based collections don't keep an explicit `collection_emails`
+  // row per match, so the membership join above would always report
+  // zero for them. Run the evaluator instead — same source of truth as
+  // the detail page. The fan-out is fine in practice because a single
+  // user only has a handful of rule-based collections, but a future
+  // optimisation could batch them into a single materialised view.
+  await Promise.all(
+    ruleRows.map(async ({ row, rules }) => {
+      try {
+        const ids = await evaluateCollectionRuleIds(supabase, rules);
+        counts.set(row.id, ids.length);
+        previews.set(row.id, ids.slice(0, PREVIEW_EMAIL_COUNT));
+      } catch (err) {
+        console.warn("Failed to evaluate rule-based collection for preview", {
+          collectionId: row.id,
+          err
+        });
+      }
+    })
+  );
 
   return rows.map((row) => ({
     id: row.id,
@@ -741,6 +861,17 @@ export async function evaluateCollectionRules(
     .order("received_at", { ascending: false })
     .limit(RULE_EVAL_LIMIT);
 
+  // The scope (past / future) is an outer filter — semantically it's
+  // ALWAYS AND'd with the rest of the rule, even when the per-
+  // condition combinator is OR. PostgREST chains additional `.gte()` /
+  // `.lt()` calls with implicit AND, so we can just tack them on
+  // before the combinator clause runs.
+  if (rules.scope === "future" && rules.appliedAt) {
+    query = query.gte("received_at", rules.appliedAt);
+  } else if (rules.scope === "past" && rules.appliedAt) {
+    query = query.lt("received_at", rules.appliedAt);
+  }
+
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {
       switch (filter.type) {
@@ -816,6 +947,12 @@ export async function evaluateCollectionRuleIds(
     .from("captured_emails")
     .select("id")
     .limit(RULE_EVAL_LIMIT);
+
+  if (rules.scope === "future" && rules.appliedAt) {
+    query = query.gte("received_at", rules.appliedAt);
+  } else if (rules.scope === "past" && rules.appliedAt) {
+    query = query.lt("received_at", rules.appliedAt);
+  }
 
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {

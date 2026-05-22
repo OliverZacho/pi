@@ -6,6 +6,7 @@ import {
   getCollectionForOwner,
   parseCollectionRules,
   renameCollection,
+  resolveAppliedAt,
   setCollectionRules
 } from "@/lib/collections-db";
 
@@ -115,6 +116,30 @@ export async function PATCH(request: Request, context: RouteContext) {
         }
         throw err;
       }
+
+      // Stamp `appliedAt` server-side so the client can't backdate the
+      // cutoff (which would silently include emails the user shouldn't
+      // see in a "future only" rule, for example). If the scope is
+      // unchanged we preserve the existing anchor across edits so
+      // adding an extra brand doesn't reset the cutoff.
+      if (rules) {
+        const existingDetail = await getCollectionForOwner(
+          session.supabase,
+          session.user.id,
+          id
+        );
+        if (!existingDetail) {
+          return NextResponse.json(
+            { error: "Collection not found" },
+            { status: 404 }
+          );
+        }
+        rules = {
+          ...rules,
+          appliedAt: resolveAppliedAt(existingDetail.rules, rules.scope)
+        };
+      }
+
       const ok = await setCollectionRules(
         session.supabase,
         session.user.id,

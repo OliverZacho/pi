@@ -10,6 +10,7 @@ import type {
   CollectionRuleCombinator,
   CollectionRuleCondition,
   CollectionRuleField,
+  CollectionRuleScope,
   CollectionRules
 } from "@/lib/collections-db";
 import type {
@@ -43,7 +44,30 @@ type Props = {
 type Draft = {
   combinator: CollectionRuleCombinator;
   conditions: CollectionRuleCondition[];
+  scope: CollectionRuleScope;
 };
+
+const SCOPE_OPTIONS: {
+  value: CollectionRuleScope;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "all",
+    label: "All emails",
+    hint: "Both existing and new incoming emails."
+  },
+  {
+    value: "future",
+    label: "Only new emails",
+    hint: "Only emails received from the moment you save this rule."
+  },
+  {
+    value: "past",
+    label: "Only existing emails",
+    hint: "A one-time snapshot of emails received before now; new arrivals are ignored."
+  }
+];
 
 const FIELD_OPTIONS: { value: CollectionRuleField; label: string }[] = [
   { value: "search", label: "Search term" },
@@ -73,11 +97,13 @@ export default function CollectionRulesEditor({
     initialRules
       ? {
           combinator: initialRules.combinator,
-          conditions: initialRules.conditions.map((c) => ({ ...c }))
+          conditions: initialRules.conditions.map((c) => ({ ...c })),
+          scope: initialRules.scope
         }
       : {
           combinator: "AND",
-          conditions: [makeBlankCondition("search")]
+          conditions: [makeBlankCondition("search")],
+          scope: "all"
         }
   );
   const [saving, setSaving] = useState(false);
@@ -136,6 +162,14 @@ export default function CollectionRulesEditor({
     setDraft((current) => ({ ...current, combinator }));
   }
 
+  function setScope(scope: CollectionRuleScope) {
+    setDraft((current) => ({ ...current, scope }));
+  }
+
+  const activeScope =
+    SCOPE_OPTIONS.find((option) => option.value === draft.scope) ??
+    SCOPE_OPTIONS[0];
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!isValid || saving) return;
@@ -145,7 +179,12 @@ export default function CollectionRulesEditor({
       await onSave({
         version: 1,
         combinator: draft.combinator,
-        conditions: draft.conditions
+        conditions: draft.conditions,
+        scope: draft.scope,
+        // `appliedAt` is server-managed; the API will fill / preserve
+        // it. Passing `null` here keeps the request payload small and
+        // avoids the client second-guessing the cutoff timestamp.
+        appliedAt: null
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save rules");
@@ -179,6 +218,33 @@ export default function CollectionRulesEditor({
             hint="OR"
           />
         </div>
+      </div>
+
+      <div className={styles.scopeRow}>
+        <span className={styles.scopeLabel}>Apply to</span>
+        <div
+          className={styles.scopeOptions}
+          role="radiogroup"
+          aria-label="Which emails this rule applies to"
+        >
+          {SCOPE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={draft.scope === option.value}
+              onClick={() => setScope(option.value)}
+              className={`${styles.scopeOption} ${
+                draft.scope === option.value
+                  ? styles.scopeOptionActive
+                  : ""
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <span className={styles.scopeHint}>{activeScope.hint}</span>
       </div>
 
       <ul className={styles.rulesList}>
