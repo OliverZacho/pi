@@ -9,6 +9,7 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -90,6 +91,16 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     console.error("Failed to load competitor sets", err);
   }
 
+  // The rules editor needs the canonical list of brands / markets /
+  // categories so its dropdowns are exhaustive — same facets the
+  // Explore page uses for its own filter chips.
+  let facets: ExploreFacets = { brands: [], markets: [], categories: [] };
+  try {
+    facets = await getExploreFacets(supabase);
+  } catch (err) {
+    console.error("Failed to load explore facets", err);
+  }
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -103,6 +114,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           initialCollection={collection}
           initialSavedIds={savedIds}
           initialCollections={collections}
+          facets={facets}
         />
       </main>
     </div>

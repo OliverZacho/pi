@@ -1,15 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  EMAIL_CATEGORY_LABELS,
+  type EmailCategory
+} from "@/lib/admin-types";
 import type {
   CollectionDetail,
+  CollectionRules,
+  CollectionRuleCondition,
   CollectionSummary
 } from "@/lib/collections-db";
-import type { ExploreEmailCard } from "@/lib/explore-db";
+import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
 import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
+import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
 
 const EMPTY_ID_SET = new Set<string>();
@@ -18,6 +25,12 @@ type Props = {
   initialCollection: CollectionDetail;
   initialSavedIds: string[];
   initialCollections: CollectionSummary[];
+  /**
+   * Brand / market / category facets used by the rules editor's
+   * dropdowns. Always provided by the server — fall back to empty
+   * arrays if loading failed upstream.
+   */
+  facets: ExploreFacets;
 };
 
 /**
@@ -30,7 +43,8 @@ type Props = {
 export default function CollectionDetailClient({
   initialCollection,
   initialSavedIds,
-  initialCollections
+  initialCollections,
+  facets
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -41,6 +55,13 @@ export default function CollectionDetailClient({
   );
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
+  const isRuleBased = collection.rules !== null;
+  const openEmailRef = useRef<ExploreEmailCard | null>(null);
+  useEffect(() => {
+    openEmailRef.current = openEmail;
+  }, [openEmail]);
 
   const [savedIds, setSavedIds] = useState<Set<string>>(
     () => new Set(initialSavedIds)
@@ -225,6 +246,58 @@ export default function CollectionDetailClient({
     [updateMembership]
   );
 
+  // ---------- Rules ----------
+
+  const applyDetailResponse = useCallback((detail: CollectionDetail) => {
+    setCollection(detail);
+    setEmails(detail.emails);
+    if (openEmailRef.current) {
+      const stillThere = detail.emails.find(
+        (item) => item.id === openEmailRef.current?.id
+      );
+      if (!stillThere) {
+        setOpenEmail(null);
+      }
+    }
+  }, []);
+
+  const handleSaveRules = useCallback(
+    async (rules: CollectionRules | null) => {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules })
+      });
+      if (!res.ok) {
+        let message = `Failed (${res.status})`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body?.error) message = body.error;
+        } catch {
+          /* fall through */
+        }
+        throw new Error(message);
+      }
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+      setRulesEditorOpen(false);
+    },
+    [applyDetailResponse, collection.id]
+  );
+
+  async function handleClearRules() {
+    const confirmed = window.confirm(
+      "Remove the automatic rules for this collection? The collection will become empty until you add emails manually."
+    );
+    if (!confirmed) return;
+    try {
+      await handleSaveRules(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear rules");
+    }
+  }
+
   // ---------- Header actions ----------
 
   async function handleCopyShare() {
@@ -265,11 +338,8 @@ export default function CollectionDetailClient({
         body: JSON.stringify({ name })
       });
       if (!res.ok) throw new Error(`Failed (${res.status})`);
-      const body = (await res.json()) as { collection: CollectionSummary };
-      setCollection((current) => ({
-        ...current,
-        name: body.collection.name
-      }));
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
       setNameDraft(body.collection.name);
       setRenaming(false);
       router.refresh();
@@ -390,12 +460,52 @@ export default function CollectionDetailClient({
         </div>
       ) : null}
 
-      {emails.length === 0 ? (
-        <p className={exploreStyles.empty}>
-          This collection is empty. Open Explore or Saved and use the
-          folder-plus icon on any email to add it here.
-        </p>
-      ) : (
+      {isRuleBased && !rulesEditorOpen ? (
+        <RulesSummary
+          rules={collection.rules as CollectionRules}
+          facets={facets}
+          onEdit={() => setRulesEditorOpen(true)}
+          onClear={handleClearRules}
+        />
+      ) : null}
+
+      {rulesEditorOpen ? (
+        <CollectionRulesEditor
+          initialRules={collection.rules}
+          facets={facets}
+          onSave={handleSaveRules}
+          onCancel={() => setRulesEditorOpen(false)}
+          showCancel
+        />
+      ) : null}
+
+      {!rulesEditorOpen && emails.length === 0 ? (
+        isRuleBased ? (
+          <p className={exploreStyles.empty}>
+            No emails match these rules yet. New incoming emails will be
+            added automatically.
+          </p>
+        ) : (
+          <div className={styles.rulesEmptyState}>
+            <h2 className={styles.rulesEmptyTitle}>
+              This collection is empty
+            </h2>
+            <p className={styles.rulesEmptyBody}>
+              Open Explore or Saved and use the folder-plus icon on any
+              email to add it here — or set up automatic rules so new
+              incoming emails populate this collection for you.
+            </p>
+            <div className={styles.rulesEmptyDivider}>or</div>
+            <CollectionRulesEditor
+              initialRules={null}
+              facets={facets}
+              onSave={handleSaveRules}
+            />
+          </div>
+        )
+      ) : null}
+
+      {!rulesEditorOpen && emails.length > 0 ? (
         <div className={exploreStyles.grid}>
           {emails.map((email) => (
             <EmailCard
@@ -412,7 +522,7 @@ export default function CollectionDetailClient({
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       {openEmail ? (
         <EmailModal
@@ -428,6 +538,145 @@ export default function CollectionDetailClient({
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Read-only summary of the active rule set. Renders each condition as
+ * a chip joined by the combinator, plus Edit / Clear actions. Lives
+ * directly above the email grid when a collection is rule-based.
+ */
+function RulesSummary({
+  rules,
+  facets,
+  onEdit,
+  onClear
+}: {
+  rules: CollectionRules;
+  facets: ExploreFacets;
+  onEdit: () => void;
+  onClear: () => Promise<void> | void;
+}) {
+  const brandsById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const brand of facets.brands) map.set(brand.id, brand.name);
+    return map;
+  }, [facets.brands]);
+
+  return (
+    <div className={styles.rulesSummary}>
+      <span className={styles.rulesSummaryLabel}>
+        <SparkleIcon /> Auto-rules
+      </span>
+      <ul className={styles.rulesSummaryList}>
+        {rules.conditions.map((condition, index) => (
+          <li key={condition.id} style={{ display: "contents" }}>
+            {index > 0 ? (
+              <span className={styles.rulesSummaryJoiner}>
+                {rules.combinator}
+              </span>
+            ) : null}
+            <span className={styles.rulesSummaryChip}>
+              {describeCondition(condition, brandsById)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className={styles.rulesSummaryActions}>
+        <button
+          type="button"
+          className={styles.rulesSummaryButton}
+          onClick={onEdit}
+        >
+          <PencilIcon /> Edit rules
+        </button>
+        <button
+          type="button"
+          className={`${styles.rulesSummaryButton} ${styles.rulesSummaryButtonDanger}`}
+          onClick={() => {
+            void onClear();
+          }}
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function describeCondition(
+  condition: CollectionRuleCondition,
+  brandsById: Map<string, string>
+): React.ReactNode {
+  switch (condition.field) {
+    case "search":
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>Search</span>
+          contains "{condition.value}"
+        </>
+      );
+    case "category":
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>Category</span>
+          {EMAIL_CATEGORY_LABELS[condition.value as EmailCategory] ??
+            condition.value}
+        </>
+      );
+    case "brand":
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>Brand</span>
+          {brandsById.get(condition.value) ?? "Selected brand"}
+        </>
+      );
+    case "market":
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>Market</span>
+          {condition.value}
+        </>
+      );
+    case "discount_percent": {
+      const op =
+        condition.operator === "gte"
+          ? "≥"
+          : condition.operator === "lte"
+            ? "≤"
+            : "=";
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>Discount</span>
+          {op} {condition.value}%
+        </>
+      );
+    }
+  }
+}
+
+function SparkleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+      <path d="M5.6 5.6l2.1 2.1" />
+      <path d="M16.3 16.3l2.1 2.1" />
+      <path d="M5.6 18.4l2.1-2.1" />
+      <path d="M16.3 7.7l2.1-2.1" />
+    </svg>
   );
 }
 

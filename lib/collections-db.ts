@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
 import { getSignedAssets } from "./storage";
-import type { Database } from "@/types/supabase";
+import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
 /**
@@ -23,6 +24,254 @@ import type { ExploreEmailCard } from "./explore-db";
 const SLUG_BYTES = 12;
 const MAX_NAME_LENGTH = 120;
 const PREVIEW_EMAIL_COUNT = 4;
+
+const MAX_RULE_CONDITIONS = 12;
+const MAX_RULE_VALUE_LENGTH = 200;
+const RULE_EVAL_LIMIT = 200;
+
+// ---------- Rule schema ----------
+//
+// A "rule-based" collection auto-populates from a saved query. The shape
+// is intentionally narrow: a combinator (AND / OR) plus a flat list of
+// per-field conditions. Nested groups would be a natural next step but
+// the dropdowns the product spec calls for don't need them yet, and
+// keeping the schema flat means the evaluator can compile straight to a
+// single PostgREST query.
+
+export const COLLECTION_RULE_FIELDS = [
+  "search",
+  "category",
+  "brand",
+  "market",
+  "discount_percent"
+] as const;
+
+export type CollectionRuleField = (typeof COLLECTION_RULE_FIELDS)[number];
+
+export type CollectionRuleCondition =
+  | {
+      id: string;
+      field: "search";
+      operator: "contains";
+      value: string;
+    }
+  | {
+      id: string;
+      field: "category";
+      operator: "is";
+      value: EmailCategory;
+    }
+  | {
+      id: string;
+      field: "brand";
+      operator: "is";
+      /** companies.id (uuid) */
+      value: string;
+    }
+  | {
+      id: string;
+      field: "market";
+      operator: "is";
+      /** companies.market */
+      value: string;
+    }
+  | {
+      id: string;
+      field: "discount_percent";
+      operator: "gte" | "lte" | "eq";
+      value: number;
+    };
+
+export type CollectionRuleCombinator = "AND" | "OR";
+
+export type CollectionRules = {
+  version: 1;
+  combinator: CollectionRuleCombinator;
+  conditions: CollectionRuleCondition[];
+};
+
+const UUID_PATTERN =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const CATEGORY_LOOKUP = new Set<string>(EMAIL_CATEGORIES);
+
+export class CollectionRulesValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CollectionRulesValidationError";
+  }
+}
+
+/**
+ * Coerce an arbitrary JSON payload (e.g. from the request body or
+ * straight off the database) into a strongly-typed `CollectionRules`
+ * value, throwing `CollectionRulesValidationError` on anything that
+ * can't be coerced. Returns `null` for explicit `null` / `undefined`
+ * inputs so the same helper can be used to read the DB column (where
+ * `null` means "manual collection") and to validate API input (where
+ * `null` is how the client signals "clear the rules").
+ */
+export function parseCollectionRules(input: unknown): CollectionRules | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw new CollectionRulesValidationError("rules must be an object");
+  }
+  const raw = input as Record<string, unknown>;
+
+  const combinator = raw.combinator;
+  if (combinator !== "AND" && combinator !== "OR") {
+    throw new CollectionRulesValidationError(
+      'rules.combinator must be "AND" or "OR"'
+    );
+  }
+
+  const conditionsRaw = raw.conditions;
+  if (!Array.isArray(conditionsRaw)) {
+    throw new CollectionRulesValidationError(
+      "rules.conditions must be an array"
+    );
+  }
+  if (conditionsRaw.length > MAX_RULE_CONDITIONS) {
+    throw new CollectionRulesValidationError(
+      `rules.conditions may not exceed ${MAX_RULE_CONDITIONS} entries`
+    );
+  }
+
+  const conditions: CollectionRuleCondition[] = [];
+  for (const [index, c] of conditionsRaw.entries()) {
+    conditions.push(parseCondition(c, index));
+  }
+
+  return {
+    version: 1,
+    combinator,
+    conditions
+  };
+}
+
+function parseCondition(
+  raw: unknown,
+  index: number
+): CollectionRuleCondition {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new CollectionRulesValidationError(
+      `rules.conditions[${index}] must be an object`
+    );
+  }
+  const cond = raw as Record<string, unknown>;
+  const id =
+    typeof cond.id === "string" && cond.id.length > 0
+      ? cond.id
+      : `c-${index}-${Math.random().toString(36).slice(2, 8)}`;
+  const field = cond.field;
+  if (typeof field !== "string") {
+    throw new CollectionRulesValidationError(
+      `rules.conditions[${index}].field is required`
+    );
+  }
+  switch (field) {
+    case "search": {
+      if (cond.operator !== "contains") {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (search) operator must be "contains"`
+        );
+      }
+      const value = typeof cond.value === "string" ? cond.value.trim() : "";
+      if (value.length === 0) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (search) value cannot be empty`
+        );
+      }
+      if (value.length > MAX_RULE_VALUE_LENGTH) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (search) value is too long`
+        );
+      }
+      return { id, field: "search", operator: "contains", value };
+    }
+    case "category": {
+      if (cond.operator !== "is") {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (category) operator must be "is"`
+        );
+      }
+      if (typeof cond.value !== "string" || !CATEGORY_LOOKUP.has(cond.value)) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (category) value is not a known category`
+        );
+      }
+      return {
+        id,
+        field: "category",
+        operator: "is",
+        value: cond.value as EmailCategory
+      };
+    }
+    case "brand": {
+      if (cond.operator !== "is") {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (brand) operator must be "is"`
+        );
+      }
+      if (typeof cond.value !== "string" || !UUID_PATTERN.test(cond.value)) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (brand) value must be a company id`
+        );
+      }
+      return { id, field: "brand", operator: "is", value: cond.value };
+    }
+    case "market": {
+      if (cond.operator !== "is") {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (market) operator must be "is"`
+        );
+      }
+      const value = typeof cond.value === "string" ? cond.value.trim() : "";
+      if (value.length === 0) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (market) value cannot be empty`
+        );
+      }
+      if (value.length > MAX_RULE_VALUE_LENGTH) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (market) value is too long`
+        );
+      }
+      return { id, field: "market", operator: "is", value };
+    }
+    case "discount_percent": {
+      if (
+        cond.operator !== "gte" &&
+        cond.operator !== "lte" &&
+        cond.operator !== "eq"
+      ) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (discount_percent) operator must be gte/lte/eq`
+        );
+      }
+      const numeric =
+        typeof cond.value === "number"
+          ? cond.value
+          : typeof cond.value === "string" && cond.value.trim().length > 0
+            ? Number(cond.value)
+            : NaN;
+      if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (discount_percent) value must be a number between 0 and 100`
+        );
+      }
+      return {
+        id,
+        field: "discount_percent",
+        operator: cond.operator,
+        value: Math.round(numeric)
+      };
+    }
+    default:
+      throw new CollectionRulesValidationError(
+        `rules.conditions[${index}].field "${field}" is not supported`
+      );
+  }
+}
 
 /**
  * Shared shape for the grid card on `/collections`: enough to render
@@ -58,6 +307,12 @@ export type CollectionDetail = {
   createdAt: string;
   updatedAt: string;
   emails: ExploreEmailCard[];
+  /**
+   * Saved rule definition, or `null` for a manually-curated collection.
+   * When non-null, `emails` is computed from the rule rather than from
+   * the `collection_emails` membership table.
+   */
+  rules: CollectionRules | null;
 };
 
 /**
@@ -151,7 +406,7 @@ export async function getCollectionForOwner(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug, user_id, created_at, updated_at")
+    .select("id, name, share_slug, user_id, created_at, updated_at, rules")
     .eq("id", collectionId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -159,7 +414,10 @@ export async function getCollectionForOwner(
   if (error) throw error;
   if (!data) return null;
 
-  const emails = await loadCollectionEmails(supabase, collectionId);
+  const rules = safeParseStoredRules(data.rules);
+  const emails = rules
+    ? await evaluateCollectionRules(supabase, rules)
+    : await loadCollectionEmails(supabase, collectionId);
 
   return {
     id: data.id,
@@ -169,7 +427,8 @@ export async function getCollectionForOwner(
     emailCount: emails.length,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
-    emails
+    emails,
+    rules
   };
 }
 
@@ -183,14 +442,17 @@ export async function getCollectionBySlugPublic(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await adminClient
     .from("collections")
-    .select("id, name, share_slug, user_id, created_at, updated_at")
+    .select("id, name, share_slug, user_id, created_at, updated_at, rules")
     .eq("share_slug", slug)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
 
-  const emails = await loadCollectionEmails(adminClient, data.id);
+  const rules = safeParseStoredRules(data.rules);
+  const emails = rules
+    ? await evaluateCollectionRules(adminClient, rules)
+    : await loadCollectionEmails(adminClient, data.id);
 
   return {
     id: data.id,
@@ -200,7 +462,8 @@ export async function getCollectionBySlugPublic(
     emailCount: emails.length,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
-    emails
+    emails,
+    rules
   };
 }
 
@@ -214,13 +477,29 @@ export async function isEmailInPublicCollection(
   slug: string,
   emailId: string
 ): Promise<boolean> {
-  const { data, error } = await adminClient
+  // First check whether this is a rule-based collection — if so the
+  // public membership is computed, not stored, so the standard join
+  // below would always return zero rows.
+  const { data: collection, error: collectionError } = await adminClient
     .from("collections")
-    .select("id, collection_emails!inner(email_id)")
+    .select("id, rules")
     .eq("share_slug", slug)
-    .eq("collection_emails.email_id", emailId)
     .maybeSingle();
+  if (collectionError) throw collectionError;
+  if (!collection) return false;
 
+  const rules = safeParseStoredRules(collection.rules);
+  if (rules) {
+    const ids = await evaluateCollectionRuleIds(adminClient, rules);
+    return ids.includes(emailId);
+  }
+
+  const { data, error } = await adminClient
+    .from("collection_emails")
+    .select("email_id")
+    .eq("collection_id", collection.id)
+    .eq("email_id", emailId)
+    .maybeSingle();
   if (error) throw error;
   return Boolean(data);
 }
@@ -272,6 +551,30 @@ export async function renameCollection(
   if (error) throw error;
   if (!data) return null;
   return { id: data.id, name: data.name, shareSlug: data.share_slug };
+}
+
+/**
+ * Persist (or clear) the rules attached to a collection. Pass `null`
+ * to flip the collection back into manual mode. The caller is
+ * responsible for validating the payload via `parseCollectionRules`
+ * first.
+ */
+export async function setCollectionRules(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  rules: CollectionRules | null
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("collections")
+    .update({ rules: rules === null ? null : (rules as unknown as Json) })
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
 }
 
 export async function deleteCollection(
@@ -354,6 +657,377 @@ export async function listCollectionMembership(
 
   if (error) throw error;
   return (data ?? []).map((row) => row.collection_id);
+}
+
+// ---------- Rule evaluation ----------
+
+/**
+ * Run the saved rule against `captured_emails` and return matching
+ * `ExploreEmailCard`s, signed logos and all. Mirrors the embedding
+ * shape `loadCollectionEmails` uses so the UI doesn't have to care
+ * whether a collection is manual or rule-based.
+ *
+ * Compilation strategy:
+ *  - Every condition is turned into a `Filter` (or a small set of
+ *    them, for the brand-name search that has to OR across columns).
+ *  - For `AND` we chain `.in()` / `.eq()` / `.gte()` etc. one filter
+ *    at a time. The brand-name search collapses to a single `.or()`
+ *    for that condition only.
+ *  - For `OR` every filter is appended to a single `.or()` string so
+ *    PostgREST evaluates them as one disjunction.
+ *
+ * Brand IDs from text search and market filters are resolved up-front
+ * so the `captured_emails` query never has to reach into `companies`.
+ */
+export async function evaluateCollectionRules(
+  client: SupabaseClient<Database>,
+  rules: CollectionRules
+): Promise<ExploreEmailCard[]> {
+  const compiled = await compileRules(client, rules);
+  if (compiled === "no_match") {
+    return [];
+  }
+
+  let query = client
+    .from("captured_emails")
+    .select(
+      `id, subject, preheader, received_at, category, has_gif, has_dark_mode,
+       discount_percent, promo_code, company_id,
+       companies(id, name, domain, market, logo_storage_path)`
+    )
+    .order("received_at", { ascending: false })
+    .limit(RULE_EVAL_LIMIT);
+
+  if (compiled.combinator === "AND") {
+    for (const filter of compiled.filters) {
+      switch (filter.type) {
+        case "category":
+          query = query.eq("category", filter.value);
+          break;
+        case "in_company":
+          query =
+            filter.ids.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("company_id", filter.ids);
+          break;
+        case "discount":
+          query =
+            filter.op === "gte"
+              ? query.gte("discount_percent", filter.value)
+              : filter.op === "lte"
+                ? query.lte("discount_percent", filter.value)
+                : query.eq("discount_percent", filter.value);
+          break;
+        case "search":
+          query = query.or(buildSearchOrClause(filter.term, filter.brandIds));
+          break;
+      }
+    }
+  } else {
+    const parts = orParts(compiled.filters);
+    query =
+      parts.length === 0
+        ? query.eq("id", IMPOSSIBLE_ID)
+        : query.or(parts.join(","));
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const logoPaths = new Set<string>();
+  for (const row of rows) {
+    const company = pickCompany(row.companies);
+    if (company?.logo_storage_path) {
+      logoPaths.add(company.logo_storage_path);
+    }
+  }
+  const signed =
+    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+
+  const cards: ExploreEmailCard[] = [];
+  for (const row of rows) {
+    const card = ruleRowToCard(row, signed);
+    if (card) cards.push(card);
+  }
+  return cards;
+}
+
+/**
+ * Same evaluator as above but only resolves the matching email ids.
+ * Used by the public-render guard which only needs to know whether a
+ * given email belongs to the rule-derived membership.
+ */
+export async function evaluateCollectionRuleIds(
+  client: SupabaseClient<Database>,
+  rules: CollectionRules
+): Promise<string[]> {
+  const compiled = await compileRules(client, rules);
+  if (compiled === "no_match") {
+    return [];
+  }
+  let query = client
+    .from("captured_emails")
+    .select("id")
+    .limit(RULE_EVAL_LIMIT);
+
+  if (compiled.combinator === "AND") {
+    for (const filter of compiled.filters) {
+      switch (filter.type) {
+        case "category":
+          query = query.eq("category", filter.value);
+          break;
+        case "in_company":
+          query =
+            filter.ids.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("company_id", filter.ids);
+          break;
+        case "discount":
+          query =
+            filter.op === "gte"
+              ? query.gte("discount_percent", filter.value)
+              : filter.op === "lte"
+                ? query.lte("discount_percent", filter.value)
+                : query.eq("discount_percent", filter.value);
+          break;
+        case "search":
+          query = query.or(buildSearchOrClause(filter.term, filter.brandIds));
+          break;
+      }
+    }
+  } else {
+    const parts = orParts(compiled.filters);
+    query =
+      parts.length === 0
+        ? query.eq("id", IMPOSSIBLE_ID)
+        : query.or(parts.join(","));
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
+const IMPOSSIBLE_ID = "00000000-0000-0000-0000-000000000000";
+
+type CompiledFilter =
+  | { type: "in_company"; ids: string[] }
+  | { type: "category"; value: string }
+  | { type: "discount"; op: "gte" | "lte" | "eq"; value: number }
+  | { type: "search"; term: string; brandIds: string[] };
+
+type CompiledRules = {
+  combinator: CollectionRuleCombinator;
+  filters: CompiledFilter[];
+};
+
+async function compileRules(
+  client: SupabaseClient<Database>,
+  rules: CollectionRules
+): Promise<CompiledRules | "no_match"> {
+  if (rules.conditions.length === 0) {
+    // An empty ruleset is treated as "nothing matches" — otherwise we'd
+    // silently dump the entire inbox into the collection the moment the
+    // user removed all their conditions, which is surprising.
+    return "no_match";
+  }
+
+  const filters: CompiledFilter[] = [];
+
+  for (const cond of rules.conditions) {
+    switch (cond.field) {
+      case "category":
+        filters.push({ type: "category", value: cond.value });
+        break;
+      case "brand":
+        filters.push({ type: "in_company", ids: [cond.value] });
+        break;
+      case "market": {
+        const ids = await lookupCompanyIdsByMarket(client, cond.value);
+        if (rules.combinator === "AND" && ids.length === 0) {
+          // Under AND, any single condition with zero matches collapses
+          // the whole rule. Under OR we just drop the empty filter and
+          // let the other conditions stand.
+          return "no_match";
+        }
+        if (ids.length > 0) {
+          filters.push({ type: "in_company", ids });
+        }
+        break;
+      }
+      case "discount_percent":
+        filters.push({
+          type: "discount",
+          op: cond.operator,
+          value: cond.value
+        });
+        break;
+      case "search": {
+        const term = sanitizeIlikeTerm(cond.value);
+        if (term.length === 0) {
+          if (rules.combinator === "AND") return "no_match";
+          break;
+        }
+        const brandIds = await lookupCompanyIdsByName(client, term);
+        filters.push({ type: "search", term, brandIds });
+        break;
+      }
+    }
+  }
+
+  if (filters.length === 0) {
+    return "no_match";
+  }
+
+  return { combinator: rules.combinator, filters };
+}
+
+function orParts(filters: CompiledFilter[]): string[] {
+  const parts: string[] = [];
+  for (const filter of filters) {
+    switch (filter.type) {
+      case "category":
+        parts.push(`category.eq.${escapeOrValue(filter.value)}`);
+        break;
+      case "in_company": {
+        const safe = filter.ids.filter((id) => UUID_PATTERN.test(id));
+        if (safe.length > 0) {
+          parts.push(`company_id.in.(${safe.join(",")})`);
+        }
+        break;
+      }
+      case "discount":
+        parts.push(`discount_percent.${filter.op}.${filter.value}`);
+        break;
+      case "search":
+        parts.push(...buildSearchOrParts(filter.term, filter.brandIds));
+        break;
+    }
+  }
+  return parts;
+}
+
+function buildSearchOrParts(term: string, brandIds: string[]): string[] {
+  const wrapped = `*${term}*`;
+  const parts = [
+    `subject.ilike.${wrapped}`,
+    `preheader.ilike.${wrapped}`,
+    `promo_code.ilike.${wrapped}`,
+    `primary_cta_text.ilike.${wrapped}`
+  ];
+  const safe = brandIds.filter((id) => UUID_PATTERN.test(id));
+  if (safe.length > 0) {
+    parts.push(`company_id.in.(${safe.join(",")})`);
+  }
+  return parts;
+}
+
+function buildSearchOrClause(term: string, brandIds: string[]): string {
+  return buildSearchOrParts(term, brandIds).join(",");
+}
+
+/**
+ * PostgREST's `.or()` is a comma-separated list of `column.op.value`
+ * triples. Bare commas, parentheses and double quotes inside a value
+ * would break the parser; for the category enum and other short
+ * strings this is more of a safety net than a real concern, but it's
+ * cheap to be defensive.
+ */
+function escapeOrValue(value: string): string {
+  return value.replace(/[",()]/g, " ");
+}
+
+async function lookupCompanyIdsByMarket(
+  client: SupabaseClient<Database>,
+  market: string
+): Promise<string[]> {
+  const { data, error } = await client
+    .from("companies")
+    .select("id")
+    .eq("market", market)
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
+async function lookupCompanyIdsByName(
+  client: SupabaseClient<Database>,
+  term: string
+): Promise<string[]> {
+  const { data, error } = await client
+    .from("companies")
+    .select("id")
+    .ilike("name", `%${term}%`)
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
+function ruleRowToCard(
+  row: {
+    id: string;
+    subject: string;
+    preheader: string | null;
+    received_at: string;
+    category: string;
+    has_gif: boolean | null;
+    has_dark_mode: boolean | null;
+    discount_percent: number | null;
+    promo_code: string | null;
+    company_id: string | null;
+    companies: CompaniesField;
+  },
+  signed: Record<string, string>
+): ExploreEmailCard | null {
+  const company = pickCompany(row.companies);
+  const logoPath = company?.logo_storage_path ?? null;
+  return {
+    id: row.id,
+    subject: row.subject,
+    preheader: row.preheader ?? null,
+    companyId: company?.id ?? null,
+    companyName: company?.name ?? "Unknown",
+    companyDomain: company?.domain ?? null,
+    companyMarket: company?.market ?? null,
+    companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
+    receivedAt: row.received_at,
+    category: row.category,
+    hasGif: row.has_gif ?? false,
+    hasDarkMode: row.has_dark_mode ?? false,
+    discountPercent:
+      row.discount_percent === null || row.discount_percent === undefined
+        ? null
+        : Number(row.discount_percent),
+    promoCode: row.promo_code ?? null
+  };
+}
+
+/**
+ * Defensive read of the `rules` column: we trust the validator on
+ * write, but the column is plain JSONB so a corrupted or hand-edited
+ * row shouldn't crash the detail page. Anything we can't parse is
+ * treated as "no rules" (i.e. fall back to manual membership).
+ */
+function safeParseStoredRules(value: unknown): CollectionRules | null {
+  try {
+    return parseCollectionRules(value);
+  } catch (err) {
+    console.warn("Ignoring malformed collection rules", err);
+    return null;
+  }
+}
+
+/**
+ * Mirror of `searchExploreEmails`'s ILIKE sanitizer: strip the
+ * characters that would either break the PostgREST `or()` parser or
+ * accidentally turn the user's input into wildcards.
+ */
+function sanitizeIlikeTerm(input: string): string {
+  return input
+    .replace(/[%_,()"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // ---------- internal helpers ----------

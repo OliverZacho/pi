@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import {
+  CollectionRulesValidationError,
   deleteCollection,
   getCollectionForOwner,
-  renameCollection
+  parseCollectionRules,
+  renameCollection,
+  setCollectionRules
 } from "@/lib/collections-db";
 
 const UUID_PATTERN =
@@ -51,7 +54,10 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 /**
- * PATCH `/api/collections/[id]` `{ name }` — owner-only rename.
+ * PATCH `/api/collections/[id]` `{ name?, rules? }` — owner-only
+ * mutation. Accepts a partial body: either field may be supplied
+ * independently. `rules: null` explicitly clears the saved query and
+ * flips the collection back into manual mode.
  */
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await requireAdminSession();
@@ -71,38 +77,93 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const rawName =
-    body && typeof body === "object" && "name" in body
-      ? (body as { name: unknown }).name
-      : undefined;
-  if (typeof rawName !== "string" || rawName.trim().length === 0) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
-  if (rawName.length > MAX_NAME_LENGTH) {
+
+  const obj = body as Record<string, unknown>;
+  const hasName = Object.prototype.hasOwnProperty.call(obj, "name");
+  const hasRules = Object.prototype.hasOwnProperty.call(obj, "rules");
+
+  if (!hasName && !hasRules) {
     return NextResponse.json(
-      { error: `Name must be ${MAX_NAME_LENGTH} characters or fewer` },
+      { error: "At least one of 'name' or 'rules' is required" },
       { status: 400 }
     );
   }
 
+  if (hasName) {
+    if (typeof obj.name !== "string" || obj.name.trim().length === 0) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    if (obj.name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Name must be ${MAX_NAME_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+  }
+
   try {
-    const updated = await renameCollection(
+    if (hasRules) {
+      let rules;
+      try {
+        rules = parseCollectionRules(obj.rules);
+      } catch (err) {
+        if (err instanceof CollectionRulesValidationError) {
+          return NextResponse.json({ error: err.message }, { status: 400 });
+        }
+        throw err;
+      }
+      const ok = await setCollectionRules(
+        session.supabase,
+        session.user.id,
+        id,
+        rules
+      );
+      if (!ok) {
+        return NextResponse.json(
+          { error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (hasName) {
+      const updated = await renameCollection(
+        session.supabase,
+        session.user.id,
+        id,
+        obj.name as string
+      );
+      if (!updated) {
+        return NextResponse.json(
+          { error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Refresh the detail view so the client always receives the
+    // canonical state (including the freshly-evaluated email list when
+    // rules just changed). Cheaper than building the response out of
+    // the individual update return values, and a lot less code.
+    const detail = await getCollectionForOwner(
       session.supabase,
       session.user.id,
-      id,
-      rawName
+      id
     );
-    if (!updated) {
+    if (!detail) {
       return NextResponse.json(
         { error: "Collection not found" },
         { status: 404 }
       );
     }
-    return NextResponse.json({ collection: updated });
+    return NextResponse.json({ collection: detail });
   } catch (error) {
-    console.error("Failed to rename collection", error);
+    console.error("Failed to update collection", error);
     return NextResponse.json(
-      { error: "Failed to rename collection" },
+      { error: "Failed to update collection" },
       { status: 500 }
     );
   }
