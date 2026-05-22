@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
@@ -297,67 +297,55 @@ function ConditionValueInputs({
     case "category":
       return (
         <>
-          <span className={styles.ruleOperator}>is</span>
-          <select
-            className={styles.ruleSelect}
-            value={condition.value}
-            onChange={(event) =>
+          <span className={styles.ruleOperator}>is any of</span>
+          <MultiSelect
+            ariaLabel="Categories"
+            placeholder="Choose categories…"
+            options={EMAIL_CATEGORIES.map((category) => ({
+              value: category,
+              label: EMAIL_CATEGORY_LABELS[category]
+            }))}
+            values={condition.values}
+            onChange={(values) =>
               onChange({
                 ...condition,
-                value: event.target.value as EmailCategory
+                values: values as EmailCategory[]
               })
             }
-            aria-label="Category"
-          >
-            <option value="">Choose a category…</option>
-            {EMAIL_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {EMAIL_CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </select>
+          />
         </>
       );
     case "brand":
       return (
         <>
-          <span className={styles.ruleOperator}>is</span>
-          <select
-            className={styles.ruleSelect}
-            value={condition.value}
-            onChange={(event) =>
-              onChange({ ...condition, value: event.target.value })
-            }
-            aria-label="Brand"
-          >
-            <option value="">Choose a brand…</option>
-            {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
+          <span className={styles.ruleOperator}>is any of</span>
+          <MultiSelect
+            ariaLabel="Brands"
+            placeholder="Choose brands…"
+            searchable
+            options={brands.map((brand) => ({
+              value: brand.id,
+              label: brand.name
+            }))}
+            values={condition.values}
+            onChange={(values) => onChange({ ...condition, values })}
+          />
         </>
       );
     case "market":
       return (
         <>
-          <span className={styles.ruleOperator}>is</span>
-          <select
-            className={styles.ruleSelect}
-            value={condition.value}
-            onChange={(event) =>
-              onChange({ ...condition, value: event.target.value })
-            }
-            aria-label="Market"
-          >
-            <option value="">Choose a market…</option>
-            {markets.map((market) => (
-              <option key={market} value={market}>
-                {market}
-              </option>
-            ))}
-          </select>
+          <span className={styles.ruleOperator}>is any of</span>
+          <MultiSelect
+            ariaLabel="Markets"
+            placeholder="Choose markets…"
+            options={markets.map((market) => ({
+              value: market,
+              label: market
+            }))}
+            values={condition.values}
+            onChange={(values) => onChange({ ...condition, values })}
+          />
         </>
       );
     case "discount_percent":
@@ -438,11 +426,11 @@ function makeBlankCondition(
     case "search":
       return { id, field: "search", operator: "contains", value: "" };
     case "category":
-      return { id, field: "category", operator: "is", value: "sale" };
+      return { id, field: "category", operator: "in", values: [] };
     case "brand":
-      return { id, field: "brand", operator: "is", value: "" };
+      return { id, field: "brand", operator: "in", values: [] };
     case "market":
-      return { id, field: "market", operator: "is", value: "" };
+      return { id, field: "market", operator: "in", values: [] };
     case "discount_percent":
       return {
         id,
@@ -456,12 +444,11 @@ function makeBlankCondition(
 function isComplete(condition: CollectionRuleCondition): boolean {
   switch (condition.field) {
     case "search":
-    case "market":
-      return typeof condition.value === "string" && condition.value.trim().length > 0;
+      return condition.value.trim().length > 0;
     case "brand":
-      return typeof condition.value === "string" && condition.value.length > 0;
     case "category":
-      return typeof condition.value === "string" && condition.value.length > 0;
+    case "market":
+      return condition.values.length > 0;
     case "discount_percent":
       return (
         Number.isFinite(condition.value) &&
@@ -469,6 +456,219 @@ function isComplete(condition: CollectionRuleCondition): boolean {
         condition.value <= 100
       );
   }
+}
+
+type MultiSelectOption = { value: string; label: string };
+
+/**
+ * Compact multi-select dropdown that matches the editor's chip-style
+ * aesthetic. The trigger is the same height as the neighbouring
+ * `select`s, displays the selected count, and opens a popover with a
+ * (optionally searchable) checkbox list. We don't use native
+ * `<select multiple>` because it renders as a stacked listbox that
+ * breaks the inline-row layout and is awkward on touch devices.
+ */
+function MultiSelect({
+  ariaLabel,
+  placeholder,
+  options,
+  values,
+  onChange,
+  searchable = false
+}: {
+  ariaLabel: string;
+  placeholder: string;
+  options: MultiSelectOption[];
+  values: string[];
+  onChange: (next: string[]) => void;
+  searchable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleDown(event: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleDown);
+    document.addEventListener("keydown", handleKey);
+    if (searchable) {
+      requestAnimationFrame(() => searchRef.current?.focus());
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, searchable]);
+
+  const selectedSet = useMemo(() => new Set(values), [values]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  // Surface the selected-but-now-filtered-out options at the top of
+  // the list so users can always uncheck them, even if their search
+  // query hides them from the main list.
+  const visible = useMemo(() => {
+    if (!query) return filtered;
+    const filteredValues = new Set(filtered.map((o) => o.value));
+    const pinned = options.filter(
+      (option) =>
+        selectedSet.has(option.value) && !filteredValues.has(option.value)
+    );
+    return [...pinned, ...filtered];
+  }, [filtered, options, query, selectedSet]);
+
+  const triggerLabel = (() => {
+    if (values.length === 0) return placeholder;
+    if (values.length === 1) {
+      const match = options.find((o) => o.value === values[0]);
+      return match?.label ?? values[0];
+    }
+    return `${values.length} selected`;
+  })();
+
+  function toggle(value: string) {
+    if (selectedSet.has(value)) {
+      onChange(values.filter((v) => v !== value));
+    } else {
+      onChange([...values, value]);
+    }
+  }
+
+  function clearAll() {
+    onChange([]);
+  }
+
+  return (
+    <div className={styles.multiSelect} ref={wrapRef}>
+      <button
+        type="button"
+        className={`${styles.multiSelectTrigger} ${
+          values.length === 0 ? styles.multiSelectTriggerEmpty : ""
+        } ${open ? styles.multiSelectTriggerOpen : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+      >
+        <span className={styles.multiSelectLabel}>{triggerLabel}</span>
+        <span className={styles.multiSelectCaret} aria-hidden="true">
+          <CaretIcon />
+        </span>
+      </button>
+
+      {open ? (
+        <div className={styles.multiSelectPopover} role="listbox">
+          {searchable ? (
+            <div className={styles.multiSelectSearch}>
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={`Search ${ariaLabel.toLowerCase()}`}
+                className={styles.multiSelectSearchInput}
+                aria-label={`Search ${ariaLabel}`}
+              />
+            </div>
+          ) : null}
+          <ul className={styles.multiSelectList}>
+            {visible.length === 0 ? (
+              <li className={styles.multiSelectEmpty}>No matches</li>
+            ) : (
+              visible.map((option) => {
+                const checked = selectedSet.has(option.value);
+                return (
+                  <li key={option.value}>
+                    <button
+                      type="button"
+                      className={`${styles.multiSelectOption} ${
+                        checked ? styles.multiSelectOptionChecked : ""
+                      }`}
+                      onClick={() => toggle(option.value)}
+                      role="option"
+                      aria-selected={checked}
+                    >
+                      <span
+                        className={`${styles.multiSelectCheckbox} ${
+                          checked ? styles.multiSelectCheckboxChecked : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {checked ? <CheckIcon /> : null}
+                      </span>
+                      <span className={styles.multiSelectOptionLabel}>
+                        {option.label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+          {values.length > 0 ? (
+            <div className={styles.multiSelectFooter}>
+              <button
+                type="button"
+                className={styles.multiSelectClear}
+                onClick={clearAll}
+              >
+                Clear selection
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CaretIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="10"
+      height="10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
 }
 
 function PlusIcon() {

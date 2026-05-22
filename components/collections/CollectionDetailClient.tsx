@@ -619,23 +619,36 @@ function describeCondition(
     case "category":
       return (
         <>
-          <span className={styles.rulesSummaryChipLabel}>Category</span>
-          {EMAIL_CATEGORY_LABELS[condition.value as EmailCategory] ??
-            condition.value}
+          <span className={styles.rulesSummaryChipLabel}>
+            {condition.values.length === 1 ? "Category" : "Categories"}
+          </span>
+          {formatList(
+            condition.values.map(
+              (v) => EMAIL_CATEGORY_LABELS[v as EmailCategory] ?? v
+            )
+          )}
         </>
       );
     case "brand":
       return (
         <>
-          <span className={styles.rulesSummaryChipLabel}>Brand</span>
-          {brandsById.get(condition.value) ?? "Selected brand"}
+          <span className={styles.rulesSummaryChipLabel}>
+            {condition.values.length === 1 ? "Brand" : "Brands"}
+          </span>
+          {formatList(
+            condition.values.map(
+              (v) => brandsById.get(v) ?? "Selected brand"
+            )
+          )}
         </>
       );
     case "market":
       return (
         <>
-          <span className={styles.rulesSummaryChipLabel}>Market</span>
-          {condition.value}
+          <span className={styles.rulesSummaryChipLabel}>
+            {condition.values.length === 1 ? "Market" : "Markets"}
+          </span>
+          {formatList(condition.values)}
         </>
       );
     case "discount_percent": {
@@ -653,6 +666,17 @@ function describeCondition(
       );
     }
   }
+}
+
+/**
+ * Compact list formatter for the summary chips. Renders up to three
+ * items inline, then collapses the rest behind a "+N more" suffix so
+ * a chip with eight brands selected doesn't overflow the row.
+ */
+function formatList(items: string[]): string {
+  if (items.length === 0) return "—";
+  if (items.length <= 3) return items.join(", ");
+  return `${items.slice(0, 3).join(", ")} +${items.length - 3} more`;
 }
 
 function SparkleIcon() {

@@ -58,22 +58,22 @@ export type CollectionRuleCondition =
   | {
       id: string;
       field: "category";
-      operator: "is";
-      value: EmailCategory;
+      operator: "in";
+      values: EmailCategory[];
     }
   | {
       id: string;
       field: "brand";
-      operator: "is";
-      /** companies.id (uuid) */
-      value: string;
+      operator: "in";
+      /** companies.id (uuid)[] */
+      values: string[];
     }
   | {
       id: string;
       field: "market";
-      operator: "is";
-      /** companies.market */
-      value: string;
+      operator: "in";
+      /** companies.market[] */
+      values: string[];
     }
   | {
       id: string;
@@ -99,6 +99,21 @@ export class CollectionRulesValidationError extends Error {
     super(message);
     this.name = "CollectionRulesValidationError";
   }
+}
+
+/**
+ * Extracts the list of selected values from an incoming condition,
+ * accepting both the new `values: T[]` shape and the legacy
+ * `value: T` shape (single selection) so older rows already stored
+ * in the database keep parsing.
+ */
+function collectMultiValue(cond: Record<string, unknown>): unknown[] {
+  if (Array.isArray(cond.values)) return cond.values;
+  if (Object.prototype.hasOwnProperty.call(cond, "value")) {
+    if (Array.isArray(cond.value)) return cond.value;
+    if (cond.value !== undefined && cond.value !== null) return [cond.value];
+  }
+  return [];
 }
 
 /**
@@ -189,54 +204,82 @@ function parseCondition(
       return { id, field: "search", operator: "contains", value };
     }
     case "category": {
-      if (cond.operator !== "is") {
+      if (cond.operator !== "in" && cond.operator !== "is") {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (category) operator must be "is"`
+          `rules.conditions[${index}] (category) operator must be "in"`
         );
       }
-      if (typeof cond.value !== "string" || !CATEGORY_LOOKUP.has(cond.value)) {
+      const raw = collectMultiValue(cond);
+      const values: EmailCategory[] = [];
+      for (const candidate of raw) {
+        if (typeof candidate !== "string" || !CATEGORY_LOOKUP.has(candidate)) {
+          throw new CollectionRulesValidationError(
+            `rules.conditions[${index}] (category) value "${String(candidate)}" is not a known category`
+          );
+        }
+        if (!values.includes(candidate as EmailCategory)) {
+          values.push(candidate as EmailCategory);
+        }
+      }
+      if (values.length === 0) {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (category) value is not a known category`
+          `rules.conditions[${index}] (category) must select at least one value`
         );
       }
-      return {
-        id,
-        field: "category",
-        operator: "is",
-        value: cond.value as EmailCategory
-      };
+      return { id, field: "category", operator: "in", values };
     }
     case "brand": {
-      if (cond.operator !== "is") {
+      if (cond.operator !== "in" && cond.operator !== "is") {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (brand) operator must be "is"`
+          `rules.conditions[${index}] (brand) operator must be "in"`
         );
       }
-      if (typeof cond.value !== "string" || !UUID_PATTERN.test(cond.value)) {
+      const raw = collectMultiValue(cond);
+      const values: string[] = [];
+      for (const candidate of raw) {
+        if (typeof candidate !== "string" || !UUID_PATTERN.test(candidate)) {
+          throw new CollectionRulesValidationError(
+            `rules.conditions[${index}] (brand) values must be company ids`
+          );
+        }
+        if (!values.includes(candidate)) values.push(candidate);
+      }
+      if (values.length === 0) {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (brand) value must be a company id`
+          `rules.conditions[${index}] (brand) must select at least one value`
         );
       }
-      return { id, field: "brand", operator: "is", value: cond.value };
+      return { id, field: "brand", operator: "in", values };
     }
     case "market": {
-      if (cond.operator !== "is") {
+      if (cond.operator !== "in" && cond.operator !== "is") {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (market) operator must be "is"`
+          `rules.conditions[${index}] (market) operator must be "in"`
         );
       }
-      const value = typeof cond.value === "string" ? cond.value.trim() : "";
-      if (value.length === 0) {
+      const raw = collectMultiValue(cond);
+      const values: string[] = [];
+      for (const candidate of raw) {
+        if (typeof candidate !== "string") {
+          throw new CollectionRulesValidationError(
+            `rules.conditions[${index}] (market) values must be strings`
+          );
+        }
+        const trimmed = candidate.trim();
+        if (trimmed.length === 0) continue;
+        if (trimmed.length > MAX_RULE_VALUE_LENGTH) {
+          throw new CollectionRulesValidationError(
+            `rules.conditions[${index}] (market) value is too long`
+          );
+        }
+        if (!values.includes(trimmed)) values.push(trimmed);
+      }
+      if (values.length === 0) {
         throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (market) value cannot be empty`
+          `rules.conditions[${index}] (market) must select at least one value`
         );
       }
-      if (value.length > MAX_RULE_VALUE_LENGTH) {
-        throw new CollectionRulesValidationError(
-          `rules.conditions[${index}] (market) value is too long`
-        );
-      }
-      return { id, field: "market", operator: "is", value };
+      return { id, field: "market", operator: "in", values };
     }
     case "discount_percent": {
       if (
@@ -701,8 +744,11 @@ export async function evaluateCollectionRules(
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {
       switch (filter.type) {
-        case "category":
-          query = query.eq("category", filter.value);
+        case "category_in":
+          query =
+            filter.values.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("category", filter.values);
           break;
         case "in_company":
           query =
@@ -774,8 +820,11 @@ export async function evaluateCollectionRuleIds(
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {
       switch (filter.type) {
-        case "category":
-          query = query.eq("category", filter.value);
+        case "category_in":
+          query =
+            filter.values.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("category", filter.values);
           break;
         case "in_company":
           query =
@@ -813,7 +862,7 @@ const IMPOSSIBLE_ID = "00000000-0000-0000-0000-000000000000";
 
 type CompiledFilter =
   | { type: "in_company"; ids: string[] }
-  | { type: "category"; value: string }
+  | { type: "category_in"; values: string[] }
   | { type: "discount"; op: "gte" | "lte" | "eq"; value: number }
   | { type: "search"; term: string; brandIds: string[] };
 
@@ -838,13 +887,25 @@ async function compileRules(
   for (const cond of rules.conditions) {
     switch (cond.field) {
       case "category":
-        filters.push({ type: "category", value: cond.value });
+        if (cond.values.length === 0) {
+          if (rules.combinator === "AND") return "no_match";
+          break;
+        }
+        filters.push({ type: "category_in", values: cond.values });
         break;
       case "brand":
-        filters.push({ type: "in_company", ids: [cond.value] });
+        if (cond.values.length === 0) {
+          if (rules.combinator === "AND") return "no_match";
+          break;
+        }
+        filters.push({ type: "in_company", ids: cond.values });
         break;
       case "market": {
-        const ids = await lookupCompanyIdsByMarket(client, cond.value);
+        if (cond.values.length === 0) {
+          if (rules.combinator === "AND") return "no_match";
+          break;
+        }
+        const ids = await lookupCompanyIdsByMarkets(client, cond.values);
         if (rules.combinator === "AND" && ids.length === 0) {
           // Under AND, any single condition with zero matches collapses
           // the whole rule. Under OR we just drop the empty filter and
@@ -887,9 +948,15 @@ function orParts(filters: CompiledFilter[]): string[] {
   const parts: string[] = [];
   for (const filter of filters) {
     switch (filter.type) {
-      case "category":
-        parts.push(`category.eq.${escapeOrValue(filter.value)}`);
+      case "category_in": {
+        const safe = filter.values
+          .filter((v) => CATEGORY_LOOKUP.has(v))
+          .map(escapeOrValue);
+        if (safe.length > 0) {
+          parts.push(`category.in.(${safe.join(",")})`);
+        }
         break;
+      }
       case "in_company": {
         const safe = filter.ids.filter((id) => UUID_PATTERN.test(id));
         if (safe.length > 0) {
@@ -938,14 +1005,15 @@ function escapeOrValue(value: string): string {
   return value.replace(/[",()]/g, " ");
 }
 
-async function lookupCompanyIdsByMarket(
+async function lookupCompanyIdsByMarkets(
   client: SupabaseClient<Database>,
-  market: string
+  markets: string[]
 ): Promise<string[]> {
+  if (markets.length === 0) return [];
   const { data, error } = await client
     .from("companies")
     .select("id")
-    .eq("market", market)
+    .in("market", markets)
     .limit(2000);
   if (error) throw error;
   return (data ?? []).map((row) => row.id);

@@ -779,6 +779,211 @@ select.ruleOperator:focus {
   cursor: not-allowed;
 }
 
+/* ---------- Multi-select dropdown (rule values) ---------- */
+
+.multiSelect {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 180px;
+  display: inline-flex;
+}
+
+.multiSelectTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.multiSelectTrigger:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.multiSelectTriggerOpen,
+.multiSelectTrigger:focus-visible {
+  border-color: #0f172a;
+  outline: none;
+}
+
+.multiSelectTriggerEmpty {
+  color: #94a3b8;
+}
+
+.multiSelectLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiSelectCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.multiSelectPopover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.05);
+  padding: 0.3rem;
+  animation: multiSelectIn 120ms ease;
+}
+
+@keyframes multiSelectIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.multiSelectSearch {
+  padding: 0.15rem 0.2rem 0.35rem;
+}
+
+.multiSelectSearchInput {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.multiSelectSearchInput:focus {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.multiSelectList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 100ms ease;
+}
+
+.multiSelectOption:hover {
+  background: #f1f5f9;
+}
+
+.multiSelectOptionChecked {
+  background: #f8fafc;
+}
+
+.multiSelectOptionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiSelectCheckbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: transparent;
+  flex-shrink: 0;
+  transition: background 100ms ease, border-color 100ms ease,
+    color 100ms ease;
+}
+
+.multiSelectCheckboxChecked {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.multiSelectEmpty {
+  padding: 0.6rem 0.55rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.multiSelectFooter {
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.15rem 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.multiSelectClear {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.multiSelectClear:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 /* ---------- Empty-state CTA wrapper ---------- */
 
 .rulesEmptyState {
