@@ -1,0 +1,133 @@
+/*
+ * Styles scoped to the "Add to collection" trigger + popover. We keep
+ * these out of `explore.module.css` so the component is easy to lift
+ * into the public collection view later without dragging the rest of
+ * the Explore CSS along.
+ *
+ * The popover reuses `.popover`, `.popoverList`, `.popoverSearch`,
+ * `.popoverScroll`, `.checkRow`, and `.checkBox` from explore.module.css.
+ */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  width: 260px;
+}
+
+/*
+ * Rendered to document.body via React portal. Fixed-position coords
+ * are set inline by the component so it escapes the card / modal
+ * clipping containers. The z-index lifts it above the email modal
+ * backdrop too (modal uses z-index ~100).
+ */
+.popoverPortal {
+  z-index: 1000;
+}
+
+/* Active variants of the trigger button mirror the saved/in-collection
+ * accent used elsewhere — a muted indigo to differentiate from the
+ * green Saved chip. */
+.overlayActive {
+  background: #4338ca;
+  border-color: #4338ca;
+  color: #ffffff;
+}
+
+.overlayActive:hover {
+  background: #3730a3;
+  border-color: #3730a3;
+}
+
+.iconActive {
+  background: #4338ca;
+  border-color: #4338ca;
+  color: #ffffff;
+}
+
+.iconActive:hover {
+  background: #3730a3;
+  border-color: #3730a3;
+  color: #ffffff;
+}
+
+.footer {
+  display: flex;
+  padding: 0.35rem 0.25rem 0.1rem;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.2rem;
+}
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.createButton:hover {
+  background: #f1f5f9;
+}
+
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.55rem;
+}
+
+.createInput {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.createInput:focus {
+  border-color: #0f172a;
+}
+
+.createButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.createSubmit {
+  padding: 0.4rem 0.85rem;
+  border-radius: 7px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.createSubmit:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.createSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

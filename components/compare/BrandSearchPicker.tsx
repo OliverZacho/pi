@@ -1,0 +1,292 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
+import v2 from "./compare-v2.module.css";
+
+/**
+ * Lightweight brand record consumed by the search picker.
+ */
+export type BrandSearchOption = {
+  id: string;
+  name: string;
+  market: string | null;
+  logoUrl: string | null;
+};
+
+type Props = {
+  /** Brand ids already on the canvas — picker marks them "In set". */
+  alreadySelectedIds: ReadonlySet<string>;
+  /** Upper bound on how many new picks the consumer can absorb. */
+  remainingSlots: number;
+  /** Current pending pick list, owned by the parent. */
+  pendingIds: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  /**
+   * Inline = popover dropdown anchored under the input.
+   * Modal = vertical list inside an enclosing dialog.
+   */
+  variant?: "inline" | "modal";
+  /** Lets the parent cache `{id,name,logoUrl}` for chip rendering. */
+  onBrandSeen?: (brand: BrandSearchOption) => void;
+};
+
+/**
+ * Server-backed brand picker.
+ *
+ * The picker is empty until the user types — no on-mount fetch, no
+ * always-visible brand directory. Each keystroke is debounced and
+ * sent to `/api/brands/list?q=…`, which matches against both brand
+ * name and market label so "eyewear" surfaces every brand in that
+ * category. Results appear in a floating dropdown below the input;
+ * clicking a result toggles it in the parent's pending list and the
+ * picker stays open so the user can keep picking before clearing the
+ * search.
+ *
+ * Styles live in `compare-v2.module.css` (new file) instead of the
+ * shared `compare.module.css` so Turbopack reliably picks them up;
+ * the original file had stale-cache issues mid-session.
+ */
+export default function BrandSearchPicker({
+  alreadySelectedIds,
+  remainingSlots,
+  pendingIds,
+  onChange,
+  placeholder = "Search brands by name or category…",
+  variant = "inline",
+  onBrandSeen
+}: Props) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<BrandSearchOption[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const requestSeq = useRef(0);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedQuery(query), 180);
+    return () => window.clearTimeout(handle);
+  }, [query]);
+
+  const trimmedQuery = debouncedQuery.trim();
+  const hasQuery = trimmedQuery.length > 0;
+
+  useEffect(() => {
+    if (!hasQuery) {
+      setResults([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    const seq = ++requestSeq.current;
+    const controller = new AbortController();
+
+    async function run() {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("sort", "name_asc");
+        params.set("pageSize", "40");
+        params.set("q", trimmedQuery);
+        const res = await fetch(`/api/brands/list?${params.toString()}`, {
+          credentials: "include",
+          signal: controller.signal
+        });
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        const body = (await res.json()) as {
+          items: {
+            id: string;
+            name: string;
+            market: string | null;
+            logoUrl: string | null;
+          }[];
+        };
+        if (seq !== requestSeq.current) return;
+        setResults(body.items);
+        if (onBrandSeen) {
+          for (const brand of body.items) {
+            onBrandSeen(brand);
+          }
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (seq !== requestSeq.current) return;
+        setError(err instanceof Error ? err.message : "Failed to load brands");
+        setResults([]);
+      } finally {
+        if (seq === requestSeq.current) {
+          setLoading(false);
+        }
+      }
+    }
+
+    run();
+    return () => controller.abort();
+  }, [trimmedQuery, hasQuery, onBrandSeen]);
+
+  useEffect(() => {
+    if (!open || variant === "modal") return;
+    function onDocClick(event: MouseEvent) {
+      if (!wrapperRef.current) return;
+      if (!wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open, variant]);
+
+  const pendingSet = useMemo(() => new Set(pendingIds), [pendingIds]);
+  const atLimit = remainingSlots - pendingIds.length <= 0;
+
+  const togglePending = useCallback(
+    (id: string) => {
+      if (alreadySelectedIds.has(id)) return;
+      if (pendingSet.has(id)) {
+        onChange(pendingIds.filter((x) => x !== id));
+        return;
+      }
+      if (atLimit) return;
+      onChange([...pendingIds, id]);
+    },
+    [alreadySelectedIds, atLimit, onChange, pendingIds, pendingSet]
+  );
+
+  const showDropdown = (variant === "modal" || open) && hasQuery;
+
+  return (
+    <div
+      className={variant === "modal" ? v2.searchModal : v2.searchInline}
+      ref={wrapperRef}
+    >
+      <div className={v2.searchInputWrap}>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          aria-label="Search brands"
+          aria-expanded={showDropdown}
+          aria-controls="brand-search-results"
+          autoFocus={variant === "modal"}
+          style={{
+            width: "100%",
+            padding: "0.6rem 0.85rem",
+            border: "1px solid #e2e8f0",
+            borderRadius: "10px",
+            fontSize: "0.92rem",
+            background: "#f8fafc",
+            color: "inherit",
+            outline: "none",
+            font: "inherit"
+          }}
+        />
+        {loading ? (
+          <span className={v2.searchSpinner} aria-hidden="true" />
+        ) : null}
+      </div>
+
+      {showDropdown ? (
+        <div
+          id="brand-search-results"
+          className={
+            variant === "modal" ? v2.searchResultsModal : v2.searchResultsInline
+          }
+          role="listbox"
+        >
+          {error ? (
+            <span
+              style={{
+                color: "#b91c1c",
+                fontSize: "0.85rem",
+                padding: "0.5rem"
+              }}
+              role="alert"
+            >
+              {error}
+            </span>
+          ) : null}
+          {!error && results.length === 0 && !loading ? (
+            <span className={v2.searchEmpty}>
+              No brands match &quot;{trimmedQuery}&quot;.
+            </span>
+          ) : null}
+          {results.map((brand) => {
+            const isAlreadySelected = alreadySelectedIds.has(brand.id);
+            const isPending = pendingSet.has(brand.id);
+            const disabled = isAlreadySelected || (!isPending && atLimit);
+            const className = [
+              v2.searchRow,
+              isPending ? v2.searchRowSelected : "",
+              disabled ? v2.searchRowDisabled : ""
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            return (
+              <button
+                key={brand.id}
+                type="button"
+                role="option"
+                aria-selected={isPending}
+                className={className}
+                onClick={() => togglePending(brand.id)}
+                disabled={disabled && !isPending}
+                title={
+                  isAlreadySelected
+                    ? `${brand.name} is already in this set`
+                    : undefined
+                }
+              >
+                <span className={v2.searchRowLogo} aria-hidden="true">
+                  {brand.logoUrl ? (
+                    <img
+                      src={brand.logoUrl}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    brand.name.charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span className={v2.searchRowName}>{brand.name}</span>
+                {brand.market ? (
+                  <span className={v2.searchRowMarket}>
+                    {formatMarketLabel(brand.market)}
+                  </span>
+                ) : null}
+                {isAlreadySelected ? (
+                  <span className={v2.searchAlready}>In set</span>
+                ) : isPending ? (
+                  <span className={v2.searchPicked}>Added</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatMarketLabel(market: string): string {
+  return market
+    .split(/[\s_-]+/)
+    .map((word) =>
+      word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)
+    )
+    .join(" ");
+}

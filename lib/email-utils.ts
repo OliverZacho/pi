@@ -29,10 +29,25 @@ export function classifyFromRules(subject: string, html: string): {
   category: EmailCategory;
   confidence: number;
 } {
-  const haystack = `${subject} ${html}`.toLowerCase();
+  const subjectLc = subject.toLowerCase();
+  const haystack = `${subjectLc} ${html.toLowerCase()}`;
 
   if (/\breceipt\b|\border\s*#?\s*\d+\b|\border confirmation\b|\bpayment received\b|\bshipping confirmation\b|\binvoice\b/.test(haystack)) {
     return { category: "transactional", confidence: 0.9 };
+  }
+
+  // Strong welcome/onboarding signals in the SUBJECT win over sale-style body
+  // copy: many welcome emails ship a signup discount ("Welcome to BRAND — 10%
+  // off your first order"), and we don't want those to be miscategorised as
+  // `sale`. We also cover Scandinavian "velkommen til <brand>" / "välkommen
+  // till" patterns because the dataset is heavily Nordic. The negative
+  // lookahead on "welcome back" preserves loyalty re-engagement classification.
+  if (
+    /\bwelcome to\b|^welcome(?! back\b)|\bvelkommen til\b|\bvälkommen till\b|\bwillkommen bei\b|\bbienvenue (?:à|chez)\b|\bbienvenido a\b|\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bglad you'?re here\b/.test(
+      subjectLc
+    )
+  ) {
+    return { category: "welcome", confidence: 0.92 };
   }
 
   if (/\bblack friday\b|\bcyber monday\b|\bchristmas\b|\bxmas\b|\bholiday sale\b|\bvalentine'?s\b|\bhalloween\b|\beaster\b|\bnew year'?s sale\b|\bsummer sale\b/.test(haystack)) {
@@ -47,7 +62,7 @@ export function classifyFromRules(subject: string, html: string): {
     return { category: "product_launch", confidence: 0.85 };
   }
 
-  if (/\bwelcome to\b|\bthanks for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bgetting started\b|\bglad you'?re here\b/.test(haystack)) {
+  if (/\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bgetting started\b|\bglad you'?re here\b/.test(haystack)) {
     return { category: "welcome", confidence: 0.85 };
   }
 

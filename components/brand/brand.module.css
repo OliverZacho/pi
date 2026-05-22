@@ -1,0 +1,1132 @@
+/* =========================================================
+   Brand dashboard (/brands/[id])
+   - Shares the Explore sidebar shell so navigating between
+     /explore and /brands feels like one product
+   - Modern SaaS analytics layout: hero, KPI tiles, charts,
+     design DNA card, recent campaigns grid
+   ========================================================= */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 2.4rem 2.6rem 4rem;
+  overflow-x: hidden;
+}
+
+/* ---------- Breadcrumb / back link ---------- */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.breadcrumbLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.breadcrumbLink:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.breadcrumbCurrent {
+  color: #0f172a;
+}
+
+.breadcrumbSep {
+  color: #cbd5e1;
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 1.6rem 1.7rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.heroIdentity {
+  display: flex;
+  align-items: center;
+  gap: 1.05rem;
+  min-width: 0;
+}
+
+.heroAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 14px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.heroAvatarLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 0.3rem;
+}
+
+.heroAvatarMonogram {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.heroName {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.heroDomain {
+  color: #2563eb;
+  text-decoration: none;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.heroDomain:hover {
+  text-decoration: underline;
+}
+
+.heroDot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.heroPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.actionGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.actionGhost:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.actionPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 8px;
+  border: 1px solid var(--brand-accent, #0f172a);
+  background: var(--brand-accent, #0f172a);
+  color: var(--brand-accent-fg, #ffffff);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  /* Filter-brightness on hover works for every accent (light or dark)
+     without needing a second variable for the hover shade. */
+  transition: filter 120ms ease;
+}
+
+.actionPrimary:hover {
+  filter: brightness(0.92);
+}
+
+/* ---------- KPI tiles ---------- */
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 880px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kpiTile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.15rem 1.25rem 1.2rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.kpiHead {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #64748b;
+}
+
+.kpiIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  background: var(--brand-accent-soft, #f1f5f9);
+  color: var(--brand-accent, #0f172a);
+  flex-shrink: 0;
+}
+
+.kpiLabel {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #64748b;
+}
+
+.kpiValue {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiHint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.kpiTrend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.kpiTrendDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.kpiTrendDot_good {
+  background: #16a34a;
+}
+
+.kpiTrendDot_warn {
+  background: #f59e0b;
+}
+
+/* ---------- Section frame ---------- */
+
+.sectionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .sectionGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem 1.4rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.005em;
+}
+
+.cardSub {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.cardEyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* ---------- Cadence chart (SVG bar chart) ---------- */
+
+.cadenceWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.cadenceChart {
+  width: 100%;
+  height: 180px;
+  display: block;
+  overflow: visible;
+}
+
+.cadenceBar {
+  fill: var(--brand-accent, #0f172a);
+  transition: fill 120ms ease;
+}
+
+.cadenceBar.empty {
+  /* Empty weeks stay in a neutral grey so the eye still reads them as
+     "no data" rather than "a faint amount of this brand's activity". */
+  fill: #e2e8f0;
+}
+
+.cadenceBaseline {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.cadenceAxis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.cadenceLegend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.cadenceLegendItem {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.cadenceLegendValue {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.cadenceLegendLabel {
+  color: #94a3b8;
+  font-size: 0.74rem;
+}
+
+/* ---------- Category list (horizontal bar chart) ---------- */
+
+.categoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.categoryRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.82rem;
+}
+
+.categoryLabel {
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.categoryTrack {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.categoryFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--brand-accent, #0f172a);
+}
+
+.categoryCount {
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- Stat strip rows (used inside cards) ---------- */
+
+.statStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.7rem;
+}
+
+.statBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+  background: #fafafa;
+  min-width: 0;
+}
+
+.statBlockLabel {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.statBlockValue {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Promo / discount card ---------- */
+
+.promoSummary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.promoBig {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--brand-accent, #0f172a);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.promoLabel {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.promoCodes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.promoCodeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 9px;
+  background: #fafafa;
+  border: 1px solid #f1f5f9;
+}
+
+.promoCode {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #92400e;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.promoCodeCount {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Design DNA card ---------- */
+
+.dnaGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 760px) {
+  .dnaGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dnaSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dnaTitle {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.paletteGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.paletteSwatch {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  cursor: default;
+  overflow: hidden;
+}
+
+.paletteSwatchHex {
+  position: absolute;
+  bottom: 0.3rem;
+  left: 0.35rem;
+  right: 0.35rem;
+  background: rgba(15, 23, 42, 0.78);
+  color: #ffffff;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+  text-align: center;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.paletteSwatch:hover .paletteSwatchHex {
+  opacity: 1;
+}
+
+.fontList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fontRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.fontSample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.fontName {
+  font-size: 0.85rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.flagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.78rem;
+}
+
+.flagDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.flagDot_on {
+  background: #16a34a;
+}
+
+.flagShare {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+/* ---------- Subjects sample card ---------- */
+
+.subjectList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.subjectRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
+  border: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.subjectText {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0f172a;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.subjectMeta {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The CTA tag cloud renders its own chrome via inline styles inside
+   `<CtaCloud />` so it stays robust against any CSS-modules HMR
+   caching weirdness in dev. No selectors live here. */
+
+/* ---------- Send-hours clock heatmap (radial polar histogram) ---------- */
+
+.clockPair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.4rem 0 0.8rem;
+  flex-wrap: wrap;
+}
+
+.clockWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.clockSvg {
+  width: 200px;
+  height: 200px;
+  /* Cardinal hour labels live just outside the outer ring, so the
+     overflow needs to be visible or they get clipped. */
+  overflow: visible;
+}
+
+.clockRing {
+  fill: #ffffff;
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.clockWedge {
+  fill: var(--brand-accent, #0f172a);
+  transition: fill-opacity 120ms ease, stroke 120ms ease;
+  stroke: transparent;
+  stroke-width: 1;
+  cursor: default;
+}
+
+.clockWedge:hover {
+  /* Outline on hover instead of a fill change so the heatmap
+     intensity doesn't lie to the eye on rollover. */
+  stroke: var(--brand-accent, #0f172a);
+}
+
+.clockTick {
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.clockHourLabel {
+  font-size: 11px;
+  font-weight: 500;
+  fill: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.clockHub {
+  fill: #ffffff;
+}
+
+.clockCenterLabel {
+  font-size: 13px;
+  font-weight: 600;
+  fill: #475569;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Activity calendar (GitHub-style heatmap) ---------- */
+
+.calendarSummary {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+  min-width: 0;
+  text-align: right;
+}
+
+.calendarSummaryValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendarSummaryLabel {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+/* GitHub-style fixed cell sizing keeps the grid layout deterministic
+   across viewports. Squares stay legible and uniform; horizontal
+   scroll handles narrow screens. */
+.calendarScroller {
+  --cell-size: 12px;
+  --cell-gap: 3px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-color: #e2e8f0 transparent;
+  scrollbar-width: thin;
+  padding-bottom: 0.2rem;
+}
+
+.calendarLayout {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.calendarDayLabels {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell-size));
+  gap: var(--cell-gap);
+  /* Push the labels down to clear the month-label row above the grid. */
+  padding-top: calc(14px + var(--cell-gap));
+}
+
+.calendarDayLabel {
+  display: flex;
+  align-items: center;
+  height: var(--cell-size);
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.calendarBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+}
+
+.calendarMonthRow {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--col-count, 53),
+    var(--cell-size)
+  );
+  gap: var(--cell-gap);
+  height: 14px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.calendarMonthLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--col-count, 53),
+    var(--cell-size)
+  );
+  grid-template-rows: repeat(7, var(--cell-size));
+  grid-auto-flow: column;
+  gap: var(--cell-gap);
+}
+
+.calendarCell {
+  display: block;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: 2px;
+  background: #f1f5f9;
+  outline: none;
+  transition: transform 90ms ease, box-shadow 90ms ease;
+  cursor: default;
+}
+
+.calendarCell:focus-visible {
+  box-shadow: 0 0 0 2px #ffffff,
+    0 0 0 4px var(--brand-accent, #2563eb);
+}
+
+.calendarCellGhost {
+  visibility: hidden;
+}
+
+.calendarCellEmpty {
+  background: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+}
+
+.calendarCell:not(.calendarCellEmpty):hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18),
+    0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.calendarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.9rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.calendarLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: #475569;
+}
+
+.calendarLegendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* ---------- Calendar tooltip (hover popup) ----------
+   Designed to read like a native macOS / Linear popover: white
+   surface, a single 1 px hairline border, a soft layered shadow.
+   No tinted pill-with-outline chips, no all-caps tracking-wide
+   header — those flourishes were what made the old version look
+   like a stock dashboard mock. */
+
+.calendarTooltip {
+  position: fixed;
+  z-index: 60;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 0.6rem 0.7rem 0.65rem;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+  transition: opacity 90ms ease;
+  font-family: inherit;
+}
+
+.calendarTooltipDate {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.005em;
+  margin-bottom: 0.5rem;
+}
+
+.calendarTooltipList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.calendarTooltipItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.calendarTooltipItem:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.calendarTooltipChipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.calendarTooltipChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #4b5563;
+  letter-spacing: 0;
+  /* `color` is overridden inline per-category so the dot blends with
+     a slightly darker label — but the chip itself stays a plain
+     text-and-dot row, no pill, no border. */
+}
+
+.calendarTooltipChipDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.calendarTooltipTime {
+  font-size: 0.74rem;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.calendarTooltipSubject {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #374151;
+  word-break: break-word;
+}
+
+/* ---------- Recent campaigns grid ---------- */
+
+.recentSection {
+  margin-top: 1rem;
+}
+
+.recentHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.recentTitleGroup h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.recentTitleGroup p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.recentEmpty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+/* ---------- Empty / loading state ---------- */
+
+.emptyState {
+  margin-top: 1.5rem;
+  padding: 3rem 1.5rem;
+  border-radius: 14px;
+  border: 1px dashed #e2e8f0;
+  background: #ffffff;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.emptyState strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}

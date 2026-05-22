@@ -1,11 +1,66 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { CollectionSummary } from "@/lib/collections-db";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import styles from "./explore.module.css";
 
+type NavId =
+  | "explore"
+  | "saved"
+  | "brands"
+  | "collections"
+  | "compare"
+  | "more";
+
 type NavItem = {
-  id: string;
+  id: NavId;
   label: string;
   icon: React.ReactNode;
-  active?: boolean;
+  href?: string;
 };
+
+type Props = {
+  /**
+   * Which nav row should render as selected. The sidebar is shared
+   * across Explore (`/explore`), Saved (`/saved`), Brands, Collections,
+   * and Compare; each page passes an explicit `activeId` so the
+   * highlight tracks the page the user is actually on. A specific
+   * collection id can also be passed in (e.g. `"collection:<uuid>"`)
+   * so the matching row in the Collections section highlights. Same
+   * trick for saved competitor sets via `"compare:<uuid>"`.
+   */
+  activeId?:
+    | NavId
+    | `collection:${string}`
+    | `compare:${string}`;
+  /**
+   * User's collections fetched server-side by the page. We render the
+   * top few in the section and link "View all" to `/collections`.
+   */
+  collections?: CollectionSummary[];
+  /**
+   * User's saved competitor sets. Same shape as `collections`: server
+   * fetches them once per page render and the sidebar renders the top
+   * few with a "View all" link to `/compare`.
+   */
+  competitorSets?: CompetitorSetSummary[];
+};
+
+// Number of collection rows surfaced in the section before falling back
+// to the "View all" link.
+const COLLECTION_PREVIEW_COUNT = 5;
+const COMPETITOR_SET_PREVIEW_COUNT = 5;
+
+// Stable empty default for `collections`. Using a module-level constant
+// (rather than an inline `= []` default) keeps the reference identical
+// across renders, so the prop-mirror effect below doesn't fire on every
+// render and cause an infinite update loop on pages that don't pass a
+// `collections` prop (e.g. /brands).
+const EMPTY_COLLECTIONS: CollectionSummary[] = [];
+const EMPTY_COMPETITOR_SETS: CompetitorSetSummary[] = [];
 
 function CompassIcon() {
   return (
@@ -44,7 +99,10 @@ function BookmarkIcon() {
   );
 }
 
-function CollectionIcon() {
+function CompareIcon() {
+  // Two overlapping circles — Venn-diagram shorthand for "compare".
+  // Reads as distinct from the BrandsIcon (stacked layers) at the small
+  // sidebar size.
   return (
     <svg
       viewBox="0 0 24 24"
@@ -57,29 +115,8 @@ function CollectionIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <circle cx="9" cy="12" r="6" />
+      <circle cx="15" cy="12" r="6" />
     </svg>
   );
 }
@@ -124,7 +161,9 @@ function MoreIcon() {
   );
 }
 
-function FolderIcon() {
+function CollectionIcon() {
+  // Stacked layers — reads as "a curated set" rather than a filing folder,
+  // matching the Collections rebrand away from the folder metaphor.
   return (
     <svg
       viewBox="0 0 24 24"
@@ -137,7 +176,9 @@ function FolderIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <rect x="4" y="9" width="16" height="11" rx="2" />
+      <path d="M6 6h12" />
+      <path d="M8 3h8" />
     </svg>
   );
 }
@@ -181,19 +222,93 @@ function PanelToggleIcon() {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "explore", label: "Explore", icon: <CompassIcon />, active: true },
-  { id: "saved", label: "Saved", icon: <BookmarkIcon /> },
-  { id: "boards", label: "Boards", icon: <CollectionIcon /> },
-  { id: "brands", label: "Brands", icon: <BrandsIcon /> },
-  { id: "search", label: "Search", icon: <SearchIcon /> },
+  { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
+  { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
+  { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
+  {
+    id: "collections",
+    label: "Collections",
+    icon: <CollectionIcon />,
+    href: "/collections"
+  },
+  { id: "compare", label: "Compare", icon: <CompareIcon />, href: "/compare" },
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
-const FOLDERS: { id: string; label: string }[] = [
-  { id: "demo", label: "Demo folder" }
-];
+export default function ExploreSidebar({
+  activeId = "explore",
+  collections = EMPTY_COLLECTIONS,
+  competitorSets = EMPTY_COMPETITOR_SETS
+}: Props = {}) {
+  const router = useRouter();
+  const [items, setItems] = useState<CollectionSummary[]>(collections);
+  const [sets, setSets] = useState<CompetitorSetSummary[]>(competitorSets);
+  const [creating, setCreating] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createPending, setCreatePending] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const createInputRef = useRef<HTMLInputElement | null>(null);
 
-export default function ExploreSidebar() {
+  // Keep local state in sync if the server re-renders the page with a
+  // different list (e.g. after a route change).
+  useEffect(() => {
+    setItems(collections);
+  }, [collections]);
+
+  useEffect(() => {
+    setSets(competitorSets);
+  }, [competitorSets]);
+
+  useEffect(() => {
+    if (creating) {
+      requestAnimationFrame(() => createInputRef.current?.focus());
+    }
+  }, [creating]);
+
+  const activeCollectionId =
+    typeof activeId === "string" && activeId.startsWith("collection:")
+      ? activeId.slice("collection:".length)
+      : null;
+  const activeCompetitorSetId =
+    typeof activeId === "string" && activeId.startsWith("compare:")
+      ? activeId.slice("compare:".length)
+      : null;
+  const activeRowId: NavId = activeCollectionId
+    ? "collections"
+    : activeCompetitorSetId
+      ? "compare"
+      : (activeId as NavId);
+
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = createName.trim();
+    if (!name || createPending) return;
+    setCreatePending(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/collections", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionSummary };
+      setItems((current) => [body.collection, ...current]);
+      setCreateName("");
+      setCreating(false);
+      // Refresh the server-rendered shell so the Collections grid (if
+      // the user is on it) and any other consumer see the new row.
+      router.refresh();
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create collection"
+      );
+    } finally {
+      setCreatePending(false);
+    }
+  }
+
   return (
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
@@ -209,51 +324,182 @@ export default function ExploreSidebar() {
       </div>
 
       <div className={styles.navGroup}>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`${styles.navItem}${item.active ? ` ${styles.active}` : ""}`}
-            tabIndex={-1}
-            aria-current={item.active ? "page" : undefined}
-          >
-            <span className={styles.navIcon}>{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.id === activeRowId;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          const ariaCurrent = isActive ? "page" : undefined;
+          // Real navigable items get a Next.js Link; everything else
+          // stays a button until it has a destination, so the sidebar
+          // still demos as a full shell but unfinished rows aren't
+          // keyboard-focusable.
+          if (item.href) {
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={className}
+                aria-current={ariaCurrent}
+              >
+                <span className={styles.navIcon}>{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={className}
+              tabIndex={-1}
+              aria-current={ariaCurrent}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
-          <span>Folders</span>
+          <span>Your collections</span>
           <button
             type="button"
             className={styles.sectionAdd}
-            aria-label="Create folder"
-            tabIndex={-1}
+            aria-label="Create collection"
+            onClick={() => setCreating((current) => !current)}
           >
             <PlusIcon />
           </button>
         </div>
-        {FOLDERS.map((folder) => (
-          <button
-            key={folder.id}
-            type="button"
-            className={styles.navItem}
-            tabIndex={-1}
-          >
-            <span className={styles.navIcon}>
-              <FolderIcon />
-            </span>
-            <span>{folder.label}</span>
-          </button>
-        ))}
-        <button type="button" className={styles.navItem} tabIndex={-1}>
+
+        {creating ? (
+          <form onSubmit={handleCreate} className={styles.sidebarCreateForm}>
+            <input
+              ref={createInputRef}
+              type="text"
+              value={createName}
+              onChange={(event) => setCreateName(event.target.value)}
+              placeholder="Collection name"
+              maxLength={120}
+              className={styles.sidebarCreateInput}
+              aria-label="New collection name"
+              disabled={createPending}
+            />
+            <div className={styles.sidebarCreateButtons}>
+              <button
+                type="button"
+                className={styles.sidebarCreateCancel}
+                onClick={() => {
+                  setCreating(false);
+                  setCreateName("");
+                  setCreateError(null);
+                }}
+                disabled={createPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={styles.sidebarCreateSubmit}
+                disabled={createPending || createName.trim().length === 0}
+              >
+                {createPending ? "Creating…" : "Create"}
+              </button>
+            </div>
+            {createError ? (
+              <div className={styles.sidebarCreateError} role="alert">
+                {createError}
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+
+        {items.length === 0 && !creating ? (
+          <div className={styles.sidebarEmpty}>
+            No collections yet. Tap + to create one.
+          </div>
+        ) : null}
+
+        {items.slice(0, COLLECTION_PREVIEW_COUNT).map((collection) => {
+          const isActive = activeCollectionId === collection.id;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          return (
+            <Link
+              key={collection.id}
+              href={`/collections/${collection.id}`}
+              className={className}
+              aria-current={isActive ? "page" : undefined}
+              title={collection.name}
+            >
+              <span className={styles.navIcon}>
+                <CollectionIcon />
+              </span>
+              <span className={styles.navItemLabel}>{collection.name}</span>
+            </Link>
+          );
+        })}
+
+        <Link href="/collections" className={styles.navItem}>
           <span className={styles.navIcon}>
             <MoreIcon />
           </span>
           <span>View all</span>
-        </button>
+        </Link>
+      </div>
+
+      <div className={styles.navGroup}>
+        <div className={styles.sectionLabel}>
+          <span>Your competitors</span>
+          <Link
+            href="/compare"
+            className={styles.sectionAdd}
+            aria-label="Build a new comparison"
+            title="Build a new comparison"
+          >
+            <PlusIcon />
+          </Link>
+        </div>
+
+        {sets.length === 0 ? (
+          <div className={styles.sidebarEmpty}>
+            No saved sets yet. Open Compare to build one.
+          </div>
+        ) : null}
+
+        {sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT).map((set) => {
+          const isActive = activeCompetitorSetId === set.id;
+          const className = `${styles.navItem}${
+            isActive ? ` ${styles.active}` : ""
+          }`;
+          return (
+            <Link
+              key={set.id}
+              href={`/compare/${set.id}`}
+              className={className}
+              aria-current={isActive ? "page" : undefined}
+              title={set.name}
+            >
+              <span className={styles.navIcon}>
+                <CompareIcon />
+              </span>
+              <span className={styles.navItemLabel}>{set.name}</span>
+            </Link>
+          );
+        })}
+
+        {sets.length > 0 ? (
+          <Link href="/compare" className={styles.navItem}>
+            <span className={styles.navIcon}>
+              <MoreIcon />
+            </span>
+            <span>View all</span>
+          </Link>
+        ) : null}
       </div>
 
       <div className={styles.spacer} />

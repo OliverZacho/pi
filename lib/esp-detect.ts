@@ -28,6 +28,8 @@ export type EspProvider =
   | "apsis"
   | "agillic"
   | "peytzmail"
+  | "pure360"
+  | "heyloyalty"
   | "unknown";
 
 export type EspSignal = {
@@ -510,6 +512,118 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/peytzmail\.com/i, /peytz\.dk/i],
     returnPathPatterns: [/peytzmail\.com/i, /bounce[^@]*@[^>\s]*peytz/i],
     xHeaderNames: ["x-peytzmail-id", "x-peytz-mailing-id"]
+  },
+  {
+    provider: "pure360",
+    // Pure360 (acquired by Spotler Group in 2022 and rebranded under their
+    // SendPro / Mail+ stack) hosts campaign images on `i.emlfiles4.com`
+    // (`/cmpimg/<digits>/files/...`), serves the default tracking host as
+    // `c.spotler.com` (with paths like `/m<NN>/links/...`), and lets tenants
+    // CNAME a brand domain (e.g. `email.<brand>.com`) at the same tracking
+    // edge. On those CNAMEd sends we lean on the URL-shape and HTML-marker
+    // patterns below.
+    hostPatterns: [
+      /(^|\.)emlfiles4\.com$/i,
+      /(^|\.)c\.spotler\.com$/i,
+      /(^|\.)r\.spotler\.com$/i,
+      /(^|\.)tr\.spotler\.email$/i,
+      /(^|\.)spotler\.email$/i,
+      /(^|\.)spotlermail\.com$/i,
+      /(^|\.)pure360\.com$/i
+    ],
+    // Pure360's "Easy Editor" template engine leaves several highly
+    // distinctive markers in the rendered HTML — both editor-only artifacts
+    // (the `ee-template-version` root attribute, the `ee_responsive_campaign`
+    // root table class, the `ee_dropzone` slot class) and brand-CNAMEd URL
+    // shapes that survive when the tracking host has been re-pointed to the
+    // brand:
+    //   /c/AQ<base64url>            → click redirect
+    //   /cr/AQ<base64url>           → "view in browser" web-view
+    //   /uns/AQ<base64url>          → list-unsubscribe handler
+    //   /o/AQ<base64url>/o.gif      → open-tracking pixel
+    // The `AQ` prefix is the consistent first two chars of Pure360's
+    // base64url-encoded campaign token (length / version byte). Listing the
+    // URL-shape patterns FIRST means the `MAX_HTML_MARKERS_PER_PROVIDER`
+    // cap prefers the strongest fingerprints over the editor class names.
+    htmlPatterns: [
+      /\/c\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/cr\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/uns\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/o\/AQ[A-Za-z0-9_-]{40,}\/o\.gif/,
+      /\bee-template-version\s*=\s*["']/i,
+      /\bee_responsive_campaign\b/,
+      /\bee_dropzone\b/,
+      /\bved_product_element\b/,
+      /(^|\.)emlfiles4\.com\//i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us extra
+    // `link_url`-weight signals so we clear the 0.6 confidence threshold
+    // confidently on real-world sends through brand CNAMEs (where no DKIM /
+    // Return-Path / x- headers are available to us).
+    linkUrlPatterns: [
+      /\/c\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/cr\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/uns\/AQ[A-Za-z0-9_-]{40,}/,
+      /\/o\/AQ[A-Za-z0-9_-]{40,}\/o\.gif/
+    ],
+    dkimPatterns: [
+      /emlfiles4\.com/i,
+      /spotler\.com/i,
+      /spotler\.email/i,
+      /pure360\.com/i,
+      /spotlermail\.com/i
+    ],
+    returnPathPatterns: [
+      /emlfiles4\.com/i,
+      /spotler\.com/i,
+      /spotler\.email/i,
+      /pure360\.com/i,
+      /spotlermail\.com/i
+    ],
+    xHeaderNames: ["x-pure360-id", "x-pure360-message-id", "x-spotler-message-id"]
+  },
+  {
+    provider: "heyloyalty",
+    // HeyLoyalty (the Danish/Nordic ESP) hosts everything on three subdomains
+    // of `heyloyalty.com`:
+    //   - `public.heyloyalty.com`  → click-redirect + open-tracking pixel
+    //   - `app.heyloyalty.com`     → web-view (`/view/<base64>`) and
+    //                                 unsubscribe (`/unsubscribe/<base64>/a<list>m<msg>`)
+    //   - `img.heyloyalty.com`     → image CDN (`/heyloyalty1/...`)
+    // Custom tracking domains via CNAME are uncommon on HeyLoyalty, but we
+    // still lean on the URL-shape patterns below so a brand-CNAMEd send
+    // (where the host fingerprint won't fire) still resolves.
+    hostPatterns: [
+      /(^|\.)heyloyalty\.com$/i
+    ],
+    // The click-redirect query-string shape
+    //   /redirectclick?tt=<digits>.<digits>&l=<5-char-id>&msgid=<digits>&m=<uuid>&url=…
+    // and the open-tracking pixel path
+    //   /track/<digits>/<uuid>/<channel-slug>/<digits>.<digits>/<digits>
+    // are HeyLoyalty-only. The `app.heyloyalty.com/view/` and
+    // `app.heyloyalty.com/unsubscribe/<hash>/a<list>m<msg>` paths are equally
+    // distinctive. The `data-uid="<5-char>"` attribute is emitted on every
+    // tracked link by the HeyLoyalty editor.
+    htmlPatterns: [
+      /\/redirectclick\?[^"'<>\s]*\btt=\d+(?:\.\d+)?(?:&amp;|&)l=[A-Za-z0-9]{4,}(?:&amp;|&)msgid=\d+(?:&amp;|&)m=[a-f0-9-]{16,}/i,
+      /\/track\/\d+\/[a-f0-9-]{16,}\/[a-z0-9_-]+\/\d+(?:\.\d+)?\/\d+/i,
+      /\bapp\.heyloyalty\.com\/view\//i,
+      /\bapp\.heyloyalty\.com\/unsubscribe\/[A-Za-z0-9+/=_-]{20,}\/a\d+m\d+/i,
+      /\bdata-uid\s*=\s*["'][A-Za-z0-9]{5}["']/,
+      /\bheyloyalty\.com\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us a
+    // `link_url`-weight signal (0.35) so HeyLoyalty clears the 0.6 threshold
+    // confidently even when only the URL strings are available (e.g. brand
+    // CNAMEs, or when only links — not the full HTML — are passed in).
+    linkUrlPatterns: [
+      /\/redirectclick\?[^"'<>\s]*\btt=\d+(?:\.\d+)?(?:&amp;|&)l=[A-Za-z0-9]{4,}(?:&amp;|&)msgid=\d+(?:&amp;|&)m=[a-f0-9-]{16,}/i,
+      /\bapp\.heyloyalty\.com\/view\//i,
+      /\bapp\.heyloyalty\.com\/unsubscribe\/[A-Za-z0-9+/=_-]{20,}\/a\d+m\d+/i
+    ],
+    dkimPatterns: [/heyloyalty\.com/i, /heyloyaltymail\.com/i],
+    returnPathPatterns: [/heyloyalty\.com/i, /bounce[^@]*@[^>\s]*heyloyalty/i],
+    xHeaderNames: ["x-heyloyalty-id", "x-heyloyalty-message-id", "x-hl-mailingid"]
   }
 ];
 

@@ -1,0 +1,1227 @@
+/*
+ * Collections page + share view styling.
+ *
+ * The shell (sidebar + main column + page heading) is shared with
+ * Explore / Saved via `components/explore/explore.module.css`. The
+ * styles here are scoped to the per-collection card grid and to a
+ * couple of detail-page niceties.
+ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 160ms ease, transform 160ms ease,
+    border-color 160ms ease;
+  isolation: isolate;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  transform: translateY(-2px);
+}
+
+.cardLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 2x2 mosaic of email previews. We pin a fixed aspect ratio so the
+ * mosaic + meta footer always lay out the same regardless of how many
+ * emails the user has stuffed into the collection. */
+.mosaic {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.mosaicCell {
+  position: relative;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+/* Same trick as the Explore card: render the email at its natural
+ * width (~600px) and scale it down with CSS so internal media queries
+ * still trigger the desktop layout. The mosaic cells are square,
+ * which is why we set both dimensions equal. */
+.mosaicFrame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 600px;
+  height: 600px;
+  border: 0;
+  background: #ffffff;
+  transform-origin: top left;
+  /* The exact scale factor varies with the card's width but we keep it
+   * approximate — these are thumbnail previews, pixel-perfect is not
+   * the goal. Half the card width / 600 = roughly 0.18 at the default
+   * 4-column grid. */
+  transform: scale(0.18);
+  pointer-events: none;
+}
+
+@media (max-width: 1099px) {
+  .mosaicFrame {
+    transform: scale(0.21);
+  }
+}
+
+@media (max-width: 720px) {
+  .mosaicFrame {
+    transform: scale(0.24);
+  }
+}
+
+.mosaicEmpty {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    #f8fafc 0%,
+    #eef2f7 50%,
+    #f8fafc 100%
+  );
+}
+
+.emptyMessage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+/* Hover overlay with the Share + Open pill buttons. Same darkening
+ * gradient pattern as the Explore card so the two surfaces feel like
+ * siblings. */
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem 0.9rem;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0) 0%,
+    rgba(15, 23, 42, 0.1) 40%,
+    rgba(15, 23, 42, 0.55) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  z-index: 2;
+}
+
+.card:hover .cardOverlay,
+.card:focus-within .cardOverlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlayPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.4);
+  transition: transform 140ms ease, background 140ms ease,
+    border-color 140ms ease, color 140ms ease;
+}
+
+.overlayPill:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.overlayPillPrimary {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.overlayPillPrimary:hover {
+  background: #1e293b;
+}
+
+.overlayPillCopied {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.overlayPillCopied:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.cardMeta {
+  padding: 0.75rem 0.9rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: #ffffff;
+}
+
+.cardTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardCount {
+  font-size: 0.75rem;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+.copyError {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: #b91c1c;
+}
+
+/* "New collection" tile that sits as the first cell of the grid.
+ * Same dimensions as a real card so the grid stays tidy. */
+.newTile {
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 100%;
+  aspect-ratio: 1 / 1.18;
+  border-style: dashed;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease,
+    background 140ms ease, transform 140ms ease;
+}
+
+.newTile:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+  transform: translateY(-2px);
+}
+
+.newTileIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.newTileLabel {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.createCard {
+  aspect-ratio: 1 / 1.18;
+}
+
+.createBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem;
+  height: 100%;
+  justify-content: center;
+}
+
+.createTitle {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.createInput {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.createInput:focus {
+  border-color: #0f172a;
+}
+
+.createButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.createCancel {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.createCancel:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.createCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.createSubmit {
+  padding: 0.4rem 0.85rem;
+  border-radius: 7px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.createSubmit:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.createSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Detail page ---------- */
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.detailTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.detailTitle {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.detailTitleInput {
+  font: inherit;
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.2rem 0.55rem;
+  outline: none;
+  min-width: 18rem;
+}
+
+.detailTitleInput:focus {
+  border-color: #0f172a;
+}
+
+.detailMeta {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.detailActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.detailButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+  text-decoration: none;
+}
+
+.detailButton:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.detailButton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.detailButtonPrimary {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.detailButtonPrimary:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+}
+
+.detailButtonDanger {
+  color: #b91c1c;
+}
+
+.detailButtonDanger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.detailButtonCopied {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.detailButtonCopied:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.detailEditIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.detailEditIcon:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* ---------- Rule-based collection editor ---------- */
+
+.rulesEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.4rem 1.3rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.rulesEditorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rulesEditorTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+.rulesEditorSubtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.rulesCombinator {
+  display: inline-flex;
+  padding: 3px;
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+
+.combinatorOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.combinatorOption:hover {
+  color: #0f172a;
+}
+
+.combinatorOptionActive {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.combinatorHint {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.combinatorOptionActive .combinatorHint {
+  color: #0f172a;
+}
+
+/* Scope picker — which emails the rule applies to. */
+.scopeRow {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.scopeLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.scopeOptions {
+  display: inline-flex;
+  padding: 3px;
+  background: #ffffff;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+}
+
+.scopeOption {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.scopeOption:hover {
+  color: #0f172a;
+}
+
+.scopeOptionActive {
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+}
+
+.scopeOptionActive:hover {
+  color: #ffffff;
+}
+
+.scopeHint {
+  font-size: 0.78rem;
+  color: #64748b;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .scopeRow {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+}
+
+.rulesList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ruleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.65rem;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.ruleJoiner,
+.ruleJoinerPrefix {
+  min-width: 2.4rem;
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.ruleJoinerPrefix {
+  color: #64748b;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+.ruleControls {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ruleSelect,
+.ruleInput,
+.ruleNumberInput {
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  min-width: 0;
+}
+
+.ruleSelect {
+  cursor: pointer;
+}
+
+.ruleInput {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.ruleNumberInput {
+  width: 5.5rem;
+}
+
+.ruleSelect:focus,
+.ruleInput:focus,
+.ruleNumberInput:focus {
+  border-color: #0f172a;
+}
+
+.ruleOperator {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+select.ruleOperator {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+select.ruleOperator:focus {
+  border-color: #0f172a;
+  outline: none;
+}
+
+.ruleUnit {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.ruleRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ruleRemove:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.ruleRemove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ruleAddButton {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.ruleAddButton:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.rulesError {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.rulesActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.1rem;
+}
+
+.ruleCancelButton {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.ruleCancelButton:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ruleCancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ruleSaveButton {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ruleSaveButton:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.ruleSaveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Multi-select dropdown (rule values) ---------- */
+
+.multiSelect {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 180px;
+  display: inline-flex;
+}
+
+.multiSelectTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.multiSelectTrigger:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.multiSelectTriggerOpen,
+.multiSelectTrigger:focus-visible {
+  border-color: #0f172a;
+  outline: none;
+}
+
+.multiSelectTriggerEmpty {
+  color: #94a3b8;
+}
+
+.multiSelectLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiSelectCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.multiSelectPopover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.05);
+  padding: 0.3rem;
+  animation: multiSelectIn 120ms ease;
+}
+
+@keyframes multiSelectIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.multiSelectSearch {
+  padding: 0.15rem 0.2rem 0.35rem;
+}
+
+.multiSelectSearchInput {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.multiSelectSearchInput:focus {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.multiSelectList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 100ms ease;
+}
+
+.multiSelectOption:hover {
+  background: #f1f5f9;
+}
+
+.multiSelectOptionChecked {
+  background: #f8fafc;
+}
+
+.multiSelectOptionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiSelectCheckbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: transparent;
+  flex-shrink: 0;
+  transition: background 100ms ease, border-color 100ms ease,
+    color 100ms ease;
+}
+
+.multiSelectCheckboxChecked {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.multiSelectEmpty {
+  padding: 0.6rem 0.55rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.multiSelectFooter {
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.15rem 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.multiSelectClear {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.multiSelectClear:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* ---------- Empty-state CTA wrapper ---------- */
+
+.rulesEmptyState {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  margin: 0 auto;
+  max-width: 720px;
+  text-align: center;
+}
+
+.rulesEmptyTitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.rulesEmptyBody {
+  font-size: 0.88rem;
+  color: #64748b;
+  margin: 0 0 0.4rem;
+}
+
+.rulesEmptyDivider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0.4rem 0;
+}
+
+.rulesEmptyDivider::before,
+.rulesEmptyDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+/* ---------- Read-only rules summary (above the email grid) ---------- */
+
+.rulesSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1.2rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.rulesSummaryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.rulesSummaryList {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.rulesSummaryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 0.78rem;
+  color: #0f172a;
+}
+
+.rulesSummaryChipScope {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.rulesSummaryChipScope .rulesSummaryChipLabel {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.rulesSummaryChipLabel {
+  color: #64748b;
+}
+
+.rulesSummaryJoiner {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  align-self: center;
+}
+
+.rulesSummaryActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.rulesSummaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.rulesSummaryButton:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.rulesSummaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rulesSummaryButtonDanger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.rulesSummaryButtonDanger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* Public share page hint */
+
+.publicBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1.2rem;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.82rem;
+}

@@ -306,7 +306,113 @@ describe("extractListHeaders", () => {
       list_id: "n.b.example"
     });
   });
+
+  // Resend's `email.received` API normalises the inbound message via
+  // postal-mime and groups all `List-*` headers under a single `list` key
+  // whose value is JSON-encoded. The extractor has to understand that
+  // shape — otherwise every Resend-ingested email is misreported as
+  // "missing List-Unsubscribe" even though Apple Mail / Gmail render
+  // their built-in Unsubscribe button just fine.
+  it("parses Resend's nested `list` blob (url + mail + one-click + id)", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: {
+          mail: "unsubscribe@eu.sparkpostmail.com?subject=unsubscribe:opaque",
+          url: "https://unsubscribe.eu.spmta.com/u/abc"
+        },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" },
+        id: { name: "spceu.13976.2.sparkpostmail.com" }
+      })
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto:
+        "mailto:unsubscribe@eu.sparkpostmail.com?subject=unsubscribe:opaque",
+      unsubscribe_url: "https://unsubscribe.eu.spmta.com/u/abc",
+      has_one_click_post: true,
+      list_id: "spceu.13976.2.sparkpostmail.com"
+    });
+  });
+
+  it("parses Resend's `list` blob when only an https unsubscribe URL is set", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: {
+          url: "https://public.yulsn.io/listunsubscribe/abc"
+        },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" }
+      })
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: null,
+      unsubscribe_url: "https://public.yulsn.io/listunsubscribe/abc",
+      has_one_click_post: true,
+      list_id: null
+    });
+  });
+
+  it("prefers the `id.id` host over the `id.name` display label for List-Id", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { url: "https://example.com/u" },
+        id: {
+          name: "ca75a0d01596c8e82f6da53e4mc list",
+          id: "ca75a0d01596c8e82f6da53e4.380989.list-id.mcsv.net"
+        }
+      })
+    };
+    expect(extractListHeaders(headers)?.list_id).toBe(
+      "ca75a0d01596c8e82f6da53e4.380989.list-id.mcsv.net"
+    );
+  });
+
+  it("falls back to RFC 2047 quoted-printable `name` field when url/mail are absent", () => {
+    // Klaviyo + sparkpost emit the original `<https://…>` URI as a chain
+    // of `=?us-ascii?Q?…?=` encoded-words, which postal-mime surfaces as
+    // `unsubscribe.name`. The extractor decodes the chain and recovers
+    // the underlying URL so those senders aren't false-negatived.
+    const encoded =
+      "=?us-ascii?Q?=3Chttps=3A=2F=2Fmanage=2Ekmail-lists=2Ecom=2Funsub?= " +
+      "=?us-ascii?Q?scribe=3Fa=3DUsreBA=3E?=";
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { name: encoded },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" }
+      })
+    };
+    const result = extractListHeaders(headers);
+    expect(result?.has_list_unsubscribe).toBe(true);
+    expect(result?.unsubscribe_url).toBe(
+      "https://manage.kmail-lists.com/unsubscribe?a=UsreBA"
+    );
+    expect(result?.has_one_click_post).toBe(true);
+  });
+
+  it("flags has_list_unsubscribe even when the parsed `name` can't be decoded into a URI", () => {
+    // Apple Mail's "Unsubscribe" button only requires a non-empty
+    // List-Unsubscribe header — the URL parse is a *quality* signal.
+    // Don't false-negative the header-presence check on parse failure.
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { name: "<gibberish-no-uri-inside>" }
+      })
+    };
+    expect(extractListHeaders(headers)?.has_list_unsubscribe).toBe(true);
+  });
+
+  it("ignores a non-JSON `list` value and falls through to standard headers", () => {
+    const headers = {
+      list: "not-json",
+      "List-Unsubscribe": "<https://b.example/u>"
+    };
+    expect(extractListHeaders(headers)).toMatchObject({
+      has_list_unsubscribe: true,
+      unsubscribe_url: "https://b.example/u"
+    });
+  });
 });
+
 
 describe("extractColorPalette", () => {
   it("captures hex colors from <style> blocks and inline style attrs", () => {
@@ -386,6 +492,75 @@ describe("extractColorPalette", () => {
     expect(palette.map((c) => c.hex)).toEqual(["#111111", "#222222"]);
     expect(palette[0].count).toBe(3);
     expect(palette[1].count).toBe(2);
+  });
+
+  it("ignores ID selectors that look like 3-char hex tokens", () => {
+    // Mailchimp tags each section of a campaign with ids like `d13`, `b24`,
+    // `b67`, etc. and emits rules such as `#d13 p, #d13 h1 { … }`. Those are
+    // ID selectors, not colors — they must never leak into the palette.
+    const html = `
+      <style>
+        #d13 p, #d13 h1, #b24 h2, #b67 li { font-weight: 600; }
+        #d13 { background: #ff0000; }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toEqual(["#ff0000"]);
+  });
+
+  it("ignores ID selectors nested inside @media queries", () => {
+    // Mailchimp's mobile overrides wrap selectors in `@media (...) { ... }`
+    // so the inner `#b24, #b67 { padding: ... }` sits inside the outer
+    // braces. Only property values may be colors.
+    const html = `
+      <style>
+        @media (max-width: 600px) {
+          #b22 .x, #b23 .y, #b24, #b67 { padding: 12px 24px !important; }
+          #b24 .btn { background: #00ff88; }
+        }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes).toEqual(["#00ff88"]);
+  });
+
+  it("skips colors declared only on interaction pseudo-classes", () => {
+    // Default ESP templates (Sendinblue's `.es-button-border:hover`,
+    // Mailchimp's `a:hover`) often leave a stock platform color on the
+    // hover state that the brand never customises. Those colors are never
+    // visible by default so they shouldn't count toward the brand DNA.
+    const html = `
+      <style>
+        .btn { background: #ffffff; color: #111111; }
+        .btn:hover { background: #003dcc; border-color: #003dcc; }
+        a:focus, a:active { outline-color: #ff00aa; }
+        @media (max-width: 600px) {
+          .btn:hover { background: #00ff00; }
+        }
+      </style>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex);
+    expect(hexes.sort()).toEqual(["#111111", "#ffffff"]);
+  });
+
+  it("skips inline styles flagged as invisible (mso-hide, display:none, …)", () => {
+    // Outlook-only fallback buttons routinely declare a default ESP
+    // accent color (Eva Solo: #004cff) on `border-color` while also
+    // setting `border-width: 0`, then mark the wrapper element with
+    // `mso-hide:all` so non-Outlook clients hide it. The recipient
+    // never sees these colors, so they mustn't dominate the palette.
+    const html = `
+      <a style="background:#ffffff;color:#000000">Visible</a>
+      <span style="border-color:#004cff;background:#bf967e;border-width:0px;mso-hide:all">Outlook</span>
+      <span style="display:none;background:#ff00ff">Hidden</span>
+      <span style="visibility:hidden;color:#00ffff">Hidden</span>
+    `;
+    const palette = extractColorPalette(html);
+    const hexes = palette.map((c) => c.hex).sort();
+    expect(hexes).toEqual(["#000000", "#ffffff"]);
   });
 
   it("returns [] for empty input", () => {

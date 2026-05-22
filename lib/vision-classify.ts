@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { EmailCategory } from "./admin-types";
+import { startOfDayInZone } from "./datetime";
 import type { MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
 
@@ -88,8 +89,12 @@ function pickHeroAsset(assets: MirroredImage[]): MirroredImage | null {
 
 async function dailyAttemptsToday(): Promise<number> {
   const supabase = getSupabaseAdmin();
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  // The vision quota is "per platform day". Anchoring at midnight in
+  // the platform zone (rather than UTC) keeps the reset boundary
+  // aligned with the operator's working day, so a manual back-fill
+  // run at 02:00 Copenhagen time doesn't blow the budget for a window
+  // that has already conceptually rolled over.
+  const startOfDay = startOfDayInZone(new Date());
 
   const { count, error } = await supabase
     .from("email_products")

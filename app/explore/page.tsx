@@ -1,7 +1,20 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getExploreEmails } from "@/lib/explore-db";
-import EmailCard from "@/components/explore/EmailCard";
+import {
+  EXPLORE_PAGE_SIZE,
+  getExploreFacets,
+  searchExploreEmails
+} from "@/lib/explore-db";
+import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import {
+  listCollectionSummaries,
+  type CollectionSummary
+} from "@/lib/collections-db";
+import {
+  listCompetitorSetSummaries,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
+import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
 
@@ -34,11 +47,60 @@ export default async function ExplorePage() {
     redirect("/access-denied");
   }
 
-  const emails = await getExploreEmails(supabase);
+  // Server-render the first page + facets so the grid is hydrated with
+  // real data on first paint. The client takes over for subsequent
+  // filtering / search / infinite scroll via the `/api/explore/*` routes.
+  const [initialResult, facets] = await Promise.all([
+    searchExploreEmails(supabase, {
+      page: 1,
+      pageSize: EXPLORE_PAGE_SIZE,
+      sort: "newest"
+    }),
+    getExploreFacets(supabase)
+  ]);
+
+  // Pull the user's entire saved-id set up front so cards loaded later
+  // via infinite scroll already know whether they're saved without an
+  // extra round-trip. The payload is just UUIDs, so even users with a
+  // few thousand saves cost us a few hundred KB at most. We swallow
+  // errors here so a broken saves table never breaks Explore itself.
+  let initialSavedIds: string[] = [];
+  try {
+    const savedSet = await listSavedEmailIds(supabase, user.id);
+    initialSavedIds = Array.from(savedSet);
+  } catch (err) {
+    console.error("Failed to load saved email IDs", err);
+  }
+
+  // SSR the user's collections so the "Add to collection" popover on
+  // every card has data ready on first paint. Same swallow-errors
+  // strategy: a broken collections table shouldn't take down Explore.
+  let initialCollections: CollectionSummary[] = [];
+  try {
+    initialCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+
+  // Same idea for saved competitor sets — feeds the sidebar's
+  // "Your competitors" section. Swallow errors so a missing table
+  // never breaks Explore.
+  let initialCompetitorSets: CompetitorSetSummary[] = [];
+  try {
+    initialCompetitorSets = await listCompetitorSetSummaries(
+      supabase,
+      user.id
+    );
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
 
   return (
     <div className={styles.shell}>
-      <ExploreSidebar />
+      <ExploreSidebar
+        collections={initialCollections}
+        competitorSets={initialCompetitorSets}
+      />
 
       <main className={styles.main}>
         <header className={styles.heading}>
@@ -46,37 +108,14 @@ export default async function ExplorePage() {
           <p>Browse marketing emails from competing brands</p>
         </header>
 
-        <div className={styles.searchRow}>
-          <div className={styles.searchField} aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span>Search emails</span>
-          </div>
-        </div>
-
-        {emails.length === 0 ? (
-          <p className={styles.empty}>
-            No captured emails yet. Once your subscriptions start receiving
-            newsletters they will appear here.
-          </p>
-        ) : (
-          <div className={styles.grid}>
-            {emails.map((email) => (
-              <EmailCard key={email.id} email={email} />
-            ))}
-          </div>
-        )}
+        <ExploreClient
+          initialEmails={initialResult.items}
+          initialHasMore={initialResult.hasMore}
+          pageSize={EXPLORE_PAGE_SIZE}
+          facets={facets}
+          initialSavedIds={initialSavedIds}
+          initialCollections={initialCollections}
+        />
       </main>
     </div>
   );

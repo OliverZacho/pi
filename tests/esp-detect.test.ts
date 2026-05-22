@@ -553,6 +553,151 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Pure360 / Spotler on a brand-CNAMEd tracking host with the emlfiles4 image CDN (no headers)", () => {
+    // Distilled from a real Georg Jensen "Weft" send. The tracking + open +
+    // unsubscribe + view-in-browser host is CNAMEd to `email.georgjensen.com`,
+    // so only the campaign image CDN host on `i.emlfiles4.com` matches by
+    // host. The URL-shape patterns (`/c/AQ...`, `/cr/AQ...`, `/uns/AQ...`,
+    // `/o/AQ.../o.gif`) plus the Easy Editor markers (`ee-template-version`,
+    // `ee_responsive_campaign`, `ee_dropzone`, `ved_product_element`) carry
+    // the detection.
+    const html = `
+      <html>
+        <head><title>Vi præsenterer: Weft kollektionen</title></head>
+        <body>
+          <table class="ee_responsive_campaign" ee-template-version="8.4">
+            <tr><td>
+              <div class="ee_dropzone">
+                <img src="https://i.emlfiles4.com/cmpimg/3/7/3/9/1/2/files/1909605_logo.png" alt="">
+                <a href="https://email.georgjensen.com/c/AQjsohQQ2cymAxj1gOCDASCu2IIhKO25lREw8dgcmSqJQCBojgGqdoXohqpKDISMaQrbY7OX1KtCjzaYsKs">Shop</a>
+                <table class="ved_product_element"><tr><td>Product</td></tr></table>
+                <a href="https://email.georgjensen.com/cr/AQjsohQQ2cymAxj1gOCDATDtuZURdPk0FYOzMYFgEoyv34nek2sKza-4ihFUZDDr_mCannc">View in browser</a>
+                <a href="https://email.georgjensen.com/uns/AQjsohQQ2cymAxj1gOCDASDtuZURnb3hud5O-jQoOwyu4dCTkHkwuQ6pvtiGHKup4nZREr4">Unsubscribe</a>
+                <img src="https://email.georgjensen.com/o/AQjsohQQ2cymAxj1gOCDASABKO25lREw8dgcOS_OH5cdwh2NOSAKouohzyfaF5PoWC7oPuKo8G36c_k/o.gif" width="1" height="1">
+              </div>
+            </td></tr>
+          </table>
+        </body>
+      </html>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://email.georgjensen.com/c/AQjsohQQ2cymAxj1gOCDASCu2IIhKO25lREw8dgcmSqJQCBojgGqdoXohqpKDISMaQrbY7OX1KtCjzaYsKs"
+        ),
+        link(
+          "https://email.georgjensen.com/cr/AQjsohQQ2cymAxj1gOCDATDtuZURdPk0FYOzMYFgEoyv34nek2sKza-4ihFUZDDr_mCannc"
+        ),
+        link(
+          "https://email.georgjensen.com/uns/AQjsohQQ2cymAxj1gOCDASDtuZURnb3hud5O-jQoOwyu4dCTkHkwuQ6pvtiGHKup4nZREr4"
+        )
+      ],
+      resourceHosts: ["email.georgjensen.com", "i.emlfiles4.com"]
+    });
+    expect(result.provider).toBe("pure360");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Pure360 / Spotler on a brand-CNAMEd tracking host using only URL shapes", () => {
+    // If a customer points e.g. `mail.brand.com` at Pure360 AND uploads
+    // their images to their own CDN (so the `i.emlfiles4.com` host doesn't
+    // appear), the `/c/AQ`, `/cr/AQ`, `/uns/AQ`, `/o/AQ.../o.gif` token
+    // shapes still let us recognise the send.
+    const html = `
+      <a href="https://mail.brand.com/c/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV">Shop</a>
+      <a href="https://mail.brand.com/cr/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV">View in browser</a>
+      <a href="https://mail.brand.com/uns/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV">Unsubscribe</a>
+      <img src="https://mail.brand.com/o/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV/o.gif" width="1" height="1">
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://mail.brand.com/c/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV"
+        ),
+        link(
+          "https://mail.brand.com/cr/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV"
+        ),
+        link(
+          "https://mail.brand.com/uns/AQabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUV"
+        )
+      ],
+      resourceHosts: ["mail.brand.com"]
+    });
+    expect(result.provider).toBe("pure360");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies HeyLoyalty on its public/app/img.heyloyalty.com subdomains plus tracking URL shapes (no headers)", () => {
+    // Distilled from a real ARoS Aarhus Kunstmuseum welcome send. HeyLoyalty
+    // hosts the click-redirect + open pixel on `public.heyloyalty.com`, the
+    // web-view + unsubscribe on `app.heyloyalty.com`, and the image CDN on
+    // `img.heyloyalty.com`. The `/redirectclick?tt=…&l=…&msgid=…&m=<uuid>`
+    // query-string shape, the `/track/<list>/<uuid>/<channel>/<tt>/<msgid>`
+    // open pixel path, and the `/unsubscribe/<hash>/a<list>m<msg>` slug are
+    // all HeyLoyalty-only.
+    const html = `
+      <img src="https://public.heyloyalty.com/track/19737/d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd/autoresponder/1779260065.2159/1919301" width="3" height="3" />
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=InfWr&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://www.aros.dk/da/" data-uid="InfWr">
+        <img src="https://img.heyloyalty.com/heyloyalty1/filemanager/abc/def.gif" alt="ARoS" />
+      </a>
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=nx301&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://www.aros.dk/da/besoeg/aarskort/" data-uid="nx301">Se alle dine medlemsfordele her</a>
+      <a href="https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&amp;l=OVE6c&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=app.heyloyalty.com/unsubscribe/ZXlKcGRpSTZJbFpSZVVaM01YRkZUWEZuZDJKNU9HdG1XVkpJZDFFOVBTSXM/a19737m1919301">Afmeld nyhedsbrev</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=InfWr&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://www.aros.dk/da/"),
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=nx301&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://www.aros.dk/da/besoeg/aarskort/"),
+        link("https://public.heyloyalty.com/redirectclick?tt=1779260065.2159&l=OVE6c&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=app.heyloyalty.com/unsubscribe/ZXlKcGRpSTZJbFpSZVVaM01YRkZUWEZuZDJKNU9HdG1XVkpJZDFFOVBTSXM/a19737m1919301")
+      ],
+      resourceHosts: [
+        "public.heyloyalty.com",
+        "img.heyloyalty.com"
+      ]
+    });
+    expect(result.provider).toBe("heyloyalty");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies HeyLoyalty via the redirectclick URL shape on a brand-CNAMEd tracking host (no headers)", () => {
+    // If a customer ever points e.g. `mail.brand.com` at HeyLoyalty's tracking
+    // edge, the host fingerprints won't match — the
+    // `/redirectclick?tt=…&l=…&msgid=…&m=<uuid>` query-string shape still
+    // carries the detection on its own (html_marker + link_url).
+    const html = `
+      <a href="https://mail.brand.com/redirectclick?tt=1779260065.2159&amp;l=InfWr&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://brand.com/" data-uid="InfWr">Shop</a>
+      <a href="https://mail.brand.com/redirectclick?tt=1779260065.2160&amp;l=nx301&amp;msgid=1919301&amp;m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&amp;url=https://brand.com/sale/" data-uid="nx301">Sale</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://mail.brand.com/redirectclick?tt=1779260065.2159&l=InfWr&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://brand.com/"),
+        link("https://mail.brand.com/redirectclick?tt=1779260065.2160&l=nx301&msgid=1919301&m=d04ab7fc-83f4-4b92-a9b0-6c77aeb68ebd&url=https://brand.com/sale/")
+      ],
+      resourceHosts: ["mail.brand.com"]
+    });
+    expect(result.provider).toBe("heyloyalty");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },
