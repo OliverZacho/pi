@@ -7,6 +7,7 @@ import {
   EMAIL_CATEGORY_LABELS,
   type AdminOverview,
   type CompanyInbox,
+  type CompanySubscription,
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
@@ -121,6 +122,28 @@ type SuggestedCandidate = {
 };
 
 const SUGGESTION_COUNT_OPTIONS = [5, 10, 15, 20];
+
+const COMPANIES_COLLAPSED_STORAGE_KEY = "pirol.admin.companiesCollapsed";
+
+type EditingDraft = {
+  name: string;
+  domain: string;
+  market: string;
+};
+
+/**
+ * Mirror of `sortInboxesForDisplay` in `lib/admin-db.ts` — primary first,
+ * then by creation time (oldest first) so the original subscription
+ * address stays at the top after we optimistically prepend a new inbox.
+ */
+function sortInboxes(inboxes: CompanyInbox[]): CompanyInbox[] {
+  return [...inboxes].sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) {
+      return a.isPrimary ? -1 : 1;
+    }
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+}
 
 const EMPTY_FILTERS: EmailFilters = {
   category: "",
@@ -306,8 +329,45 @@ export default function AdminHomePage() {
     string | null
   >(null);
   const [addInboxError, setAddInboxError] = useState<string | null>(null);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState<EditingDraft | null>(null);
+  const [editingError, setEditingError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [companiesCollapsed, setCompaniesCollapsed] = useState(false);
   const createFormRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const editNameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const stored = window.localStorage.getItem(COMPANIES_COLLAPSED_STORAGE_KEY);
+      if (stored === "1") {
+        setCompaniesCollapsed(true);
+      }
+    } catch {
+      // localStorage can throw in private-mode browsers; default to expanded.
+    }
+  }, []);
+
+  const toggleCompaniesCollapsed = useCallback(() => {
+    setCompaniesCollapsed((current) => {
+      const next = !current;
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            COMPANIES_COLLAPSED_STORAGE_KEY,
+            next ? "1" : "0"
+          );
+        }
+      } catch {
+        // ignore storage failures
+      }
+      return next;
+    });
+  }, []);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -334,6 +394,51 @@ export default function AdminHomePage() {
     }
   }
 
+  const replaceCompanyInOverview = useCallback(
+    (next: CompanySubscription) => {
+      setOverview((current) => ({
+        ...current,
+        companies: current.companies.map((company) =>
+          company.id === next.id ? next : company
+        )
+      }));
+    },
+    []
+  );
+
+  const appendInboxToCompany = useCallback(
+    (companyId: string, inbox: CompanyInbox) => {
+      setOverview((current) => ({
+        ...current,
+        companies: current.companies.map((company) => {
+          if (company.id !== companyId) {
+            return company;
+          }
+          const inboxes = sortInboxes([...company.inboxes, inbox]);
+          const primaryEmail =
+            inboxes.find((entry) => entry.isPrimary)?.emailAddress ??
+            company.subscriptionEmail;
+          return {
+            ...company,
+            inboxes,
+            subscriptionEmail: primaryEmail
+          };
+        })
+      }));
+    },
+    []
+  );
+
+  const prependCompanyToOverview = useCallback(
+    (company: CompanySubscription) => {
+      setOverview((current) => ({
+        ...current,
+        companies: [company, ...current.companies]
+      }));
+    },
+    []
+  );
+
   async function addInboxToCompany(companyId: string) {
     if (addingInboxForCompanyId) {
       return;
@@ -355,13 +460,85 @@ export default function AdminHomePage() {
       }
       setCreatedEmail(body.inbox.emailAddress);
       setCreatedEmailCopied(false);
-      await loadOverview(filters);
+      appendInboxToCompany(companyId, body.inbox);
     } catch {
       setAddInboxError("Could not add an additional inbox.");
     } finally {
       setAddingInboxForCompanyId(null);
     }
   }
+
+  function startEditingCompany(company: CompanySubscription) {
+    setEditingCompanyId(company.id);
+    setEditingDraft({
+      name: company.name,
+      domain: company.domain,
+      market: company.market ?? ""
+    });
+    setEditingError(null);
+  }
+
+  function cancelEditingCompany() {
+    setEditingCompanyId(null);
+    setEditingDraft(null);
+    setEditingError(null);
+    setSavingEdit(false);
+  }
+
+  async function saveEditingCompany() {
+    if (!editingCompanyId || !editingDraft || savingEdit) {
+      return;
+    }
+    const name = editingDraft.name.trim();
+    const domain = editingDraft.domain.trim();
+    const marketRaw = editingDraft.market.trim();
+    if (!name) {
+      setEditingError("Name cannot be empty.");
+      return;
+    }
+    if (!domain) {
+      setEditingError("Domain cannot be empty.");
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditingError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/companies/${editingCompanyId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            domain,
+            market: marketRaw.length > 0 ? marketRaw : null
+          })
+        }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        company?: CompanySubscription;
+        error?: string;
+      };
+      if (!response.ok || !body.company) {
+        setEditingError(body.error ?? "Could not save changes.");
+        return;
+      }
+      replaceCompanyInOverview(body.company);
+      cancelEditingCompany();
+    } catch {
+      setEditingError("Could not save changes.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  useEffect(() => {
+    if (editingCompanyId && editNameInputRef.current) {
+      editNameInputRef.current.focus();
+      editNameInputRef.current.select();
+    }
+  }, [editingCompanyId]);
 
   useEffect(() => {
     if (!createdEmail) {
@@ -836,11 +1013,16 @@ export default function AdminHomePage() {
     }
 
     const body = (await response.json()) as {
-      company?: { subscriptionEmail?: string };
+      company?: CompanySubscription;
     };
-    const newEmail = body.company?.subscriptionEmail;
-    if (newEmail) {
-      setCreatedEmail(newEmail);
+    const newCompany = body.company;
+    if (newCompany) {
+      // Inject directly into local state to avoid re-fetching the entire
+      // overview just because one row appeared at the top of the list —
+      // that's what was making the dashboard flash and re-render every
+      // time we added a company.
+      prependCompanyToOverview(newCompany);
+      setCreatedEmail(newCompany.subscriptionEmail);
       setCreatedEmailCopied(false);
     }
 
@@ -848,7 +1030,6 @@ export default function AdminHomePage() {
     setDomain("");
     setMarket("");
     setMarketOpen(false);
-    await loadOverview(filters);
   }
 
   return (
@@ -1230,28 +1411,64 @@ export default function AdminHomePage() {
       </section>
 
       <section className="card">
-        <h2>Subscribed Companies</h2>
-        <div className="section-toolbar">
-          <input
-            className="search-input"
-            type="search"
-            value={companySearch}
-            onChange={(e) => setCompanySearch(e.target.value)}
-            placeholder="Search by name, domain, market, or email"
-            aria-label="Search companies"
-          />
-          <span className="muted">
-            {filteredCompanies.length} of {sortedCompanies.length} shown
-          </span>
+        <div className="card-header">
+          <button
+            type="button"
+            className="card-collapse-toggle"
+            onClick={toggleCompaniesCollapsed}
+            aria-expanded={!companiesCollapsed}
+            aria-controls="subscribed-companies-body"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className={`card-collapse-chevron${
+                companiesCollapsed ? " is-collapsed" : ""
+              }`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span>Subscribed Companies</span>
+            <span className="card-collapse-count muted">
+              ({sortedCompanies.length})
+            </span>
+          </button>
         </div>
-        {addInboxError ? <p className="error">{addInboxError}</p> : null}
-        {loading ? (
-          <p>Loading...</p>
-        ) : sortedCompanies.length === 0 ? (
-          <p>No companies subscribed yet.</p>
-        ) : filteredCompanies.length === 0 ? (
-          <p>No companies match your search.</p>
-        ) : (
+        {companiesCollapsed ? null : (
+          <div id="subscribed-companies-body">
+            <div className="section-toolbar">
+              <input
+                className="search-input"
+                type="search"
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="Search by name, domain, market, or email"
+                aria-label="Search companies"
+              />
+              <span className="muted">
+                {filteredCompanies.length} of {sortedCompanies.length} shown
+              </span>
+            </div>
+            {addInboxError ? <p className="error">{addInboxError}</p> : null}
+            <datalist id="admin-existing-markets">
+              {existingMarkets.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+            {loading ? (
+              <p>Loading...</p>
+            ) : sortedCompanies.length === 0 ? (
+              <p>No companies subscribed yet.</p>
+            ) : filteredCompanies.length === 0 ? (
+              <p>No companies match your search.</p>
+            ) : (
           <table>
             <thead>
               <tr>
@@ -1298,19 +1515,81 @@ export default function AdminHomePage() {
                   sort={companySort}
                   onSort={toggleCompanySort}
                 />
+                <th scope="col" className="row-actions-header">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filteredCompanies.map((company) => (
-                <tr key={company.id}>
+              {filteredCompanies.map((company) => {
+                const isEditing = editingCompanyId === company.id;
+                return (
+                <tr key={company.id} className={isEditing ? "is-editing" : undefined}>
                   <td>
-                    <span className="company-cell">
-                      <CompanyLogo name={company.name} url={company.logoUrl} />
-                      <span>{company.name}</span>
-                    </span>
+                    {isEditing && editingDraft ? (
+                      <span className="company-cell">
+                        <CompanyLogo name={company.name} url={company.logoUrl} />
+                        <input
+                          ref={editNameInputRef}
+                          className="row-edit-input"
+                          value={editingDraft.name}
+                          onChange={(e) =>
+                            setEditingDraft((draft) =>
+                              draft ? { ...draft, name: e.target.value } : draft
+                            )
+                          }
+                          aria-label="Company name"
+                          disabled={savingEdit}
+                        />
+                      </span>
+                    ) : (
+                      <span className="company-cell">
+                        <CompanyLogo name={company.name} url={company.logoUrl} />
+                        <span>{company.name}</span>
+                      </span>
+                    )}
                   </td>
-                  <td>{company.market ? company.market : <span className="dim">-</span>}</td>
-                  <td>{company.domain}</td>
+                  <td>
+                    {isEditing && editingDraft ? (
+                      <input
+                        className="row-edit-input"
+                        value={editingDraft.market}
+                        onChange={(e) =>
+                          setEditingDraft((draft) =>
+                            draft ? { ...draft, market: e.target.value } : draft
+                          )
+                        }
+                        placeholder="(no market)"
+                        aria-label="Market"
+                        list="admin-existing-markets"
+                        autoComplete="off"
+                        disabled={savingEdit}
+                      />
+                    ) : company.market ? (
+                      company.market
+                    ) : (
+                      <span className="dim">-</span>
+                    )}
+                  </td>
+                  <td>
+                    {isEditing && editingDraft ? (
+                      <input
+                        className="row-edit-input"
+                        value={editingDraft.domain}
+                        onChange={(e) =>
+                          setEditingDraft((draft) =>
+                            draft ? { ...draft, domain: e.target.value } : draft
+                          )
+                        }
+                        placeholder="company.com"
+                        aria-label="Domain"
+                        autoComplete="off"
+                        disabled={savingEdit}
+                      />
+                    ) : (
+                      company.domain
+                    )}
+                  </td>
                   <td>
                     <div className="inbox-stack">
                       {(company.inboxes.length > 0
@@ -1410,10 +1689,63 @@ export default function AdminHomePage() {
                       <span className="dim">never</span>
                     )}
                   </td>
+                  <td className="row-actions-cell">
+                    {isEditing ? (
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="row-action row-action--primary"
+                          onClick={() => {
+                            void saveEditingCompany();
+                          }}
+                          disabled={savingEdit}
+                        >
+                          {savingEdit ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="row-action"
+                          onClick={cancelEditingCompany}
+                          disabled={savingEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="row-action row-action--ghost"
+                        onClick={() => startEditingCompany(company)}
+                        disabled={editingCompanyId !== null}
+                        title="Edit name, market, and domain"
+                        aria-label={`Edit ${company.name}`}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                        </svg>
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+            )}
+            {editingError ? <p className="error">{editingError}</p> : null}
+          </div>
         )}
       </section>
 

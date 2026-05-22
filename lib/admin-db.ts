@@ -364,6 +364,78 @@ export async function getCompanyDetailFromDb(
   };
 }
 
+/**
+ * Patches the editable fields on a company (name / domain / market).
+ *
+ * Only the keys provided in `updates` are touched, so callers can ship
+ * partial edits from the admin UI without round-tripping the entire
+ * record. Domain is normalised to lower-case to keep the
+ * `companies_domain_unique` index happy — the same normalisation we do on
+ * insert in `createCompanySubscriptionInDb`. Market is lower-cased and
+ * coerced to `null` when blank.
+ *
+ * Throws `CompanyNotFoundError` if the row is missing or already
+ * soft-deleted. Postgres unique-violation errors (code `23505`) bubble up
+ * unchanged so the API layer can surface a helpful "domain already taken"
+ * message.
+ */
+export async function updateCompanyInDb(
+  supabase: PirolDb,
+  companyId: string,
+  updates: { name?: string; domain?: string; market?: string | null }
+): Promise<CompanySubscription> {
+  const patch: { name?: string; domain?: string; market?: string | null } = {};
+
+  if (typeof updates.name === "string") {
+    const trimmed = updates.name.trim();
+    if (!trimmed) {
+      throw new Error("Name cannot be empty");
+    }
+    patch.name = trimmed;
+  }
+
+  if (typeof updates.domain === "string") {
+    const trimmed = updates.domain.trim().toLowerCase();
+    if (!trimmed) {
+      throw new Error("Domain cannot be empty");
+    }
+    patch.domain = trimmed;
+  }
+
+  if (updates.market !== undefined) {
+    if (updates.market === null) {
+      patch.market = null;
+    } else {
+      const trimmed = updates.market.trim().toLowerCase();
+      patch.market = trimmed.length > 0 ? trimmed : null;
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    throw new Error("No fields provided to update");
+  }
+
+  const { data, error } = await supabase
+    .from("companies")
+    .update(patch)
+    .eq("id", companyId)
+    .is("deleted_at", null)
+    .select(
+      "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new CompanyNotFoundError(companyId);
+  }
+
+  const [resolved] = await resolveCompanyLogos([rowToCompany(data)]);
+  return resolved;
+}
+
 export async function softDeleteCompanyInDb(
   supabase: PirolDb,
   companyId: string
