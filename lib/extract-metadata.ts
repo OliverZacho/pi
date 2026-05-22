@@ -778,6 +778,27 @@ export function extractAuthResults(
  * when headers were present but these specific fields were absent (which is
  * the case the UI wants to flag, since "no built-in unsubscribe" hurts
  * deliverability).
+ *
+ * Two header shapes are accepted:
+ *
+ *  1. Standard RFC 2369 / 8058 form, where the headers are present verbatim
+ *     as `list-unsubscribe: <https://…>, <mailto:…>` etc.
+ *
+ *  2. Resend's `email.received` shape, where the inbound parser (postal-mime)
+ *     groups all `List-*` headers under a single normalised `list` key whose
+ *     value is a JSON-encoded structured object:
+ *
+ *       {
+ *         "unsubscribe":      { "url": "...", "mail": "...", "name": "..." },
+ *         "unsubscribe-post": { "name": "List-Unsubscribe=One-Click" },
+ *         "id":               { "id": "...", "name": "..." }
+ *       }
+ *
+ *     The `mail` field is the address-only form (no `mailto:` prefix); we
+ *     re-add the scheme for symmetry with the RFC 2369 case. The `name`
+ *     field is sometimes the original RFC 2047 quoted-printable encoded
+ *     header line (Klaviyo / sparkpost do this); we decode it and recover
+ *     the underlying URL/mailto so we don't false-negative those senders.
  */
 export function extractListHeaders(
   headers: Record<string, string> | null
@@ -793,16 +814,117 @@ export function extractListHeaders(
     }
   }
 
-  const listUnsubscribe = (lookup["list-unsubscribe"] ?? "").trim();
-  const listUnsubscribePost = (lookup["list-unsubscribe-post"] ?? "").trim();
-  const listId = (lookup["list-id"] ?? "").trim();
+  let hasListUnsubscribe = false;
+  let unsubscribeMailto: string | null = null;
+  let unsubscribeUrl: string | null = null;
+  let hasOneClickPost = false;
+  let listIdValue: string | null = null;
+
+  // (2) Resend's parsed `list` blob — preferred when present because it has
+  // already been normalised by the inbound MIME parser.
+  const parsedList = tryParseJsonObject(lookup["list"]);
+  if (parsedList) {
+    const unsub = readObject(parsedList, "unsubscribe");
+    if (unsub) {
+      const urlField = readString(unsub, "url");
+      const mailField = readString(unsub, "mail");
+      if (urlField) {
+        unsubscribeUrl = urlField.trim() || null;
+      }
+      if (mailField) {
+        const trimmed = mailField.trim();
+        if (trimmed) {
+          unsubscribeMailto = trimmed.toLowerCase().startsWith("mailto:")
+            ? trimmed
+            : `mailto:${trimmed}`;
+        }
+      }
+      // Some senders emit RFC 2047 encoded-word values for List-Unsubscribe
+      // (Klaviyo wraps the entire `<https://…>` URI in `=?us-ascii?Q?…?=`
+      // chunks). postal-mime can't always decode them and surfaces the raw
+      // encoded text as `unsubscribe.name`. Recover the URI ourselves so
+      // those senders aren't misreported as missing the header.
+      if (!unsubscribeUrl || !unsubscribeMailto) {
+        const nameField = readString(unsub, "name");
+        if (nameField) {
+          const decoded = decodeRfc2047(nameField);
+          if (!unsubscribeUrl) {
+            const httpsMatch = decoded.match(/https?:\/\/[^\s<>"',]+/i);
+            if (httpsMatch) {
+              unsubscribeUrl = stripTrailingPunctuation(httpsMatch[0]);
+            }
+          }
+          if (!unsubscribeMailto) {
+            const mailtoMatch = decoded.match(/mailto:[^\s<>"',]+/i);
+            if (mailtoMatch) {
+              unsubscribeMailto = stripTrailingPunctuation(mailtoMatch[0]);
+            }
+          }
+        }
+      }
+      // Apple Mail's "This message is from a mailing list" disclosure +
+      // Unsubscribe button only require the header itself to be non-empty
+      // (RFC 2369). Even when we can't recover a parseable URI, the
+      // recipient's mail client still rendered it, so flag the header as
+      // present whenever the parsed blob carried any unsubscribe payload.
+      if (
+        unsubscribeUrl ||
+        unsubscribeMailto ||
+        readString(unsub, "name")
+      ) {
+        hasListUnsubscribe = true;
+      }
+    }
+
+    const post = readObject(parsedList, "unsubscribe-post");
+    if (post) {
+      const postName = readString(post, "name");
+      if (postName && ONE_CLICK_RE.test(postName)) {
+        hasOneClickPost = true;
+      }
+    }
+
+    const idObj = readObject(parsedList, "id");
+    if (idObj) {
+      const idValue = readString(idObj, "id") ?? readString(idObj, "name");
+      if (idValue) {
+        listIdValue = parseListId(idValue);
+      }
+    }
+  }
+
+  // (1) Standard RFC 2369 / 8058 form. We still consult these fields when
+  // the parsed blob is missing or partial, both for robustness across
+  // inbound providers and so the unit-test fixtures (which use the raw
+  // shape) keep working unchanged.
+  const rawListUnsubscribe = (lookup["list-unsubscribe"] ?? "").trim();
+  const rawListUnsubscribePost = (lookup["list-unsubscribe-post"] ?? "").trim();
+  const rawListId = (lookup["list-id"] ?? "").trim();
+
+  if (rawListUnsubscribe.length > 0) {
+    hasListUnsubscribe = true;
+    if (!unsubscribeMailto) {
+      unsubscribeMailto = parseListUnsubscribeUri(rawListUnsubscribe, "mailto");
+    }
+    if (!unsubscribeUrl) {
+      unsubscribeUrl = parseListUnsubscribeUri(rawListUnsubscribe, "http");
+    }
+  }
+
+  if (!hasOneClickPost && ONE_CLICK_RE.test(rawListUnsubscribePost)) {
+    hasOneClickPost = true;
+  }
+
+  if (!listIdValue && rawListId.length > 0) {
+    listIdValue = parseListId(rawListId);
+  }
 
   return {
-    has_list_unsubscribe: listUnsubscribe.length > 0,
-    unsubscribe_mailto: parseListUnsubscribeUri(listUnsubscribe, "mailto"),
-    unsubscribe_url: parseListUnsubscribeUri(listUnsubscribe, "http"),
-    has_one_click_post: ONE_CLICK_RE.test(listUnsubscribePost),
-    list_id: parseListId(listId)
+    has_list_unsubscribe: hasListUnsubscribe,
+    unsubscribe_mailto: unsubscribeMailto,
+    unsubscribe_url: unsubscribeUrl,
+    has_one_click_post: hasOneClickPost,
+    list_id: listIdValue
   };
 }
 
@@ -838,6 +960,111 @@ function parseListId(value: string): string | null {
   }
   const stripped = value.replace(/^"[^"]*"\s*/, "").trim();
   return stripped.length > 0 ? stripped : null;
+}
+
+function tryParseJsonObject(value: string | undefined): Record<string, unknown> | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    /* not JSON — fall through */
+  }
+  return null;
+}
+
+function readString(obj: Record<string, unknown>, key: string): string | null {
+  const value = obj[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readObject(
+  obj: Record<string, unknown>,
+  key: string
+): Record<string, unknown> | null {
+  const value = obj[key];
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+const RFC2047_ENCODED_WORD_RE = /=\?([^?]+)\?([QqBb])\?([^?]*)\?=/g;
+
+/**
+ * Minimal RFC 2047 encoded-word decoder for the Q-encoded subset that
+ * shows up in `List-Unsubscribe` headers (Klaviyo / sparkpost wrap their
+ * `<https://…>` URIs in chunks like `=?us-ascii?Q?=3Chttps=3A=2F=2F…?=`).
+ *
+ * Supports Q-encoding (`=XX` hex bytes, `_` → space). Falls back to
+ * returning the input unchanged when the encoded word can't be decoded —
+ * we'd rather lose a fancy parse than crash the metadata extraction.
+ *
+ * Adjacent encoded words separated only by whitespace have their
+ * inter-word whitespace dropped, per the RFC, so the embedded URI is
+ * reassembled cleanly.
+ */
+function decodeRfc2047(value: string): string {
+  if (!value || !value.includes("=?")) {
+    return value;
+  }
+  let out = "";
+  let lastIndex = 0;
+  let lastWasEncodedWord = false;
+  RFC2047_ENCODED_WORD_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = RFC2047_ENCODED_WORD_RE.exec(value)) !== null) {
+    const between = value.slice(lastIndex, match.index);
+    if (lastWasEncodedWord && /^\s+$/.test(between)) {
+      // Whitespace between two encoded-words is purely structural — drop it.
+    } else {
+      out += between;
+    }
+    const encoding = match[2].toUpperCase();
+    const payload = match[3];
+    if (encoding === "Q") {
+      out += decodeQEncoded(payload);
+    } else {
+      // Base64 ("B") encoded-words are rare in List-Unsubscribe; if we hit
+      // one, keep the raw token rather than guessing at the charset.
+      out += match[0];
+    }
+    lastIndex = match.index + match[0].length;
+    lastWasEncodedWord = true;
+  }
+  out += value.slice(lastIndex);
+  return out;
+}
+
+function decodeQEncoded(input: string): string {
+  let out = "";
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    if (ch === "_") {
+      out += " ";
+      continue;
+    }
+    if (ch === "=" && i + 2 < input.length) {
+      const hex = input.slice(i + 1, i + 3);
+      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+        out += String.fromCharCode(Number.parseInt(hex, 16));
+        i += 2;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function stripTrailingPunctuation(value: string): string {
+  return value.replace(/[<>,.;:!?)\]}'"]+$/u, "");
 }
 
 const AUTH_VALUES = new Set([

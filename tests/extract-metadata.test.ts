@@ -306,6 +306,111 @@ describe("extractListHeaders", () => {
       list_id: "n.b.example"
     });
   });
+
+  // Resend's `email.received` API normalises the inbound message via
+  // postal-mime and groups all `List-*` headers under a single `list` key
+  // whose value is JSON-encoded. The extractor has to understand that
+  // shape — otherwise every Resend-ingested email is misreported as
+  // "missing List-Unsubscribe" even though Apple Mail / Gmail render
+  // their built-in Unsubscribe button just fine.
+  it("parses Resend's nested `list` blob (url + mail + one-click + id)", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: {
+          mail: "unsubscribe@eu.sparkpostmail.com?subject=unsubscribe:opaque",
+          url: "https://unsubscribe.eu.spmta.com/u/abc"
+        },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" },
+        id: { name: "spceu.13976.2.sparkpostmail.com" }
+      })
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto:
+        "mailto:unsubscribe@eu.sparkpostmail.com?subject=unsubscribe:opaque",
+      unsubscribe_url: "https://unsubscribe.eu.spmta.com/u/abc",
+      has_one_click_post: true,
+      list_id: "spceu.13976.2.sparkpostmail.com"
+    });
+  });
+
+  it("parses Resend's `list` blob when only an https unsubscribe URL is set", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: {
+          url: "https://public.yulsn.io/listunsubscribe/abc"
+        },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" }
+      })
+    };
+    expect(extractListHeaders(headers)).toEqual({
+      has_list_unsubscribe: true,
+      unsubscribe_mailto: null,
+      unsubscribe_url: "https://public.yulsn.io/listunsubscribe/abc",
+      has_one_click_post: true,
+      list_id: null
+    });
+  });
+
+  it("prefers the `id.id` host over the `id.name` display label for List-Id", () => {
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { url: "https://example.com/u" },
+        id: {
+          name: "ca75a0d01596c8e82f6da53e4mc list",
+          id: "ca75a0d01596c8e82f6da53e4.380989.list-id.mcsv.net"
+        }
+      })
+    };
+    expect(extractListHeaders(headers)?.list_id).toBe(
+      "ca75a0d01596c8e82f6da53e4.380989.list-id.mcsv.net"
+    );
+  });
+
+  it("falls back to RFC 2047 quoted-printable `name` field when url/mail are absent", () => {
+    // Klaviyo + sparkpost emit the original `<https://…>` URI as a chain
+    // of `=?us-ascii?Q?…?=` encoded-words, which postal-mime surfaces as
+    // `unsubscribe.name`. The extractor decodes the chain and recovers
+    // the underlying URL so those senders aren't false-negatived.
+    const encoded =
+      "=?us-ascii?Q?=3Chttps=3A=2F=2Fmanage=2Ekmail-lists=2Ecom=2Funsub?= " +
+      "=?us-ascii?Q?scribe=3Fa=3DUsreBA=3E?=";
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { name: encoded },
+        "unsubscribe-post": { name: "List-Unsubscribe=One-Click" }
+      })
+    };
+    const result = extractListHeaders(headers);
+    expect(result?.has_list_unsubscribe).toBe(true);
+    expect(result?.unsubscribe_url).toBe(
+      "https://manage.kmail-lists.com/unsubscribe?a=UsreBA"
+    );
+    expect(result?.has_one_click_post).toBe(true);
+  });
+
+  it("flags has_list_unsubscribe even when the parsed `name` can't be decoded into a URI", () => {
+    // Apple Mail's "Unsubscribe" button only requires a non-empty
+    // List-Unsubscribe header — the URL parse is a *quality* signal.
+    // Don't false-negative the header-presence check on parse failure.
+    const headers = {
+      list: JSON.stringify({
+        unsubscribe: { name: "<gibberish-no-uri-inside>" }
+      })
+    };
+    expect(extractListHeaders(headers)?.has_list_unsubscribe).toBe(true);
+  });
+
+  it("ignores a non-JSON `list` value and falls through to standard headers", () => {
+    const headers = {
+      list: "not-json",
+      "List-Unsubscribe": "<https://b.example/u>"
+    };
+    expect(extractListHeaders(headers)).toMatchObject({
+      has_list_unsubscribe: true,
+      unsubscribe_url: "https://b.example/u"
+    });
+  });
 });
 
 
