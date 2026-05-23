@@ -235,6 +235,118 @@ const NAV_ITEMS: NavItem[] = [
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
+/**
+ * Fixed top bar rendered on every app surface that mounts
+ * `ExploreSidebar` (/explore, /saved, /brands, /collections, /compare,
+ * plus their detail pages). White strip across the top of the main
+ * content area, with quiet utility actions ("Docs", "Need help?")
+ * pinned to the right — modeled on Resend's dashboard chrome.
+ *
+ * Styles are inline so the bar can't be broken by a stale CSS-module
+ * mapping during dev hot-reloads. The matching `main` top-padding is
+ * applied via `app/globals.css` so the page heading clears the bar.
+ */
+const APP_TOPBAR_HEIGHT = 56;
+const APP_SIDEBAR_WIDTH = 240;
+
+function AppTopBar() {
+  const [hoverDocs, setHoverDocs] = useState(false);
+  const [hoverHelp, setHoverHelp] = useState(false);
+  return (
+    <div
+      aria-label="App utilities"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: APP_SIDEBAR_WIDTH,
+        right: 0,
+        height: APP_TOPBAR_HEIGHT,
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: "0.5rem",
+        padding: "0 1.4rem",
+        background: "#ffffff",
+        borderBottom: "1px solid #e5e7eb",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+      }}
+    >
+      <Link
+        href="/docs"
+        onMouseEnter={() => setHoverDocs(true)}
+        onMouseLeave={() => setHoverDocs(false)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          height: 32,
+          padding: "0 0.7rem",
+          borderRadius: 8,
+          border: "1px solid transparent",
+          background: hoverDocs ? "#f1f5f9" : "transparent",
+          color: hoverDocs ? "#0f172a" : "#475569",
+          fontSize: "0.85rem",
+          fontWeight: 500,
+          textDecoration: "none",
+          cursor: "pointer",
+          transition: "background 100ms ease, color 100ms ease"
+        }}
+      >
+        Docs
+      </Link>
+      <button
+        type="button"
+        aria-label="Get help"
+        onMouseEnter={() => setHoverHelp(true)}
+        onMouseLeave={() => setHoverHelp(false)}
+        onClick={() => {
+          if (typeof window !== "undefined") {
+            window.location.href = "mailto:help@pirol.app";
+          }
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.45rem",
+          height: 32,
+          padding: "0 0.3rem 0 0.7rem",
+          borderRadius: 8,
+          border: `1px solid ${hoverHelp ? "#cbd5e1" : "#e2e8f0"}`,
+          background: hoverHelp ? "#f8fafc" : "#ffffff",
+          color: hoverHelp ? "#0f172a" : "#475569",
+          font: "inherit",
+          fontSize: "0.85rem",
+          fontWeight: 500,
+          cursor: "pointer",
+          transition:
+            "background 100ms ease, color 100ms ease, border-color 100ms ease"
+        }}
+      >
+        <span>Need help?</span>
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: "#f1f5f9",
+            color: "#475569",
+            fontSize: "0.72rem",
+            fontWeight: 600,
+            letterSpacing: "-0.01em"
+          }}
+        >
+          H
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function ExploreSidebar({
   activeId = "explore",
   collections = EMPTY_COLLECTIONS,
@@ -310,6 +422,8 @@ export default function ExploreSidebar({
   }
 
   return (
+    <>
+    <AppTopBar />
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
         <span className={styles.brandName}>Pirol</span>
@@ -524,5 +638,6 @@ export default function ExploreSidebar({
         </span>
       </div>
     </aside>
+    </>
   );
 }
