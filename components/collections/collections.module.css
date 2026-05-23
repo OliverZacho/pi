@@ -71,35 +71,40 @@
 
 /* Same trick as the Explore card: render the email at its natural
  * width (~600px) and scale it down with CSS so internal media queries
- * still trigger the desktop layout. The mosaic cells are square,
- * which is why we set both dimensions equal. */
+ * still trigger the desktop layout. The actual scale is computed in
+ * JS off the measured cell width (see `CollectionCard`) so the iframe
+ * fills its cell precisely instead of bunching up in the top-left. */
 .mosaicFrame {
   position: absolute;
   top: 0;
   left: 0;
-  width: 600px;
-  height: 600px;
   border: 0;
   background: #ffffff;
   transform-origin: top left;
-  /* The exact scale factor varies with the card's width but we keep it
-   * approximate — these are thumbnail previews, pixel-perfect is not
-   * the goal. Half the card width / 600 = roughly 0.18 at the default
-   * 4-column grid. */
-  transform: scale(0.18);
   pointer-events: none;
 }
 
-@media (max-width: 1099px) {
-  .mosaicFrame {
-    transform: scale(0.21);
-  }
+/* LinkedIn-style "+N" overlay shown on the bottom-right tile when the
+ * collection contains more than four emails. Sits above the iframe and
+ * dims the underlying preview so the count reads cleanly. */
+.mosaicMore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  pointer-events: none;
+  z-index: 1;
 }
 
-@media (max-width: 720px) {
-  .mosaicFrame {
-    transform: scale(0.24);
-  }
+.mosaicMoreLabel {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
 }
 
 .mosaicEmpty {
