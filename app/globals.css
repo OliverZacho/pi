@@ -11,15 +11,6 @@ body {
   background: #f8fafc;
 }
 
-/* Push the main content of every app page (Explore, Saved, Brands,
-   Collections, Compare, etc.) below the fixed app top bar rendered by
-   `ExploreSidebar`. The selector matches a `<main>` that lives next to
-   the sidebar aside, so it lights up exactly on the pages where the
-   top bar is mounted — no per-page CSS edits required. */
-aside[aria-label="Explore navigation"] ~ main {
-  padding-top: calc(56px + 2rem) !important;
-}
-
 code {
   background: #e2e8f0;
   border-radius: 4px;
