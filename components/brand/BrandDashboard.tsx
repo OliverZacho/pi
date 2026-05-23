@@ -64,7 +64,9 @@ export default function BrandDashboard({ data }: Props) {
           <span>Explore</span>
         </Link>
         <span className={styles.breadcrumbSep}>/</span>
-        <span className={styles.breadcrumbCurrent}>Brands</span>
+        <Link href="/brands" className={styles.breadcrumbLink}>
+          <span>Brands</span>
+        </Link>
         <span className={styles.breadcrumbSep}>/</span>
         <span className={styles.breadcrumbCurrent}>{brand.name}</span>
       </nav>

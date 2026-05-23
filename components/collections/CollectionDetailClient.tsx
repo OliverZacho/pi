@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   EMAIL_CATEGORY_LABELS,
@@ -378,6 +379,19 @@ export default function CollectionDetailClient({
 
   return (
     <>
+      <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+        <Link href="/explore" className={styles.breadcrumbLink}>
+          <ChevronLeftIcon />
+          <span>Explore</span>
+        </Link>
+        <span className={styles.breadcrumbSep}>/</span>
+        <Link href="/collections" className={styles.breadcrumbLink}>
+          <span>Collections</span>
+        </Link>
+        <span className={styles.breadcrumbSep}>/</span>
+        <span className={styles.breadcrumbCurrent}>{collection.name}</span>
+      </nav>
+
       <header className={styles.detailHeader}>
         <div className={styles.detailTitleGroup}>
           {renaming ? (
@@ -758,6 +772,24 @@ function PencilIcon() {
     >
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="15 6 9 12 15 18" />
     </svg>
   );
 }
