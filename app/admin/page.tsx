@@ -1551,7 +1551,7 @@ export default function AdminHomePage() {
                   </td>
                   <td>
                     {isEditing && editingDraft ? (
-                      <input
+                      <select
                         className="row-edit-input"
                         value={editingDraft.market}
                         onChange={(e) =>
@@ -1559,12 +1559,22 @@ export default function AdminHomePage() {
                             draft ? { ...draft, market: e.target.value } : draft
                           )
                         }
-                        placeholder="(no market)"
                         aria-label="Market"
-                        list="admin-existing-markets"
-                        autoComplete="off"
                         disabled={savingEdit}
-                      />
+                      >
+                        <option value="">(no market)</option>
+                        {existingMarkets.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        {editingDraft.market &&
+                        !existingMarkets.includes(editingDraft.market) ? (
+                          <option value={editingDraft.market}>
+                            {editingDraft.market}
+                          </option>
+                        ) : null}
+                      </select>
                     ) : company.market ? (
                       company.market
                     ) : (
