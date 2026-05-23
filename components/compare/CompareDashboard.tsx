@@ -194,8 +194,8 @@ function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
       <span className={styles.sectionEyebrow}>Offers</span>
       <h2 className={styles.sectionTitle}>Discount aggressiveness</h2>
       <p className={styles.sectionSub}>
-        How often each brand drops a promo, the typical depth, and the
-        codes they're rotating right now.
+        How often each brand drops a promo and the typical depth when
+        they do.
       </p>
 
       <div className={styles.promoGrid}>
@@ -241,21 +241,12 @@ function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
                   </span>
                 </div>
                 <div className={styles.promoStat}>
-                  <span className={styles.promoStatLabel}>Active codes</span>
+                  <span className={styles.promoStatLabel}>Discount emails</span>
                   <span className={styles.promoStatValue}>
-                    {b.promo.promoCodes.length}
+                    {b.promo.discountEmails}
                   </span>
                 </div>
               </div>
-              {b.promo.promoCodes.length > 0 ? (
-                <div className={styles.promoCodes}>
-                  {b.promo.promoCodes.slice(0, 6).map((entry) => (
-                    <span key={entry.code} className={styles.promoCode}>
-                      {entry.code}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
             </article>
           );
         })}

@@ -84,8 +84,14 @@ function makeBrand(
       discountEmails: 0,
       discountShare: 0,
       avgDiscount: null,
-      maxDiscount: null,
-      promoCodes: []
+      maxDiscount: null
+    },
+    emojis: {
+      emailsWithEmoji: 0,
+      share: 0,
+      totalEmojis: 0,
+      avgPerEmojiEmail: null,
+      top: []
     },
     categories: [],
     esp: { primary: null, distribution: [] },

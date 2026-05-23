@@ -80,7 +80,24 @@ export type BrandPageData = {
     discountShare: number;
     avgDiscount: number | null;
     maxDiscount: number | null;
-    promoCodes: { code: string; count: number }[];
+  };
+  /**
+   * Emoji usage signal computed across the brand's recent subject lines
+   * and preheaders. Replaces the old "active promo codes" callout —
+   * emoji habits are a stable creative-voice indicator, while the codes
+   * list mostly surfaced expired one-off campaigns. `share` is the
+   * fraction of recent emails containing at least one emoji,
+   * `avgPerEmojiEmail` is the mean count of emoji graphemes inside
+   * those emails (so single-emoji users score 1.0 and emoji-heavy
+   * brands climb well past that), and `top` is the most-frequent
+   * graphemes across the sample.
+   */
+  emojis: {
+    emailsWithEmoji: number;
+    share: number;
+    totalEmojis: number;
+    avgPerEmojiEmail: number | null;
+    top: { emoji: string; count: number }[];
   };
   categories: { id: string; label: string; count: number }[];
   esp: {
@@ -271,6 +288,7 @@ export async function getBrandPageData(
 
   const cadence = computeCadence(emailRows);
   const promo = computePromo(emailRows);
+  const emojis = computeEmojis(emailRows);
   const categories = computeCategories(emailRows);
   const esp = computeEsp(emailRows);
   const design = computeDesign(emailRows);
@@ -313,6 +331,7 @@ export async function getBrandPageData(
     },
     cadence,
     promo,
+    emojis,
     categories,
     esp,
     design,
@@ -528,7 +547,6 @@ function computePromo(rows: EmailRow[]): BrandPageData["promo"] {
   let discountEmails = 0;
   let discountSum = 0;
   let discountMax: number | null = null;
-  const codeCounts = new Map<string, number>();
 
   for (const row of rows) {
     const dp =
@@ -542,25 +560,84 @@ function computePromo(rows: EmailRow[]): BrandPageData["promo"] {
         discountMax = dp;
       }
     }
-    if (row.promo_code) {
-      const code = row.promo_code.trim();
-      if (code) {
-        codeCounts.set(code, (codeCounts.get(code) ?? 0) + 1);
-      }
-    }
   }
-
-  const promoCodes = Array.from(codeCounts.entries())
-    .map(([code, count]) => ({ code, count }))
-    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code))
-    .slice(0, 6);
 
   return {
     discountEmails,
     discountShare: rows.length > 0 ? discountEmails / rows.length : 0,
     avgDiscount: discountEmails > 0 ? discountSum / discountEmails : null,
-    maxDiscount: discountMax,
-    promoCodes
+    maxDiscount: discountMax
+  };
+}
+
+/**
+ * Per-grapheme emoji frequency across the brand's subject lines and
+ * preheaders. We split each headline into grapheme clusters with
+ * `Intl.Segmenter` so multi-codepoint sequences (skin tone modifiers,
+ * ZWJ family glyphs, regional indicators) bucket as a single emoji
+ * instead of fragmenting into surrogate halves — that matters because
+ * brands love compound flags / hearts and we don't want "❤️" and
+ * "🇩🇰" splintering into noise.
+ *
+ * Picks `\p{Extended_Pictographic}` over `\p{Emoji}` because the
+ * latter also matches plain digits and the `#` / `*` keycaps, which
+ * would let "Save 20% off" register as an "emoji email".
+ */
+function computeEmojis(rows: EmailRow[]): BrandPageData["emojis"] {
+  if (rows.length === 0) {
+    return {
+      emailsWithEmoji: 0,
+      share: 0,
+      totalEmojis: 0,
+      avgPerEmojiEmail: null,
+      top: []
+    };
+  }
+
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  const pictographic = /\p{Extended_Pictographic}/u;
+  // Variation selector (U+FE0F) and zero-width joiner can hang on the
+  // tail of an emoji sequence after segmentation in edge cases; strip
+  // any trailing combiners before we use the cluster as a Map key so
+  // visually identical glyphs don't end up in two separate buckets.
+  const trailingFormatters = /[\uFE0F\u200D]+$/g;
+
+  const counts = new Map<string, number>();
+  let emailsWithEmoji = 0;
+  let totalEmojis = 0;
+
+  for (const row of rows) {
+    const subject = row.subject ?? "";
+    const preheader = row.preheader ?? "";
+    const text = `${subject} ${preheader}`;
+    if (!text.trim()) continue;
+
+    let perEmail = 0;
+    for (const seg of segmenter.segment(text)) {
+      const grapheme = seg.segment;
+      if (!pictographic.test(grapheme)) continue;
+      const key = grapheme.replace(trailingFormatters, "") || grapheme;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      perEmail += 1;
+    }
+    if (perEmail > 0) {
+      emailsWithEmoji += 1;
+      totalEmojis += perEmail;
+    }
+  }
+
+  const top = Array.from(counts.entries())
+    .map(([emoji, count]) => ({ emoji, count }))
+    .sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji))
+    .slice(0, 8);
+
+  return {
+    emailsWithEmoji,
+    share: rows.length > 0 ? emailsWithEmoji / rows.length : 0,
+    totalEmojis,
+    avgPerEmojiEmail:
+      emailsWithEmoji > 0 ? totalEmojis / emailsWithEmoji : null,
+    top
   };
 }
 
