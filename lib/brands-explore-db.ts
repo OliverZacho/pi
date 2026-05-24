@@ -12,8 +12,14 @@ import type { Database } from "@/types/supabase";
 export type BrandsExploreCard = {
   id: string;
   name: string;
-  /** Raw market slug (e.g. `home_design`). The UI prettifies for display. */
-  market: string | null;
+  /**
+   * Raw market slugs (e.g. `["home_design", "ecommerce"]`). The UI
+   * prettifies for display. Empty array when the brand is uncategorised.
+   * A brand can sit in multiple markets at once — the explore filter
+   * uses an array overlap so picking any one of these tags will surface
+   * the brand.
+   */
+  markets: string[];
   logoUrl: string | null;
   /**
    * Primary email-service provider this brand sends with, derived from
@@ -107,7 +113,7 @@ type CompanyRow = {
   id: string;
   name: string;
   domain: string;
-  market: string | null;
+  markets: string[] | null;
   subscribed_since: string;
   logo_storage_path: string | null;
   company_email_stats:
@@ -162,12 +168,15 @@ export async function searchBrands(
   let query = supabase
     .from("companies")
     .select(
-      "id, name, domain, market, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
     )
     .is("deleted_at", null);
 
   if (params.markets && params.markets.length > 0) {
-    query = query.in("market", params.markets);
+    // `overlaps` matches any brand whose `markets` array shares at least
+    // one tag with the user's selection — so a brand tagged
+    // `["fashion", "ecommerce"]` is returned under both filters.
+    query = query.overlaps("markets", params.markets);
   }
 
   const trimmedQuery = (params.query ?? "").trim();
@@ -327,7 +336,7 @@ export async function searchBrands(
     return {
       id: row.id,
       name: row.name,
-      market: row.market,
+      markets: Array.isArray(row.markets) ? row.markets : [],
       logoUrl,
       primaryEsp: row.primaryEsp
         ? {
@@ -436,7 +445,7 @@ export async function getBrandsFacets(
   const [companiesResult, aggregates] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, market, company_email_stats(email_count)")
+      .select("id, markets, company_email_stats(email_count)")
       .is("deleted_at", null),
     computeBrandAggregates(supabase)
   ]);
@@ -448,7 +457,13 @@ export async function getBrandsFacets(
   let brandsWithEmails = 0;
   for (const row of companiesResult.data ?? []) {
     totalBrands += 1;
-    if (row.market) marketSet.add(row.market);
+    if (Array.isArray(row.markets)) {
+      for (const market of row.markets) {
+        if (typeof market === "string" && market.length > 0) {
+          marketSet.add(market);
+        }
+      }
+    }
     const stats = relationFirst(row.company_email_stats);
     const count = stats?.email_count ?? 0;
     if (count > 0) brandsWithEmails += 1;

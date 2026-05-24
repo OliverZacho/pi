@@ -93,7 +93,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
     const { data: previewRows } = await supabase
       .from("competitor_set_members")
       .select(
-        `set_id, added_at, companies!inner(id, name, market, logo_storage_path, deleted_at)`
+        `set_id, added_at, companies!inner(id, name, markets, logo_storage_path, deleted_at)`
       )
       .in("set_id", setIds)
       .order("added_at", { ascending: true });
@@ -122,7 +122,12 @@ export default async function ComparePage({ searchParams }: PageProps) {
         id: company.id,
         name: company.name,
         domain: null,
-        market: company.market ?? null,
+        markets: Array.isArray(company.markets)
+          ? (company.markets as unknown[]).filter(
+              (value): value is string =>
+                typeof value === "string" && value.length > 0
+            )
+          : [],
         logoUrl: company.logo_storage_path
           ? signed[company.logo_storage_path] ?? null
           : null
@@ -137,7 +142,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const initialBrandOptions = comparison.brands.map((b) => ({
     id: b.brand.id,
     name: b.brand.name,
-    market: b.brand.market,
+    markets: b.brand.markets,
     logoUrl: b.brand.logoUrl
   }));
 

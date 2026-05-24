@@ -38,6 +38,7 @@ export default function BrandDashboard({ data }: Props) {
     totals,
     cadence,
     promo,
+    emojis,
     categories,
     esp,
     design,
@@ -64,7 +65,9 @@ export default function BrandDashboard({ data }: Props) {
           <span>Explore</span>
         </Link>
         <span className={styles.breadcrumbSep}>/</span>
-        <span className={styles.breadcrumbCurrent}>Brands</span>
+        <Link href="/brands" className={styles.breadcrumbLink}>
+          <span>Brands</span>
+        </Link>
         <span className={styles.breadcrumbSep}>/</span>
         <span className={styles.breadcrumbCurrent}>{brand.name}</span>
       </nav>
@@ -106,9 +109,13 @@ export default function BrandDashboard({ data }: Props) {
             <CategoryCard categories={categories} sample={totals.sampleSize} />
           </section>
 
-          <section className={styles.sectionGrid}>
+          <section className={styles.recentSection}>
             <DesignCard design={design} subjects={subjects} />
+          </section>
+
+          <section className={styles.sectionGrid}>
             <PromoCard promo={promo} sample={totals.sampleSize} />
+            <EmojiCard emojis={emojis} sample={totals.sampleSize} />
           </section>
 
           <section className={styles.recentSection}>
@@ -167,10 +174,14 @@ function Hero({
                 {brand.domain}
               </a>
             ) : null}
-            {brand.market ? (
+            {brand.markets.length > 0 ? (
               <>
                 <span className={styles.heroDot} aria-hidden="true" />
-                <span className={styles.heroPill}>{brand.market}</span>
+                {brand.markets.map((label) => (
+                  <span key={label} className={styles.heroPill}>
+                    {label}
+                  </span>
+                ))}
               </>
             ) : null}
             <span className={styles.heroDot} aria-hidden="true" />
@@ -585,25 +596,104 @@ function PromoCard({
           </span>
         </div>
         <div className={styles.statBlock}>
-          <span className={styles.statBlockLabel}>Active codes</span>
+          <span className={styles.statBlockLabel}>Discount emails</span>
           <span className={styles.statBlockValue}>
-            {promo.promoCodes.length}
+            {formatNumber(promo.discountEmails)}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Emoji card
+   ----------------------------------------------------------------- */
+
+/**
+ * Companion to the discount card. Where promo answers "how aggressive
+ * is this brand?", emoji answers "how playful is its voice?". The
+ * headline percentage tracks the share of recent subject + preheader
+ * combinations that contain at least one pictographic grapheme; the
+ * stat strip surfaces total emojis across the sample and the avg
+ * count *inside* emoji-using emails (so quiet brands don't dilute the
+ * number with their no-emoji sends). The bottom strip is the brand's
+ * top emojis with their absolute counts — visually mirrors the old
+ * promo-codes list it replaces, but with content that doesn't go
+ * stale the moment a campaign expires.
+ */
+function EmojiCard({
+  emojis,
+  sample
+}: {
+  emojis: BrandPageData["emojis"];
+  sample: number;
+}) {
+  return (
+    <article className={styles.card}>
+      <div className={styles.cardHead}>
+        <div>
+          <span className={styles.cardEyebrow}>Voice</span>
+          <h2 className={styles.cardTitle}>Emoji habits</h2>
+          <p className={styles.cardSub}>
+            How often this brand reaches for emojis — across {sample} recent
+            subject lines and preheaders.
+          </p>
+        </div>
+      </div>
+
+      <div className={styles.promoSummary}>
+        <span className={styles.promoBig}>
+          {emojis.emailsWithEmoji > 0
+            ? `${Math.round(emojis.share * 100)}%`
+            : "0%"}
+        </span>
+        <span className={styles.promoLabel}>
+          of recent emails use at least one emoji
+        </span>
+      </div>
+
+      <div className={styles.statStrip}>
+        <div className={styles.statBlock}>
+          <span className={styles.statBlockLabel}>Avg / email</span>
+          <span className={styles.statBlockValue}>
+            {emojis.avgPerEmojiEmail !== null
+              ? emojis.avgPerEmojiEmail.toFixed(1)
+              : "—"}
+          </span>
+        </div>
+        <div className={styles.statBlock}>
+          <span className={styles.statBlockLabel}>Total seen</span>
+          <span className={styles.statBlockValue}>
+            {formatNumber(emojis.totalEmojis)}
+          </span>
+        </div>
+        <div className={styles.statBlock}>
+          <span className={styles.statBlockLabel}>Unique</span>
+          <span className={styles.statBlockValue}>
+            {formatNumber(emojis.top.length)}
           </span>
         </div>
       </div>
 
-      {promo.promoCodes.length > 0 ? (
-        <div className={styles.promoCodes}>
-          {promo.promoCodes.map((entry) => (
-            <div key={entry.code} className={styles.promoCodeRow}>
-              <span className={styles.promoCode}>{entry.code}</span>
-              <span className={styles.promoCodeCount}>
+      {emojis.top.length > 0 ? (
+        <div className={styles.emojiList}>
+          {emojis.top.map((entry) => (
+            <div key={entry.emoji} className={styles.emojiRow}>
+              <span className={styles.emojiGlyph} aria-hidden="true">
+                {entry.emoji}
+              </span>
+              <span className={styles.emojiCount}>
                 {entry.count} use{entry.count === 1 ? "" : "s"}
               </span>
             </div>
           ))}
         </div>
-      ) : null}
+      ) : (
+        <div className={styles.cardSub}>
+          No emojis used in recent subject lines.
+        </div>
+      )}
     </article>
   );
 }

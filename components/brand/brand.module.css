@@ -38,11 +38,14 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.25rem 0.5rem;
-  margin-left: -0.5rem;
   border-radius: 6px;
   color: inherit;
   text-decoration: none;
   transition: background 120ms ease, color 120ms ease;
+}
+
+.breadcrumbLink:first-child {
+  margin-left: -0.5rem;
 }
 
 .breadcrumbLink:hover {
@@ -565,6 +568,44 @@
 }
 
 .promoCodeCount {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Emoji habits card ---------- */
+
+/* Pill grid for the brand's top emojis. Wraps onto multiple rows so a
+   prolific brand with eight different glyphs reads cleanly without
+   forcing a scrollbar, while a single-emoji brand still fills a tidy
+   row instead of stretching one pill the full width of the card. */
+.emojiList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.emojiRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 999px;
+  background: #fafafa;
+  border: 1px solid #f1f5f9;
+}
+
+.emojiGlyph {
+  font-size: 1.05rem;
+  line-height: 1;
+  /* Apple/Segoe/Noto fallbacks so the glyph renders as a colour emoji
+     on every host platform instead of the dotted-square fallback that
+     a brand-set sans-serif font would otherwise force. */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+    "EmojiOne Color", "Twemoji Mozilla", sans-serif;
+}
+
+.emojiCount {
   font-size: 0.75rem;
   color: #64748b;
   font-variant-numeric: tabular-nums;

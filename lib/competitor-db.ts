@@ -41,7 +41,12 @@ export type CompetitorSetBrand = {
   id: string;
   name: string;
   domain: string | null;
-  market: string | null;
+  /**
+   * All market / category tags attached to the brand (lower-cased
+   * slugs). Empty when the brand is uncategorised. Replaces the previous
+   * scalar `market` field — brands can now sit in multiple categories.
+   */
+  markets: string[];
   logoUrl: string | null;
 };
 
@@ -376,7 +381,7 @@ async function loadSetBrands(
     .select(
       `added_at,
        company_id,
-       companies!inner(id, name, domain, market, logo_storage_path, deleted_at)`
+       companies!inner(id, name, domain, markets, logo_storage_path, deleted_at)`
     )
     .eq("set_id", setId)
     .order("added_at", { ascending: true });
@@ -407,7 +412,12 @@ async function loadSetBrands(
       id: company.id,
       name: company.name,
       domain: company.domain ?? null,
-      market: company.market ?? null,
+      markets: Array.isArray(company.markets)
+        ? company.markets.filter(
+            (value): value is string =>
+              typeof value === "string" && value.length > 0
+          )
+        : [],
       logoUrl: logoPath ? signed[logoPath] ?? null : null
     });
   }
@@ -469,7 +479,7 @@ type CompanyField =
       id: string
       name: string
       domain?: string | null
-      market?: string | null
+      markets?: string[] | null
       logo_storage_path?: string | null
       deleted_at?: string | null
     }
@@ -477,7 +487,7 @@ type CompanyField =
       id: string
       name: string
       domain?: string | null
-      market?: string | null
+      markets?: string[] | null
       logo_storage_path?: string | null
       deleted_at?: string | null
     }>

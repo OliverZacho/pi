@@ -1083,9 +1083,9 @@ function BrandGridCard({
 
       <div className={styles.cardBody}>
         <span className={styles.cardName}>{brand.name}</span>
-        {brand.market ? (
+        {brand.markets.length > 0 ? (
           <span className={styles.cardMarket}>
-            {formatMarketLabel(brand.market)}
+            {brand.markets.map(formatMarketLabel).join(" · ")}
           </span>
         ) : null}
       </div>

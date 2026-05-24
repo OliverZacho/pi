@@ -69,7 +69,13 @@ export type CompanySubscription = {
   id: string;
   name: string;
   domain: string;
-  market: string | null;
+  /**
+   * Every market / category tag the operator has tagged this brand with
+   * (e.g. `["fashion", "ecommerce"]`). Always lower-cased — the UI is
+   * responsible for prettifying for display. Empty array when the brand
+   * is uncategorised.
+   */
+  markets: string[];
   /**
    * Primary inbox email — kept for backwards compatibility and for the
    * many UI surfaces that only need to display one address. For

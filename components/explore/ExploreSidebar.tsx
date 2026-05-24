@@ -235,6 +235,158 @@ const NAV_ITEMS: NavItem[] = [
   { id: "more", label: "More", icon: <MoreIcon /> }
 ];
 
+/**
+ * Quiet utility controls ("Docs", "Need help?") rendered as a small
+ * white panel that hangs down from the top-right of the viewport on
+ * every app surface that mounts `ExploreSidebar`. Replaces the
+ * earlier full-width Resend-style top bar — the panel is just wide
+ * enough to wrap its two controls and leaves the rest of the top of
+ * the page free. As the user scrolls down, the panel slides up out
+ * of view (no opacity fade) so it doesn't sit on top of content.
+ *
+ * Styles are inline so the panel can't be broken by a stale
+ * CSS-module mapping during dev hot-reloads.
+ */
+// Distance (in scroll px) over which the panel slides fully off-screen.
+const APP_TOPBAR_COLLAPSE_DISTANCE = 120;
+
+function AppTopBar() {
+  const [hoverDocs, setHoverDocs] = useState(false);
+  const [hoverHelp, setHoverHelp] = useState(false);
+  // Tracks how far down the page the user has scrolled so the panel
+  // can slide up (and eventually disable pointer events) without any
+  // opacity change. We clamp to [0, 1] and apply the offset via an
+  // inline `translateY` so the slide stays smooth.
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY || window.pageYOffset || 0;
+      const next = Math.min(1, Math.max(0, y / APP_TOPBAR_COLLAPSE_DISTANCE));
+      setScrollProgress(next);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // Roughly the panel's full height — translating by this much hides
+  // it completely above the viewport while leaving its layout box in
+  // place (it's `position: fixed`, so it can't push anything around).
+  const COLLAPSED_OFFSET_PX = 64;
+  const offset = -COLLAPSED_OFFSET_PX * scrollProgress;
+  const pointerEvents = scrollProgress > 0.95 ? "none" : "auto";
+
+  return (
+    <div
+      aria-label="App utilities"
+      style={{
+        position: "fixed",
+        top: 0,
+        right: "1.25rem",
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.55rem 0.7rem 0.7rem",
+        background: "#ffffff",
+        borderLeft: "1px solid #e5e7eb",
+        borderRight: "1px solid #e5e7eb",
+        borderBottom: "1px solid #e5e7eb",
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
+        boxShadow: "0 6px 16px -10px rgba(15, 23, 42, 0.18)",
+        transform: `translateY(${offset}px)`,
+        transition: "transform 220ms ease",
+        pointerEvents,
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+      }}
+    >
+      <Link
+        href="/docs"
+        onMouseEnter={() => setHoverDocs(true)}
+        onMouseLeave={() => setHoverDocs(false)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          height: 30,
+          padding: "0 0.65rem",
+          borderRadius: 8,
+          border: "1px solid transparent",
+          background: hoverDocs ? "#f1f5f9" : "transparent",
+          color: hoverDocs ? "#0f172a" : "#475569",
+          fontSize: "0.83rem",
+          fontWeight: 500,
+          textDecoration: "none",
+          cursor: "pointer",
+          transition: "background 100ms ease, color 100ms ease"
+        }}
+      >
+        Docs
+      </Link>
+      <button
+        type="button"
+        aria-label="Get help"
+        onMouseEnter={() => setHoverHelp(true)}
+        onMouseLeave={() => setHoverHelp(false)}
+        onClick={() => {
+          if (typeof window !== "undefined") {
+            window.location.href = "mailto:help@pirol.app";
+          }
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          height: 30,
+          padding: "0 0.3rem 0 0.65rem",
+          borderRadius: 8,
+          border: `1px solid ${hoverHelp ? "#cbd5e1" : "#e2e8f0"}`,
+          background: hoverHelp ? "#f8fafc" : "#ffffff",
+          color: hoverHelp ? "#0f172a" : "#475569",
+          font: "inherit",
+          fontSize: "0.83rem",
+          fontWeight: 500,
+          cursor: "pointer",
+          transition:
+            "background 100ms ease, color 100ms ease, border-color 100ms ease"
+        }}
+      >
+        <span>Need help?</span>
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 20,
+            height: 20,
+            borderRadius: 6,
+            background: "#f1f5f9",
+            color: "#475569",
+            fontSize: "0.7rem",
+            fontWeight: 600,
+            letterSpacing: "-0.01em"
+          }}
+        >
+          H
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function ExploreSidebar({
   activeId = "explore",
   collections = EMPTY_COLLECTIONS,
@@ -310,6 +462,8 @@ export default function ExploreSidebar({
   }
 
   return (
+    <>
+    <AppTopBar />
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
         <span className={styles.brandName}>Pirol</span>
@@ -524,5 +678,6 @@ export default function ExploreSidebar({
         </span>
       </div>
     </aside>
+    </>
   );
 }

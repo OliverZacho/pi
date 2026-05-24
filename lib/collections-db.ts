@@ -72,7 +72,7 @@ export type CollectionRuleCondition =
       id: string;
       field: "market";
       operator: "in";
-      /** companies.market[] */
+      /** Tags to overlap-match against `companies.markets`. */
       values: string[];
     }
   | {
@@ -856,7 +856,7 @@ export async function evaluateCollectionRules(
     .select(
       `id, subject, preheader, received_at, category, has_gif, has_dark_mode,
        discount_percent, promo_code, company_id,
-       companies(id, name, domain, market, logo_storage_path)`
+       companies(id, name, domain, markets, logo_storage_path)`
     )
     .order("received_at", { ascending: false })
     .limit(RULE_EVAL_LIMIT);
@@ -1150,7 +1150,7 @@ async function lookupCompanyIdsByMarkets(
   const { data, error } = await client
     .from("companies")
     .select("id")
-    .in("market", markets)
+    .overlaps("markets", markets)
     .limit(2000);
   if (error) throw error;
   return (data ?? []).map((row) => row.id);
@@ -1194,7 +1194,7 @@ function ruleRowToCard(
     companyId: company?.id ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
-    companyMarket: company?.market ?? null,
+    companyMarkets: pickCompanyMarkets(company),
     companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
     receivedAt: row.received_at,
     category: row.category,
@@ -1248,7 +1248,7 @@ async function loadCollectionEmails(
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
          discount_percent, promo_code, company_id,
-         companies(id, name, domain, market, logo_storage_path)
+         companies(id, name, domain, markets, logo_storage_path)
        )`
     )
     .eq("collection_id", collectionId)
@@ -1368,14 +1368,14 @@ type CompaniesField =
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }
   | Array<{
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }>
   | null
@@ -1409,7 +1409,7 @@ function toExploreCard(
     companyId: company?.id ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
-    companyMarket: company?.market ?? null,
+    companyMarkets: pickCompanyMarkets(company),
     companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
     receivedAt: email.received_at,
     category: email.category,
@@ -1421,4 +1421,17 @@ function toExploreCard(
         : Number(email.discount_percent),
     promoCode: email.promo_code ?? null
   };
+}
+
+/**
+ * Defensive read for the embedded `companies.markets` array. Filters
+ * out non-strings so a hand-edited row can't poison the API payload.
+ */
+function pickCompanyMarkets(
+  company: { markets?: string[] | null } | null
+): string[] {
+  if (!company || !Array.isArray(company.markets)) return [];
+  return company.markets.filter(
+    (value): value is string => typeof value === "string" && value.length > 0
+  );
 }

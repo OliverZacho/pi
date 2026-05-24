@@ -54,7 +54,8 @@ vi.mock("@/lib/admin-db", () => ({
   storeProcessedEmail: mocks.storeProcessedEmailMock
 }));
 
-import { processNextBatch } from "@/lib/ingest-processor";
+import { processNextBatch, resolvePrimaryCtaUrl } from "@/lib/ingest-processor";
+import type { ParsedLink } from "@/lib/extract-metadata";
 
 beforeEach(() => {
   mocks.rpcMock.mockReset();
@@ -268,5 +269,76 @@ describe("processNextBatch", () => {
     expect(mocks.updateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "skipped", last_error: expect.stringMatching(/email.delivered/) })
     );
+  });
+});
+
+describe("resolvePrimaryCtaUrl", () => {
+  function link(url: string): ParsedLink {
+    let host: string | null = null;
+    try {
+      host = new URL(url).hostname.toLowerCase();
+    } catch {
+      host = null;
+    }
+    return {
+      url,
+      host,
+      utm: { source: null, medium: null, campaign: null, content: null, term: null }
+    };
+  }
+
+  it("returns null when no hint is provided", () => {
+    expect(resolvePrimaryCtaUrl(null, [link("https://example.com/")])).toBeNull();
+    expect(resolvePrimaryCtaUrl("   ", [link("https://example.com/")])).toBeNull();
+  });
+
+  it("prefers an exact href match when one exists", () => {
+    const links = [
+      link("https://example.com/sale"),
+      link("https://example.com/")
+    ];
+    expect(
+      resolvePrimaryCtaUrl("https://example.com/sale", links)
+    ).toBe("https://example.com/sale");
+  });
+
+  it("falls back to a same-host href when there is no exact match", () => {
+    const links = [link("https://example.com/path?utm_source=email")];
+    expect(
+      resolvePrimaryCtaUrl("https://example.com/different-path", links)
+    ).toBe("https://example.com/path?utm_source=email");
+  });
+
+  it("returns the hint URL itself when the destination host is not in the HTML links (click-tracker case)", () => {
+    // Norr11 / Klaviyo case: every href is rewritten to ctrk.klclick.com,
+    // and the only place the real destination shows up is the text/plain
+    // part the LLM extracted from.
+    const links = [
+      link("https://ctrk.klclick.com/l/abc"),
+      link("https://manage.kmail-lists.com/subscriptions/unsubscribe?x=y")
+    ];
+    expect(
+      resolvePrimaryCtaUrl("https://norr11.com/products/hippo-chair", links)
+    ).toBe("https://norr11.com/products/hippo-chair");
+  });
+
+  it("accepts a bare host hint and normalises it to https", () => {
+    expect(resolvePrimaryCtaUrl("norr11.com/products/hippo-chair", [])).toBe(
+      "https://norr11.com/products/hippo-chair"
+    );
+    expect(resolvePrimaryCtaUrl("norr11.com", [])).toBe("https://norr11.com/");
+  });
+
+  it("rejects relative paths and non-URL strings", () => {
+    expect(resolvePrimaryCtaUrl("/products/hippo-chair", [])).toBeNull();
+    expect(resolvePrimaryCtaUrl("Shop the collection", [])).toBeNull();
+    expect(resolvePrimaryCtaUrl("javascript:alert(1)", [])).toBeNull();
+    expect(resolvePrimaryCtaUrl("mailto:hello@norr11.com", [])).toBeNull();
+  });
+
+  it("works when no HTML links were extracted at all", () => {
+    expect(
+      resolvePrimaryCtaUrl("https://example.com/cta", [])
+    ).toBe("https://example.com/cta");
   });
 });

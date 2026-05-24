@@ -93,26 +93,6 @@ export default async function BrandsPage() {
               <h1>Brands</h1>
               <p>Search every tracked competitor and filter by what we know.</p>
             </div>
-            <div className={styles.headingStats} aria-label="Brand totals">
-              <div className={styles.headingStat}>
-                <span className={styles.headingStatValue}>
-                  {formatNumber(facets.totalBrands)}
-                </span>
-                <span className={styles.headingStatLabel}>Tracked brands</span>
-              </div>
-              <div className={styles.headingStat}>
-                <span className={styles.headingStatValue}>
-                  {formatNumber(facets.brandsWithEmails)}
-                </span>
-                <span className={styles.headingStatLabel}>With captured emails</span>
-              </div>
-              <div className={styles.headingStat}>
-                <span className={styles.headingStatValue}>
-                  {formatNumber(facets.markets.length)}
-                </span>
-                <span className={styles.headingStatLabel}>Categories</span>
-              </div>
-            </div>
           </div>
         </header>
 
@@ -126,8 +106,4 @@ export default async function BrandsPage() {
       </main>
     </div>
   );
-}
-
-function formatNumber(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
+import { formatShortDate, formatTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
@@ -83,6 +84,16 @@ export default function EmailCard({
   // Per-card pending state so we can disable the Save button while the
   // round-trip is in flight without blocking other cards on the grid.
   const [pendingSave, setPendingSave] = useState(false);
+
+  // "May 18 · 9:30 AM" — short date plus clock so the grid stays scannable
+  // at a glance. Both pieces are zoned to the platform timezone via the
+  // shared formatters so server and client agree byte-for-byte.
+  const receivedLabel = useMemo(() => {
+    const date = formatShortDate(email.receivedAt, { fallback: "" });
+    const time = formatTime(email.receivedAt, { fallback: "" });
+    if (date && time) return `${date} · ${time}`;
+    return date || time || "";
+  }, [email.receivedAt]);
 
   useEffect(() => {
     const previewEl = previewRef.current;
@@ -220,29 +231,33 @@ export default function EmailCard({
         <span className={styles.cardSubject}>
           {email.subject || "(no subject)"}
         </span>
-        {email.discountPercent !== null ||
-        email.promoCode ||
-        email.hasGif ||
-        email.hasDarkMode ? (
-          <div className={styles.cardBadgeRow}>
-            {email.discountPercent !== null ? (
-              <span className={`${styles.cardBadge} ${styles.discount}`}>
-                {Math.round(email.discountPercent)}% off
-              </span>
-            ) : null}
-            {email.promoCode ? (
-              <span className={`${styles.cardBadge} ${styles.promo}`}>
-                {email.promoCode}
-              </span>
-            ) : null}
-            {email.hasGif ? <span className={styles.cardBadge}>GIF</span> : null}
-            {email.hasDarkMode ? (
-              <span className={styles.cardBadge}>Dark</span>
-            ) : null}
+        {receivedLabel ? (
+          <div className={styles.cardReceived}>
+            <ClockIcon />
+            <time dateTime={email.receivedAt}>{receivedLabel}</time>
           </div>
         ) : null}
       </div>
     </article>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 14" />
+    </svg>
   );
 }
 

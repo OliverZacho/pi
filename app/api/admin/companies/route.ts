@@ -5,8 +5,39 @@ import { requireAdminSession } from "@/lib/require-admin-api";
 type CreateCompanyBody = {
   name?: string;
   domain?: string;
-  market?: string | null;
+  /**
+   * Optional list of category tags to attach to the new brand. Empty
+   * (or absent) means "uncategorised". Stored as a `text[]` on
+   * `companies.markets`; the DB layer trims, lower-cases and
+   * de-duplicates the values.
+   */
+  markets?: unknown;
+  /**
+   * Legacy singular field, kept temporarily for backwards compatibility
+   * with any external client that still POSTs `market: "fashion"`. It
+   * is folded into `markets` server-side. New clients should send
+   * `markets: ["fashion"]` directly.
+   */
+  market?: unknown;
 };
+
+/**
+ * Coerces the wire-format inputs (`markets: string[]` and the legacy
+ * `market: string | null`) into the array of trimmed strings we hand to
+ * the DB layer. Anything that isn't a non-empty string is dropped.
+ */
+function readMarketsFromBody(body: CreateCompanyBody): string[] {
+  const collected: string[] = [];
+  if (Array.isArray(body.markets)) {
+    for (const item of body.markets) {
+      if (typeof item === "string") collected.push(item);
+    }
+  }
+  if (typeof body.market === "string" && body.market.trim().length > 0) {
+    collected.push(body.market);
+  }
+  return collected;
+}
 
 export async function POST(request: Request) {
   const session = await requireAdminSession();
@@ -16,9 +47,9 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as CreateCompanyBody;
-    const name = body.name?.trim();
-    const domain = body.domain?.trim();
-    const market = typeof body.market === "string" ? body.market.trim() : null;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const domain = typeof body.domain === "string" ? body.domain.trim() : "";
+    const markets = readMarketsFromBody(body);
 
     if (!name || !domain) {
       return NextResponse.json({ error: "name and domain are required" }, { status: 400 });
@@ -27,7 +58,7 @@ export async function POST(request: Request) {
     const company = await createCompanySubscriptionInDb(session.supabase, {
       name,
       domain,
-      market: market && market.length > 0 ? market : null
+      markets
     });
     return NextResponse.json({ company }, { status: 201 });
   } catch (error) {

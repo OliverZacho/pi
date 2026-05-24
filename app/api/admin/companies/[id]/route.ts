@@ -14,6 +14,18 @@ type RouteContext = {
 type UpdateCompanyBody = {
   name?: unknown;
   domain?: unknown;
+  /**
+   * Replacement category list. Sending `[]` clears every tag on the
+   * brand. Omit the field entirely to leave the existing tags
+   * untouched. Stored on `companies.markets`.
+   */
+  markets?: unknown;
+  /**
+   * Legacy singular field accepted for backwards compatibility with
+   * older clients that PATCHed a single `market`. When `markets` is
+   * also present it wins; otherwise `market` is folded into a
+   * single-element array. New code should send `markets`.
+   */
   market?: unknown;
 };
 
@@ -58,7 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const updates: { name?: string; domain?: string; market?: string | null } = {};
+  const updates: { name?: string; domain?: string; markets?: string[] } = {};
 
   if (body.name !== undefined) {
     if (typeof body.name !== "string") {
@@ -80,11 +92,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     updates.domain = body.domain;
   }
 
-  if (body.market !== undefined) {
+  // Prefer the new array-shaped `markets`; fall back to the legacy
+  // `market` scalar when only the old field was sent. We treat the two
+  // as mutually exclusive intents, but accepting both makes the
+  // transition forgiving for any external integration we forgot about.
+  if (body.markets !== undefined) {
+    if (!Array.isArray(body.markets)) {
+      return NextResponse.json({ error: "markets must be an array of strings" }, { status: 400 });
+    }
+    const cleaned: string[] = [];
+    for (const item of body.markets) {
+      if (typeof item !== "string") {
+        return NextResponse.json({ error: "markets entries must be strings" }, { status: 400 });
+      }
+      cleaned.push(item);
+    }
+    updates.markets = cleaned;
+  } else if (body.market !== undefined) {
     if (body.market === null) {
-      updates.market = null;
+      updates.markets = [];
     } else if (typeof body.market === "string") {
-      updates.market = body.market;
+      const trimmed = body.market.trim();
+      updates.markets = trimmed.length > 0 ? [trimmed] : [];
     } else {
       return NextResponse.json({ error: "market must be a string or null" }, { status: 400 });
     }

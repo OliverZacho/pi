@@ -56,7 +56,7 @@ function makeBrand(
       id,
       name: id,
       domain: null,
-      market: null,
+      markets: [],
       logoUrl: null,
       subscribedSince: "2024-01-01T00:00:00Z",
       subscriptionEmail: null,
@@ -84,8 +84,14 @@ function makeBrand(
       discountEmails: 0,
       discountShare: 0,
       avgDiscount: null,
-      maxDiscount: null,
-      promoCodes: []
+      maxDiscount: null
+    },
+    emojis: {
+      emailsWithEmoji: 0,
+      share: 0,
+      totalEmojis: 0,
+      avgPerEmojiEmail: null,
+      top: []
     },
     categories: [],
     esp: { primary: null, distribution: [] },

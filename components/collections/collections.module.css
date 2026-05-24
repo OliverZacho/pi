@@ -71,35 +71,40 @@
 
 /* Same trick as the Explore card: render the email at its natural
  * width (~600px) and scale it down with CSS so internal media queries
- * still trigger the desktop layout. The mosaic cells are square,
- * which is why we set both dimensions equal. */
+ * still trigger the desktop layout. The actual scale is computed in
+ * JS off the measured cell width (see `CollectionCard`) so the iframe
+ * fills its cell precisely instead of bunching up in the top-left. */
 .mosaicFrame {
   position: absolute;
   top: 0;
   left: 0;
-  width: 600px;
-  height: 600px;
   border: 0;
   background: #ffffff;
   transform-origin: top left;
-  /* The exact scale factor varies with the card's width but we keep it
-   * approximate — these are thumbnail previews, pixel-perfect is not
-   * the goal. Half the card width / 600 = roughly 0.18 at the default
-   * 4-column grid. */
-  transform: scale(0.18);
   pointer-events: none;
 }
 
-@media (max-width: 1099px) {
-  .mosaicFrame {
-    transform: scale(0.21);
-  }
+/* LinkedIn-style "+N" overlay shown on the bottom-right tile when the
+ * collection contains more than four emails. Sits above the iframe and
+ * dims the underlying preview so the count reads cleanly. */
+.mosaicMore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  pointer-events: none;
+  z-index: 1;
 }
 
-@media (max-width: 720px) {
-  .mosaicFrame {
-    transform: scale(0.24);
-  }
+.mosaicMoreLabel {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
 }
 
 .mosaicEmpty {
@@ -353,6 +358,43 @@
 }
 
 /* ---------- Detail page ---------- */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.breadcrumbLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.breadcrumbLink:first-child {
+  margin-left: -0.5rem;
+}
+
+.breadcrumbLink:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.breadcrumbCurrent {
+  color: #0f172a;
+}
+
+.breadcrumbSep {
+  color: #cbd5e1;
+}
 
 .detailHeader {
   display: flex;

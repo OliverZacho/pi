@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CollectionCardData } from "@/lib/collections-db";
 import styles from "./collections.module.css";
+
+const RENDER_WIDTH = 600;
 
 type Props = {
   collection: CollectionCardData;
@@ -45,6 +47,35 @@ export default function CollectionCard({
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
+  // Measure a single mosaic cell so we can scale each 600×600 iframe to
+  // fill it exactly. Without this the iframes render in the top-left
+  // corner of their cell with empty padding on the right/bottom — the
+  // fixed media-query scales never quite match real cell widths once
+  // sidebars and gaps eat into the available space.
+  const mosaicRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState<number | null>(null);
+
+  useEffect(() => {
+    const mosaicEl = mosaicRef.current;
+    if (!mosaicEl) return;
+
+    function recompute() {
+      if (!mosaicEl) return;
+      const firstCell = mosaicEl.querySelector<HTMLElement>(
+        `.${styles.mosaicCell}`
+      );
+      const width = firstCell?.clientWidth ?? 0;
+      if (width > 0) {
+        setScale(width / RENDER_WIDTH);
+      }
+    }
+
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(mosaicEl);
+    return () => ro.disconnect();
+  }, []);
+
   // Always render four slots so the mosaic doesn't reflow as a
   // collection grows past 4 entries. Empty slots get a placeholder
   // tile that matches the card's background instead of a broken
@@ -52,6 +83,21 @@ export default function CollectionCard({
   const slots = Array.from({ length: 4 }, (_, index) =>
     collection.previewEmailIds[index] ?? null
   );
+
+  // LinkedIn-style "+N" overlay on the last tile once the collection
+  // grows past the four preview slots. Captures the "there's more
+  // behind this" cue without forcing us to actually render extra
+  // iframes.
+  const hiddenCount = Math.max(0, collection.emailCount - 4);
+
+  const frameStyle =
+    scale !== null
+      ? {
+          transform: `scale(${scale})`,
+          width: `${RENDER_WIDTH}px`,
+          height: `${RENDER_WIDTH}px`
+        }
+      : { visibility: "hidden" as const };
 
   async function handleShare(event: React.MouseEvent) {
     event.preventDefault();
@@ -84,24 +130,45 @@ export default function CollectionCard({
   return (
     <article className={styles.card}>
       <Link href={openHref} className={styles.cardLink} aria-label={collection.name}>
-        <div className={styles.mosaic} aria-hidden={collection.emailCount === 0}>
-          {slots.map((emailId, index) => (
-            <div key={index} className={styles.mosaicCell}>
-              {emailId ? (
-                <iframe
-                  src={renderUrlFor(emailId)}
-                  title=""
-                  className={styles.mosaicFrame}
-                  loading="lazy"
-                  sandbox="allow-popups allow-popups-to-escape-sandbox"
-                  referrerPolicy="no-referrer"
-                  tabIndex={-1}
-                />
-              ) : (
-                <div className={styles.mosaicEmpty} />
-              )}
-            </div>
-          ))}
+        <div
+          ref={mosaicRef}
+          className={styles.mosaic}
+          aria-hidden={collection.emailCount === 0}
+        >
+          {slots.map((emailId, index) => {
+            const isLastTile = index === slots.length - 1;
+            const showHiddenCount = isLastTile && hiddenCount > 0;
+            return (
+              <div key={index} className={styles.mosaicCell}>
+                {emailId ? (
+                  <iframe
+                    src={renderUrlFor(emailId)}
+                    title=""
+                    className={styles.mosaicFrame}
+                    style={frameStyle}
+                    loading="lazy"
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    referrerPolicy="no-referrer"
+                    tabIndex={-1}
+                  />
+                ) : (
+                  <div className={styles.mosaicEmpty} />
+                )}
+                {showHiddenCount ? (
+                  <div
+                    className={styles.mosaicMore}
+                    aria-label={`${hiddenCount} more ${
+                      hiddenCount === 1 ? "email" : "emails"
+                    }`}
+                  >
+                    <span className={styles.mosaicMoreLabel}>
+                      +{hiddenCount}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
           {collection.emailCount === 0 ? (
             <div className={styles.emptyMessage}>Empty collection</div>
           ) : null}

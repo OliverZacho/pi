@@ -457,11 +457,29 @@ async function runVisionExtractionStage(args: {
   }
 }
 
-function resolvePrimaryCtaUrl(
+/**
+ * Resolves the LLM-extracted CTA URL hint to a stored URL.
+ *
+ * Resolution order:
+ *  1. Exact match against an `<a href>` we extracted from the HTML.
+ *  2. Same-host match against an `<a href>` we extracted from the HTML.
+ *  3. The hint URL itself, when it parses as a valid http(s) URL but does
+ *     not match any HTML link. This is the common case for senders that
+ *     wrap every `<a href>` in a click-tracker (Klaviyo `ctrk.klclick.com`,
+ *     Mailchimp `list-manage.com`, HubSpot, Marketo, …): the destination
+ *     URL only appears in the `text/plain` MIME part, which is exactly
+ *     what the LLM sees, so the hint is the only place we'll find a
+ *     human-meaningful destination. We'd rather record it than `null`.
+ *
+ * Bare hosts (`norr11.com`) and hosts without a scheme are normalised by
+ * trying an `https://` prefix; relative paths and non-URL strings are
+ * rejected.
+ */
+export function resolvePrimaryCtaUrl(
   hint: string | null,
   links: ParsedLink[]
 ): string | null {
-  if (!hint || links.length === 0) {
+  if (!hint) {
     return null;
   }
 
@@ -475,19 +493,50 @@ function resolvePrimaryCtaUrl(
     return exact.url;
   }
 
-  let host: string | null = null;
-  try {
-    host = new URL(trimmed).hostname.toLowerCase();
-  } catch {
-    host = trimmed.toLowerCase().replace(/^https?:\/\//, "").split("/")[0] || null;
+  const parsed = parseHintUrl(trimmed);
+  if (!parsed) {
+    return null;
   }
 
+  const host = parsed.hostname.toLowerCase();
   if (!host) {
     return null;
   }
 
   const byHost = links.find((link) => link.host && link.host === host);
-  return byHost?.url ?? null;
+  if (byHost) {
+    return byHost.url;
+  }
+
+  return parsed.toString();
+}
+
+function parseHintUrl(value: string): URL | null {
+  const tryParse = (input: string): URL | null => {
+    try {
+      const u = new URL(input);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        return null;
+      }
+      return u;
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = tryParse(value);
+  if (direct) {
+    return direct;
+  }
+
+  // Bare hosts ("norr11.com") and host+path strings ("norr11.com/foo") don't
+  // parse on their own. Re-try with an https:// prefix, but only if the value
+  // looks like a host — i.e. starts with a TLD-ish token rather than a "/".
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(value)) {
+    return tryParse(`https://${value}`);
+  }
+
+  return null;
 }
 
 async function markEventStatus(

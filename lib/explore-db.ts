@@ -9,7 +9,13 @@ export type ExploreEmailCard = {
   companyId: string | null;
   companyName: string;
   companyDomain: string | null;
-  companyMarket: string | null;
+  /**
+   * Every market / category tag attached to the email's company, in
+   * storage order. Empty when the brand is uncategorised. Replaces the
+   * earlier scalar `companyMarket` field — brands can now sit in
+   * multiple categories and the UI picks how to render the list.
+   */
+  companyMarkets: string[];
   /**
    * Short-lived signed URL into the `email-assets` bucket for the brand
    * logo we extracted from one of its emails. `null` if we haven't picked
@@ -56,7 +62,12 @@ export type ExploreSearchResult = {
 export type ExploreBrandFacet = {
   id: string;
   name: string;
-  market: string | null;
+  /**
+   * Every market / category tag attached to the brand. Empty when the
+   * brand is uncategorised. The UI may render only a subset (e.g. the
+   * first two tags) when space is tight.
+   */
+  markets: string[];
   logoUrl: string | null;
 };
 
@@ -117,10 +128,12 @@ export async function searchExploreEmails(
   }
 
   // Brand selections and brand-category (market) selections are UNION'd:
-  // an email passes if its brand is selected OR its company's market is
-  // one of the selected categories — matching the previous client-side
+  // an email passes if its brand is selected OR the company carries any
+  // of the selected category tags — matching the previous client-side
   // behavior. We collapse both into one `company_id IN (...)` clause by
-  // first resolving the markets to their matching company IDs.
+  // first resolving the markets to their matching company IDs. The
+  // `overlaps` filter on the `markets` array means a brand tagged
+  // `["fashion", "ecommerce"]` shows up under both filters.
   let effectiveBrandIds: string[] | null = null;
   if (
     (params.brandIds && params.brandIds.length > 0) ||
@@ -131,7 +144,7 @@ export async function searchExploreEmails(
       const { data, error } = await supabase
         .from("companies")
         .select("id")
-        .in("market", params.markets);
+        .overlaps("markets", params.markets);
       if (error) throw error;
       for (const row of data ?? []) ids.add(row.id);
     }
@@ -157,8 +170,8 @@ export async function searchExploreEmails(
     params.sort === "brand_asc" || params.sort === "brand_desc";
 
   const companiesEmbed = needsCompanyInnerJoin
-    ? "companies!inner(id, name, domain, market, logo_storage_path)"
-    : "companies(id, name, domain, market, logo_storage_path)";
+    ? "companies!inner(id, name, domain, markets, logo_storage_path)"
+    : "companies(id, name, domain, markets, logo_storage_path)";
 
   let emailsQuery = supabase
     .from("captured_emails")
@@ -269,7 +282,7 @@ export async function searchExploreEmails(
       companyId: company?.id ?? null,
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
-      companyMarket: company?.market ?? null,
+      companyMarkets: normalizeCompanyMarkets(company?.markets),
       companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
       receivedAt: row.received_at,
       category: row.category,
@@ -304,7 +317,7 @@ export async function getExploreFacets(
   // gives us markets at no extra cost.
   const { data: emailRows, error: emailError } = await supabase
     .from("captured_emails")
-    .select("category, company_id, companies!inner(id, name, market, logo_storage_path)")
+    .select("category, company_id, companies!inner(id, name, markets, logo_storage_path)")
     .limit(10000);
 
   if (emailError) throw emailError;
@@ -317,12 +330,13 @@ export async function getExploreFacets(
     if (row.category) categorySet.add(row.category);
     const company = pickCompany(row.companies);
     if (company) {
-      if (company.market) marketSet.add(company.market);
+      const companyMarkets = normalizeCompanyMarkets(company.markets);
+      for (const market of companyMarkets) marketSet.add(market);
       if (!brandMap.has(company.id)) {
         brandMap.set(company.id, {
           id: company.id,
           name: company.name,
-          market: company.market ?? null,
+          markets: companyMarkets,
           logoUrl: null,
           logoPath: company.logo_storage_path ?? null
         });
@@ -371,14 +385,14 @@ type CompaniesField =
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }
   | Array<{
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }>
   | null
@@ -388,6 +402,20 @@ function pickCompany(value: CompaniesField) {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] ?? null;
   return value;
+}
+
+/**
+ * Defensive read for the `markets` array on an embedded `companies`
+ * relation. Filters out non-strings so a hand-edited row can't leak
+ * `null` / `undefined` entries into the serialised payload.
+ */
+export function normalizeCompanyMarkets(
+  input: string[] | null | undefined
+): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter(
+    (value): value is string => typeof value === "string" && value.length > 0
+  );
 }
 
 /**
