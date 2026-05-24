@@ -1311,9 +1311,6 @@
   max-width: 380px;
   height: 100%;
   min-height: 700px;
-  border-radius: 28px;
-  border: 8px solid #0f172a;
-  box-shadow: 0 24px 48px -16px rgba(15, 23, 42, 0.45);
 }
 
 .previewFrame {
