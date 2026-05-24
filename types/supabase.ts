@@ -224,7 +224,7 @@ export type Database = {
           logo_source: string | null
           logo_storage_path: string | null
           logo_updated_at: string | null
-          market: string | null
+          markets: string[]
           name: string
           subscribed_since: string
           updated_at: string
@@ -238,7 +238,7 @@ export type Database = {
           logo_source?: string | null
           logo_storage_path?: string | null
           logo_updated_at?: string | null
-          market?: string | null
+          markets?: string[]
           name: string
           subscribed_since?: string
           updated_at?: string
@@ -252,7 +252,7 @@ export type Database = {
           logo_source?: string | null
           logo_storage_path?: string | null
           logo_updated_at?: string | null
-          market?: string | null
+          markets?: string[]
           name?: string
           subscribed_since?: string
           updated_at?: string

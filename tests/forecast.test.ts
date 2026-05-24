@@ -56,7 +56,7 @@ function makeBrand(
       id,
       name: id,
       domain: null,
-      market: null,
+      markets: [],
       logoUrl: null,
       subscribedSince: "2024-01-01T00:00:00Z",
       subscriptionEmail: null,

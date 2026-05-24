@@ -4,7 +4,7 @@ create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   domain text not null,
-  market text,
+  markets text[] not null default '{}',
   subscribed_since timestamptz not null default now(),
   deleted_at timestamptz,
   logo_storage_path text,
@@ -30,6 +30,8 @@ create index if not exists companies_deleted_at_idx on public.companies (deleted
 create index if not exists companies_logo_missing_idx
   on public.companies (id)
   where logo_storage_path is null and deleted_at is null;
+create index if not exists companies_markets_gin_idx
+  on public.companies using gin (markets);
 
 create table if not exists public.company_inboxes (
   id uuid primary key default gen_random_uuid(),

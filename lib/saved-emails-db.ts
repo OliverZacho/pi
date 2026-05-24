@@ -107,7 +107,7 @@ export async function listSavedEmails(
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
          discount_percent, promo_code, company_id,
-         companies(id, name, domain, market, logo_storage_path)
+         companies(id, name, domain, markets, logo_storage_path)
        )`,
       { count: "exact" }
     )
@@ -179,14 +179,14 @@ type CompaniesField =
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }
   | Array<{
       id: string;
       name: string;
       domain?: string | null;
-      market?: string | null;
+      markets?: string[] | null;
       logo_storage_path?: string | null;
     }>
   | null
@@ -220,7 +220,12 @@ function toExploreCard(
     companyId: company?.id ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
-    companyMarket: company?.market ?? null,
+    companyMarkets: Array.isArray(company?.markets)
+      ? company!.markets.filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0
+        )
+      : [],
     companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
     receivedAt: email.received_at,
     category: email.category,

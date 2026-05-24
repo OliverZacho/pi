@@ -174,10 +174,14 @@ function Hero({
                 {brand.domain}
               </a>
             ) : null}
-            {brand.market ? (
+            {brand.markets.length > 0 ? (
               <>
                 <span className={styles.heroDot} aria-hidden="true" />
-                <span className={styles.heroPill}>{brand.market}</span>
+                {brand.markets.map((label) => (
+                  <span key={label} className={styles.heroPill}>
+                    {label}
+                  </span>
+                ))}
               </>
             ) : null}
             <span className={styles.heroDot} aria-hidden="true" />

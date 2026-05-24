@@ -128,7 +128,12 @@ const COMPANIES_COLLAPSED_STORAGE_KEY = "pirol.admin.companiesCollapsed";
 type EditingDraft = {
   name: string;
   domain: string;
-  market: string;
+  /**
+   * Currently-selected market tags for the company being edited. Stored
+   * lower-cased to match the wire format of the API; the UI prettifies
+   * for display via {@link formatMarketLabel}.
+   */
+  markets: string[];
 };
 
 /**
@@ -298,10 +303,10 @@ export default function AdminHomePage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
-  const [market, setMarket] = useState("");
-  const [marketOpen, setMarketOpen] = useState(false);
-  const [marketHighlight, setMarketHighlight] = useState(0);
-  const marketComboRef = useRef<HTMLDivElement>(null);
+  // The create form's category picker is multi-select. The dropdown
+  // component owns its own open/close state; we just hold the chosen
+  // tag list at the page level so the create handler can submit it.
+  const [markets, setMarkets] = useState<string[]>([]);
   const [companySearch, setCompanySearch] = useState("");
   const [companySort, setCompanySort] = useState<CompanySort>(DEFAULT_COMPANY_SORT);
   const [error, setError] = useState("");
@@ -473,7 +478,7 @@ export default function AdminHomePage() {
     setEditingDraft({
       name: company.name,
       domain: company.domain,
-      market: company.market ?? ""
+      markets: [...company.markets]
     });
     setEditingError(null);
   }
@@ -491,7 +496,9 @@ export default function AdminHomePage() {
     }
     const name = editingDraft.name.trim();
     const domain = editingDraft.domain.trim();
-    const marketRaw = editingDraft.market.trim();
+    const draftMarkets = editingDraft.markets
+      .map((value) => value.trim().toLowerCase())
+      .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
     if (!name) {
       setEditingError("Name cannot be empty.");
       return;
@@ -512,7 +519,7 @@ export default function AdminHomePage() {
           body: JSON.stringify({
             name,
             domain,
-            market: marketRaw.length > 0 ? marketRaw : null
+            markets: draftMarkets
           })
         }
       );
@@ -629,60 +636,15 @@ export default function AdminHomePage() {
   const existingMarkets = useMemo(() => {
     const set = new Set<string>();
     for (const company of overview.companies) {
-      const value = company.market?.trim();
-      if (value) {
-        set.add(value);
+      for (const value of company.markets) {
+        const trimmed = value.trim();
+        if (trimmed) {
+          set.add(trimmed);
+        }
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [overview.companies]);
-
-  const trimmedMarket = market.trim();
-  const lowerTrimmed = trimmedMarket.toLowerCase();
-  const hasExactMatch = existingMarkets.some(
-    (option) => option.toLowerCase() === lowerTrimmed
-  );
-
-  type MarketOption =
-    | { kind: "existing"; value: string }
-    | { kind: "create"; value: string };
-
-  const marketOptions = useMemo<MarketOption[]>(() => {
-    const filtered = lowerTrimmed
-      ? existingMarkets.filter((option) =>
-          option.toLowerCase().includes(lowerTrimmed)
-        )
-      : existingMarkets;
-    const list: MarketOption[] = filtered.map((value) => ({
-      kind: "existing",
-      value
-    }));
-    if (trimmedMarket.length > 0 && !hasExactMatch) {
-      list.push({ kind: "create", value: trimmedMarket });
-    }
-    return list;
-  }, [existingMarkets, trimmedMarket, lowerTrimmed, hasExactMatch]);
-
-  useEffect(() => {
-    if (marketHighlight >= marketOptions.length) {
-      setMarketHighlight(0);
-    }
-  }, [marketOptions, marketHighlight]);
-
-  useEffect(() => {
-    function onDocumentMouseDown(event: MouseEvent) {
-      if (!marketComboRef.current) {
-        return;
-      }
-      if (!marketComboRef.current.contains(event.target as Node)) {
-        setMarketOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDocumentMouseDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentMouseDown);
-    };
-  }, []);
 
   const suggestMarketTrimmed = suggestMarket.trim();
   const suggestMarketLower = suggestMarketTrimmed.toLowerCase();
@@ -814,8 +776,12 @@ export default function AdminHomePage() {
   function useCandidate(candidate: SuggestedCandidate) {
     setName(candidate.name);
     setDomain(candidate.domain);
-    setMarket(suggestMarketTrimmed);
-    setMarketOpen(false);
+    if (suggestMarketTrimmed) {
+      const tag = suggestMarketTrimmed.toLowerCase();
+      setMarkets((current) =>
+        current.includes(tag) ? current : [...current, tag]
+      );
+    }
     setSuggestedCandidates((current) =>
       current.filter((item) => item.domain !== candidate.domain)
     );
@@ -861,46 +827,6 @@ export default function AdminHomePage() {
     }
   }
 
-  function selectMarketOption(option: MarketOption) {
-    setMarket(option.value);
-    setMarketOpen(false);
-    setMarketHighlight(0);
-  }
-
-  function onMarketKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setMarketOpen(true);
-      if (marketOptions.length > 0) {
-        setMarketHighlight((index) => (index + 1) % marketOptions.length);
-      }
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setMarketOpen(true);
-      if (marketOptions.length > 0) {
-        setMarketHighlight(
-          (index) =>
-            (index - 1 + marketOptions.length) % marketOptions.length
-        );
-      }
-    } else if (event.key === "Enter") {
-      if (marketOpen && marketOptions.length > 0) {
-        event.preventDefault();
-        const choice = marketOptions[marketHighlight] ?? marketOptions[0];
-        if (choice) {
-          selectMarketOption(choice);
-        }
-      }
-    } else if (event.key === "Escape") {
-      if (marketOpen) {
-        event.preventDefault();
-        setMarketOpen(false);
-      }
-    } else if (event.key === "Tab") {
-      setMarketOpen(false);
-    }
-  }
-
   const sortedCompanies = useMemo(() => {
     const copy = [...overview.companies];
     const { key, direction } = companySort;
@@ -933,7 +859,14 @@ export default function AdminHomePage() {
           result = compareStrings(a.name, b.name);
           break;
         case "market":
-          result = compareStrings(a.market, b.market);
+          // Sort by the brand's first market tag — that's the one the
+          // table renders prominently. Brands without any tags fall to
+          // the bottom (empty strings sort last via the empty-string
+          // handling in `compareStrings`).
+          result = compareStrings(
+            a.markets[0] ?? null,
+            b.markets[0] ?? null
+          );
           break;
         case "domain":
           result = compareStrings(a.domain, b.domain);
@@ -984,7 +917,7 @@ export default function AdminHomePage() {
       const haystack = [
         company.name,
         company.domain,
-        company.market ?? "",
+        ...company.markets,
         company.subscriptionEmail,
         ...company.inboxes.map((inbox) => inbox.emailAddress)
       ]
@@ -998,12 +931,14 @@ export default function AdminHomePage() {
     event.preventDefault();
     setError("");
 
-    const resolvedMarket = market.trim();
+    const resolvedMarkets = markets.map((tag) => tag.trim().toLowerCase()).filter(
+      (tag) => tag.length > 0
+    );
 
     const response = await fetch("/api/admin/companies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, domain, market: resolvedMarket || null })
+      body: JSON.stringify({ name, domain, markets: resolvedMarkets })
     });
 
     if (!response.ok) {
@@ -1028,8 +963,7 @@ export default function AdminHomePage() {
 
     setName("");
     setDomain("");
-    setMarket("");
-    setMarketOpen(false);
+    setMarkets([]);
   }
 
   return (
@@ -1307,104 +1241,12 @@ export default function AdminHomePage() {
             aria-label="Company Domain"
             required
           />
-          <div className="combobox" ref={marketComboRef}>
-            <div className="combobox-field">
-              <input
-                className="combobox-input"
-                value={market}
-                onChange={(e) => {
-                  setMarket(e.target.value);
-                  setMarketOpen(true);
-                  setMarketHighlight(0);
-                }}
-                onFocus={() => setMarketOpen(true)}
-                onKeyDown={onMarketKeyDown}
-                placeholder="Market (e.g. fashion, museum)"
-                aria-label="Market"
-                role="combobox"
-                aria-expanded={marketOpen}
-                aria-controls="market-listbox"
-                aria-autocomplete="list"
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                className="combobox-chevron"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setMarketOpen((open) => !open);
-                }}
-                tabIndex={-1}
-                aria-label={marketOpen ? "Close markets" : "Open markets"}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                  className={marketOpen ? "chevron-open" : ""}
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-            </div>
-            {marketOpen ? (
-              <div
-                id="market-listbox"
-                role="listbox"
-                className="combobox-popover"
-              >
-                {marketOptions.length === 0 ? (
-                  <div className="combobox-empty">
-                    {existingMarkets.length === 0
-                      ? "No markets yet — type to add one"
-                      : "No matches"}
-                  </div>
-                ) : (
-                  marketOptions.map((option, index) => {
-                    const isHighlighted = index === marketHighlight;
-                    const className = `combobox-option${
-                      isHighlighted ? " highlighted" : ""
-                    }${option.kind === "create" ? " is-create" : ""}`;
-                    return (
-                      <button
-                        key={`${option.kind}:${option.value}`}
-                        type="button"
-                        role="option"
-                        aria-selected={isHighlighted}
-                        className={className}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          selectMarketOption(option);
-                        }}
-                        onMouseEnter={() => setMarketHighlight(index)}
-                      >
-                        {option.kind === "create" ? (
-                          <>
-                            <span className="combobox-option-prefix">
-                              Add
-                            </span>
-                            <span className="combobox-option-value">
-                              &ldquo;{option.value}&rdquo;
-                            </span>
-                          </>
-                        ) : (
-                          <span className="combobox-option-value">
-                            {option.value}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            ) : null}
-          </div>
+          <MarketsMultiSelect
+            value={markets}
+            onChange={setMarkets}
+            options={existingMarkets}
+            placeholder="Categories (e.g. fashion, ecommerce)"
+          />
           <button type="submit">Create</button>
         </form>
         {error ? <p className="error">{error}</p> : null}
@@ -1551,32 +1393,24 @@ export default function AdminHomePage() {
                   </td>
                   <td>
                     {isEditing && editingDraft ? (
-                      <select
-                        className="row-edit-input"
-                        value={editingDraft.market}
-                        onChange={(e) =>
+                      <MarketsMultiSelect
+                        value={editingDraft.markets}
+                        onChange={(next) =>
                           setEditingDraft((draft) =>
-                            draft ? { ...draft, market: e.target.value } : draft
+                            draft ? { ...draft, markets: next } : draft
                           )
                         }
-                        aria-label="Market"
+                        options={existingMarkets}
                         disabled={savingEdit}
-                      >
-                        <option value="">(no market)</option>
-                        {existingMarkets.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                      />
+                    ) : company.markets.length > 0 ? (
+                      <span className="market-chip-list">
+                        {company.markets.map((tag) => (
+                          <span key={tag} className="market-chip">
+                            {tag}
+                          </span>
                         ))}
-                        {editingDraft.market &&
-                        !existingMarkets.includes(editingDraft.market) ? (
-                          <option value={editingDraft.market}>
-                            {editingDraft.market}
-                          </option>
-                        ) : null}
-                      </select>
-                    ) : company.market ? (
-                      company.market
+                      </span>
                     ) : (
                       <span className="dim">-</span>
                     )}
@@ -2066,5 +1900,186 @@ export default function AdminHomePage() {
         </div>
       ) : null}
     </main>
+  );
+}
+
+/**
+ * Plain multi-select dropdown for picking one or more category tags.
+ *
+ * The trigger button mimics a native `<select>` and shows a short
+ * summary of what is selected. Opening it reveals a checkbox list of
+ * every known category plus a small "Add custom…" footer for one-off
+ * tags. The list is the union of (a) all categories already used by
+ * any company and (b) whatever is currently selected, so a freshly
+ * added custom tag stays visible until it is unchecked.
+ */
+function MarketsMultiSelect({
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder = "Choose categories"
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  options: string[];
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const valueSet = useMemo(
+    () => new Set(value.map((v) => v.toLowerCase())),
+    [value]
+  );
+
+  const allOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const opt of options) {
+      const lower = opt.trim().toLowerCase();
+      if (lower) set.add(lower);
+    }
+    for (const v of value) {
+      const lower = v.trim().toLowerCase();
+      if (lower) set.add(lower);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [options, value]);
+
+  useEffect(() => {
+    function onDocumentMouseDown(event: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setAdding("");
+      }
+    }
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentMouseDown);
+    };
+  }, []);
+
+  function toggle(tag: string) {
+    const lower = tag.trim().toLowerCase();
+    if (!lower) return;
+    if (valueSet.has(lower)) {
+      onChange(value.filter((v) => v.toLowerCase() !== lower));
+    } else {
+      onChange([...value, lower]);
+    }
+  }
+
+  function addCustom() {
+    const lower = adding.trim().toLowerCase();
+    if (!lower) {
+      return;
+    }
+    if (!valueSet.has(lower)) {
+      onChange([...value, lower]);
+    }
+    setAdding("");
+  }
+
+  // Keep the trigger compact: show the first one or two tags and
+  // a "+N" overflow indicator so a brand with five categories
+  // doesn't blow out the form row's width.
+  const summary =
+    value.length === 0
+      ? placeholder
+      : value.length === 1
+        ? value[0]
+        : value.length === 2
+          ? `${value[0]}, ${value[1]}`
+          : `${value[0]}, ${value[1]} +${value.length - 2}`;
+
+  return (
+    <div className="markets-select" ref={wrapRef}>
+      <button
+        type="button"
+        className={`markets-select-trigger${value.length === 0 ? " is-empty" : ""}`}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((prev) => !prev);
+        }}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="markets-select-value">{summary}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={`markets-select-chevron${open ? " is-open" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          className="markets-select-popover"
+          role="listbox"
+          aria-multiselectable="true"
+        >
+          <div className="markets-select-list">
+            {allOptions.length === 0 ? (
+              <div className="markets-select-empty">
+                No categories yet — add one below.
+              </div>
+            ) : (
+              allOptions.map((option) => {
+                const checked = valueSet.has(option);
+                return (
+                  <label
+                    key={option}
+                    className="markets-select-row"
+                    role="option"
+                    aria-selected={checked}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(option)}
+                    />
+                    <span>{option}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="markets-select-add">
+            <input
+              type="text"
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustom();
+                }
+              }}
+              placeholder="Add custom category…"
+              aria-label="Add custom category"
+            />
+            <button
+              type="button"
+              onClick={addCustom}
+              disabled={adding.trim().length === 0}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

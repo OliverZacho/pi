@@ -121,7 +121,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -323,7 +323,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, market, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -365,14 +365,15 @@ export async function getCompanyDetailFromDb(
 }
 
 /**
- * Patches the editable fields on a company (name / domain / market).
+ * Patches the editable fields on a company (name / domain / markets).
  *
  * Only the keys provided in `updates` are touched, so callers can ship
  * partial edits from the admin UI without round-tripping the entire
  * record. Domain is normalised to lower-case to keep the
  * `companies_domain_unique` index happy — the same normalisation we do on
- * insert in `createCompanySubscriptionInDb`. Market is lower-cased and
- * coerced to `null` when blank.
+ * insert in `createCompanySubscriptionInDb`. Markets are lower-cased,
+ * trimmed, and de-duplicated; an empty list clears the company's
+ * categorisation entirely.
  *
  * Throws `CompanyNotFoundError` if the row is missing or already
  * soft-deleted. Postgres unique-violation errors (code `23505`) bubble up
@@ -382,9 +383,9 @@ export async function getCompanyDetailFromDb(
 export async function updateCompanyInDb(
   supabase: PirolDb,
   companyId: string,
-  updates: { name?: string; domain?: string; market?: string | null }
+  updates: { name?: string; domain?: string; markets?: string[] }
 ): Promise<CompanySubscription> {
-  const patch: { name?: string; domain?: string; market?: string | null } = {};
+  const patch: { name?: string; domain?: string; markets?: string[] } = {};
 
   if (typeof updates.name === "string") {
     const trimmed = updates.name.trim();
@@ -402,13 +403,8 @@ export async function updateCompanyInDb(
     patch.domain = trimmed;
   }
 
-  if (updates.market !== undefined) {
-    if (updates.market === null) {
-      patch.market = null;
-    } else {
-      const trimmed = updates.market.trim().toLowerCase();
-      patch.market = trimmed.length > 0 ? trimmed : null;
-    }
+  if (updates.markets !== undefined) {
+    patch.markets = normalizeMarkets(updates.markets);
   }
 
   if (Object.keys(patch).length === 0) {
@@ -421,7 +417,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, market, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -471,7 +467,7 @@ type CompanyRow = {
   id: string;
   name: string;
   domain: string;
-  market: string | null;
+  markets: string[] | null;
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
@@ -544,7 +540,7 @@ async function resolveCompanyLogos(
       id: company.id,
       name: company.name,
       domain: company.domain,
-      market: company.market,
+      markets: company.markets,
       subscriptionEmail: company.subscriptionEmail,
       inboxes: company.inboxes,
       subscribedAt: company.subscribedAt,
@@ -597,7 +593,7 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     id: row.id,
     name: row.name,
     domain: row.domain,
-    market: row.market ?? null,
+    markets: normalizeStoredMarkets(row.markets),
     subscriptionEmail: primaryInbox,
     inboxes,
     subscribedAt: row.subscribed_since,
@@ -608,6 +604,40 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     __logoStoragePath: row.logo_storage_path ?? null
   };
   return base;
+}
+
+/**
+ * Sanitises an incoming list of market tags before we write it back to
+ * `companies.markets`. Tags are trimmed, lower-cased, de-duplicated, and
+ * empty strings are dropped. Anything that isn't a string is filtered out
+ * so a malformed payload can't sneak garbage past the API layer.
+ */
+function normalizeMarkets(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of input) {
+    if (typeof item !== "string") continue;
+    const cleaned = item.trim().toLowerCase();
+    if (!cleaned) continue;
+    if (seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+/**
+ * Defensive read for the array we get back from Postgres. The column is
+ * `text[] not null default '{}'`, so under normal conditions this is just
+ * `row.markets ?? []` — but we still strip out any non-string entries
+ * defensively in case a hand-edited row contains garbage.
+ */
+function normalizeStoredMarkets(input: string[] | null | undefined): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter(
+    (value): value is string => typeof value === "string" && value.length > 0
+  );
 }
 
 function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
@@ -694,13 +724,12 @@ export async function createCompanySubscriptionInDb(
   input: {
     name: string;
     domain: string;
-    market?: string | null;
+    markets?: string[];
   }
 ): Promise<CompanySubscription> {
   const normalizedName = input.name.trim();
   const normalizedDomain = input.domain.trim().toLowerCase();
-  const normalizedMarket = input.market?.trim().toLowerCase();
-  const marketValue = normalizedMarket && normalizedMarket.length > 0 ? normalizedMarket : null;
+  const marketsValue = normalizeMarkets(input.markets);
 
   const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
@@ -717,8 +746,8 @@ export async function createCompanySubscriptionInDb(
 
   const { data: company, error: companyError } = await supabase
     .from("companies")
-    .insert({ name: normalizedName, domain: normalizedDomain, market: marketValue })
-    .select("id, name, domain, market, subscribed_since")
+    .insert({ name: normalizedName, domain: normalizedDomain, markets: marketsValue })
+    .select("id, name, domain, markets, subscribed_since")
     .single();
 
   if (companyError) {
@@ -746,7 +775,7 @@ export async function createCompanySubscriptionInDb(
     id: company.id,
     name: company.name,
     domain: company.domain,
-    market: company.market ?? null,
+    markets: normalizeStoredMarkets(company.markets),
     subscriptionEmail,
     inboxes: [
       {

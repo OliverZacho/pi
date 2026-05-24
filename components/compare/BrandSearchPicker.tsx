@@ -15,7 +15,12 @@ import v2 from "./compare-v2.module.css";
 export type BrandSearchOption = {
   id: string;
   name: string;
-  market: string | null;
+  /**
+   * All categories tagged on the brand. The picker only renders the
+   * first one to keep each row compact, but the parent caches the full
+   * list so chip displays elsewhere can show every category.
+   */
+  markets: string[];
   logoUrl: string | null;
 };
 
@@ -106,14 +111,25 @@ export default function BrandSearchPicker({
           items: {
             id: string;
             name: string;
-            market: string | null;
+            markets?: string[] | null;
             logoUrl: string | null;
           }[];
         };
         if (seq !== requestSeq.current) return;
-        setResults(body.items);
+        const items: BrandSearchOption[] = body.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          markets: Array.isArray(item.markets)
+            ? item.markets.filter(
+                (value): value is string =>
+                  typeof value === "string" && value.length > 0
+              )
+            : [],
+          logoUrl: item.logoUrl
+        }));
+        setResults(items);
         if (onBrandSeen) {
-          for (const brand of body.items) {
+          for (const brand of items) {
             onBrandSeen(brand);
           }
         }
@@ -263,9 +279,12 @@ export default function BrandSearchPicker({
                   )}
                 </span>
                 <span className={v2.searchRowName}>{brand.name}</span>
-                {brand.market ? (
+                {brand.markets.length > 0 ? (
                   <span className={v2.searchRowMarket}>
-                    {formatMarketLabel(brand.market)}
+                    {formatMarketLabel(brand.markets[0])}
+                    {brand.markets.length > 1
+                      ? ` +${brand.markets.length - 1}`
+                      : ""}
                   </span>
                 ) : null}
                 {isAlreadySelected ? (

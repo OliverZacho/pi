@@ -34,7 +34,13 @@ export type BrandPageData = {
     id: string;
     name: string;
     domain: string | null;
-    market: string | null;
+    /**
+     * Pretty-cased category labels (e.g. `["Fashion", "Ecommerce"]`) for
+     * the brand's markets, sorted in storage order. Empty when the brand
+     * is uncategorised. Display-friendly so the dashboard can render the
+     * pills without doing its own slug-to-label dance.
+     */
+    markets: string[];
     logoUrl: string | null;
     subscribedSince: string;
     subscriptionEmail: string | null;
@@ -180,7 +186,7 @@ type CompanyRow = {
   id: string;
   name: string;
   domain: string;
-  market: string | null;
+  markets: string[] | null;
   subscribed_since: string;
   logo_storage_path: string | null;
   deleted_at: string | null;
@@ -249,7 +255,7 @@ export async function getBrandPageData(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, market, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -299,13 +305,14 @@ export async function getBrandPageData(
     design.palette.length > 0
       ? pickBrandAccent(design.palette)
       : defaultBrandAccent();
+  const rawMarkets = Array.isArray(companyRow.markets) ? companyRow.markets : [];
   const recentEmails = mapRecentEmails(
     emailRows.slice(0, RECENT_CARD_COUNT),
     {
       companyId: companyRow.id,
       companyName: companyRow.name,
       companyDomain: companyRow.domain,
-      companyMarket: companyRow.market,
+      companyMarkets: rawMarkets,
       companyLogoUrl: logoUrl
     }
   );
@@ -315,9 +322,7 @@ export async function getBrandPageData(
       id: companyRow.id,
       name: companyRow.name,
       domain: companyRow.domain,
-      market: companyRow.market
-        ? formatMarketLabel(companyRow.market)
-        : null,
+      markets: rawMarkets.map(formatMarketLabel),
       logoUrl,
       subscribedSince: companyRow.subscribed_since,
       subscriptionEmail: primaryInbox,
@@ -851,7 +856,7 @@ function mapRecentEmails(
     companyId: string;
     companyName: string;
     companyDomain: string | null;
-    companyMarket: string | null;
+    companyMarkets: string[];
     companyLogoUrl: string | null;
   }
 ): ExploreEmailCard[] {
@@ -862,7 +867,7 @@ function mapRecentEmails(
     companyId: brand.companyId,
     companyName: brand.companyName,
     companyDomain: brand.companyDomain,
-    companyMarket: brand.companyMarket,
+    companyMarkets: brand.companyMarkets,
     companyLogoUrl: brand.companyLogoUrl,
     receivedAt: row.received_at,
     category: row.category,
