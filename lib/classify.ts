@@ -143,8 +143,8 @@ async function classifyWithAnthropic(
       "discount_amount: a fixed-amount discount in the email's currency, null if not a fixed amount. " +
       "currency: 3-letter ISO code (e.g. USD, EUR, GBP, DKK) when an amount or price is shown, else null. " +
       "promo_code: the literal promo/coupon code (e.g. SPRING25), null if none. " +
-      "primary_cta_text: the visible label of the most prominent call-to-action button. " +
-      "primary_cta_url_hint: the URL or domain of that CTA when known, else null.",
+      "primary_cta_text: the visible label of the email's main call-to-action — the link or button the brand most wants the reader to click. This is usually a short imperative phrase ('Shop now', 'Explore Hippo Chair', 'Find resellers', 'Explore our Instagram', 'Read the story', 'Sign me up'). Pick the most prominent action link even when the email is editorial or content-focused and the link is styled as plain text rather than a button — if the email has any clear action target, return its label rather than null. Return null only when the email truly has no action link (e.g. a pure visual teaser). " +
+      "primary_cta_url_hint: the destination URL (or domain) that the CTA points to when visible in the email body. Return the destination link as it appears in the body even when the brand also routes clicks through a tracking redirect; null when no destination is shown.",
     tools: [
       {
         name: "classify_email",

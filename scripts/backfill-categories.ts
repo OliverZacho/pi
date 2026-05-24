@@ -12,6 +12,8 @@
  *   --dry-run         Don't write anything, just print the new assignments.
  *   --only=<cat>      Only consider rows currently in category <cat> (repeatable
  *                     by passing --only multiple times). Defaults to every row.
+ *   --company=<id>    Only re-classify rows belonging to <id> (the
+ *                     captured_emails.company_id). Repeatable.
  *   --include-manual  Re-classify rows whose classification_source = 'manual'.
  *                     Off by default — manual overrides are preserved.
  *   --limit=<n>       Process at most <n> rows. Useful for spot-checks.
@@ -22,6 +24,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { classifyEmail } from "../lib/classify";
+import { extractLinks } from "../lib/extract-metadata";
+import { resolvePrimaryCtaUrl } from "../lib/ingest-processor";
 import type { Database } from "../types/supabase";
 
 type Row = {
@@ -31,12 +35,14 @@ type Row = {
   plain_text: string | null;
   category: string;
   classification_source: string;
+  company_id: string | null;
 };
 
 type CliOptions = {
   dryRun: boolean;
   includeManual: boolean;
   onlyCategories: Set<string> | null;
+  onlyCompanies: Set<string> | null;
   limit: number | null;
   concurrency: number;
 };
@@ -46,6 +52,7 @@ function parseArgs(argv: string[]): CliOptions {
     dryRun: false,
     includeManual: false,
     onlyCategories: null,
+    onlyCompanies: null,
     limit: null,
     concurrency: 2
   };
@@ -61,6 +68,14 @@ function parseArgs(argv: string[]): CliOptions {
         opts.onlyCategories = new Set();
       }
       opts.onlyCategories.add(value);
+    } else if (raw.startsWith("--company=")) {
+      const value = raw.slice("--company=".length).trim();
+      if (value) {
+        if (!opts.onlyCompanies) {
+          opts.onlyCompanies = new Set();
+        }
+        opts.onlyCompanies.add(value);
+      }
     } else if (raw.startsWith("--limit=")) {
       const value = Number.parseInt(raw.slice("--limit=".length), 10);
       if (Number.isFinite(value) && value > 0) {
@@ -172,6 +187,15 @@ async function processRow(
     };
   }
 
+  // Re-resolve primary_cta_url from the LLM hint against the email's hrefs.
+  // This recovers destination URLs for senders whose `<a href>`s are wrapped
+  // in click-trackers (Klaviyo, Mailchimp list-manage, …): the destination
+  // only appears in the text/plain part the LLM sees, so on the original
+  // ingest we'd silently drop it. resolvePrimaryCtaUrl now keeps the hint
+  // URL itself when no HTML href matches.
+  const htmlLinks = extractLinks(row.html_content ?? "");
+  const primaryCtaUrl = resolvePrimaryCtaUrl(result.primaryCtaUrlHint ?? null, htmlLinks);
+
   const { error } = await supabase
     .from("captured_emails")
     .update({
@@ -184,7 +208,8 @@ async function processRow(
       discount_amount: result.discountAmount ?? null,
       currency: result.currency ?? null,
       promo_code: result.promoCode ?? null,
-      primary_cta_text: result.primaryCtaText ?? null
+      primary_cta_text: result.primaryCtaText ?? null,
+      primary_cta_url: primaryCtaUrl
     })
     .eq("id", row.id);
 
@@ -232,11 +257,17 @@ async function main(): Promise<void> {
 
   let query = supabase
     .from("captured_emails")
-    .select("id, subject, html_content, plain_text, category, classification_source")
+    .select(
+      "id, subject, html_content, plain_text, category, classification_source, company_id"
+    )
     .order("received_at", { ascending: false });
 
   if (opts.onlyCategories && opts.onlyCategories.size > 0) {
     query = query.in("category", Array.from(opts.onlyCategories));
+  }
+
+  if (opts.onlyCompanies && opts.onlyCompanies.size > 0) {
+    query = query.in("company_id", Array.from(opts.onlyCompanies));
   }
 
   if (opts.limit) {
@@ -256,6 +287,9 @@ async function main(): Promise<void> {
   );
   if (opts.onlyCategories) {
     console.log(`  only categories: ${[...opts.onlyCategories].join(", ")}`);
+  }
+  if (opts.onlyCompanies) {
+    console.log(`  only companies:  ${[...opts.onlyCompanies].join(", ")}`);
   }
 
   let updated = 0;
