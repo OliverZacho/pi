@@ -15,7 +15,12 @@ import {
   type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
-import { getSignedAssets, getSignedHtml } from "./storage";
+import {
+  BRAND_LOGO_TRANSFORM,
+  getSignedAssets,
+  getSignedHtml,
+  type ImageTransform
+} from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
 import type { Database, Json } from "@/types/supabase";
 
@@ -157,9 +162,21 @@ export async function getOverviewFromDb(
   };
 }
 
+export type GetEmailDetailOptions = {
+  /**
+   * Optional Supabase Storage image transform applied to every mirrored
+   * image URL in the returned detail. The card-grid render endpoint
+   * passes `{ width: 600, quality: 70 }` so iframes ship downscaled,
+   * re-encoded variants; the modal omits this and gets the full-fidelity
+   * originals.
+   */
+  imageTransform?: ImageTransform;
+};
+
 export async function getEmailDetailFromDb(
   supabase: PirolDb,
-  emailId: string
+  emailId: string,
+  options: GetEmailDetailOptions = {}
 ): Promise<CapturedEmailDetail | null> {
   const { data, error } = await supabase
     .from("captured_emails")
@@ -181,7 +198,7 @@ export async function getEmailDetailFromDb(
 
   const [htmlSignedUrl, signedAssets] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    getSignedAssets(imagePaths)
+    getSignedAssets(imagePaths, { transform: options.imageTransform })
   ]);
 
   return {
@@ -528,7 +545,10 @@ async function resolveCompanyLogos(
   }
 
   const allPaths = Array.from(new Set(storagePathsByCompanyId.values()));
-  const signed = allPaths.length > 0 ? await getSignedAssets(allPaths) : {};
+  const signed =
+    allPaths.length > 0
+      ? await getSignedAssets(allPaths, { transform: BRAND_LOGO_TRANSFORM })
+      : {};
 
   return companies.map((company) => {
     const raw = company as CompanyWithRawLogo;

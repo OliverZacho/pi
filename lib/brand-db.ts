@@ -17,7 +17,7 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
-import { getSignedAssets } from "./storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -276,7 +276,9 @@ export async function getBrandPageData(
   const emailRows: EmailRow[] = (emailRowsRaw ?? []) as EmailRow[];
 
   const logoPath = companyRow.logo_storage_path ?? null;
-  const signed = logoPath ? await getSignedAssets([logoPath]) : {};
+  const signed = logoPath
+    ? await getSignedAssets([logoPath], { transform: BRAND_LOGO_TRANSFORM })
+    : {};
   const logoUrl = logoPath ? signed[logoPath] ?? null : null;
 
   const stats = relationFirst(companyRow.company_email_stats);

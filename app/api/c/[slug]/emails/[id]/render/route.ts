@@ -85,7 +85,15 @@ export async function GET(_request: Request, context: RouteContext) {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "private, no-store, max-age=0",
+      // Public share view: the response depends only on `(slug, id,
+      // variant)`, all of which are part of the URL. Let Vercel's
+      // edge serve repeat hits for a day and keep the stale copy
+      // around for a week while it revalidates. Combined with the
+      // 7-day signed-URL TTL inside the body, this means most
+      // anonymous traffic never touches our origin (or Supabase
+      // Storage egress) at all.
+      "Cache-Control":
+        "public, s-maxage=86400, stale-while-revalidate=604800",
       "Referrer-Policy": "no-referrer"
     }
   });

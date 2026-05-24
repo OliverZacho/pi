@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrandPageData, type BrandPageData } from "./brand-db";
-import { getSignedAssets } from "./storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -401,7 +401,11 @@ async function loadSetBrands(
     }
   }
   const signed =
-    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+    logoPaths.size > 0
+      ? await getSignedAssets(Array.from(logoPaths), {
+          transform: BRAND_LOGO_TRANSFORM
+        })
+      : {};
 
   const brands: CompetitorSetBrand[] = [];
   for (const row of rows) {

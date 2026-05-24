@@ -13,7 +13,7 @@ import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
 import CompareLandingClient from "@/components/compare/CompareLandingClient";
 import styles from "@/components/compare/compare.module.css";
-import { getSignedAssets } from "@/lib/storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 
 export const metadata = {
   title: "Compare — Pirol"
@@ -109,7 +109,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
       }
     }
     const signed =
-      logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+      logoPaths.size > 0
+        ? await getSignedAssets(Array.from(logoPaths), {
+            transform: BRAND_LOGO_TRANSFORM
+          })
+        : {};
 
     for (const row of rows) {
       const company = Array.isArray(row.companies)

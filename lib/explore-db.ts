@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSignedAssets } from "./storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
 export type ExploreEmailCard = {
@@ -77,7 +77,12 @@ export type ExploreFacets = {
   categories: string[];
 };
 
-export const EXPLORE_PAGE_SIZE = 36;
+// 24 cards per page (3 cols x 8 rows, or 4 cols x 6 rows depending on
+// viewport) keeps the per-page asset fan-out manageable. Each card is an
+// iframe that downloads the full email body's images from Supabase
+// Storage on the cold-cache path, so trimming this number directly
+// reduces our Storage Egress.
+export const EXPLORE_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 96;
 
 /**
@@ -270,7 +275,11 @@ export async function searchExploreEmails(
     }
   }
   const signed =
-    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+    logoPaths.size > 0
+      ? await getSignedAssets(Array.from(logoPaths), {
+          transform: BRAND_LOGO_TRANSFORM
+        })
+      : {};
 
   const items: ExploreEmailCard[] = rows.map((row) => {
     const company = pickCompany(row.companies);
@@ -317,12 +326,15 @@ export async function getExploreFacets(
   // gives us markets at no extra cost.
   const { data: emailRows, error: emailError } = await supabase
     .from("captured_emails")
-    .select("category, company_id, companies!inner(id, name, markets, logo_storage_path)")
+    // `logo_storage_path` deliberately omitted: facets don't render
+    // logos, so we save the DB round-trip column and the downstream
+    // signed-URL fan-out.
+    .select("category, company_id, companies!inner(id, name, markets)")
     .limit(10000);
 
   if (emailError) throw emailError;
 
-  const brandMap = new Map<string, ExploreBrandFacet & { logoPath: string | null }>();
+  const brandMap = new Map<string, ExploreBrandFacet>();
   const marketSet = new Set<string>();
   const categorySet = new Set<string>();
 
@@ -333,31 +345,26 @@ export async function getExploreFacets(
       const companyMarkets = normalizeCompanyMarkets(company.markets);
       for (const market of companyMarkets) marketSet.add(market);
       if (!brandMap.has(company.id)) {
+        // We deliberately do NOT resolve logo signed URLs for facet
+        // entries. The facet dropdown can render hundreds of brands;
+        // batch-signing every one of them issues a signed URL (and a
+        // resulting Storage GET when the user opens the dropdown) for
+        // logos the user may never actually see. The grid cards
+        // already carry their own logo URLs from `searchExploreEmails`,
+        // which is the only place a logo actually renders today.
         brandMap.set(company.id, {
           id: company.id,
           name: company.name,
           markets: companyMarkets,
-          logoUrl: null,
-          logoPath: company.logo_storage_path ?? null
+          logoUrl: null
         });
       }
     }
   }
 
-  const logoPaths = Array.from(brandMap.values())
-    .map((b) => b.logoPath)
-    .filter((p): p is string => Boolean(p));
-  const signed =
-    logoPaths.length > 0 ? await getSignedAssets(logoPaths) : {};
-
-  const brands: ExploreBrandFacet[] = Array.from(brandMap.values())
-    .map(({ logoPath, ...rest }) => ({
-      ...rest,
-      logoUrl: logoPath ? signed[logoPath] ?? null : null
-    }))
-    .sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-    );
+  const brands: ExploreBrandFacet[] = Array.from(brandMap.values()).sort(
+    (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
 
   const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
   const categories = Array.from(categorySet).sort((a, b) => a.localeCompare(b));

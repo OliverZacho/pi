@@ -19,6 +19,7 @@ vi.mock("@/lib/supabase-admin", () => ({
 import {
   EMAIL_ASSETS_BUCKET,
   EMAIL_HTML_BUCKET,
+  __resetSignedUrlCacheForTests,
   getSignedAssets,
   getSignedHtml,
   mirrorRemoteImages,
@@ -30,6 +31,12 @@ beforeEach(() => {
   createSignedUrlMock.mockReset();
   createSignedUrlsMock.mockReset();
   fromMock.mockClear();
+  // The signed-URL helpers memoise per-process so the same path returns
+  // the same URL across calls (which is the whole point — it lets the
+  // browser cache do its job). Reset between tests so cases that re-use
+  // the same storage path see a clean slate and don't unexpectedly hit
+  // the cache populated by an earlier test.
+  __resetSignedUrlCacheForTests();
 });
 
 afterEach(() => {
@@ -172,5 +179,47 @@ describe("signed url helpers", () => {
   it("returns an empty object when given no paths", async () => {
     expect(await getSignedAssets([])).toEqual({});
     expect(createSignedUrlsMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to un-transformed signed URLs for SVG/ICO when a transform is requested", async () => {
+    // The transformable PNG goes through the singular createSignedUrl
+    // (which is the only path that accepts a `transform` option), and
+    // the SVG / ICO drop into a batch createSignedUrls call without
+    // the transform — otherwise Supabase's imgproxy layer 4xx's them
+    // and the surrounding email layout collapses.
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: { signedUrl: "https://signed.example.com/png" },
+      error: null
+    });
+    createSignedUrlsMock.mockResolvedValueOnce({
+      data: [
+        { path: "email-1/logo.svg", signedUrl: "https://signed.example.com/svg" },
+        { path: "email-1/fav.ico", signedUrl: "https://signed.example.com/ico" }
+      ],
+      error: null
+    });
+
+    const map = await getSignedAssets(
+      ["email-1/hero.png", "email-1/logo.svg", "email-1/fav.ico"],
+      { transform: { width: 600, quality: 70 } }
+    );
+
+    expect(map).toEqual({
+      "email-1/hero.png": "https://signed.example.com/png",
+      "email-1/logo.svg": "https://signed.example.com/svg",
+      "email-1/fav.ico": "https://signed.example.com/ico"
+    });
+
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
+    expect(createSignedUrlMock).toHaveBeenCalledWith(
+      "email-1/hero.png",
+      expect.any(Number),
+      expect.objectContaining({ transform: { width: 600, quality: 70 } })
+    );
+    expect(createSignedUrlsMock).toHaveBeenCalledTimes(1);
+    expect(createSignedUrlsMock).toHaveBeenCalledWith(
+      ["email-1/logo.svg", "email-1/fav.ico"],
+      expect.any(Number)
+    );
   });
 });

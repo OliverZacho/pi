@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
-import { getSignedAssets } from "./storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -920,7 +920,11 @@ export async function evaluateCollectionRules(
     }
   }
   const signed =
-    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+    logoPaths.size > 0
+      ? await getSignedAssets(Array.from(logoPaths), {
+          transform: BRAND_LOGO_TRANSFORM
+        })
+      : {};
 
   const cards: ExploreEmailCard[] = [];
   for (const row of rows) {
@@ -1266,7 +1270,11 @@ async function loadCollectionEmails(
     }
   }
   const signed =
-    logoPaths.size > 0 ? await getSignedAssets(Array.from(logoPaths)) : {};
+    logoPaths.size > 0
+      ? await getSignedAssets(Array.from(logoPaths), {
+          transform: BRAND_LOGO_TRANSFORM
+        })
+      : {};
 
   const cards: ExploreEmailCard[] = [];
   for (const row of rows) {
