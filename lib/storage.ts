@@ -31,6 +31,37 @@ const SIGNED_URL_REFRESH_BUFFER_MS = 24 * 60 * 60 * 1000;
 
 const EMAIL_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
+/**
+ * Public-CDN base URL for the `email-assets` bucket. When set, every
+ * caller of `getSignedAssets` gets back a `https://<cdn>/storage/v1/
+ * object/public/email-assets/<path>` URL instead of a signed URL,
+ * which means:
+ *
+ *   - No Supabase round-trip to mint signatures (createSignedUrls is
+ *     skipped entirely).
+ *   - Cloudflare's edge cache can dedupe across viewers (signed URLs
+ *     can't — their per-request token varies the cache key).
+ *   - The signed-URL in-process memoisation cache stops being a
+ *     bottleneck for cold instances.
+ *
+ * Safe because `email-assets` paths are content-addressed by SHA-1
+ * (see `mirrorRemoteImages`) so they're unguessable in practice, and
+ * the bucket is configured `public = true` server-side.
+ *
+ * Unset locally (no `.env.local` entry) → falls back to the signed
+ * URL path so dev against a private bucket / local Supabase keeps
+ * working unchanged.
+ *
+ * `email-html` is *not* affected by this — `getSignedHtml` always
+ * mints a signed URL because that bucket stays private.
+ */
+const PUBLIC_ASSET_CDN_BASE_URL =
+  process.env.NEXT_PUBLIC_ASSET_CDN_URL?.replace(/\/+$/, "") || null;
+
+function publicAssetUrl(path: string): string {
+  return `${PUBLIC_ASSET_CDN_BASE_URL}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
+}
+
 export type ImageTransform = {
   width: number;
   height?: number;
@@ -259,6 +290,20 @@ export async function getSignedAssets(
 ): Promise<Record<string, string>> {
   if (paths.length === 0) {
     return {};
+  }
+
+  // Public-CDN short-circuit. When `NEXT_PUBLIC_ASSET_CDN_URL` is
+  // set, the `email-assets` bucket is being served as a public
+  // bucket behind Cloudflare, so we can skip `createSignedUrls`
+  // entirely and hand callers the deterministic public URL. This is
+  // O(n) string concat with no Supabase round-trip and no signed-URL
+  // memoisation cost. Transform handling stays a no-op for the same
+  // reason it's a no-op below (see the comment block).
+  if (PUBLIC_ASSET_CDN_BASE_URL) {
+    void options.transform;
+    const out: Record<string, string> = {};
+    for (const path of paths) out[path] = publicAssetUrl(path);
+    return out;
   }
 
   // ⚠️ Image transformations are DISABLED at the storage layer.

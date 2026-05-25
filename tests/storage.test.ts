@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The CDN short-circuit in `getSignedAssets` is gated by
+// `process.env.NEXT_PUBLIC_ASSET_CDN_URL`, which is read at module
+// load time. Keep it unset for the default test suite — individual
+// CDN tests use `vi.resetModules` + a scoped env var so they can
+// import a fresh copy of the module that picks the new value up.
+delete process.env.NEXT_PUBLIC_ASSET_CDN_URL;
+
 const uploadMock = vi.fn();
 const createSignedUrlMock = vi.fn();
 const createSignedUrlsMock = vi.fn();
@@ -216,5 +223,70 @@ describe("signed url helpers", () => {
       ["email-1/hero.png", "email-1/logo.svg", "email-1/fav.ico"],
       expect.any(Number)
     );
+  });
+});
+
+describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
+  // These tests exercise the public-CDN short-circuit, which is
+  // gated by a module-load-time env var. `vi.resetModules` makes the
+  // dynamic `import()` below re-evaluate `lib/storage.ts` with the
+  // env var in place, so we don't have to plumb the value through a
+  // setter on the production module.
+  const realEnv = process.env.NEXT_PUBLIC_ASSET_CDN_URL;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (realEnv === undefined) {
+      delete process.env.NEXT_PUBLIC_ASSET_CDN_URL;
+    } else {
+      process.env.NEXT_PUBLIC_ASSET_CDN_URL = realEnv;
+    }
+    vi.resetModules();
+  });
+
+  it("returns public CDN URLs and never calls createSignedUrls", async () => {
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app";
+    const storage = await import("@/lib/storage");
+
+    const map = await storage.getSignedAssets([
+      "email-1/aaa.png",
+      "email-1/bbb.jpg"
+    ]);
+
+    expect(map).toEqual({
+      "email-1/aaa.png":
+        "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/aaa.png",
+      "email-1/bbb.jpg":
+        "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/bbb.jpg"
+    });
+    expect(createSignedUrlsMock).not.toHaveBeenCalled();
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a trailing slash on the env var", async () => {
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app//";
+    const storage = await import("@/lib/storage");
+
+    const map = await storage.getSignedAssets(["email-1/x.png"]);
+
+    // Single slash between origin and path — would otherwise hit a
+    // double-slash URL that Supabase happens to accept today but
+    // would be a subtle hazard for future cache-key rules at the
+    // edge.
+    expect(map["email-1/x.png"]).toBe(
+      "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/x.png"
+    );
+  });
+
+  it("still returns {} for an empty input even when the CDN is configured", async () => {
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app";
+    const storage = await import("@/lib/storage");
+
+    expect(await storage.getSignedAssets([])).toEqual({});
+    expect(createSignedUrlsMock).not.toHaveBeenCalled();
   });
 });
