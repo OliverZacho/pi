@@ -261,7 +261,25 @@ export async function getSignedAssets(
     return {};
   }
 
-  const transform = options.transform;
+  // ⚠️ Image transformations are DISABLED at the storage layer.
+  //
+  // Supabase Storage's image transformation pipeline (imgproxy) is
+  // metered per unique `(path, transform)` pair. The current plan
+  // includes 100 transformations/month and we blew past 500% of that
+  // by minting transformed URLs for every brand logo on the Explore
+  // / Collections / Compare grids (one per unique logo, forever).
+  //
+  // Until we either (a) upgrade to a usage-based plan, (b) move
+  // resizing to a CDN/Vercel image loader, or (c) pre-bake thumbnails
+  // at capture time, force every caller through the plain
+  // `object/sign` path even when they pass `transform: ...`. The
+  // option still type-checks so the existing call sites compile —
+  // it's just a no-op. To re-enable: delete this override and the
+  // surrounding comment block, and audit which call sites really
+  // need a transform vs. a one-time pre-baked thumbnail.
+  const transform: ImageTransform | undefined = undefined;
+  void options.transform;
+
   const result: Record<string, string> = {};
 
   // Split into "transformable" (PNG/JPEG/WebP/AVIF/GIF/HEIC) and

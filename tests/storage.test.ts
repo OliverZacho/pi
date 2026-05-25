@@ -181,18 +181,18 @@ describe("signed url helpers", () => {
     expect(createSignedUrlsMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to un-transformed signed URLs for SVG/ICO when a transform is requested", async () => {
-    // The transformable PNG goes through the singular createSignedUrl
-    // (which is the only path that accepts a `transform` option), and
-    // the SVG / ICO drop into a batch createSignedUrls call without
-    // the transform — otherwise Supabase's imgproxy layer 4xx's them
-    // and the surrounding email layout collapses.
-    createSignedUrlMock.mockResolvedValueOnce({
-      data: { signedUrl: "https://signed.example.com/png" },
-      error: null
-    });
+  it("ignores the transform option and signs every path without transformation", async () => {
+    // Image transformations are disabled at the storage layer (see
+    // the comment in `getSignedAssets`) because Supabase meters them
+    // per unique (path, transform) pair and we blew past the
+    // included quota. Until the kill switch flips back on, callers
+    // can still pass `transform: ...` for forward-compat, but every
+    // path must go through a single un-transformed `createSignedUrls`
+    // batch — no `createSignedUrl` with `{ transform }`, no per-path
+    // fan-out.
     createSignedUrlsMock.mockResolvedValueOnce({
       data: [
+        { path: "email-1/hero.png", signedUrl: "https://signed.example.com/png" },
         { path: "email-1/logo.svg", signedUrl: "https://signed.example.com/svg" },
         { path: "email-1/fav.ico", signedUrl: "https://signed.example.com/ico" }
       ],
@@ -210,15 +210,10 @@ describe("signed url helpers", () => {
       "email-1/fav.ico": "https://signed.example.com/ico"
     });
 
-    expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
-    expect(createSignedUrlMock).toHaveBeenCalledWith(
-      "email-1/hero.png",
-      expect.any(Number),
-      expect.objectContaining({ transform: { width: 600, quality: 70 } })
-    );
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
     expect(createSignedUrlsMock).toHaveBeenCalledTimes(1);
     expect(createSignedUrlsMock).toHaveBeenCalledWith(
-      ["email-1/logo.svg", "email-1/fav.ico"],
+      ["email-1/hero.png", "email-1/logo.svg", "email-1/fav.ico"],
       expect.any(Number)
     );
   });
