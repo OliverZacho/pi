@@ -12,8 +12,7 @@ type NavId =
   | "saved"
   | "brands"
   | "collections"
-  | "compare"
-  | "more";
+  | "compare";
 
 type NavItem = {
   id: NavId;
@@ -202,25 +201,6 @@ function PlusIcon() {
   );
 }
 
-function PanelToggleIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="9" y1="4" x2="9" y2="20" />
-    </svg>
-  );
-}
-
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
   { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
@@ -231,8 +211,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: <CollectionIcon />,
     href: "/collections"
   },
-  { id: "compare", label: "Compare", icon: <CompareIcon />, href: "/compare" },
-  { id: "more", label: "More", icon: <MoreIcon /> }
+  { id: "compare", label: "Compare", icon: <CompareIcon />, href: "/compare" }
 ];
 
 /**
@@ -467,14 +446,6 @@ export default function ExploreSidebar({
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
         <span className={styles.brandName}>Pirol</span>
-        <button
-          type="button"
-          className={styles.brandToggle}
-          aria-label="Toggle sidebar"
-          tabIndex={-1}
-        >
-          <PanelToggleIcon />
-        </button>
       </div>
 
       <div className={styles.navGroup}>

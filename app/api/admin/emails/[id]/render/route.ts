@@ -56,7 +56,14 @@ export async function GET(request: Request, context: RouteContext) {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "private, no-store, max-age=0",
+      // The embedded image URLs are signed for 7 days and memoised
+      // per-process, so the same render request consistently returns
+      // the same body. We let the browser hold onto it for an hour so
+      // a user scrolling back through Explore (or re-opening the
+      // modal) doesn't re-execute the route. `private` keeps it out
+      // of shared caches since the body still depends on the
+      // authenticated session.
+      "Cache-Control": "private, max-age=3600",
       // The iframe is sandboxed at the host level, but we still set a strict
       // referrer policy to avoid leaking signed urls to remote trackers.
       "Referrer-Policy": "no-referrer"

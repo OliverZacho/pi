@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ESP_LABELS, type EspProvider } from "./admin-types";
-import { getSignedAssets } from "./storage";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -327,7 +327,10 @@ export async function searchBrands(
         .filter((p): p is string => Boolean(p))
     )
   );
-  const signed = logoPaths.length > 0 ? await getSignedAssets(logoPaths) : {};
+  const signed =
+    logoPaths.length > 0
+      ? await getSignedAssets(logoPaths, { transform: BRAND_LOGO_TRANSFORM })
+      : {};
 
   const items: BrandsExploreCard[] = slice.map((row) => {
     const logoUrl = row.logo_storage_path
