@@ -135,11 +135,11 @@ describe("processNextBatch", () => {
     });
     mocks.uploadEmailHtmlMock.mockResolvedValueOnce("em_1.html");
     mocks.mirrorRemoteImagesMock.mockResolvedValueOnce({
-      storedPaths: ["em_1/abc.png"],
+      storedPaths: ["abc.png"],
       stored: [
         {
           remoteUrl: "https://cdn.example.com/banner.png",
-          storagePath: "em_1/abc.png",
+          storagePath: "abc.png",
           contentType: "image/png",
           byteLength: 100
         }
@@ -174,14 +174,14 @@ describe("processNextBatch", () => {
     });
 
     expect(mocks.uploadEmailHtmlMock).toHaveBeenCalledWith("em_1", expect.any(String));
-    expect(mocks.mirrorRemoteImagesMock).toHaveBeenCalledWith("em_1", [
+    expect(mocks.mirrorRemoteImagesMock).toHaveBeenCalledWith([
       "https://cdn.example.com/banner.png"
     ]);
     expect(mocks.storeProcessedEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         resendId: "em_1",
         htmlStoragePath: "em_1.html",
-        imageStoragePaths: ["em_1/abc.png"],
+        imageStoragePaths: ["abc.png"],
         classification: expect.objectContaining({ category: "product_launch", source: "llm" }),
         enrichment: expect.objectContaining({
           hasGif: false,
@@ -192,7 +192,7 @@ describe("processNextBatch", () => {
 
     const storeArgs = mocks.storeProcessedEmailMock.mock.calls[0][0];
     expect(storeArgs.enrichment.metadata.image_mirror_map).toEqual({
-      "https://cdn.example.com/banner.png": "em_1/abc.png"
+      "https://cdn.example.com/banner.png": "abc.png"
     });
 
     expect(mocks.updateMock).toHaveBeenCalledWith(

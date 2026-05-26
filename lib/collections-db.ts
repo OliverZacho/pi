@@ -1121,7 +1121,6 @@ function buildSearchOrParts(term: string, brandIds: string[]): string[] {
   const parts = [
     `subject.ilike.${wrapped}`,
     `preheader.ilike.${wrapped}`,
-    `promo_code.ilike.${wrapped}`,
     `primary_cta_text.ilike.${wrapped}`
   ];
   const safe = brandIds.filter((id) => UUID_PATTERN.test(id));

@@ -302,7 +302,6 @@ export default function SavedGalleryClient({
           if (email.subject?.toLowerCase().includes(q)) return true;
           if (email.preheader?.toLowerCase().includes(q)) return true;
           if (email.companyName?.toLowerCase().includes(q)) return true;
-          if (email.promoCode?.toLowerCase().includes(q)) return true;
           return false;
         })
       : emails;

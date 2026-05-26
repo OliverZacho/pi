@@ -30,6 +30,8 @@ export type EspProvider =
   | "peytzmail"
   | "pure360"
   | "heyloyalty"
+  | "exponea"
+  | "voyado"
   | "unknown";
 
 export type EspSignal = {
@@ -96,22 +98,62 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "klaviyo",
+    // Klaviyo runs two generations of tracking domains side by side:
+    //   - Legacy: `trk.klaviyomail.com`, `email.klaviyomail.com`,
+    //     `go.klaviyo.com`, `klaviyomail.com` (older tenants + transactional)
+    //   - Current: `ctrk.klclick.com` and the bare `klclick.com` (rolled out
+    //     2024-2025 for marketing campaigns; tokens are ULID-shaped, e.g.
+    //     `/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_5` for click links and
+    //     `/o/01KSDRR5A3KQS23S0ADQW8CQ4Z` for the open-tracking pixel).
+    // Image / template assets continue to live on the shared CloudFront
+    // distribution `d3k81ch9hvuctc.cloudfront.net/company/<tenant>/images/…`.
     hostPatterns: [
       /(^|\.)klaviyo\.com$/i,
       /(^|\.)klaviyomail\.com$/i,
       /(^|\.)trk\.klaviyomail\.com$/i,
       /(^|\.)go\.klaviyo\.com$/i,
       /(^|\.)email\.klaviyomail\.com$/i,
+      /(^|\.)klclick\.com$/i,
+      /(^|\.)ctrk\.klclick\.com$/i,
       /(^|\.)d3k81ch9hvuctc\.cloudfront\.net$/i
     ],
+    // Klaviyo's editor (powered by MJML) leaves a very distinctive set of
+    // class-name markers in the rendered HTML. Each pattern below contributes
+    // one `html_marker` signal, so listing the strongest fingerprints as
+    // separate patterns means we can clear the 0.6 confidence threshold off
+    // the markup alone — important because modern Klaviyo emails no longer
+    // include the literal substring "klaviyo" anywhere in the rendered body.
     htmlPatterns: [
       /klaviyo/i,
-      /\bclass\s*=\s*["'][^"']*\bkl-(?:row|column|button|hlb|table-subblock|img-base-auto-width)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-row\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-column\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-button\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-(?:hlb-wrap|hlb-no-wrap|hlb-stack)\b/i,
+      /\bclass\s*=\s*["'][^"']*\b(?:hlb-wrapper|hlb-block-settings-content|hlb-subblk|hlb-logo)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-table-subblock\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-img-(?:base-auto-width|link)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-(?:section|text|image|table|header-link-bar|first|last)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bmj-(?:column-per-100|outlook-group-fix)\b/i,
+      /\bctrk\.klclick\.com\/[lo]\/01[0-9A-Z]{24}/,
+      /\bd3k81ch9hvuctc\.cloudfront\.net\/company\/[A-Za-z0-9_-]+\/images\//i,
       /\b_kx\b/,
       /\b_ke\b/
     ],
-    dkimPatterns: [/klaviyo\.com/i, /klaviyomail\.com/i, /sendgrid\.net/i],
-    returnPathPatterns: [/bounces\.klaviyo\.com/i, /klaviyomail\.com/i],
+    // Matching the same URL shapes against parsed `<a>` links gives us an
+    // extra `link_url`-weight signal (0.35) so a Klaviyo send routed only
+    // through `klclick.com` (no headers, no resourceHosts) still resolves
+    // confidently above the 0.6 threshold.
+    linkUrlPatterns: [
+      /\bctrk\.klclick\.com\/l\/01[0-9A-Z]{24}(?:_\d+)?\b/,
+      /\bctrk\.klclick\.com\/o\/01[0-9A-Z]{24}\b/,
+      /\bklclick\.com\/[lo]\/01[0-9A-Z]{24}/
+    ],
+    dkimPatterns: [/klaviyo\.com/i, /klaviyomail\.com/i, /klclick\.com/i, /sendgrid\.net/i],
+    returnPathPatterns: [
+      /bounces\.klaviyo\.com/i,
+      /klaviyomail\.com/i,
+      /klclick\.com/i
+    ],
     xHeaderNames: ["x-klaviyo-message-id", "x-klaviyo-account"]
   },
   {
@@ -624,6 +666,109 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/heyloyalty\.com/i, /heyloyaltymail\.com/i],
     returnPathPatterns: [/heyloyalty\.com/i, /bounce[^@]*@[^>\s]*heyloyalty/i],
     xHeaderNames: ["x-heyloyalty-id", "x-heyloyalty-message-id", "x-hl-mailingid"]
+  },
+  {
+    provider: "exponea",
+    // Bloomreach Engagement (formerly Exponea — rebranded in 2022 but the
+    // `exponea.com` infrastructure is still used by most tenants) hosts every
+    // tenant's tracking edge on `cdn.<region>.exponea.com` with a per-tenant
+    // path prefix:
+    //   /<tenant-slug>/e/<base64url-token>/click  → click redirect
+    //   /<tenant-slug>/e/<base64url-token>/open   → open-tracking pixel
+    // Image / template assets are served from a Bloomreach-owned GCS bucket
+    // at `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`.
+    // The `xnpe-attr="…"` attribute is emitted on every tracked anchor by the
+    // Bloomreach email editor and is unique to this ESP. Brand-CNAMEd
+    // tracking domains exist in the wild, so the URL-shape patterns below
+    // carry the detection on their own when the host fingerprint won't fire.
+    hostPatterns: [
+      /(^|\.)exponea\.com$/i,
+      /(^|\.)cdn\.[a-z0-9-]+\.exponea\.com$/i,
+      /(^|\.)bloomreachengagement\.com$/i,
+      /(^|\.)cdn\.[a-z0-9-]+\.bloomreach\.com$/i
+    ],
+    htmlPatterns: [
+      /\bxnpe-attr\s*=\s*["']/i,
+      /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bstorage\.googleapis\.com\/[a-z0-9-]+-app-storage\/[a-f0-9-]{16,}\/media\//i
+    ],
+    linkUrlPatterns: [
+      /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i
+    ],
+    dkimPatterns: [/exponea\.com/i, /bloomreach\.com/i, /bloomreachengagement\.com/i],
+    returnPathPatterns: [
+      /exponea\.com/i,
+      /bloomreach\.com/i,
+      /bloomreachengagement\.com/i,
+      /bounce[^@]*@[^>\s]*(?:exponea|bloomreach)/i
+    ],
+    xHeaderNames: [
+      "x-exponea-message-id",
+      "x-exponea-campaign-id",
+      "x-exponea-customer-id",
+      "x-bloomreach-message-id",
+      "x-bloomreach-campaign-id"
+    ]
+  },
+  {
+    provider: "voyado",
+    // Voyado Engage (the Swedish CXP/eCRM platform — formerly "Apptus eSales
+    // eClub", which is why the tracking edge still lives on `eclub.se`) hosts
+    // every tenant on `<tenant>.customer.eclub.se` for click redirects, the
+    // web-view link, and unsubscribe handling. Image assets live on either
+    // `images.eclub.se/images/<tenant>/…` (the legacy CDN) or
+    // `cdn.voyado.com/images/<tenant>/…` (the rebranded CDN). Custom tracking
+    // domains via CNAME are uncommon on Voyado, but we still lean on the
+    // URL-shape patterns below so a brand-CNAMEd send (where the host
+    // fingerprint won't fire) still resolves.
+    hostPatterns: [
+      /(^|\.)customer\.eclub\.se$/i,
+      /(^|\.)eclub\.se$/i,
+      /(^|\.)cdn\.voyado\.com$/i,
+      /(^|\.)voyado\.com$/i
+    ],
+    // Voyado's tracking URL shapes are highly distinctive:
+    //   /link/<base64url>/a/<base64url>/<base64url>/<base64url>/<base64url>/<base64url>
+    //     → click redirect (the `/<id>/a/` infix plus the 5-segment
+    //       recipient/message/tenant id chain ending in a base64-encoded
+    //       tenant slug is unique to Voyado)
+    //   /open/email/online/<base64url>/<base64url>/<base64url>
+    //     → "View in browser" web-view link
+    //   /open/subscription/unsubscribe/<base64url>/<base64url>
+    //     → list-unsubscribe handler
+    // The URL-shape patterns are listed FIRST so the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints
+    // over the generic `eclub.se` / `cdn.voyado.com` mentions.
+    htmlPatterns: [
+      /\/link\/[A-Za-z0-9_-]{20,}\/a\/[A-Za-z0-9_-]{20,}(?:\/[A-Za-z0-9_-]{4,}){3,}/,
+      /\/open\/email\/online\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\/open\/subscription\/unsubscribe\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\bimages\.eclub\.se\b/i,
+      /\bcdn\.voyado\.com\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us extra
+    // `link_url`-weight signals so Voyado clears the 0.6 confidence threshold
+    // confidently on real-world sends through brand CNAMEs (where no DKIM /
+    // Return-Path / x- headers are available to us).
+    linkUrlPatterns: [
+      /\/link\/[A-Za-z0-9_-]{20,}\/a\/[A-Za-z0-9_-]{20,}(?:\/[A-Za-z0-9_-]{4,}){3,}/,
+      /\/open\/email\/online\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\/open\/subscription\/unsubscribe\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/
+    ],
+    dkimPatterns: [/voyado\.com/i, /eclub\.se/i],
+    returnPathPatterns: [
+      /voyado\.com/i,
+      /eclub\.se/i,
+      /bounce[^@]*@[^>\s]*(?:voyado|eclub)/i
+    ],
+    xHeaderNames: [
+      "x-voyado-message-id",
+      "x-voyado-campaign-id",
+      "x-eclub-message-id",
+      "x-eclub-campaign-id"
+    ]
   }
 ];
 

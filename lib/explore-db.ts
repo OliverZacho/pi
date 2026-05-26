@@ -211,7 +211,6 @@ export async function searchExploreEmails(
       const clauses = [
         `subject.ilike.${term}`,
         `preheader.ilike.${term}`,
-        `promo_code.ilike.${term}`,
         `primary_cta_text.ilike.${term}`
       ];
       if (brandIdsFromQuery && brandIdsFromQuery.length > 0) {

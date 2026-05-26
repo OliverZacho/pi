@@ -62,49 +62,6 @@ function publicAssetUrl(path: string): string {
   return `${PUBLIC_ASSET_CDN_BASE_URL}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
 }
 
-/**
- * Migration flag controlling the storage-path layout used by
- * `mirrorRemoteImages`. Defaults to OFF so any deploy that ships
- * this code without an explicit opt-in keeps the historical layout.
- *
- *   false (default) → `${emailId}/${sha1}${ext}`
- *                     Per-email namespacing. Same image content
- *                     embedded in two emails costs two storage
- *                     objects.
- *
- *   true            → `${sha1}${ext}`
- *                     Global content-addressed namespacing. Same
- *                     image content embedded in any email anywhere
- *                     costs exactly one storage object. Combined
- *                     with `upsert: true`, a re-mirror is a no-op
- *                     at the bytes level.
- *
- * Why a flag instead of a straight switch:
- *
- *   1. Lets us ship the code first and validate that fresh
- *      ingestion writes the new layout in production before we
- *      touch the 2,584 historical objects.
- *   2. Provides a hard kill switch if anything goes wrong: unset
- *      the env var and re-deploy, and new emails immediately go
- *      back to the per-email layout. The historical migration is
- *      separately revertible.
- *
- * Read once at module load — the production process reads the env
- * once at boot, tests can reset modules to flip behaviour between
- * cases.
- */
-const DEDUP_ASSET_PATHS = process.env.DEDUP_ASSET_PATHS === "true";
-
-function buildAssetStoragePath(
-  emailId: string,
-  digest: string,
-  extension: string
-): string {
-  return DEDUP_ASSET_PATHS
-    ? `${digest}${extension}`
-    : `${emailId}/${digest}${extension}`;
-}
-
 export type ImageTransform = {
   width: number;
   height?: number;
@@ -221,7 +178,6 @@ export async function uploadEmailHtml(emailId: string, html: string): Promise<st
 }
 
 export async function mirrorRemoteImages(
-  emailId: string,
   urls: string[]
 ): Promise<MirrorResult> {
   const supabase = getSupabaseAdmin();
@@ -235,7 +191,13 @@ export async function mirrorRemoteImages(
       const fetched = await fetchImage(url);
       const extension = guessExtension(fetched.contentType, url);
       const digest = createHash("sha1").update(fetched.bytes).digest("hex");
-      const storagePath = buildAssetStoragePath(emailId, digest, extension);
+      // Storage paths are content-addressed by SHA-1 alone — the
+      // same image content embedded in any email costs exactly one
+      // storage object, and `upsert: true` makes a re-mirror a
+      // no-op at the bytes level. See git history for the migration
+      // that flipped this from the historical
+      // `${emailId}/${sha1}${ext}` layout.
+      const storagePath = `${digest}${extension}`;
 
       if (seenPaths.has(storagePath)) {
         continue;

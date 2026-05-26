@@ -39,7 +39,9 @@ const VALID_ESP_PROVIDERS: EspProvider[] = [
   "agillic",
   "peytzmail",
   "pure360",
-  "heyloyalty"
+  "heyloyalty",
+  "exponea",
+  "voyado"
 ];
 
 function parseBoolean(raw: string | null): boolean | null {

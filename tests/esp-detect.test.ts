@@ -62,6 +62,44 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Klaviyo via the new ctrk.klclick.com tracker, ULID-shaped /l/01<26> tokens, and kl-* editor classes (no headers)", () => {
+    // Distilled from a real Filippa K welcome send. Klaviyo rolled out a new
+    // click/open tracking edge in 2024-2025 on `ctrk.klclick.com`, with
+    // ULID-shaped tokens (`/l/01<26-char>` for clicks and `/o/01<26-char>`
+    // for the open pixel). Modern Klaviyo emails no longer include the
+    // literal substring "klaviyo" anywhere in the rendered body — detection
+    // therefore has to lean on the tracker host + URL-shape + editor class
+    // markers (kl-row, kl-column, kl-button, hlb-wrapper, etc.) on their own.
+    const html = `
+      <img src="https://ctrk.klclick.com/o/01KSDRR5A3KQS23S0ADQW8CQ4Z" alt="" width="1" height="1" />
+      <div class="kl-row colstack">
+        <div class="kl-column">
+          <div class="hlb-wrapper">
+            <a class="kl-img-link" href="https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_0">
+              <img src="https://d3k81ch9hvuctc.cloudfront.net/company/U4c5dT/images/66c0fdd5-981d-46c5-ae2c-efe794603c6e.png" />
+            </a>
+            <a class="kl-button" href="https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_24">Shop Now</a>
+            <table class="kl-table-subblock"><tr><td class="kl-img-base-auto-width">x</td></tr></table>
+          </div>
+        </div>
+      </div>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_0"),
+        link("https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_24")
+      ],
+      resourceHosts: ["ctrk.klclick.com", "d3k81ch9hvuctc.cloudfront.net"]
+    });
+    expect(result.provider).toBe("klaviyo");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("identifies HubSpot via _hsenc/_hsmi link parameters", () => {
     const result = detectEsp({
       headers: {
@@ -695,6 +733,89 @@ describe("detectEsp", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.6);
     expect(result.signals.map((s) => s.kind)).toEqual(
       expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Bloomreach Engagement (Exponea) via cdn.<region>.exponea.com tracking links and the xnpe-attr marker (no headers)", () => {
+    // Distilled from a real GANNI welcome send. Bloomreach Engagement
+    // (formerly Exponea) hosts every tenant's tracking edge on
+    // `cdn.<region>.exponea.com` with the per-tenant
+    // `/<tenant>/e/<base64url-token>/click` and `…/open` paths, serves images
+    // from a Bloomreach-owned GCS bucket at
+    // `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`,
+    // and emits the `xnpe-attr` attribute on tracked anchors — none of which
+    // are used by any other ESP we fingerprint.
+    const html = `
+      <a href="https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37NjyAEB0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.53NCDwcfeyOk-Q/click" xnpe-attr="notextnorew">
+        <img width="1" height="1" alt="" src="https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37Nj0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.IfetC8u5Dv2_GQ/open" />
+      </a>
+      <img src="https://storage.googleapis.com/eu1-app-storage/c5ed97c0-0ab3-11ee-aa4b-2284982d3421/media/original/89fbf362-93f8-11f0-9f9c-fa777b398903" alt="GANNI" />
+      <a href="https://cdn.eu1.exponea.com/ganni-prod/e/.eJwTUnD7c3RThs93i-WeB33qdrPME5Zae87YoVOtI0PDyUfryi0p0YySkoJiK331234567890abcdef.27IjlQODUwVvEw/click" target="_blank">Shop T-Shirts</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37NjyAEB0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.53NCDwcfeyOk-Q/click"
+        ),
+        link(
+          "https://cdn.eu1.exponea.com/ganni-prod/e/.eJwTUnD7c3RThs93i-WeB33qdrPME5Zae87YoVOtI0PDyUfryi0p0YySkoJiK331234567890abcdef.27IjlQODUwVvEw/click"
+        )
+      ],
+      resourceHosts: [
+        "cdn.eu1.exponea.com",
+        "storage.googleapis.com"
+      ]
+    });
+    expect(result.provider).toBe("exponea");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Voyado on its <tenant>.customer.eclub.se host plus /link/<id>/a/ and /open/email/online URL shapes (no headers)", () => {
+    // Distilled from a real Samsøe Samsøe welcome send. Voyado Engage
+    // (formerly "Apptus eSales eClub") hosts every tenant on
+    // `<tenant>.customer.eclub.se` for click redirects, the web-view link,
+    // and unsubscribes; image assets live on `images.eclub.se` (legacy) and
+    // `cdn.voyado.com` (rebranded). The `/link/<id>/a/<id>/<id>/<id>/<id>/<id>`
+    // click-redirect chain, the `/open/email/online/<id>/<id>/<id>` web-view
+    // path, and the `/open/subscription/unsubscribe/<id>/<id>` slug are all
+    // Voyado-only.
+    const html = `
+      <a href="https://samsoe.customer.eclub.se/open/email/online/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A">View in Browser</a>
+      <a href="https://samsoe.customer.eclub.se/link/r3XcV0QSDEeA1rRWAI8oyQ/a/iRw4F3eWUEeXZYZprHjFxw/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A/c2Ftc29l">
+        <img src="https://images.eclub.se/images/samsoesamsoe/logo_new.png" alt="Logo" />
+      </a>
+      <img src="https://cdn.voyado.com/images/samsoe/9def2e3fb7624de29839b3e800dbf4b4.1BA07D39A8D3CF7CF1A5638D33988CAA0A16D482.jpg" />
+      <a href="https://samsoe.customer.eclub.se/open/subscription/unsubscribe/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA">Unsubscribe</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://samsoe.customer.eclub.se/open/email/online/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A"
+        ),
+        link(
+          "https://samsoe.customer.eclub.se/link/r3XcV0QSDEeA1rRWAI8oyQ/a/iRw4F3eWUEeXZYZprHjFxw/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A/c2Ftc29l"
+        ),
+        link(
+          "https://samsoe.customer.eclub.se/open/subscription/unsubscribe/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA"
+        )
+      ],
+      resourceHosts: [
+        "samsoe.customer.eclub.se",
+        "images.eclub.se",
+        "cdn.voyado.com"
+      ]
+    });
+    expect(result.provider).toBe("voyado");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
     );
   });
 

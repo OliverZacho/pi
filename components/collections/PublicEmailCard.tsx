@@ -117,7 +117,6 @@ export default function PublicEmailCard({
           {email.subject || "(no subject)"}
         </span>
         {email.discountPercent !== null ||
-        email.promoCode ||
         email.hasGif ||
         email.hasDarkMode ? (
           <div className={exploreStyles.cardBadgeRow}>
@@ -126,13 +125,6 @@ export default function PublicEmailCard({
                 className={`${exploreStyles.cardBadge} ${exploreStyles.discount}`}
               >
                 {Math.round(email.discountPercent)}% off
-              </span>
-            ) : null}
-            {email.promoCode ? (
-              <span
-                className={`${exploreStyles.cardBadge} ${exploreStyles.promo}`}
-              >
-                {email.promoCode}
               </span>
             ) : null}
             {email.hasGif ? (
