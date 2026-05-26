@@ -69,6 +69,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types/supabase";
 
@@ -616,7 +617,17 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only auto-run when invoked directly as a CLI. The path-rewrite
+// helpers (`newAssetPath`) are imported by the unit test, and
+// without this guard the test runner would kick off the real
+// migration as a side-effect of `import { newAssetPath } from ...`.
+const invokedAsScript =
+  process.argv[1] !== undefined &&
+  process.argv[1] === fileURLToPath(import.meta.url);
+
+if (invokedAsScript) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

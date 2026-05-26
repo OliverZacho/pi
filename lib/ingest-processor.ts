@@ -257,7 +257,7 @@ async function ingestEmailReceivedEvent(
     uploadEmailHtml(full.id, html)
   );
   const mirror = await runStage("mirror_images", () =>
-    mirrorRemoteImages(full.id, remoteImageUrls)
+    mirrorRemoteImages(remoteImageUrls)
   );
 
   const metadata = await runStage("extract_metadata", () =>

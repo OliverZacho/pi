@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Module-load-time env flags inside `lib/storage.ts` need to start
-// in their "default" state for the bulk of this file. Tests that
-// flip them use `vi.resetModules` + a scoped env var so they can
-// import a fresh copy of the module that picks the new value up.
+// The CDN short-circuit in `getSignedAssets` is gated by a
+// module-load-time env var. Keep it unset for the default suite;
+// the dedicated `getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL`
+// block flips it via `vi.resetModules` so it can re-import the
+// module with the env in place.
 delete process.env.NEXT_PUBLIC_ASSET_CDN_URL;
-delete process.env.DEDUP_ASSET_PATHS;
 
 const uploadMock = vi.fn();
 const createSignedUrlMock = vi.fn();
@@ -73,7 +73,7 @@ describe("uploadEmailHtml", () => {
 });
 
 describe("mirrorRemoteImages", () => {
-  it("downloads images, hashes them, and stores them in email-assets", async () => {
+  it("downloads images, hashes them, and stores them at the bucket root", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(new Uint8Array([1, 2, 3, 4]), {
         status: 200,
@@ -82,12 +82,20 @@ describe("mirrorRemoteImages", () => {
     );
     uploadMock.mockResolvedValueOnce({ data: { path: "x" }, error: null });
 
-    const result = await mirrorRemoteImages("email-1", ["https://cdn.example.com/banner.png"]);
+    const result = await mirrorRemoteImages(["https://cdn.example.com/banner.png"]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fromMock).toHaveBeenCalledWith(EMAIL_ASSETS_BUCKET);
     expect(result.storedPaths).toHaveLength(1);
-    expect(result.storedPaths[0]).toMatch(/^email-1\/[a-f0-9]{40}\.png$/);
+    // No leading folder segment — the SHA-1 alone names the object
+    // so the same image content embedded in any other email lands
+    // at the same path and dedupes via `upsert: true`.
+    expect(result.storedPaths[0]).toMatch(/^[a-f0-9]{40}\.png$/);
+    expect(uploadMock).toHaveBeenCalledWith(
+      expect.stringMatching(/^[a-f0-9]{40}\.png$/),
+      expect.any(Uint8Array),
+      expect.objectContaining({ upsert: true })
+    );
     expect(result.failedUrls).toEqual([]);
   });
 
@@ -102,13 +110,13 @@ describe("mirrorRemoteImages", () => {
       );
     uploadMock.mockResolvedValueOnce({ data: { path: "y" }, error: null });
 
-    const result = await mirrorRemoteImages("email-2", [
+    const result = await mirrorRemoteImages([
       "https://broken.example.com/a.png",
       "https://cdn.example.com/b.jpg"
     ]);
 
     expect(result.storedPaths).toHaveLength(1);
-    expect(result.storedPaths[0]).toMatch(/^email-2\/[a-f0-9]{40}\.jpg$/);
+    expect(result.storedPaths[0]).toMatch(/^[a-f0-9]{40}\.jpg$/);
     expect(result.failedUrls).toEqual([
       { url: "https://broken.example.com/a.png", reason: "dns" }
     ]);
@@ -125,13 +133,36 @@ describe("mirrorRemoteImages", () => {
       );
     uploadMock.mockResolvedValue({ data: { path: "z" }, error: null });
 
-    const result = await mirrorRemoteImages("email-3", [
+    const result = await mirrorRemoteImages([
       "https://cdn.example.com/a.png",
       "https://cdn.example.com/a.png"
     ]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(result.storedPaths).toHaveLength(1);
+  });
+
+  it("dedupes different URLs that return identical bytes by SHA-1", async () => {
+    // URL-level dedup (above) only catches obviously-duplicate
+    // links in the email body. The bigger win is content-level
+    // dedup: two distinct hosts serving the same image (e.g.
+    // mirrored CDNs) collapse to a single storage object because
+    // both fetches produce the same SHA-1 of the bytes.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([7, 7, 7]), {
+        status: 200,
+        headers: { "Content-Type": "image/jpeg" }
+      })
+    );
+    uploadMock.mockResolvedValue({ data: { path: "z" }, error: null });
+
+    const result = await mirrorRemoteImages([
+      "https://cdn-a.example.com/a.jpg",
+      "https://cdn-b.example.com/a.jpg"
+    ]);
+
+    expect(result.storedPaths).toHaveLength(1);
+    expect(uploadMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects images larger than the configured limit", async () => {
@@ -145,7 +176,7 @@ describe("mirrorRemoteImages", () => {
       })
     );
 
-    const result = await mirrorRemoteImages("email-4", ["https://cdn.example.com/big.png"]);
+    const result = await mirrorRemoteImages(["https://cdn.example.com/big.png"]);
 
     expect(result.storedPaths).toEqual([]);
     expect(result.failedUrls[0].reason).toMatch(/too large/);
@@ -223,79 +254,6 @@ describe("signed url helpers", () => {
       ["email-1/hero.png", "email-1/logo.svg", "email-1/fav.ico"],
       expect.any(Number)
     );
-  });
-});
-
-describe("mirrorRemoteImages with DEDUP_ASSET_PATHS=true", () => {
-  // The migration flag lives at module-load time inside
-  // `lib/storage.ts`. Re-import the module under the new env so the
-  // production code path picks up the value without us having to
-  // expose an internal setter.
-  const realEnv = process.env.DEDUP_ASSET_PATHS;
-
-  beforeEach(() => {
-    vi.resetModules();
-    process.env.DEDUP_ASSET_PATHS = "true";
-  });
-
-  afterEach(() => {
-    if (realEnv === undefined) {
-      delete process.env.DEDUP_ASSET_PATHS;
-    } else {
-      process.env.DEDUP_ASSET_PATHS = realEnv;
-    }
-    vi.resetModules();
-  });
-
-  it("writes objects at the bucket root with a content-addressed name", async () => {
-    const storage = await import("@/lib/storage");
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(new Uint8Array([1, 2, 3, 4]), {
-        status: 200,
-        headers: { "Content-Type": "image/png" }
-      })
-    );
-    uploadMock.mockResolvedValueOnce({ data: { path: "x" }, error: null });
-
-    const result = await storage.mirrorRemoteImages("email-1", [
-      "https://cdn.example.com/banner.png"
-    ]);
-
-    // No leading `email-1/` segment — the SHA-1 alone names the
-    // object so the same image content embedded in any other email
-    // would land at the same path and dedupe via `upsert`.
-    expect(result.storedPaths).toHaveLength(1);
-    expect(result.storedPaths[0]).toMatch(/^[a-f0-9]{40}\.png$/);
-    expect(uploadMock).toHaveBeenCalledWith(
-      expect.stringMatching(/^[a-f0-9]{40}\.png$/),
-      expect.any(Uint8Array),
-      expect.objectContaining({ upsert: true })
-    );
-  });
-
-  it("dedupes inside a single mirror call by SHA-1 alone", async () => {
-    const storage = await import("@/lib/storage");
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(new Uint8Array([7, 7, 7]), {
-        status: 200,
-        headers: { "Content-Type": "image/jpeg" }
-      })
-    );
-    uploadMock.mockResolvedValue({ data: { path: "y" }, error: null });
-
-    const result = await storage.mirrorRemoteImages("email-9", [
-      "https://cdn.example.com/a.jpg",
-      "https://cdn.example.com/b.jpg"
-    ]);
-
-    // Both source URLs return identical bytes, so they collapse to a
-    // single stored object — the upload call still fires twice
-    // (network fetch is per-URL), but with `upsert: true` the second
-    // write is a no-op at the bytes level.
-    expect(result.storedPaths).toHaveLength(1);
-    expect(uploadMock).toHaveBeenCalledTimes(1);
   });
 });
 
