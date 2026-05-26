@@ -698,6 +698,45 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Bloomreach Engagement (Exponea) via cdn.<region>.exponea.com tracking links and the xnpe-attr marker (no headers)", () => {
+    // Distilled from a real GANNI welcome send. Bloomreach Engagement
+    // (formerly Exponea) hosts every tenant's tracking edge on
+    // `cdn.<region>.exponea.com` with the per-tenant
+    // `/<tenant>/e/<base64url-token>/click` and `…/open` paths, serves images
+    // from a Bloomreach-owned GCS bucket at
+    // `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`,
+    // and emits the `xnpe-attr` attribute on tracked anchors — none of which
+    // are used by any other ESP we fingerprint.
+    const html = `
+      <a href="https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37NjyAEB0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.53NCDwcfeyOk-Q/click" xnpe-attr="notextnorew">
+        <img width="1" height="1" alt="" src="https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37Nj0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.IfetC8u5Dv2_GQ/open" />
+      </a>
+      <img src="https://storage.googleapis.com/eu1-app-storage/c5ed97c0-0ab3-11ee-aa4b-2284982d3421/media/original/89fbf362-93f8-11f0-9f9c-fa777b398903" alt="GANNI" />
+      <a href="https://cdn.eu1.exponea.com/ganni-prod/e/.eJwTUnD7c3RThs93i-WeB33qdrPME5Zae87YoVOtI0PDyUfryi0p0YySkoJiK331234567890abcdef.27IjlQODUwVvEw/click" target="_blank">Shop T-Shirts</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://cdn.eu1.exponea.com/ganni-prod/e/CgxqDLCtTy8BRiWUE5wSIEb8xbJoTPc4p0nBTH67BJ4TGq3OM0CJJohoKEJMKtTaKgJkYTHU8HXNJoXaQWoMZN4QYafhPxtI37NjyAEB0gEhCg5jX3dlbGNvbWVfY29kZRIPQkszLVpWVC1CTEgtUEdHgAIE.53NCDwcfeyOk-Q/click"
+        ),
+        link(
+          "https://cdn.eu1.exponea.com/ganni-prod/e/.eJwTUnD7c3RThs93i-WeB33qdrPME5Zae87YoVOtI0PDyUfryi0p0YySkoJiK331234567890abcdef.27IjlQODUwVvEw/click"
+        )
+      ],
+      resourceHosts: [
+        "cdn.eu1.exponea.com",
+        "storage.googleapis.com"
+      ]
+    });
+    expect(result.provider).toBe("exponea");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

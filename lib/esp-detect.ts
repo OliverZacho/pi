@@ -30,6 +30,7 @@ export type EspProvider =
   | "peytzmail"
   | "pure360"
   | "heyloyalty"
+  | "exponea"
   | "unknown";
 
 export type EspSignal = {
@@ -624,6 +625,51 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/heyloyalty\.com/i, /heyloyaltymail\.com/i],
     returnPathPatterns: [/heyloyalty\.com/i, /bounce[^@]*@[^>\s]*heyloyalty/i],
     xHeaderNames: ["x-heyloyalty-id", "x-heyloyalty-message-id", "x-hl-mailingid"]
+  },
+  {
+    provider: "exponea",
+    // Bloomreach Engagement (formerly Exponea — rebranded in 2022 but the
+    // `exponea.com` infrastructure is still used by most tenants) hosts every
+    // tenant's tracking edge on `cdn.<region>.exponea.com` with a per-tenant
+    // path prefix:
+    //   /<tenant-slug>/e/<base64url-token>/click  → click redirect
+    //   /<tenant-slug>/e/<base64url-token>/open   → open-tracking pixel
+    // Image / template assets are served from a Bloomreach-owned GCS bucket
+    // at `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`.
+    // The `xnpe-attr="…"` attribute is emitted on every tracked anchor by the
+    // Bloomreach email editor and is unique to this ESP. Brand-CNAMEd
+    // tracking domains exist in the wild, so the URL-shape patterns below
+    // carry the detection on their own when the host fingerprint won't fire.
+    hostPatterns: [
+      /(^|\.)exponea\.com$/i,
+      /(^|\.)cdn\.[a-z0-9-]+\.exponea\.com$/i,
+      /(^|\.)bloomreachengagement\.com$/i,
+      /(^|\.)cdn\.[a-z0-9-]+\.bloomreach\.com$/i
+    ],
+    htmlPatterns: [
+      /\bxnpe-attr\s*=\s*["']/i,
+      /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bstorage\.googleapis\.com\/[a-z0-9-]+-app-storage\/[a-f0-9-]{16,}\/media\//i
+    ],
+    linkUrlPatterns: [
+      /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
+      /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i
+    ],
+    dkimPatterns: [/exponea\.com/i, /bloomreach\.com/i, /bloomreachengagement\.com/i],
+    returnPathPatterns: [
+      /exponea\.com/i,
+      /bloomreach\.com/i,
+      /bloomreachengagement\.com/i,
+      /bounce[^@]*@[^>\s]*(?:exponea|bloomreach)/i
+    ],
+    xHeaderNames: [
+      "x-exponea-message-id",
+      "x-exponea-campaign-id",
+      "x-exponea-customer-id",
+      "x-bloomreach-message-id",
+      "x-bloomreach-campaign-id"
+    ]
   }
 ];
 

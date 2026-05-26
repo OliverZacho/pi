@@ -131,7 +131,8 @@ export type EspProvider =
   | "agillic"
   | "peytzmail"
   | "pure360"
-  | "heyloyalty";
+  | "heyloyalty"
+  | "exponea";
 
 /**
  * Canonical user-facing labels for each ESP provider id. Shared between
@@ -167,7 +168,8 @@ export const ESP_LABELS: Record<EspProvider, string> = {
   agillic: "Agillic",
   peytzmail: "Peytzmail",
   pure360: "Pure360 / Spotler",
-  heyloyalty: "HeyLoyalty"
+  heyloyalty: "HeyLoyalty",
+  exponea: "Bloomreach / Exponea"
 };
 
 export type CapturedEmail = {

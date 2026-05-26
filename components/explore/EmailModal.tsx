@@ -44,7 +44,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   agillic: "Agillic",
   peytzmail: "Peytzmail",
   pure360: "Pure360 / Spotler",
-  heyloyalty: "HeyLoyalty"
+  heyloyalty: "HeyLoyalty",
+  exponea: "Bloomreach / Exponea"
 };
 
 type ViewMode = "desktop" | "phone" | "html";
