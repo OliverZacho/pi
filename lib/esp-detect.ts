@@ -31,6 +31,7 @@ export type EspProvider =
   | "pure360"
   | "heyloyalty"
   | "exponea"
+  | "voyado"
   | "unknown";
 
 export type EspSignal = {
@@ -669,6 +670,64 @@ const FINGERPRINTS: Fingerprint[] = [
       "x-exponea-customer-id",
       "x-bloomreach-message-id",
       "x-bloomreach-campaign-id"
+    ]
+  },
+  {
+    provider: "voyado",
+    // Voyado Engage (the Swedish CXP/eCRM platform — formerly "Apptus eSales
+    // eClub", which is why the tracking edge still lives on `eclub.se`) hosts
+    // every tenant on `<tenant>.customer.eclub.se` for click redirects, the
+    // web-view link, and unsubscribe handling. Image assets live on either
+    // `images.eclub.se/images/<tenant>/…` (the legacy CDN) or
+    // `cdn.voyado.com/images/<tenant>/…` (the rebranded CDN). Custom tracking
+    // domains via CNAME are uncommon on Voyado, but we still lean on the
+    // URL-shape patterns below so a brand-CNAMEd send (where the host
+    // fingerprint won't fire) still resolves.
+    hostPatterns: [
+      /(^|\.)customer\.eclub\.se$/i,
+      /(^|\.)eclub\.se$/i,
+      /(^|\.)cdn\.voyado\.com$/i,
+      /(^|\.)voyado\.com$/i
+    ],
+    // Voyado's tracking URL shapes are highly distinctive:
+    //   /link/<base64url>/a/<base64url>/<base64url>/<base64url>/<base64url>/<base64url>
+    //     → click redirect (the `/<id>/a/` infix plus the 5-segment
+    //       recipient/message/tenant id chain ending in a base64-encoded
+    //       tenant slug is unique to Voyado)
+    //   /open/email/online/<base64url>/<base64url>/<base64url>
+    //     → "View in browser" web-view link
+    //   /open/subscription/unsubscribe/<base64url>/<base64url>
+    //     → list-unsubscribe handler
+    // The URL-shape patterns are listed FIRST so the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints
+    // over the generic `eclub.se` / `cdn.voyado.com` mentions.
+    htmlPatterns: [
+      /\/link\/[A-Za-z0-9_-]{20,}\/a\/[A-Za-z0-9_-]{20,}(?:\/[A-Za-z0-9_-]{4,}){3,}/,
+      /\/open\/email\/online\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\/open\/subscription\/unsubscribe\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\bimages\.eclub\.se\b/i,
+      /\bcdn\.voyado\.com\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us extra
+    // `link_url`-weight signals so Voyado clears the 0.6 confidence threshold
+    // confidently on real-world sends through brand CNAMEs (where no DKIM /
+    // Return-Path / x- headers are available to us).
+    linkUrlPatterns: [
+      /\/link\/[A-Za-z0-9_-]{20,}\/a\/[A-Za-z0-9_-]{20,}(?:\/[A-Za-z0-9_-]{4,}){3,}/,
+      /\/open\/email\/online\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/,
+      /\/open\/subscription\/unsubscribe\/[A-Za-z0-9_-]{20,}\/[A-Za-z0-9_-]{20,}/
+    ],
+    dkimPatterns: [/voyado\.com/i, /eclub\.se/i],
+    returnPathPatterns: [
+      /voyado\.com/i,
+      /eclub\.se/i,
+      /bounce[^@]*@[^>\s]*(?:voyado|eclub)/i
+    ],
+    xHeaderNames: [
+      "x-voyado-message-id",
+      "x-voyado-campaign-id",
+      "x-eclub-message-id",
+      "x-eclub-campaign-id"
     ]
   }
 ];

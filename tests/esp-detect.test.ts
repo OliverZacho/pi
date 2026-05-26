@@ -737,6 +737,50 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Voyado on its <tenant>.customer.eclub.se host plus /link/<id>/a/ and /open/email/online URL shapes (no headers)", () => {
+    // Distilled from a real Samsøe Samsøe welcome send. Voyado Engage
+    // (formerly "Apptus eSales eClub") hosts every tenant on
+    // `<tenant>.customer.eclub.se` for click redirects, the web-view link,
+    // and unsubscribes; image assets live on `images.eclub.se` (legacy) and
+    // `cdn.voyado.com` (rebranded). The `/link/<id>/a/<id>/<id>/<id>/<id>/<id>`
+    // click-redirect chain, the `/open/email/online/<id>/<id>/<id>` web-view
+    // path, and the `/open/subscription/unsubscribe/<id>/<id>` slug are all
+    // Voyado-only.
+    const html = `
+      <a href="https://samsoe.customer.eclub.se/open/email/online/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A">View in Browser</a>
+      <a href="https://samsoe.customer.eclub.se/link/r3XcV0QSDEeA1rRWAI8oyQ/a/iRw4F3eWUEeXZYZprHjFxw/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A/c2Ftc29l">
+        <img src="https://images.eclub.se/images/samsoesamsoe/logo_new.png" alt="Logo" />
+      </a>
+      <img src="https://cdn.voyado.com/images/samsoe/9def2e3fb7624de29839b3e800dbf4b4.1BA07D39A8D3CF7CF1A5638D33988CAA0A16D482.jpg" />
+      <a href="https://samsoe.customer.eclub.se/open/subscription/unsubscribe/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA">Unsubscribe</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://samsoe.customer.eclub.se/open/email/online/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A"
+        ),
+        link(
+          "https://samsoe.customer.eclub.se/link/r3XcV0QSDEeA1rRWAI8oyQ/a/iRw4F3eWUEeXZYZprHjFxw/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA/5-38pXLvC0Seg7RWALAd7A/c2Ftc29l"
+        ),
+        link(
+          "https://samsoe.customer.eclub.se/open/subscription/unsubscribe/ymMiURehkEKnXLRWALAd7A/gpz5roDnmUasvrRWAI8nqA"
+        )
+      ],
+      resourceHosts: [
+        "samsoe.customer.eclub.se",
+        "images.eclub.se",
+        "cdn.voyado.com"
+      ]
+    });
+    expect(result.provider).toBe("voyado");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },
