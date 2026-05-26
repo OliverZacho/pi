@@ -98,22 +98,62 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "klaviyo",
+    // Klaviyo runs two generations of tracking domains side by side:
+    //   - Legacy: `trk.klaviyomail.com`, `email.klaviyomail.com`,
+    //     `go.klaviyo.com`, `klaviyomail.com` (older tenants + transactional)
+    //   - Current: `ctrk.klclick.com` and the bare `klclick.com` (rolled out
+    //     2024-2025 for marketing campaigns; tokens are ULID-shaped, e.g.
+    //     `/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_5` for click links and
+    //     `/o/01KSDRR5A3KQS23S0ADQW8CQ4Z` for the open-tracking pixel).
+    // Image / template assets continue to live on the shared CloudFront
+    // distribution `d3k81ch9hvuctc.cloudfront.net/company/<tenant>/images/…`.
     hostPatterns: [
       /(^|\.)klaviyo\.com$/i,
       /(^|\.)klaviyomail\.com$/i,
       /(^|\.)trk\.klaviyomail\.com$/i,
       /(^|\.)go\.klaviyo\.com$/i,
       /(^|\.)email\.klaviyomail\.com$/i,
+      /(^|\.)klclick\.com$/i,
+      /(^|\.)ctrk\.klclick\.com$/i,
       /(^|\.)d3k81ch9hvuctc\.cloudfront\.net$/i
     ],
+    // Klaviyo's editor (powered by MJML) leaves a very distinctive set of
+    // class-name markers in the rendered HTML. Each pattern below contributes
+    // one `html_marker` signal, so listing the strongest fingerprints as
+    // separate patterns means we can clear the 0.6 confidence threshold off
+    // the markup alone — important because modern Klaviyo emails no longer
+    // include the literal substring "klaviyo" anywhere in the rendered body.
     htmlPatterns: [
       /klaviyo/i,
-      /\bclass\s*=\s*["'][^"']*\bkl-(?:row|column|button|hlb|table-subblock|img-base-auto-width)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-row\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-column\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-button\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-(?:hlb-wrap|hlb-no-wrap|hlb-stack)\b/i,
+      /\bclass\s*=\s*["'][^"']*\b(?:hlb-wrapper|hlb-block-settings-content|hlb-subblk|hlb-logo)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-table-subblock\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-img-(?:base-auto-width|link)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bkl-(?:section|text|image|table|header-link-bar|first|last)\b/i,
+      /\bclass\s*=\s*["'][^"']*\bmj-(?:column-per-100|outlook-group-fix)\b/i,
+      /\bctrk\.klclick\.com\/[lo]\/01[0-9A-Z]{24}/,
+      /\bd3k81ch9hvuctc\.cloudfront\.net\/company\/[A-Za-z0-9_-]+\/images\//i,
       /\b_kx\b/,
       /\b_ke\b/
     ],
-    dkimPatterns: [/klaviyo\.com/i, /klaviyomail\.com/i, /sendgrid\.net/i],
-    returnPathPatterns: [/bounces\.klaviyo\.com/i, /klaviyomail\.com/i],
+    // Matching the same URL shapes against parsed `<a>` links gives us an
+    // extra `link_url`-weight signal (0.35) so a Klaviyo send routed only
+    // through `klclick.com` (no headers, no resourceHosts) still resolves
+    // confidently above the 0.6 threshold.
+    linkUrlPatterns: [
+      /\bctrk\.klclick\.com\/l\/01[0-9A-Z]{24}(?:_\d+)?\b/,
+      /\bctrk\.klclick\.com\/o\/01[0-9A-Z]{24}\b/,
+      /\bklclick\.com\/[lo]\/01[0-9A-Z]{24}/
+    ],
+    dkimPatterns: [/klaviyo\.com/i, /klaviyomail\.com/i, /klclick\.com/i, /sendgrid\.net/i],
+    returnPathPatterns: [
+      /bounces\.klaviyo\.com/i,
+      /klaviyomail\.com/i,
+      /klclick\.com/i
+    ],
     xHeaderNames: ["x-klaviyo-message-id", "x-klaviyo-account"]
   },
   {

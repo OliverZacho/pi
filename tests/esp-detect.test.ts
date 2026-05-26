@@ -62,6 +62,44 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Klaviyo via the new ctrk.klclick.com tracker, ULID-shaped /l/01<26> tokens, and kl-* editor classes (no headers)", () => {
+    // Distilled from a real Filippa K welcome send. Klaviyo rolled out a new
+    // click/open tracking edge in 2024-2025 on `ctrk.klclick.com`, with
+    // ULID-shaped tokens (`/l/01<26-char>` for clicks and `/o/01<26-char>`
+    // for the open pixel). Modern Klaviyo emails no longer include the
+    // literal substring "klaviyo" anywhere in the rendered body — detection
+    // therefore has to lean on the tracker host + URL-shape + editor class
+    // markers (kl-row, kl-column, kl-button, hlb-wrapper, etc.) on their own.
+    const html = `
+      <img src="https://ctrk.klclick.com/o/01KSDRR5A3KQS23S0ADQW8CQ4Z" alt="" width="1" height="1" />
+      <div class="kl-row colstack">
+        <div class="kl-column">
+          <div class="hlb-wrapper">
+            <a class="kl-img-link" href="https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_0">
+              <img src="https://d3k81ch9hvuctc.cloudfront.net/company/U4c5dT/images/66c0fdd5-981d-46c5-ae2c-efe794603c6e.png" />
+            </a>
+            <a class="kl-button" href="https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_24">Shop Now</a>
+            <table class="kl-table-subblock"><tr><td class="kl-img-base-auto-width">x</td></tr></table>
+          </div>
+        </div>
+      </div>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_0"),
+        link("https://ctrk.klclick.com/l/01KSDRR5A3KQS23S0ADQW8CQ4Z_24")
+      ],
+      resourceHosts: ["ctrk.klclick.com", "d3k81ch9hvuctc.cloudfront.net"]
+    });
+    expect(result.provider).toBe("klaviyo");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("identifies HubSpot via _hsenc/_hsmi link parameters", () => {
     const result = detectEsp({
       headers: {
