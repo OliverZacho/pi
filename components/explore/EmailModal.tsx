@@ -368,9 +368,6 @@ function InfoPanel({
       tone: "bad"
     });
   }
-  if (email.promoCode) {
-    pills.push({ key: "promo", label: email.promoCode, tone: "warn" });
-  }
   if (email.hasGif) pills.push({ key: "gif", label: "GIF", tone: "neutral" });
   if (email.hasDarkMode) {
     pills.push({ key: "dark", label: "Dark mode", tone: "neutral" });

@@ -148,7 +148,6 @@ export default function PublicEmailModal({
           </div>
 
           {email.discountPercent !== null ||
-          email.promoCode ||
           email.hasGif ||
           email.hasDarkMode ? (
             <div className={exploreStyles.pillRow}>
@@ -157,13 +156,6 @@ export default function PublicEmailModal({
                   className={`${exploreStyles.pill} ${exploreStyles.pill_bad}`}
                 >
                   {Math.round(email.discountPercent)}% off
-                </span>
-              ) : null}
-              {email.promoCode ? (
-                <span
-                  className={`${exploreStyles.pill} ${exploreStyles.pill_warn}`}
-                >
-                  {email.promoCode}
                 </span>
               ) : null}
               {email.hasGif ? (
