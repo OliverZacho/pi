@@ -216,6 +216,204 @@
   filter: brightness(0.92);
 }
 
+.actionGhost:disabled,
+.actionPrimary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ---------- Hero action popover (Add to group) ---------- */
+
+.heroActionWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding: 0.4rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+
+.popoverSearch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0.35rem;
+  color: #64748b;
+}
+
+.popoverSearchInput {
+  flex: 1;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 0.85rem;
+  background: transparent;
+  color: #0f172a;
+}
+
+.popoverScroll {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 1.5rem;
+  max-height: 220px;
+}
+
+.popoverEmpty {
+  padding: 0.85rem 0.5rem;
+  color: #64748b;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.popoverRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #0f172a;
+  text-align: left;
+}
+
+.popoverRow:hover {
+  background: #f8fafc;
+}
+
+.popoverRow:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.popoverRowLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popoverCheckbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.popoverCheckboxChecked {
+  background: var(--brand-accent, #0f172a);
+  border-color: var(--brand-accent, #0f172a);
+  color: var(--brand-accent-fg, #ffffff);
+}
+
+.popoverFooter {
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+}
+
+.popoverCreateButton {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.popoverCreateButton:hover {
+  background: #f8fafc;
+}
+
+.popoverCreate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.25rem;
+}
+
+.popoverInput {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  color: #0f172a;
+}
+
+.popoverInput:focus {
+  border-color: var(--brand-accent, #0f172a);
+}
+
+.popoverCreateRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.popoverGhost {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 7px;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.popoverGhost:hover {
+  background: #f8fafc;
+}
+
+.popoverPrimary {
+  border: 1px solid var(--brand-accent, #0f172a);
+  background: var(--brand-accent, #0f172a);
+  color: var(--brand-accent-fg, #ffffff);
+  border-radius: 7px;
+  padding: 0.35rem 0.85rem;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.popoverPrimary:disabled,
+.popoverGhost:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* ---------- KPI tiles ---------- */
 
 .kpiGrid {

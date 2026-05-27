@@ -9,6 +9,7 @@ import styles from "./explore.module.css";
 
 type NavId =
   | "explore"
+  | "following"
   | "saved"
   | "brands"
   | "collections"
@@ -76,6 +77,27 @@ function CompassIcon() {
     >
       <circle cx="12" cy="12" r="9" />
       <polygon points="14.5 9.5 9.5 11.5 9.5 14.5 14.5 12.5" />
+    </svg>
+  );
+}
+
+function HeartIcon() {
+  // Outlined heart — same visual weight as the other 16px icons in
+  // this column. Reads as "Following" without overlapping the bookmark
+  // metaphor used by Saved.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z" />
     </svg>
   );
 }
@@ -203,6 +225,12 @@ function PlusIcon() {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
+  {
+    id: "following",
+    label: "Following",
+    icon: <HeartIcon />,
+    href: "/following"
+  },
   { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
   { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
   {

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import {
   formatMonthYear as formatMonthYearZoned,
   formatRelativeDate as formatRelativeDateZoned,
@@ -9,11 +10,27 @@ import {
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandCtaCloud from "./BrandCtaCloud";
+import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
 type Props = {
   data: BrandPageData;
+  /**
+   * Whether the current user follows this brand. Drives the initial
+   * state of the Follow toggle in the hero strip.
+   */
+  isFollowing: boolean;
+  /**
+   * The current user's competitor groups, used to seed the "Add to
+   * group" popover. Empty array if the user hasn't created any yet.
+   */
+  groups: CompetitorSetSummary[];
+  /**
+   * Subset of `groups` ids that already contain this brand, so the
+   * popover can pre-check the right rows the moment it opens.
+   */
+  groupMembershipIds: string[];
 };
 
 /**
@@ -32,7 +49,12 @@ type Props = {
  *   6. What does their email look like?     (design DNA)
  *   7. Show me their recent work            (recent emails grid)
  */
-export default function BrandDashboard({ data }: Props) {
+export default function BrandDashboard({
+  data,
+  isFollowing,
+  groups,
+  groupMembershipIds
+}: Props) {
   const {
     brand,
     totals,
@@ -72,7 +94,13 @@ export default function BrandDashboard({ data }: Props) {
         <span className={styles.breadcrumbCurrent}>{brand.name}</span>
       </nav>
 
-      <Hero brand={brand} subscribedSince={brand.subscribedSince} />
+      <Hero
+        brand={brand}
+        subscribedSince={brand.subscribedSince}
+        isFollowing={isFollowing}
+        groups={groups}
+        groupMembershipIds={groupMembershipIds}
+      />
 
       <KpiGrid
         totals={totals}
@@ -152,10 +180,16 @@ export default function BrandDashboard({ data }: Props) {
 
 function Hero({
   brand,
-  subscribedSince
+  subscribedSince,
+  isFollowing,
+  groups,
+  groupMembershipIds
 }: {
   brand: BrandPageData["brand"];
   subscribedSince: string;
+  isFollowing: boolean;
+  groups: CompetitorSetSummary[];
+  groupMembershipIds: string[];
 }) {
   return (
     <header className={styles.hero}>
@@ -189,16 +223,13 @@ function Hero({
           </div>
         </div>
       </div>
-      <div className={styles.heroActions}>
-        <button type="button" className={styles.actionGhost}>
-          <ShareIcon />
-          <span>Share</span>
-        </button>
-        <button type="button" className={styles.actionPrimary}>
-          <PlusIcon />
-          <span>Follow brand</span>
-        </button>
-      </div>
+      <BrandHeroActions
+        brandId={brand.id}
+        brandName={brand.name}
+        initialFollowing={isFollowing}
+        initialGroups={groups}
+        initialMembershipIds={groupMembershipIds}
+      />
     </header>
   );
 }
@@ -926,47 +957,6 @@ function ChevronLeftIcon() {
       aria-hidden="true"
     >
       <polyline points="15 6 9 12 15 18" />
-    </svg>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="18" cy="5" r="3" />
-      <circle cx="6" cy="12" r="3" />
-      <circle cx="18" cy="19" r="3" />
-      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

@@ -29,6 +29,32 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_follows: {
+        Row: {
+          company_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_follows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       captured_emails: {
         Row: {
           auth_results: Json | null
@@ -167,52 +193,68 @@ export type Database = {
           },
         ]
       }
-      email_products: {
+      collection_emails: {
         Row: {
-          bbox: Json | null
-          currency: string | null
-          discount_percent: number | null
+          added_at: string
+          collection_id: string
           email_id: string
-          extracted_at: string
-          id: string
-          image_storage_path: string | null
-          name: string | null
-          price: number | null
-          source_url: string | null
         }
         Insert: {
-          bbox?: Json | null
-          currency?: string | null
-          discount_percent?: number | null
+          added_at?: string
+          collection_id: string
           email_id: string
-          extracted_at?: string
-          id?: string
-          image_storage_path?: string | null
-          name?: string | null
-          price?: number | null
-          source_url?: string | null
         }
         Update: {
-          bbox?: Json | null
-          currency?: string | null
-          discount_percent?: number | null
+          added_at?: string
+          collection_id?: string
           email_id?: string
-          extracted_at?: string
-          id?: string
-          image_storage_path?: string | null
-          name?: string | null
-          price?: number | null
-          source_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "email_products_email_id_fkey"
+            foreignKeyName: "collection_emails_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collection_emails_email_id_fkey"
             columns: ["email_id"]
             isOneToOne: false
             referencedRelation: "captured_emails"
             referencedColumns: ["id"]
           },
         ]
+      }
+      collections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          rules: Json | null
+          share_slug: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          rules?: Json | null
+          share_slug: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          rules?: Json | null
+          share_slug?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       companies: {
         Row: {
@@ -291,89 +333,35 @@ export type Database = {
           },
         ]
       }
-      suggestion_skips: {
-        Row: {
-          created_at: string
-          domain: string
-          id: string
-          market: string | null
-          reason: string | null
-        }
-        Insert: {
-          created_at?: string
-          domain: string
-          id?: string
-          market?: string | null
-          reason?: string | null
-        }
-        Update: {
-          created_at?: string
-          domain?: string
-          id?: string
-          market?: string | null
-          reason?: string | null
-        }
-        Relationships: []
-      }
-      collections: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          rules: Json | null
-          share_slug: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          rules?: Json | null
-          share_slug: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          rules?: Json | null
-          share_slug?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      collection_emails: {
+      competitor_set_members: {
         Row: {
           added_at: string
-          collection_id: string
-          email_id: string
+          company_id: string
+          set_id: string
         }
         Insert: {
           added_at?: string
-          collection_id: string
-          email_id: string
+          company_id: string
+          set_id: string
         }
         Update: {
           added_at?: string
-          collection_id?: string
-          email_id?: string
+          company_id?: string
+          set_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "collection_emails_collection_id_fkey"
-            columns: ["collection_id"]
+            foreignKeyName: "competitor_set_members_company_id_fkey"
+            columns: ["company_id"]
             isOneToOne: false
-            referencedRelation: "collections"
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "collection_emails_email_id_fkey"
-            columns: ["email_id"]
+            foreignKeyName: "competitor_set_members_set_id_fkey"
+            columns: ["set_id"]
             isOneToOne: false
-            referencedRelation: "captured_emails"
+            referencedRelation: "competitor_sets"
             referencedColumns: ["id"]
           },
         ]
@@ -402,35 +390,49 @@ export type Database = {
         }
         Relationships: []
       }
-      competitor_set_members: {
+      email_products: {
         Row: {
-          added_at: string
-          company_id: string
-          set_id: string
+          bbox: Json | null
+          currency: string | null
+          discount_percent: number | null
+          email_id: string
+          extracted_at: string
+          id: string
+          image_storage_path: string | null
+          name: string | null
+          price: number | null
+          source_url: string | null
         }
         Insert: {
-          added_at?: string
-          company_id: string
-          set_id: string
+          bbox?: Json | null
+          currency?: string | null
+          discount_percent?: number | null
+          email_id: string
+          extracted_at?: string
+          id?: string
+          image_storage_path?: string | null
+          name?: string | null
+          price?: number | null
+          source_url?: string | null
         }
         Update: {
-          added_at?: string
-          company_id?: string
-          set_id?: string
+          bbox?: Json | null
+          currency?: string | null
+          discount_percent?: number | null
+          email_id?: string
+          extracted_at?: string
+          id?: string
+          image_storage_path?: string | null
+          name?: string | null
+          price?: number | null
+          source_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "competitor_set_members_set_id_fkey"
-            columns: ["set_id"]
+            foreignKeyName: "email_products_email_id_fkey"
+            columns: ["email_id"]
             isOneToOne: false
-            referencedRelation: "competitor_sets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_set_members_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
+            referencedRelation: "captured_emails"
             referencedColumns: ["id"]
           },
         ]
@@ -463,6 +465,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      suggestion_skips: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          market: string | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          market?: string | null
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          market?: string | null
+          reason?: string | null
+        }
+        Relationships: []
       }
       webhook_events: {
         Row: {
@@ -544,6 +570,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
