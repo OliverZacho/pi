@@ -427,6 +427,11 @@ export type CollectionSummary = {
   id: string;
   name: string;
   shareSlug: string;
+  /**
+   * True when the collection has automatic rules and at least one
+   * matching email arrived after the owner last opened the collection.
+   */
+  hasNewEmails?: boolean;
 };
 
 export type CollectionDetail = {
@@ -546,16 +551,51 @@ export async function listCollectionSummaries(
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug")
+    .select("id, name, share_slug, rules, last_viewed_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    shareSlug: row.share_slug
-  }));
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const summaries = await Promise.all(
+    rows.map(async (row) => {
+      const rules = safeParseStoredRules(row.rules);
+      let hasNewEmails = false;
+      if (rules && row.last_viewed_at) {
+        hasNewEmails = await ruleCollectionHasEmailsReceivedAfter(
+          supabase,
+          rules,
+          row.last_viewed_at
+        );
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        shareSlug: row.share_slug,
+        ...(hasNewEmails ? { hasNewEmails: true } : {})
+      };
+    })
+  );
+  return summaries;
+}
+
+/**
+ * Marks a collection as viewed by its owner. Clears the sidebar "new
+ * emails" dot for rule-based collections until another match arrives.
+ */
+export async function markCollectionViewed(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("collections")
+    .update({ last_viewed_at: new Date().toISOString() })
+    .eq("id", collectionId)
+    .eq("user_id", userId);
+  if (error) throw error;
 }
 
 /**
@@ -730,7 +770,15 @@ export async function setCollectionRules(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("collections")
-    .update({ rules: rules === null ? null : (rules as unknown as Json) })
+    .update({
+      rules: rules === null ? null : (rules as unknown as Json),
+      // Treat the current membership snapshot as "seen" so saving
+      // rules does not light up the sidebar dot for emails already
+      // in the collection.
+      ...(rules !== null
+        ? { last_viewed_at: new Date().toISOString() }
+        : {})
+    })
     .eq("id", collectionId)
     .eq("user_id", userId)
     .select("id")
@@ -939,9 +987,32 @@ export async function evaluateCollectionRules(
  * Used by the public-render guard which only needs to know whether a
  * given email belongs to the rule-derived membership.
  */
+type RuleIdQueryOptions = {
+  /** Only emails strictly after this `received_at` timestamp. */
+  receivedAfter?: string;
+  limit?: number;
+};
+
+/**
+ * Returns whether any email matching the rule set arrived after the
+ * given timestamp. Used for the sidebar "new emails" indicator.
+ */
+export async function ruleCollectionHasEmailsReceivedAfter(
+  client: SupabaseClient<Database>,
+  rules: CollectionRules,
+  after: string
+): Promise<boolean> {
+  const ids = await evaluateCollectionRuleIds(client, rules, {
+    receivedAfter: after,
+    limit: 1
+  });
+  return ids.length > 0;
+}
+
 export async function evaluateCollectionRuleIds(
   client: SupabaseClient<Database>,
-  rules: CollectionRules
+  rules: CollectionRules,
+  options?: RuleIdQueryOptions
 ): Promise<string[]> {
   const compiled = await compileRules(client, rules);
   if (compiled === "no_match") {
@@ -950,7 +1021,11 @@ export async function evaluateCollectionRuleIds(
   let query = client
     .from("captured_emails")
     .select("id")
-    .limit(RULE_EVAL_LIMIT);
+    .limit(options?.limit ?? RULE_EVAL_LIMIT);
+
+  if (options?.receivedAfter) {
+    query = query.gt("received_at", options.receivedAfter);
+  }
 
   if (rules.scope === "future" && rules.appliedAt) {
     query = query.gte("received_at", rules.appliedAt);

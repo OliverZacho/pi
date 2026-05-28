@@ -100,6 +100,7 @@
 }
 
 .navIcon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -107,6 +108,18 @@
   height: 1.05rem;
   color: #64748b;
   flex-shrink: 0;
+}
+
+.navNewDot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #fff;
+  pointer-events: none;
 }
 
 .navItem.active .navIcon {

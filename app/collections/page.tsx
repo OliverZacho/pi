@@ -43,22 +43,18 @@ export default async function CollectionsPage() {
   }
 
   const items = await listCollectionsWithPreviews(supabase, user.id);
-  // Sidebar wants the lightweight summary list; we share the full
-  // payload with the grid which needs preview ids + counts.
-  let sidebarCollections: CollectionSummary[] = items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    shareSlug: item.shareSlug
-  }));
-  // Defensive fallback in case the preview query above returned an
-  // empty array for some other reason — issue a second lookup so the
-  // sidebar still shows real collections.
-  if (sidebarCollections.length === 0) {
-    try {
-      sidebarCollections = await listCollectionSummaries(supabase, user.id);
-    } catch {
-      sidebarCollections = [];
-    }
+  // Sidebar summaries include the "new emails" dot flag for rule-based
+  // collections; the grid still uses the richer preview payload above.
+  let sidebarCollections: CollectionSummary[] = [];
+  try {
+    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+  } catch (err) {
+    console.error("Failed to load collection summaries", err);
+    sidebarCollections = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      shareSlug: item.shareSlug
+    }));
   }
 
   let sidebarSets: CompetitorSetSummary[] = [];

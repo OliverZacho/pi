@@ -230,6 +230,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_viewed_at: string | null
           name: string
           rules: Json | null
           share_slug: string
@@ -239,6 +240,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_viewed_at?: string | null
           name: string
           rules?: Json | null
           share_slug: string
@@ -248,6 +250,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_viewed_at?: string | null
           name?: string
           rules?: Json | null
           share_slug?: string
