@@ -149,42 +149,6 @@ function CheckIcon() {
   );
 }
 
-function ChevronRightIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="9 6 15 12 9 18" />
-    </svg>
-  );
-}
-
-function ChevronLeftIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="15 6 9 12 15 18" />
-    </svg>
-  );
-}
-
 function formatMarketLabel(market: string) {
   const trimmed = market.trim();
   if (!trimmed) return market;
@@ -196,7 +160,13 @@ function formatMarketLabel(market: string) {
     .join(" ");
 }
 
-type PopoverName = "brands" | "categories" | "more" | "sort" | null;
+type PopoverName =
+  | "brands"
+  | "brandCategories"
+  | "categories"
+  | "more"
+  | "sort"
+  | null;
 
 type FetchResponse = {
   items: ExploreEmailCard[];
@@ -223,11 +193,11 @@ export default function ExploreClient({
   const [selectedMarkets, setSelectedMarkets] = useState<Set<string>>(
     new Set()
   );
-  const [brandView, setBrandView] = useState<"brands" | "categories">("brands");
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set()
   );
   const [brandQuery, setBrandQuery] = useState("");
+  const [marketQuery, setMarketQuery] = useState("");
   const [hasGif, setHasGif] = useState(false);
   const [hasDarkMode, setHasDarkMode] = useState(false);
   const [receivedAfter, setReceivedAfter] = useState("");
@@ -453,12 +423,6 @@ export default function ExploreClient({
     };
   }, [openPopover]);
 
-  useEffect(() => {
-    if (openPopover !== "brands") {
-      setBrandView("brands");
-    }
-  }, [openPopover]);
-
   // Build the search URL the API route expects. Centralized so the
   // initial fetch and the infinite-scroll fetch use identical encoding.
   const buildSearchUrl = useCallback(
@@ -640,6 +604,14 @@ export default function ExploreClient({
     );
   }, [brandOptions, brandQuery]);
 
+  const filteredBrandCategoryOptions = useMemo(() => {
+    const q = marketQuery.trim().toLowerCase();
+    if (!q) return brandCategoryOptions;
+    return brandCategoryOptions.filter((option) =>
+      option.label.toLowerCase().includes(q)
+    );
+  }, [brandCategoryOptions, marketQuery]);
+
   const moreFiltersCount =
     (hasGif ? 1 : 0) +
     (hasDarkMode ? 1 : 0) +
@@ -684,9 +656,9 @@ export default function ExploreClient({
     setOpenPopover((current) => (current === name ? null : name));
   }
 
-  const brandFilterCount = selectedBrandIds.size + selectedMarkets.size;
   const hasAnyFilter =
-    brandFilterCount > 0 ||
+    selectedBrandIds.size > 0 ||
+    selectedMarkets.size > 0 ||
     selectedCategories.size > 0 ||
     moreFiltersCount > 0 ||
     debouncedQuery.length > 0;
@@ -711,15 +683,17 @@ export default function ExploreClient({
             <button
               type="button"
               className={`${styles.filterChip}${
-                brandFilterCount > 0 ? ` ${styles.filterChipActive}` : ""
+                selectedBrandIds.size > 0 ? ` ${styles.filterChipActive}` : ""
               }${openPopover === "brands" ? ` ${styles.filterChipOpen}` : ""}`}
               onClick={() => togglePopover("brands")}
               aria-haspopup="true"
               aria-expanded={openPopover === "brands"}
             >
               <span>Brands</span>
-              {brandFilterCount > 0 ? (
-                <span className={styles.filterCount}>{brandFilterCount}</span>
+              {selectedBrandIds.size > 0 ? (
+                <span className={styles.filterCount}>
+                  {selectedBrandIds.size}
+                </span>
               ) : null}
               <ChevronIcon />
             </button>
@@ -728,144 +702,143 @@ export default function ExploreClient({
                 className={`${styles.popover} ${styles.popoverList}`}
                 role="menu"
               >
-                {brandView === "brands" ? (
-                  <>
+                <div className={styles.popoverSearch}>
+                  <SearchIcon />
+                  <input
+                    type="search"
+                    value={brandQuery}
+                    onChange={(event) => setBrandQuery(event.target.value)}
+                    placeholder="Search brands"
+                    className={styles.popoverSearchInput}
+                    aria-label="Search brands"
+                  />
+                </div>
+                <div className={styles.popoverScroll}>
+                  {filteredBrandOptions.length === 0 ? (
+                    <div className={styles.popoverEmpty}>No brands found</div>
+                  ) : (
+                    filteredBrandOptions.map((option) => {
+                      const checked = selectedBrandIds.has(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked={checked}
+                          className={styles.checkRow}
+                          onClick={() => toggleBrand(option.id)}
+                        >
+                          <span
+                            className={`${styles.checkBox}${
+                              checked ? ` ${styles.checkBoxChecked}` : ""
+                            }`}
+                          >
+                            {checked ? <CheckIcon /> : null}
+                          </span>
+                          <span className={styles.checkLabel}>
+                            {option.label}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {selectedBrandIds.size > 0 ? (
+                  <div className={styles.popoverFooter}>
                     <button
                       type="button"
-                      className={styles.popoverHeaderRow}
-                      onClick={() => setBrandView("categories")}
-                      aria-label="Switch to brand categories"
+                      className={styles.popoverClear}
+                      onClick={() => setSelectedBrandIds(new Set())}
                     >
-                      <span className={styles.popoverHeaderLabel}>
-                        Search by brand category
-                      </span>
-                      {selectedMarkets.size > 0 ? (
-                        <span className={styles.popoverHeaderCount}>
-                          {selectedMarkets.size}
-                        </span>
-                      ) : null}
-                      <span className={styles.popoverNavChevron}>
-                        <ChevronRightIcon />
-                      </span>
+                      Clear
                     </button>
-                    <div className={styles.popoverSearch}>
-                      <SearchIcon />
-                      <input
-                        type="search"
-                        value={brandQuery}
-                        onChange={(event) => setBrandQuery(event.target.value)}
-                        placeholder="Search brands"
-                        className={styles.popoverSearchInput}
-                        aria-label="Search brands"
-                      />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className={styles.filterChipWrap}>
+            <button
+              type="button"
+              className={`${styles.filterChip}${
+                selectedMarkets.size > 0 ? ` ${styles.filterChipActive}` : ""
+              }${
+                openPopover === "brandCategories"
+                  ? ` ${styles.filterChipOpen}`
+                  : ""
+              }`}
+              onClick={() => togglePopover("brandCategories")}
+              aria-haspopup="true"
+              aria-expanded={openPopover === "brandCategories"}
+            >
+              <span>Brand categories</span>
+              {selectedMarkets.size > 0 ? (
+                <span className={styles.filterCount}>
+                  {selectedMarkets.size}
+                </span>
+              ) : null}
+              <ChevronIcon />
+            </button>
+            {openPopover === "brandCategories" ? (
+              <div
+                className={`${styles.popover} ${styles.popoverList}`}
+                role="menu"
+              >
+                <div className={styles.popoverSearch}>
+                  <SearchIcon />
+                  <input
+                    type="search"
+                    value={marketQuery}
+                    onChange={(event) => setMarketQuery(event.target.value)}
+                    placeholder="Search categories"
+                    className={styles.popoverSearchInput}
+                    aria-label="Search brand categories"
+                  />
+                </div>
+                <div className={styles.popoverScroll}>
+                  {filteredBrandCategoryOptions.length === 0 ? (
+                    <div className={styles.popoverEmpty}>
+                      No categories found
                     </div>
-                    <div className={styles.popoverScroll}>
-                      {filteredBrandOptions.length === 0 ? (
-                        <div className={styles.popoverEmpty}>
-                          No brands found
-                        </div>
-                      ) : (
-                        filteredBrandOptions.map((option) => {
-                          const checked = selectedBrandIds.has(option.id);
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="menuitemcheckbox"
-                              aria-checked={checked}
-                              className={styles.checkRow}
-                              onClick={() => toggleBrand(option.id)}
-                            >
-                              <span
-                                className={`${styles.checkBox}${
-                                  checked ? ` ${styles.checkBoxChecked}` : ""
-                                }`}
-                              >
-                                {checked ? <CheckIcon /> : null}
-                              </span>
-                              <span className={styles.checkLabel}>
-                                {option.label}
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                    {brandFilterCount > 0 ? (
-                      <div className={styles.popoverFooter}>
+                  ) : (
+                    filteredBrandCategoryOptions.map((option) => {
+                      const checked = selectedMarkets.has(option.id);
+                      return (
                         <button
+                          key={option.id}
                           type="button"
-                          className={styles.popoverClear}
-                          onClick={() => {
-                            setSelectedBrandIds(new Set());
-                            setSelectedMarkets(new Set());
-                          }}
+                          role="menuitemcheckbox"
+                          aria-checked={checked}
+                          className={styles.checkRow}
+                          onClick={() => toggleBrandCategory(option.id)}
                         >
-                          Clear
+                          <span
+                            className={`${styles.checkBox}${
+                              checked ? ` ${styles.checkBoxChecked}` : ""
+                            }`}
+                          >
+                            {checked ? <CheckIcon /> : null}
+                          </span>
+                          <span className={styles.checkLabel}>
+                            {option.label}
+                          </span>
                         </button>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
+                      );
+                    })
+                  )}
+                </div>
+                {selectedMarkets.size > 0 ? (
+                  <div className={styles.popoverFooter}>
                     <button
                       type="button"
-                      className={styles.popoverHeaderRow}
-                      onClick={() => setBrandView("brands")}
-                      aria-label="Back to brands"
+                      className={styles.popoverClear}
+                      onClick={() => setSelectedMarkets(new Set())}
                     >
-                      <span className={styles.popoverNavChevron}>
-                        <ChevronLeftIcon />
-                      </span>
-                      <span className={styles.popoverHeaderLabel}>
-                        Brand categories
-                      </span>
+                      Clear
                     </button>
-                    <div className={styles.popoverScroll}>
-                      {brandCategoryOptions.length === 0 ? (
-                        <div className={styles.popoverEmpty}>
-                          No brand categories yet
-                        </div>
-                      ) : (
-                        brandCategoryOptions.map((option) => {
-                          const checked = selectedMarkets.has(option.id);
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="menuitemcheckbox"
-                              aria-checked={checked}
-                              className={styles.checkRow}
-                              onClick={() => toggleBrandCategory(option.id)}
-                            >
-                              <span
-                                className={`${styles.checkBox}${
-                                  checked ? ` ${styles.checkBoxChecked}` : ""
-                                }`}
-                              >
-                                {checked ? <CheckIcon /> : null}
-                              </span>
-                              <span className={styles.checkLabel}>
-                                {option.label}
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                    {selectedMarkets.size > 0 ? (
-                      <div className={styles.popoverFooter}>
-                        <button
-                          type="button"
-                          className={styles.popoverClear}
-                          onClick={() => setSelectedMarkets(new Set())}
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    ) : null}
-                  </>
-                )}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
