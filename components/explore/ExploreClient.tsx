@@ -772,7 +772,7 @@ export default function ExploreClient({
               aria-haspopup="true"
               aria-expanded={openPopover === "brandCategories"}
             >
-              <span>Brand categories</span>
+              <span>Categories</span>
               {selectedMarkets.size > 0 ? (
                 <span className={styles.filterCount}>
                   {selectedMarkets.size}
@@ -793,7 +793,7 @@ export default function ExploreClient({
                     onChange={(event) => setMarketQuery(event.target.value)}
                     placeholder="Search categories"
                     className={styles.popoverSearchInput}
-                    aria-label="Search brand categories"
+                    aria-label="Search categories"
                   />
                 </div>
                 <div className={styles.popoverScroll}>
@@ -855,7 +855,7 @@ export default function ExploreClient({
               aria-haspopup="true"
               aria-expanded={openPopover === "categories"}
             >
-              <span>Categories</span>
+              <span>Content type</span>
               {selectedCategories.size > 0 ? (
                 <span className={styles.filterCount}>
                   {selectedCategories.size}
@@ -871,7 +871,7 @@ export default function ExploreClient({
                 <div className={styles.popoverScroll}>
                   {categoryOptions.length === 0 ? (
                     <div className={styles.popoverEmpty}>
-                      No categories yet
+                      No content types yet
                     </div>
                   ) : (
                     categoryOptions.map((option) => {
