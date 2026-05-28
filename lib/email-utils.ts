@@ -25,12 +25,45 @@ export function buildUniqueSubscriptionEmail(
   return candidate;
 }
 
+// Markers that reliably indicate the start of an email's footer / unsubscribe /
+// preferences / GDPR boilerplate. Everything from the *earliest* occurrence of
+// any of these is excluded from rule matching, because that region is template
+// chrome rather than campaign content and routinely contains tokens like
+// "promotional newsletter", "special offer", "deal", "manage your preferences",
+// etc. that have nothing to do with the email's actual purpose.
+const FOOTER_MARKERS: RegExp[] = [
+  /\bunsubscribe\b/,
+  /\bto unsubscribe\b/,
+  /\bif you no longer (?:wish|want) to receive\b/,
+  /\byou (?:are|'re) receiving this (?:email|message|newsletter)\b/,
+  /\byou received this (?:email|message|newsletter) because\b/,
+  /\bmanage (?:your )?(?:email )?preferences\b/,
+  /\bupdate (?:your )?(?:email )?preferences\b/,
+  /\bemail preferences\b/,
+  /\bnotification settings\b/,
+  /\bwe comply with the gdpr\b/,
+  /\bprivacy (?:policy|notice)\b/
+];
+
+function stripFooter(haystack: string): string {
+  let cut = haystack.length;
+  for (const marker of FOOTER_MARKERS) {
+    const m = marker.exec(haystack);
+    if (m && m.index < cut) cut = m.index;
+  }
+  return haystack.slice(0, cut);
+}
+
 export function classifyFromRules(subject: string, html: string): {
   category: EmailCategory;
   confidence: number;
 } {
   const subjectLc = subject.toLowerCase();
-  const haystack = `${subjectLc} ${html.toLowerCase()}`;
+  const fullHaystack = `${subjectLc} ${html.toLowerCase()}`;
+  // Run rule matching against the footer-stripped haystack so unsubscribe /
+  // preferences boilerplate ("our promotional newsletter", "manage your
+  // preferences", etc.) can never trigger a category on its own.
+  const haystack = stripFooter(fullHaystack);
 
   if (/\breceipt\b|\border\s*#?\s*\d+\b|\border confirmation\b|\bpayment received\b|\bshipping confirmation\b|\binvoice\b/.test(haystack)) {
     return { category: "transactional", confidence: 0.9 };
@@ -54,7 +87,19 @@ export function classifyFromRules(subject: string, html: string): {
     return { category: "seasonal", confidence: 0.9 };
   }
 
-  if (/\bsale\b|\bdiscount\b|\b\d{1,2}%\s*off\b|\bpromo(?:tion|tional)?\b|\bdeal\b|\bcoupon\b|\bspecial offer\b/.test(haystack)) {
+  // Sale rule. We split the signal in two so that loose tokens (`promo`,
+  // `promotional`, `deal`, bare `sale`) that frequently appear in template
+  // chrome — nav links to a /sale outlet page, "promotional newsletter" in the
+  // CAN-SPAM/GDPR footer, "great deal" in stock-image alt text — don't on
+  // their own classify an email as a sale. We accept the broad set of tokens
+  // ONLY in the subject (where the cost of a false positive is much lower
+  // because writers don't put boilerplate there), and require a stronger
+  // signal in the body.
+  const subjectSaleRe =
+    /\bsale\b|\bdiscount\b|\b\d{1,2}%\s*off\b|\bpromo(?:tion|tional)?\b|\bdeal\b|\bcoupon\b|\bspecial offer\b/;
+  const bodySaleRe =
+    /\b\d{1,2}%\s*off\b|\bdiscount(?:ed)?\b|\bcoupon\b|\bspecial offer\b|\bflash sale\b|\bclearance\b|\bsale ends?\b|\bsale (?:now|starts|live|extended|continues)\b|\bsave\s+(?:up\s+to\s+)?(?:\$|€|£|kr\.?|dkk|sek|nok|eur|gbp|usd)?\s*\d+\b|\bbuy\s+\d+\s+get\s+\d+\b|\bbogo\b|\bpromo[\s-]?code\b/;
+  if (subjectSaleRe.test(subjectLc) || bodySaleRe.test(haystack)) {
     return { category: "sale", confidence: 0.88 };
   }
 
