@@ -116,6 +116,27 @@ export async function listCompetitorSetSummaries(
 }
 
 /**
+ * Returns the set of competitor-set ids (owned by `userId`) that
+ * already contain `companyId`. Used by the brand page to pre-check the
+ * "Add to group" popover so the UI reflects current membership the
+ * moment it opens.
+ */
+export async function listSetIdsContainingBrand(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  companyId: string
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("competitor_set_members")
+    .select("set_id, competitor_sets!inner(user_id)")
+    .eq("company_id", companyId)
+    .eq("competitor_sets.user_id", userId);
+
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.set_id));
+}
+
+/**
  * Owner-side detail view used by `/compare/[id]`. Returns `null` when
  * the set doesn't exist or doesn't belong to `userId` so the page can
  * 404 cleanly.

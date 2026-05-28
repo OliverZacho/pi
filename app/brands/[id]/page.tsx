@@ -7,8 +7,10 @@ import {
 } from "@/lib/collections-db";
 import {
   listCompetitorSetSummaries,
+  listSetIdsContainingBrand,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { isBrandFollowed } from "@/lib/follows-db";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/brand/brand.module.css";
@@ -83,6 +85,20 @@ export default async function BrandPage({ params }: RouteParams) {
     console.error("Failed to load competitor sets", err);
   }
 
+  // Follow status + group memberships are loaded in parallel — both are
+  // tiny lookups and we'd otherwise be paying two extra round trips
+  // serially before the page renders.
+  const [isFollowing, groupMembershipIds] = await Promise.all([
+    isBrandFollowed(supabase, user.id, id).catch((err) => {
+      console.error("Failed to load follow status", err);
+      return false;
+    }),
+    listSetIdsContainingBrand(supabase, user.id, id).catch((err) => {
+      console.error("Failed to load group memberships", err);
+      return new Set<string>();
+    })
+  ]);
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -90,7 +106,12 @@ export default async function BrandPage({ params }: RouteParams) {
         collections={sidebarCollections}
         competitorSets={sidebarSets}
       />
-      <BrandDashboard data={data} />
+      <BrandDashboard
+        data={data}
+        isFollowing={isFollowing}
+        groups={sidebarSets}
+        groupMembershipIds={Array.from(groupMembershipIds)}
+      />
     </div>
   );
 }

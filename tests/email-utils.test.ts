@@ -162,6 +162,38 @@ describe("classifyFromRules", () => {
     expect(result.category).toBe("other");
     expect(result.confidence).toBeLessThan(0.5);
   });
+
+  it("ignores 'promotional newsletter' boilerplate in the unsubscribe footer", () => {
+    // Real-world false positive: Muuto event invite where the only token from
+    // the sale rule was "promotional" in the GDPR/unsubscribe footer.
+    const result = classifyFromRules(
+      "You're invited—3daysofdesign 2026",
+      `<p>Celebrating 20 Years of New Perspectives. Join us in Copenhagen, June 10-12.</p>
+       <p>RSVP and explore the program.</p>
+       <p style="font-size:10px">You are receiving this email because you are signed up to receive our promotional newsletter.
+       At Muuto, we comply with the GDPR. <a href="...">Unsubscribe</a></p>`
+    );
+    expect(result.category).toBe("event");
+  });
+
+  it("does not classify a content email as sale just because the nav links to a /sale page", () => {
+    // Common pattern: brand newsletter with a global header nav containing an
+    // "Outlet" link to /sale — body otherwise has no sale signal.
+    const result = classifyFromRules(
+      "This week at Acme",
+      `<nav><a href="https://acme.com/new">New</a><a href="https://acme.com/sale">Outlet</a></nav>
+       <p>Read our latest story about craftsmanship — our story this week.</p>`
+    );
+    expect(result.category).not.toBe("sale");
+  });
+
+  it("still classifies as sale when the body has a strong discount signal", () => {
+    const result = classifyFromRules(
+      "An update from us",
+      "<p>Sale ends tonight — enjoy 20% off everything sitewide with promo code SAVE20.</p>"
+    );
+    expect(result.category).toBe("sale");
+  });
 });
 
 describe("extractImageUrlsFromHtml", () => {
