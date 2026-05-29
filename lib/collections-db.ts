@@ -564,7 +564,7 @@ export async function listCollectionSummaries(
       const rules = safeParseStoredRules(row.rules);
       let hasNewEmails = false;
       if (rules && row.last_viewed_at) {
-        hasNewEmails = await ruleCollectionHasEmailsReceivedAfter(
+        hasNewEmails = await ruleCollectionHasEmailsAddedAfter(
           supabase,
           rules,
           row.last_viewed_at
@@ -988,22 +988,29 @@ export async function evaluateCollectionRules(
  * given email belongs to the rule-derived membership.
  */
 type RuleIdQueryOptions = {
-  /** Only emails strictly after this `received_at` timestamp. */
-  receivedAfter?: string;
+  /**
+   * Only emails ingested (added to the system) strictly after this
+   * timestamp. Compared against `created_at` — i.e. "when did this row
+   * appear" — rather than `received_at` ("when did the brand send it"),
+   * so a late-ingested email with an older send date still counts as
+   * newly added to a rule-based collection.
+   */
+  createdAfter?: string;
   limit?: number;
 };
 
 /**
- * Returns whether any email matching the rule set arrived after the
- * given timestamp. Used for the sidebar "new emails" indicator.
+ * Returns whether any email matching the rule set was added to the
+ * system after the given timestamp. Powers the sidebar "new emails"
+ * indicator for rule-based (auto-populated) collections.
  */
-export async function ruleCollectionHasEmailsReceivedAfter(
+export async function ruleCollectionHasEmailsAddedAfter(
   client: SupabaseClient<Database>,
   rules: CollectionRules,
   after: string
 ): Promise<boolean> {
   const ids = await evaluateCollectionRuleIds(client, rules, {
-    receivedAfter: after,
+    createdAfter: after,
     limit: 1
   });
   return ids.length > 0;
@@ -1023,8 +1030,8 @@ export async function evaluateCollectionRuleIds(
     .select("id")
     .limit(options?.limit ?? RULE_EVAL_LIMIT);
 
-  if (options?.receivedAfter) {
-    query = query.gt("received_at", options.receivedAfter);
+  if (options?.createdAfter) {
+    query = query.gt("created_at", options.createdAfter);
   }
 
   if (rules.scope === "future" && rules.appliedAt) {
