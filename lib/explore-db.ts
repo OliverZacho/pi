@@ -39,6 +39,12 @@ export type ExploreSortKey =
 
 export type ExploreSearchParams = {
   query?: string;
+  /**
+   * Restrict the result to these specific email IDs. Used to resolve a
+   * single card for a shared `?email=<id>` deep link when the email
+   * isn't in the currently loaded page.
+   */
+  emailIds?: string[];
   brandIds?: string[];
   markets?: string[];
   categories?: string[];
@@ -185,6 +191,9 @@ export async function searchExploreEmails(
       { count: "exact" }
     );
 
+  if (params.emailIds && params.emailIds.length > 0) {
+    emailsQuery = emailsQuery.in("id", params.emailIds);
+  }
   if (effectiveBrandIds !== null) {
     emailsQuery = emailsQuery.in("company_id", effectiveBrandIds);
   }

@@ -107,6 +107,11 @@ export default function BrandsExploreClient({
   const [subscribedBefore, setSubscribedBefore] = useState("");
   const [sort, setSort] = useState<BrandsSortKey>("most_active");
 
+  // Flips true once the initial filter state has been read from the URL.
+  // Gates the URL-writer effect so it can't clobber the incoming query
+  // string before we've hydrated from it.
+  const [hydrated, setHydrated] = useState(false);
+
   const [brands, setBrands] = useState<BrandsExploreCard[]>(initialBrands);
   const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
@@ -172,6 +177,110 @@ export default function BrandsExploreClient({
     if (!Number.isFinite(n) || n <= 0) return null;
     return n;
   }, [minEmailsInput]);
+
+  // Hydrate filters from the URL on first mount so a shared / bookmarked
+  // link reproduces the same view. Runs once; the writer effect below
+  // keeps the URL in sync from here on. Seeding state here triggers the
+  // fetch effect to reload with the URL's filters in place of the SSR'd
+  // default first page.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+
+    const q = sp.get("q");
+    if (q) {
+      setQueryInput(q);
+      setDebouncedQuery(q.trim());
+    }
+
+    const markets = sp.getAll("market").filter(Boolean);
+    if (markets.length > 0) setSelectedMarkets(new Set(markets));
+
+    const validEsps = new Set(facets.espProviders.map((esp) => esp.id));
+    const esps = sp
+      .getAll("esp")
+      .filter((id): id is EspProvider => validEsps.has(id as EspProvider));
+    if (esps.length > 0) setSelectedEsps(new Set(esps));
+
+    const cadenceMin = Number.parseFloat(sp.get("cadenceMin") ?? "");
+    const cadenceMax = Number.parseFloat(sp.get("cadenceMax") ?? "");
+    if (Number.isFinite(cadenceMin) || Number.isFinite(cadenceMax)) {
+      const lo = Number.isFinite(cadenceMin) ? Math.max(0, cadenceMin) : 0;
+      const hi = Number.isFinite(cadenceMax)
+        ? Math.min(facets.cadenceMaxDays, cadenceMax)
+        : facets.cadenceMaxDays;
+      setCadenceRange([Math.min(lo, hi), Math.max(lo, hi)]);
+    }
+
+    const activityParam = sp.get("activity");
+    if (
+      activityParam &&
+      ACTIVITY_OPTIONS.some((option) => option.id === activityParam)
+    ) {
+      setActivity(activityParam as BrandsActivityWindow);
+    }
+
+    const minEmails = sp.get("minEmails");
+    if (minEmails) setMinEmailsInput(minEmails);
+
+    if (sp.get("logo") === "1") setHasLogo(true);
+
+    const from = sp.get("from");
+    if (from) setSubscribedAfter(from);
+    const to = sp.get("to");
+    if (to) setSubscribedBefore(to);
+
+    const sortParam = sp.get("sort");
+    if (sortParam && sortParam in SORT_LABEL) {
+      setSort(sortParam as BrandsSortKey);
+    }
+
+    setHydrated(true);
+    // Mount-only: we intentionally read the URL a single time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror the active filters into the URL with replaceState (no new
+  // history entry) so the view is always shareable. Gated on `hydrated`
+  // so the first commit can't overwrite the incoming URL.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const params = new URLSearchParams();
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    for (const market of selectedMarkets) params.append("market", market);
+    for (const esp of selectedEsps) params.append("esp", esp);
+    if (cadenceActive) {
+      params.set("cadenceMin", cadenceRange[0].toFixed(1));
+      params.set("cadenceMax", cadenceRange[1].toFixed(1));
+    }
+    if (activity) params.set("activity", activity);
+    if (parsedMinEmails !== null) {
+      params.set("minEmails", String(parsedMinEmails));
+    }
+    if (hasLogo) params.set("logo", "1");
+    if (subscribedAfter) params.set("from", subscribedAfter);
+    if (subscribedBefore) params.set("to", subscribedBefore);
+    if (sort !== "most_active") params.set("sort", sort);
+
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", url);
+  }, [
+    hydrated,
+    debouncedQuery,
+    selectedMarkets,
+    selectedEsps,
+    cadenceActive,
+    cadenceRange,
+    activity,
+    parsedMinEmails,
+    hasLogo,
+    subscribedAfter,
+    subscribedBefore,
+    sort
+  ]);
 
   const buildSearchUrl = useCallback(
     (nextPage: number) => {

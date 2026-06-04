@@ -205,6 +205,11 @@ export default function ExploreClient({
   const [sort, setSort] = useState<ExploreSortKey>("newest");
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
 
+  // Flips true once the initial filter/open-email state has been read
+  // from the URL. Gates the URL-writer effect so it never clobbers the
+  // incoming query string before we've had a chance to hydrate from it.
+  const [hydrated, setHydrated] = useState(false);
+
   // Server-driven result state. `emails` is the union of every page
   // fetched so far for the current filter combo; resetting it is how we
   // start a fresh search.
@@ -422,6 +427,110 @@ export default function ExploreClient({
       document.removeEventListener("keydown", handleKey);
     };
   }, [openPopover]);
+
+  // Hydrate filters + the open-email modal from the URL on first mount so
+  // a shared / bookmarked link reproduces the same view. Runs once; the
+  // writer effect below keeps the URL in sync from here on. Seeding state
+  // here (rather than in the SSR'd defaults) triggers the fetch effect to
+  // reload with the URL's filters, replacing the default first page.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+
+    const q = sp.get("q");
+    if (q) {
+      setQueryInput(q);
+      setDebouncedQuery(q.trim());
+    }
+
+    const brands = sp.getAll("brand").filter(Boolean);
+    if (brands.length > 0) setSelectedBrandIds(new Set(brands));
+
+    const markets = sp.getAll("market").filter(Boolean);
+    if (markets.length > 0) setSelectedMarkets(new Set(markets));
+
+    const categories = sp.getAll("category").filter(Boolean);
+    if (categories.length > 0) setSelectedCategories(new Set(categories));
+
+    if (sp.get("gif") === "1") setHasGif(true);
+    if (sp.get("dark") === "1") setHasDarkMode(true);
+
+    const from = sp.get("from");
+    if (from) setReceivedAfter(from);
+    const to = sp.get("to");
+    if (to) setReceivedBefore(to);
+
+    const sortParam = sp.get("sort");
+    if (sortParam && sortParam in SORT_LABEL) {
+      setSort(sortParam as ExploreSortKey);
+    }
+
+    const emailId = sp.get("email");
+    if (emailId) {
+      const existing = initialEmails.find((email) => email.id === emailId);
+      if (existing) {
+        setOpenEmail(existing);
+      } else {
+        // The deep-linked email isn't on the SSR'd first page; resolve
+        // the card on its own so the modal can open regardless of the
+        // active filters or which page it lives on.
+        fetch(
+          `/api/explore/emails?id=${encodeURIComponent(emailId)}&pageSize=1`,
+          { credentials: "include" }
+        )
+          .then((res) => (res.ok ? res.json() : null))
+          .then((body: FetchResponse | null) => {
+            const card = body?.items?.[0];
+            if (card) setOpenEmail(card);
+          })
+          .catch(() => {
+            /* a missing email just leaves the modal closed */
+          });
+      }
+    }
+
+    setHydrated(true);
+    // Mount-only: we intentionally read the URL a single time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror the active filters + open email into the URL with replaceState
+  // (no new history entry) so the view is always shareable. Gated on
+  // `hydrated` so the first commit can't overwrite the incoming URL.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const params = new URLSearchParams();
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    for (const id of selectedBrandIds) params.append("brand", id);
+    for (const market of selectedMarkets) params.append("market", market);
+    for (const category of selectedCategories) {
+      params.append("category", category);
+    }
+    if (hasGif) params.set("gif", "1");
+    if (hasDarkMode) params.set("dark", "1");
+    if (receivedAfter) params.set("from", receivedAfter);
+    if (receivedBefore) params.set("to", receivedBefore);
+    if (sort !== "newest") params.set("sort", sort);
+    if (openEmail) params.set("email", openEmail.id);
+
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", url);
+  }, [
+    hydrated,
+    debouncedQuery,
+    selectedBrandIds,
+    selectedMarkets,
+    selectedCategories,
+    hasGif,
+    hasDarkMode,
+    receivedAfter,
+    receivedBefore,
+    sort,
+    openEmail
+  ]);
 
   // Build the search URL the API route expects. Centralized so the
   // initial fetch and the infinite-scroll fetch use identical encoding.
