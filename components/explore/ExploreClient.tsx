@@ -249,11 +249,68 @@ export default function ExploreClient({
   const skipNextFetchRef = useRef(true);
   const activeRequestRef = useRef<AbortController | null>(null);
 
+  // True while the open modal owns a dedicated history entry we pushed
+  // on open. Lets the close handler decide between popping that entry
+  // (Back) and stripping the param in place (deep-linked open).
+  const modalPushedRef = useRef(false);
+  // Latest emails list, read inside event handlers (popstate) without
+  // making them depend on — and churn with — the array reference.
+  const emailsRef = useRef(emails);
+  emailsRef.current = emails;
+
+  // Resolve a card by id from the loaded set (or fetch it on its own
+  // when it isn't on the current page) and open it in the modal.
+  const openEmailById = useCallback((id: string) => {
+    const existing = emailsRef.current.find((email) => email.id === id);
+    if (existing) {
+      setOpenEmail(existing);
+      return;
+    }
+    fetch(`/api/explore/emails?id=${encodeURIComponent(id)}&pageSize=1`, {
+      credentials: "include"
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: FetchResponse | null) => {
+        const card = body?.items?.[0];
+        if (card) setOpenEmail(card);
+      })
+      .catch(() => {
+        /* a missing email just leaves the modal closed */
+      });
+  }, []);
+
   const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
+    // Push a dedicated history entry so the browser Back button closes
+    // the modal instead of navigating away from Explore.
+    const params = new URLSearchParams(window.location.search);
+    params.set("email", email.id);
+    modalPushedRef.current = true;
+    window.history.pushState(
+      window.history.state,
+      "",
+      `${window.location.pathname}?${params.toString()}`
+    );
   }, []);
 
   const handleCloseEmail = useCallback(() => {
+    if (modalPushedRef.current) {
+      // Pop the entry we pushed on open; the popstate handler clears
+      // openEmail and the browser restores the filters-only URL.
+      modalPushedRef.current = false;
+      window.history.back();
+      return;
+    }
+    // Opened from a deep link (no pushed entry), so just strip the email
+    // param in place rather than navigating away from the page.
+    const params = new URLSearchParams(window.location.search);
+    params.delete("email");
+    const qs = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      "",
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    );
     setOpenEmail(null);
   }, []);
 
@@ -464,29 +521,11 @@ export default function ExploreClient({
       setSort(sortParam as ExploreSortKey);
     }
 
+    // A deep-linked email shares the landing history entry (no extra
+    // entry to pop), so leave `modalPushedRef` false — closing it strips
+    // the param in place instead of navigating away.
     const emailId = sp.get("email");
-    if (emailId) {
-      const existing = initialEmails.find((email) => email.id === emailId);
-      if (existing) {
-        setOpenEmail(existing);
-      } else {
-        // The deep-linked email isn't on the SSR'd first page; resolve
-        // the card on its own so the modal can open regardless of the
-        // active filters or which page it lives on.
-        fetch(
-          `/api/explore/emails?id=${encodeURIComponent(emailId)}&pageSize=1`,
-          { credentials: "include" }
-        )
-          .then((res) => (res.ok ? res.json() : null))
-          .then((body: FetchResponse | null) => {
-            const card = body?.items?.[0];
-            if (card) setOpenEmail(card);
-          })
-          .catch(() => {
-            /* a missing email just leaves the modal closed */
-          });
-      }
-    }
+    if (emailId) openEmailById(emailId);
 
     setHydrated(true);
     // Mount-only: we intentionally read the URL a single time.
@@ -511,7 +550,13 @@ export default function ExploreClient({
     if (receivedAfter) params.set("from", receivedAfter);
     if (receivedBefore) params.set("to", receivedBefore);
     if (sort !== "newest") params.set("sort", sort);
-    if (openEmail) params.set("email", openEmail.id);
+    // The open-email param is owned by the modal's push/popstate logic,
+    // not this filter writer — preserve whatever is currently in the URL
+    // so a filter tweak while the modal is open doesn't drop it.
+    const currentEmail = new URLSearchParams(window.location.search).get(
+      "email"
+    );
+    if (currentEmail) params.set("email", currentEmail);
 
     const qs = params.toString();
     const url = qs
@@ -528,9 +573,25 @@ export default function ExploreClient({
     hasDarkMode,
     receivedAfter,
     receivedBefore,
-    sort,
-    openEmail
+    sort
   ]);
+
+  // Sync the modal to browser navigation: Back from an open email pops
+  // the pushed entry (email param gone -> close); a restored entry that
+  // still carries an email param reopens it.
+  useEffect(() => {
+    function handlePop() {
+      modalPushedRef.current = false;
+      const emailId = new URLSearchParams(window.location.search).get("email");
+      if (!emailId) {
+        setOpenEmail(null);
+        return;
+      }
+      openEmailById(emailId);
+    }
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [openEmailById]);
 
   // Build the search URL the API route expects. Centralized so the
   // initial fetch and the infinite-scroll fetch use identical encoding.
