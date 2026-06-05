@@ -53,6 +53,7 @@ export default async function CollectionsPage() {
     sidebarCollections = items.map((item) => ({
       id: item.id,
       name: item.name,
+      icon: item.icon,
       shareSlug: item.shareSlug
     }));
   }

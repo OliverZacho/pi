@@ -590,7 +590,13 @@ export default function ExploreSidebar({
               title={collection.name}
             >
               <span className={styles.navIcon}>
-                <CollectionIcon />
+                {collection.icon ? (
+                  <span className={styles.navEmoji} aria-hidden="true">
+                    {collection.icon}
+                  </span>
+                ) : (
+                  <CollectionIcon />
+                )}
                 {collection.hasNewEmails && !isActive ? (
                   <span
                     className={styles.navNewDot}

@@ -229,6 +229,7 @@ export type Database = {
       collections: {
         Row: {
           created_at: string
+          icon: string | null
           id: string
           last_viewed_at: string | null
           name: string
@@ -239,6 +240,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          icon?: string | null
           id?: string
           last_viewed_at?: string | null
           name: string
@@ -249,6 +251,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          icon?: string | null
           id?: string
           last_viewed_at?: string | null
           name?: string

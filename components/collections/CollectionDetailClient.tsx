@@ -15,9 +15,11 @@ import type {
   CollectionSummary
 } from "@/lib/collections-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
+import type { CollectionIcon } from "@/lib/collection-icons";
 import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
+import CollectionIconPicker from "./CollectionIconPicker";
 import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
 
@@ -323,6 +325,30 @@ export default function CollectionDetailClient({
     }
   }
 
+  async function handleChangeIcon(icon: CollectionIcon | null) {
+    if (icon === collection.icon) return;
+    const previous = collection.icon;
+    // Optimistically reflect the new icon; roll back on failure.
+    setCollection((current) => ({ ...current, icon }));
+    try {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ icon })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+      router.refresh();
+    } catch (err) {
+      setCollection((current) => ({ ...current, icon: previous }));
+      setError(
+        err instanceof Error ? err.message : "Failed to update icon"
+      );
+    }
+  }
+
   async function handleRename(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (renamePending) return;
@@ -394,42 +420,50 @@ export default function CollectionDetailClient({
 
       <header className={styles.detailHeader}>
         <div className={styles.detailTitleGroup}>
-          {renaming ? (
-            <form onSubmit={handleRename}>
-              <input
-                ref={renameInputRef}
-                type="text"
-                value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                onBlur={() => {
-                  if (!renamePending) {
+          <div className={styles.detailTitleRow}>
+            <CollectionIconPicker
+              value={collection.icon}
+              onChange={handleChangeIcon}
+              size="lg"
+              label="Choose an icon for this collection"
+            />
+            {renaming ? (
+              <form onSubmit={handleRename}>
+                <input
+                  ref={renameInputRef}
+                  type="text"
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onBlur={() => {
+                    if (!renamePending) {
+                      setNameDraft(collection.name);
+                      setRenaming(false);
+                    }
+                  }}
+                  maxLength={120}
+                  className={styles.detailTitleInput}
+                  aria-label="Rename collection"
+                  disabled={renamePending}
+                />
+              </form>
+            ) : (
+              <h1 className={styles.detailTitle}>
+                {collection.name}
+                <button
+                  type="button"
+                  className={styles.detailEditIcon}
+                  onClick={() => {
                     setNameDraft(collection.name);
-                    setRenaming(false);
-                  }
-                }}
-                maxLength={120}
-                className={styles.detailTitleInput}
-                aria-label="Rename collection"
-                disabled={renamePending}
-              />
-            </form>
-          ) : (
-            <h1 className={styles.detailTitle}>
-              {collection.name}
-              <button
-                type="button"
-                className={styles.detailEditIcon}
-                onClick={() => {
-                  setNameDraft(collection.name);
-                  setRenaming(true);
-                }}
-                aria-label="Rename collection"
-                title="Rename"
-              >
-                <PencilIcon />
-              </button>
-            </h1>
-          )}
+                    setRenaming(true);
+                  }}
+                  aria-label="Rename collection"
+                  title="Rename"
+                >
+                  <PencilIcon />
+                </button>
+              </h1>
+            )}
+          </div>
           <span className={styles.detailMeta}>
             {emails.length === 0
               ? "Empty collection"

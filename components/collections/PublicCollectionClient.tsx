@@ -82,7 +82,14 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
       <main className={styles.main}>
         <div className={styles.titleBlock}>
           <span className={styles.eyebrow}>Shared collection</span>
-          <h1 className={styles.title}>{collection.name}</h1>
+          <h1 className={styles.title}>
+            {collection.icon ? (
+              <span className={styles.titleIcon} aria-hidden="true">
+                {collection.icon}
+              </span>
+            ) : null}
+            {collection.name}
+          </h1>
           <p className={styles.meta}>
             {collection.emails.length === 0
               ? "No emails in this collection yet."

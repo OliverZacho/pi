@@ -7,8 +7,10 @@ import {
   parseCollectionRules,
   renameCollection,
   resolveAppliedAt,
+  setCollectionIcon,
   setCollectionRules
 } from "@/lib/collections-db";
+import { isCollectionIcon } from "@/lib/collection-icons";
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -85,10 +87,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   const obj = body as Record<string, unknown>;
   const hasName = Object.prototype.hasOwnProperty.call(obj, "name");
   const hasRules = Object.prototype.hasOwnProperty.call(obj, "rules");
+  const hasIcon = Object.prototype.hasOwnProperty.call(obj, "icon");
 
-  if (!hasName && !hasRules) {
+  if (!hasName && !hasRules && !hasIcon) {
     return NextResponse.json(
-      { error: "At least one of 'name' or 'rules' is required" },
+      { error: "At least one of 'name', 'rules' or 'icon' is required" },
       { status: 400 }
     );
   }
@@ -103,6 +106,15 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 400 }
       );
     }
+  }
+
+  // `icon: null` clears the icon; any non-null value must be in the
+  // curated allow-list.
+  if (hasIcon && obj.icon !== null && !isCollectionIcon(obj.icon)) {
+    return NextResponse.json(
+      { error: "Unsupported collection icon" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -160,6 +172,21 @@ export async function PATCH(request: Request, context: RouteContext) {
         session.user.id,
         id,
         obj.name as string
+      );
+      if (!updated) {
+        return NextResponse.json(
+          { error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (hasIcon) {
+      const updated = await setCollectionIcon(
+        session.supabase,
+        session.user.id,
+        id,
+        isCollectionIcon(obj.icon) ? obj.icon : null
       );
       if (!updated) {
         return NextResponse.json(
