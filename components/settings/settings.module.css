@@ -1,0 +1,314 @@
+/* =========================================================
+   Settings page (/settings)
+   - Mounts inside the shared app shell (sidebar + main).
+   - Horizontal tabs across the top switch between the four
+     sections; each section is a skeleton (inputs render,
+     nothing is wired up yet).
+   ========================================================= */
+
+.wrap {
+  margin-top: 1.75rem;
+  max-width: 720px;
+}
+
+/* ---------- Horizontal tabs ---------- */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.tab {
+  position: relative;
+  padding: 0.6rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.tab:hover {
+  color: #0f172a;
+}
+
+.tabActive {
+  color: #0f172a;
+}
+
+/* Active underline sits on top of the row's bottom border. */
+.tabActive::after {
+  content: "";
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: #0f172a;
+}
+
+/* ---------- Panel + sections ---------- */
+
+.panel {
+  display: block;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+}
+
+.sectionDanger {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.sectionHead {
+  margin-bottom: 1rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.sectionDesc {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* ---------- Fields ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fieldLabel {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.88rem;
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.18);
+}
+
+.input:disabled {
+  background: #f8fafc;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* ---------- Buttons ---------- */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 0.95rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.primaryBtn {
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.secondaryBtn {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #334155;
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.dangerBtn {
+  border: 1px solid #dc2626;
+  background: #ffffff;
+  color: #dc2626;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.dangerBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Invite / inline input + button rows ---------- */
+
+.inviteRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.inviteRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Notification toggles ---------- */
+
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.toggleRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.toggleRow:first-child {
+  padding-top: 0;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.toggleLabel {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.toggleDesc {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.switch {
+  flex-shrink: 0;
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  margin-top: 0.15rem;
+}
+
+.switchKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+}
+
+/* ---------- Misc ---------- */
+
+.emptyState {
+  padding: 1rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.planRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.planName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.planMeta {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: #64748b;
+}

@@ -34,6 +34,7 @@ type Props = {
    */
   activeId?:
     | NavId
+    | "settings"
     | `collection:${string}`
     | `compare:${string}`;
   /**
@@ -682,12 +683,18 @@ export default function ExploreSidebar({
         </button>
       </div>
 
-      <div className={styles.settingsRow}>
+      <Link
+        href="/settings"
+        className={`${styles.settingsRow}${
+          activeId === "settings" ? ` ${styles.active}` : ""
+        }`}
+        aria-current={activeId === "settings" ? "page" : undefined}
+      >
         <span>Settings</span>
         <span className={styles.navIcon}>
           <MoreIcon />
         </span>
-      </div>
+      </Link>
     </aside>
     </>
   );

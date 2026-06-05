@@ -329,6 +329,12 @@
   color: #0f172a;
 }
 
+.settingsRow.active {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 500;
+}
+
 /* ---------- Main panel ---------- */
 
 .main {
