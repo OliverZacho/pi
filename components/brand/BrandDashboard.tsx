@@ -15,14 +15,11 @@ import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
-/** Tooltip for the hero region pill, explaining where the market came from. */
+/**
+ * Tooltip for the hero region pill. User-facing, so it stays neutral — the
+ * resolution provenance (web reasoning + source links) lives in /admin only.
+ */
 function marketTooltip(brand: BrandPageData["brand"]): string {
-  if (brand.marketSource === "web") {
-    const base = brand.isGlobal ? "Global brand" : "Headquarters";
-    return brand.marketCitation?.reasoning
-      ? `${base} (web lookup): ${brand.marketCitation.reasoning}`
-      : `${base}, resolved via web lookup`;
-  }
   if (brand.marketSource === "email" && brand.marketConfidence !== null) {
     return `Primary market — ${Math.round(brand.marketConfidence * 100)}% of recent emails`;
   }
@@ -247,21 +244,6 @@ function Hero({
                   >
                     🌍 Global
                   </span>
-                ) : null}
-                {brand.marketSource === "web" && brand.marketCitation?.sources[0] ? (
-                  <a
-                    href={brand.marketCitation.sources[0].url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={styles.heroDomain}
-                    title={`Headquarters source: ${
-                      brand.marketCitation.sources[0].title ??
-                      brand.marketCitation.sources[0].url
-                    }`}
-                    style={{ fontSize: "0.78rem", opacity: 0.7 }}
-                  >
-                    source
-                  </a>
                 ) : null}
               </>
             ) : null}

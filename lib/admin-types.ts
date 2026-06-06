@@ -65,6 +65,11 @@ export type CompanyInbox = {
   createdAt: string;
 };
 
+export type MarketCitation = {
+  reasoning: string | null;
+  sources: { title: string | null; url: string }[];
+};
+
 export type CompanySubscription = {
   id: string;
   name: string;
@@ -76,6 +81,16 @@ export type CompanySubscription = {
    * is uncategorised.
    */
   markets: string[];
+  /** Resolved primary market (ISO alpha-2) or null when unknown. */
+  primaryMarketCountry: string | null;
+  /** True for genuine global brands (still carry an HQ country). */
+  isGlobal: boolean;
+  /** Web-resolved HQ country (ISO alpha-2); usually equals primaryMarketCountry. */
+  hqCountry: string | null;
+  /** How the market was resolved: email rollup or web lookup. */
+  marketSource: "email" | "web" | null;
+  /** Audit payload for a web-resolved market (admin-only surfacing). */
+  marketCitation: MarketCitation | null;
   /**
    * Primary inbox email — kept for backwards compatibility and for the
    * many UI surfaces that only need to display one address. For

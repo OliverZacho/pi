@@ -7,6 +7,7 @@ import {
   type CompanyDetail,
   type CompanyInbox,
   type CompanySubscription,
+  type MarketCitation,
   type EmailCategory,
   type EspProvider,
   type FontFamily,
@@ -127,7 +128,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -347,7 +348,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -441,7 +442,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -492,6 +493,11 @@ type CompanyRow = {
   name: string;
   domain: string;
   markets: string[] | null;
+  primary_market_country?: string | null;
+  is_global?: boolean | null;
+  hq_country?: string | null;
+  market_source?: string | null;
+  market_citation?: unknown;
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
@@ -570,6 +576,11 @@ async function resolveCompanyLogos(
       name: company.name,
       domain: company.domain,
       markets: company.markets,
+      primaryMarketCountry: company.primaryMarketCountry,
+      isGlobal: company.isGlobal,
+      hqCountry: company.hqCountry,
+      marketSource: company.marketSource,
+      marketCitation: company.marketCitation,
       subscriptionEmail: company.subscriptionEmail,
       inboxes: company.inboxes,
       subscribedAt: company.subscribedAt,
@@ -616,6 +627,26 @@ type EmailListRow = {
   companies: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
+function parseMarketCitationAdmin(value: unknown): MarketCitation | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  const reasoning = typeof obj.reasoning === "string" ? obj.reasoning : null;
+  const rawSources = Array.isArray(obj.sources) ? obj.sources : [];
+  const sources: MarketCitation["sources"] = [];
+  for (const item of rawSources) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.url === "string" && entry.url.length > 0) {
+      sources.push({
+        title: typeof entry.title === "string" ? entry.title : null,
+        url: entry.url
+      });
+    }
+  }
+  if (!reasoning && sources.length === 0) return null;
+  return { reasoning, sources };
+}
+
 function rowToCompany(row: CompanyRow): CompanySubscription {
   const inboxes = sortInboxesForDisplay(row.company_inboxes ?? []);
   const primaryInbox =
@@ -642,6 +673,14 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     name: row.name,
     domain: row.domain,
     markets: normalizeStoredMarkets(row.markets),
+    primaryMarketCountry: row.primary_market_country ?? null,
+    isGlobal: row.is_global ?? false,
+    hqCountry: row.hq_country ?? null,
+    marketSource:
+      row.market_source === "email" || row.market_source === "web"
+        ? row.market_source
+        : null,
+    marketCitation: parseMarketCitationAdmin(row.market_citation),
     subscriptionEmail: primaryInbox,
     inboxes,
     subscribedAt: row.subscribed_since,
@@ -827,6 +866,11 @@ export async function createCompanySubscriptionInDb(
     name: company.name,
     domain: company.domain,
     markets: normalizeStoredMarkets(company.markets),
+    primaryMarketCountry: null,
+    isGlobal: false,
+    hqCountry: null,
+    marketSource: null,
+    marketCitation: null,
     subscriptionEmail,
     inboxes: [
       {

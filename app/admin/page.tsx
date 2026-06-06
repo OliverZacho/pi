@@ -11,6 +11,7 @@ import {
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
+import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 
@@ -226,6 +227,52 @@ function getCompanyInitials(name: string): string {
     ? tokens[0].slice(0, 2)
     : `${tokens[0][0] ?? ""}${tokens[1][0] ?? ""}`;
   return letters.toUpperCase();
+}
+
+/**
+ * Admin-only region/HQ provenance under a brand name: the resolved market,
+ * a global flag, how it was resolved (web vs email rollup), and — for web
+ * answers — the model's reasoning (tooltip) plus a link to the cited source.
+ * Kept out of the public brand page on purpose.
+ */
+function CompanyRegionDetail({ company }: { company: CompanySubscription }) {
+  const detailStyle = {
+    display: "block",
+    fontSize: "0.72rem",
+    marginTop: "0.1rem"
+  } as const;
+  if (!company.primaryMarketCountry && !company.isGlobal) {
+    return (
+      <span className="muted" style={detailStyle}>
+        — region unknown
+      </span>
+    );
+  }
+  const source = company.marketCitation?.sources[0] ?? null;
+  return (
+    <span
+      className="muted"
+      style={detailStyle}
+      title={company.marketCitation?.reasoning ?? undefined}
+    >
+      {company.primaryMarketCountry ? (
+        <>
+          {countryFlag(company.primaryMarketCountry)}{" "}
+          {countryName(company.primaryMarketCountry)}
+        </>
+      ) : null}
+      {company.isGlobal ? " · 🌍 global" : ""}
+      {company.marketSource ? ` · via ${company.marketSource}` : ""}
+      {source ? (
+        <>
+          {" · "}
+          <a href={source.url} target="_blank" rel="noreferrer">
+            source
+          </a>
+        </>
+      ) : null}
+    </span>
+  );
 }
 
 function CompanyLogo({
@@ -1452,7 +1499,10 @@ export default function AdminHomePage() {
                     ) : (
                       <span className="company-cell">
                         <CompanyLogo name={company.name} url={company.logoUrl} />
-                        <span>{company.name}</span>
+                        <span>
+                          <span>{company.name}</span>
+                          <CompanyRegionDetail company={company} />
+                        </span>
                       </span>
                     )}
                   </td>
