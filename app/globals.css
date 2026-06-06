@@ -40,6 +40,293 @@ code {
   overflow-x: auto;
 }
 
+/* ---------- Admin two-column shell ---------- */
+
+.admin-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem 0.85rem;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.admin-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.15rem 0.5rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-sidebar-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.admin-sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.admin-sidebar-brand-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.admin-sidebar-logo {
+  height: 22px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+  color: #0f172a;
+}
+
+.admin-sidebar-brand-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+  padding-left: 0.6rem;
+  border-left: 1px solid #e2e8f0;
+}
+
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.admin-nav-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.admin-nav-item.is-active {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.admin-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-nav-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.admin-nav-item.is-active .admin-nav-badge {
+  background: #f87171;
+}
+
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.admin-sidebar-footer .sign-out {
+  width: 100%;
+}
+
+.admin-tab-header h1 {
+  margin: 0;
+}
+
+/* ---------- Create tab: mail received in the last 24h ---------- */
+
+.recent-mail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.recent-mail-header h2 {
+  margin: 0;
+}
+
+.recent-mail-header p {
+  margin: 0.35rem 0 0;
+}
+
+.recent-mail-refresh {
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+
+.recent-mail-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.recent-mail-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.recent-mail-link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 100ms ease, background 100ms ease;
+}
+
+.recent-mail-link:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.recent-mail-company {
+  flex-shrink: 0;
+  width: 9rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-mail-subject {
+  flex: 1;
+  min-width: 0;
+  color: #334155;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-mail-meta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.recent-mail-time {
+  font-size: 0.78rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .admin-shell {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    width: auto;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .admin-sidebar-brand {
+    border-bottom: none;
+    padding-bottom: 0.15rem;
+  }
+
+  .admin-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .admin-sidebar-footer {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .admin-sidebar-footer .sign-out {
+    width: auto;
+  }
+
+  .recent-mail-company {
+    width: 7rem;
+  }
+}
+
 .header h1 {
   margin: 0;
 }

@@ -46,6 +46,13 @@
   color: #0f172a;
 }
 
+.brandLogo {
+  height: 22px;
+  width: auto;
+  display: block;
+  color: #0f172a;
+}
+
 .brandToggle {
   display: inline-flex;
   align-items: center;
