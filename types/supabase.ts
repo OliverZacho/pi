@@ -29,6 +29,51 @@ export type Database = {
         }
         Relationships: []
       }
+      anthropic_usage: {
+        Row: {
+          cache_creation_input_tokens: number
+          cache_read_input_tokens: number
+          cost_usd: number
+          created_at: string
+          feature: string
+          id: string
+          input_tokens: number
+          metadata: Json | null
+          model: string
+          output_tokens: number
+          success: boolean
+          web_search_requests: number
+        }
+        Insert: {
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          feature: string
+          id?: string
+          input_tokens?: number
+          metadata?: Json | null
+          model: string
+          output_tokens?: number
+          success?: boolean
+          web_search_requests?: number
+        }
+        Update: {
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          feature?: string
+          id?: string
+          input_tokens?: number
+          metadata?: Json | null
+          model?: string
+          output_tokens?: number
+          success?: boolean
+          web_search_requests?: number
+        }
+        Relationships: []
+      }
       brand_follows: {
         Row: {
           company_id: string
@@ -612,6 +657,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      pirol_admin_dashboard_stats: { Args: never; Returns: Json }
+      pirol_admin_growth_series: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

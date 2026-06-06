@@ -423,3 +423,58 @@ export type CompanyDetail = CompanySubscription & {
   recentEmails: CapturedEmail[];
   emailCount: number;
 };
+
+/**
+ * One day in the cumulative growth series. `emails` and `brands` are running
+ * totals (captured emails by received_at, subscribed brands by subscribed_since)
+ * as of that UTC day. Served by `/api/admin/growth`.
+ */
+export type GrowthPoint = {
+  day: string;
+  emails: number;
+  brands: number;
+};
+
+/** The four Anthropic call sites we attribute spend to. */
+export type UsageFeature = "classify" | "suggest" | "hq_lookup" | "vision";
+
+/** User-facing labels for each Anthropic call site on the cost dashboard. */
+export const USAGE_FEATURE_LABELS: Record<UsageFeature, string> = {
+  classify: "Email classification",
+  suggest: "Company suggestions",
+  hq_lookup: "Brand HQ lookup",
+  vision: "Product vision"
+};
+
+/**
+ * Aggregated dashboard statistics, served by `/api/admin/stats` and computed in
+ * a single Postgres call (`pirol_admin_dashboard_stats`). The Anthropic cost
+ * rollup is the headline; the rest are operational health metrics. Cost numbers
+ * only cover calls made since usage logging was added — see `trackingSince`.
+ */
+export type DashboardStats = {
+  totals: { companies: number; emails: number };
+  velocity: { emails7d: number; emails30d: number };
+  brands: {
+    total: number;
+    active30d: number;
+    top: { name: string; count: number }[];
+  };
+  categories: { category: EmailCategory; count: number }[];
+  discount: { avgSaleDiscount: number | null; saleCountWithDiscount: number };
+  cost: {
+    totalUsd: number;
+    totalCalls: number;
+    last30dUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+    webSearchRequests: number;
+    /** ISO timestamp of the first logged call, or null when nothing logged yet. */
+    trackingSince: string | null;
+    byFeature: { feature: UsageFeature; usd: number; calls: number }[];
+    byModel: { model: string; usd: number; calls: number }[];
+    daily14d: { day: string; usd: number }[];
+  };
+};

@@ -1,3 +1,5 @@
+import { recordAnthropicUsage } from "./anthropic-usage";
+
 const DEFAULT_MODEL = "claude-haiku-4-5";
 const ANTHROPIC_VERSION = "2023-06-01";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -264,7 +266,10 @@ export async function suggestCompanies(
       input?: { candidates?: LlmCandidate[] };
     }>;
     stop_reason?: string;
+    usage?: unknown;
   };
+
+  void recordAnthropicUsage({ feature: "suggest", model, usage: json });
 
   const toolBlock = json.content?.find(
     (block) =>

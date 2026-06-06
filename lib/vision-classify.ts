@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { EmailCategory } from "./admin-types";
+import { recordAnthropicUsage } from "./anthropic-usage";
 import { startOfDayInZone } from "./datetime";
 import type { MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
@@ -325,7 +326,10 @@ async function callAnthropicVision(args: {
 
   const json = (await response.json()) as {
     content?: Array<{ type: string; name?: string; input?: Record<string, unknown> }>;
+    usage?: unknown;
   };
+
+  void recordAnthropicUsage({ feature: "vision", model: args.model, usage: json });
 
   const toolBlock = json.content?.find(
     (block) => block.type === "tool_use" && block.name === "extract_products"
