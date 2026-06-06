@@ -77,35 +77,8 @@ code {
   border-bottom: 1px solid #f1f5f9;
 }
 
-.admin-sidebar-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  flex-shrink: 0;
-  border-radius: 8px;
-  background: #0f172a;
-  color: #fff;
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.admin-sidebar-brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-.admin-sidebar-brand-name {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-}
-
 .admin-sidebar-logo {
-  height: 22px;
+  height: 28px;
   width: auto;
   display: block;
   flex-shrink: 0;
