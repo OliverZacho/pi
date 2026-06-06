@@ -25,6 +25,21 @@ code {
   gap: 1rem;
 }
 
+/*
+ * Grid items default to min-width: auto, which refuses to shrink below their
+ * content's intrinsic width. A wide data table would otherwise stretch the
+ * single grid column (and the whole page) past the 1100px cap, forcing a
+ * sideways scroll. min-width: 0 lets the column honour the cap; wide tables
+ * scroll inside `.table-scroll` instead.
+ */
+.admin-page > * {
+  min-width: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
 .header h1 {
   margin: 0;
 }
@@ -803,6 +818,12 @@ th.sortable-header.is-active .sortable-header-indicator {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* Long, hyphen/word-boundary-free subscription addresses shouldn't set a huge
+   min-content width on their column — let them break so the table fits. */
+.email-cell code {
+  overflow-wrap: anywhere;
 }
 
 .company-cell {
@@ -1798,4 +1819,226 @@ tr.is-editing > td {
   color: #475569;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* ---- Logo review queue + manager modal ---------------------------------- */
+
+.row-action--review {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.row-action--review:hover:not(:disabled) {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.logo-review-card {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.logo-review-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.badge.logo-review-count {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.logo-review-list {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.logo-review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+}
+
+.logo-review-name {
+  font-weight: 600;
+}
+
+.logo-review-reason {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.logo-stale-note {
+  font-size: 0.78rem;
+  color: #92400e;
+  max-width: 28rem;
+}
+
+/* Modal is wider than the default to fit the candidate grid. */
+.logo-manager-modal {
+  max-width: 46rem;
+}
+
+.logo-current-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  margin-bottom: 0.9rem;
+}
+
+.logo-current-preview {
+  width: 3rem;
+  height: 3rem;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Checkerboard so white / transparent logos stay visible. */
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  border: 1px solid #cbd5e1;
+}
+
+.logo-current-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-current-empty {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.logo-current-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.logo-current-source {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.logo-current-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.logo-confirmed-note {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.logo-candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.15rem;
+}
+
+.logo-candidate-tile {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.logo-candidate-tile.is-current {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 1px #0f172a;
+}
+
+.logo-candidate-image {
+  position: relative;
+  height: 6.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  /* Checkerboard backdrop, same as the current-logo preview. */
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.logo-candidate-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-candidate-badge {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.logo-candidate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.logo-candidate-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.logo-candidate-actions .row-action {
+  flex: 1;
+  justify-content: center;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.72rem;
 }

@@ -269,7 +269,9 @@ export type Database = {
           domain: string
           id: string
           logo_confidence: number | null
+          logo_origin_path: string | null
           logo_source: string | null
+          logo_stale: boolean
           logo_storage_path: string | null
           logo_updated_at: string | null
           markets: string[]
@@ -283,7 +285,9 @@ export type Database = {
           domain: string
           id?: string
           logo_confidence?: number | null
+          logo_origin_path?: string | null
           logo_source?: string | null
+          logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
           markets?: string[]
@@ -297,7 +301,9 @@ export type Database = {
           domain?: string
           id?: string
           logo_confidence?: number | null
+          logo_origin_path?: string | null
           logo_source?: string | null
+          logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
           markets?: string[]

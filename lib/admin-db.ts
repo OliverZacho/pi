@@ -15,6 +15,7 @@ import {
   type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
+import { LOGO_REVIEW_MAX_CONFIDENCE } from "./extract-logo";
 import {
   BRAND_LOGO_TRANSFORM,
   getSignedAssets,
@@ -126,7 +127,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -340,7 +341,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -434,7 +435,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -488,6 +489,8 @@ type CompanyRow = {
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
+  logo_confidence?: number | string | null;
+  logo_stale?: boolean | null;
   company_inboxes?: CompanyInboxRow[] | null;
   company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
 };
@@ -567,7 +570,10 @@ async function resolveCompanyLogos(
       emailCount: company.emailCount,
       lastEmailAt: company.lastEmailAt,
       logoUrl,
-      logoSource: company.logoSource
+      logoSource: company.logoSource,
+      logoConfidence: company.logoConfidence,
+      logoStale: company.logoStale,
+      needsLogoReview: company.needsLogoReview
     };
   });
 }
@@ -609,6 +615,22 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
   const primaryInbox =
     inboxes.find((inbox) => inbox.isPrimary)?.emailAddress ?? "unassigned@pirol.app";
   const stats = relationFirst(row.company_email_stats);
+  const logoSource = normalizeLogoSource(row.logo_source);
+  const logoStoragePath = row.logo_storage_path ?? null;
+  const logoConfidence =
+    row.logo_confidence === null || row.logo_confidence === undefined
+      ? null
+      : Number(row.logo_confidence);
+  const logoStale = row.logo_stale ?? false;
+  // A logo needs review when it's an admin's manual pick that has gone stale
+  // (brand stopped sending it), OR it's a non-manual pick that is missing or
+  // below the confidence floor — where the picker drifts onto QR codes / blanks.
+  const needsLogoReview =
+    logoStale ||
+    (logoSource !== "manual" &&
+      (logoStoragePath === null ||
+        logoConfidence === null ||
+        logoConfidence < LOGO_REVIEW_MAX_CONFIDENCE));
   const base: CompanyWithRawLogo = {
     id: row.id,
     name: row.name,
@@ -620,8 +642,11 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     emailCount: stats?.email_count ?? 0,
     lastEmailAt: stats?.last_received_at ?? null,
     logoUrl: null,
-    logoSource: normalizeLogoSource(row.logo_source),
-    __logoStoragePath: row.logo_storage_path ?? null
+    logoSource,
+    logoConfidence,
+    logoStale,
+    needsLogoReview,
+    __logoStoragePath: logoStoragePath
   };
   return base;
 }
@@ -809,7 +834,11 @@ export async function createCompanySubscriptionInDb(
     emailCount: 0,
     lastEmailAt: null,
     logoUrl: null,
-    logoSource: null
+    logoSource: null,
+    logoConfidence: null,
+    logoStale: false,
+    // Brand-new company has no logo yet — it needs a pick once email lands.
+    needsLogoReview: true
   };
 }
 

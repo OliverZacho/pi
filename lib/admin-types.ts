@@ -100,6 +100,24 @@ export type CompanySubscription = {
    */
   logoUrl: string | null;
   logoSource: CompanyLogoSource | null;
+  /**
+   * Confidence of the stored logo pick (0–1). `null` when no logo is set.
+   * Heuristic picks score `points / 150`; frequency picks score
+   * `appearances / sampledEmails`. Drives the review queue.
+   */
+  logoConfidence: number | null;
+  /**
+   * True when a `manual` logo pick has fallen out of the brand's recent
+   * emails (likely a rebrand) and should be reviewed again. Drives the
+   * "may be outdated" review reason.
+   */
+  logoStale: boolean;
+  /**
+   * True when the logo needs an admin's eyes: a non-`manual` pick that is
+   * either missing or below {@link LOGO_REVIEW_MAX_CONFIDENCE}, OR a manual
+   * pick that has gone {@link logoStale}.
+   */
+  needsLogoReview: boolean;
 };
 
 export type EspProvider =

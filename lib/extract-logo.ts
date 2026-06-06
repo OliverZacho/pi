@@ -14,6 +14,13 @@ export const LOGO_HEURISTIC_MIN_SCORE = 60;
  */
 export const LOGO_FREQUENCY_MIN_EMAILS = 3;
 
+/**
+ * A non-`manual` logo at or below this confidence is treated as uncertain and
+ * surfaced in the admin "Needs logo review" queue. Heuristic confidence is
+ * `score / 150`; frequency confidence is `appearances / sampledEmails`.
+ */
+export const LOGO_REVIEW_MAX_CONFIDENCE = 0.5;
+
 export type LogoCandidate = {
   remoteUrl: string;
   storagePath: string | null;

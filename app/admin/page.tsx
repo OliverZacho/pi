@@ -12,6 +12,7 @@ import {
   type EspProvider
 } from "@/lib/admin-types";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
+import LogoManagerModal from "@/components/admin/LogoManagerModal";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
@@ -343,6 +344,11 @@ export default function AdminHomePage() {
   const [editingError, setEditingError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [companiesCollapsed, setCompaniesCollapsed] = useState(false);
+  // The company whose logo manager modal is open, or null when closed.
+  const [logoManagerCompany, setLogoManagerCompany] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const createFormRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const editNameInputRef = useRef<HTMLInputElement>(null);
@@ -931,6 +937,17 @@ export default function AdminHomePage() {
     });
   }, [sortedCompanies, companySearch]);
 
+  const companiesNeedingLogoReview = useMemo(
+    // Only surface brands that actually have a logo to review (low-confidence
+    // or outdated). Brands with no logo yet have nothing to pick from, so they
+    // are not shown here.
+    () =>
+      sortedCompanies.filter(
+        (company) => company.needsLogoReview && company.logoUrl
+      ),
+    [sortedCompanies]
+  );
+
   async function onCreateCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -1256,6 +1273,49 @@ export default function AdminHomePage() {
         {error ? <p className="error">{error}</p> : null}
       </section>
 
+      {!loading && companiesNeedingLogoReview.length > 0 ? (
+        <section className="card logo-review-card">
+          <div className="logo-review-header">
+            <h2>
+              Needs logo review{" "}
+              <span className="badge logo-review-count">
+                {companiesNeedingLogoReview.length}
+              </span>
+            </h2>
+            <p className="muted">
+              These brands have a low-confidence or outdated logo — the picker
+              may have drifted onto a QR code or blank image, or the brand
+              rebranded. Open one to pick the correct logo.
+            </p>
+          </div>
+          <ul className="logo-review-list">
+            {companiesNeedingLogoReview.map((company) => (
+              <li key={company.id} className="logo-review-item">
+                <span className="company-cell">
+                  <CompanyLogo name={company.name} url={company.logoUrl} />
+                  <span className="logo-review-name">{company.name}</span>
+                  <span className="muted">{company.domain}</span>
+                  <span className="logo-review-reason">
+                    {company.logoStale
+                      ? "outdated — gone from recent emails"
+                      : "low confidence"}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="row-action row-action--primary"
+                  onClick={() =>
+                    setLogoManagerCompany({ id: company.id, name: company.name })
+                  }
+                >
+                  Review logo
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section className="card">
         <div className="card-header">
           <button
@@ -1315,6 +1375,7 @@ export default function AdminHomePage() {
             ) : filteredCompanies.length === 0 ? (
               <p>No companies match your search.</p>
             ) : (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -1560,30 +1621,68 @@ export default function AdminHomePage() {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        className="row-action row-action--ghost"
-                        onClick={() => startEditingCompany(company)}
-                        disabled={editingCompanyId !== null}
-                        title="Edit name, market, and domain"
-                        aria-label={`Edit ${company.name}`}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className={`row-action row-action--ghost${
+                            company.needsLogoReview ? " row-action--review" : ""
+                          }`}
+                          onClick={() =>
+                            setLogoManagerCompany({
+                              id: company.id,
+                              name: company.name
+                            })
+                          }
+                          disabled={editingCompanyId !== null}
+                          title={
+                            company.needsLogoReview
+                              ? "Logo needs review — pick the correct image"
+                              : "Manage logo — pick or invert an image"
+                          }
+                          aria-label={`Manage logo for ${company.name}`}
                         >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                        </svg>
-                        Edit
-                      </button>
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <path d="M21 15l-5-5L5 21" />
+                          </svg>
+                          {company.needsLogoReview ? "Review logo" : "Logo"}
+                        </button>
+                        <button
+                          type="button"
+                          className="row-action row-action--ghost"
+                          onClick={() => startEditingCompany(company)}
+                          disabled={editingCompanyId !== null}
+                          title="Edit name, market, and domain"
+                          aria-label={`Edit ${company.name}`}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
+                          Edit
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -1591,6 +1690,7 @@ export default function AdminHomePage() {
               })}
             </tbody>
           </table>
+          </div>
             )}
             {editingError ? <p className="error">{editingError}</p> : null}
           </div>
@@ -1735,6 +1835,7 @@ export default function AdminHomePage() {
             <code>/api/webhooks/resend</code> to ingest more.
           </p>
         ) : (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -1797,6 +1898,7 @@ export default function AdminHomePage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -1804,6 +1906,15 @@ export default function AdminHomePage() {
         <h2>Storage Strategy</h2>
         <p>{overview.storageNotes}</p>
       </section>
+
+      {logoManagerCompany ? (
+        <LogoManagerModal
+          companyId={logoManagerCompany.id}
+          companyName={logoManagerCompany.name}
+          onClose={() => setLogoManagerCompany(null)}
+          onCompanyUpdated={replaceCompanyInOverview}
+        />
+      ) : null}
 
       {createdEmail ? (
         <div
