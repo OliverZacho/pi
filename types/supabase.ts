@@ -276,14 +276,19 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           domain: string
+          hq_country: string | null
           id: string
+          is_global: boolean
           logo_confidence: number | null
           logo_origin_path: string | null
           logo_source: string | null
           logo_stale: boolean
           logo_storage_path: string | null
           logo_updated_at: string | null
+          market_citation: Json | null
           market_confidence: number | null
+          market_resolved_at: string | null
+          market_source: string | null
           markets: string[]
           name: string
           primary_market_country: string | null
@@ -294,14 +299,19 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           domain: string
+          hq_country?: string | null
           id?: string
+          is_global?: boolean
           logo_confidence?: number | null
           logo_origin_path?: string | null
           logo_source?: string | null
           logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_citation?: Json | null
           market_confidence?: number | null
+          market_resolved_at?: string | null
+          market_source?: string | null
           markets?: string[]
           name: string
           primary_market_country?: string | null
@@ -312,14 +322,19 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           domain?: string
+          hq_country?: string | null
           id?: string
+          is_global?: boolean
           logo_confidence?: number | null
           logo_origin_path?: string | null
           logo_source?: string | null
           logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_citation?: Json | null
           market_confidence?: number | null
+          market_resolved_at?: string | null
+          market_source?: string | null
           markets?: string[]
           name?: string
           primary_market_country?: string | null

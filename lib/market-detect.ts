@@ -48,7 +48,7 @@ export async function recomputeCompanyMarket(companyId: string): Promise<MarketR
 
   const { data, error } = await supabaseAdmin
     .from("captured_emails")
-    .select("detected_country, country_confidence, received_at")
+    .select("detected_country, country_confidence, received_at, country_signals")
     .eq("company_id", companyId)
     .not("detected_country", "is", null)
     .order("received_at", { ascending: false })
@@ -58,13 +58,44 @@ export async function recomputeCompanyMarket(companyId: string): Promise<MarketR
     throw new Error(`recomputeCompanyMarket read failed: ${error.message}`);
   }
 
-  const rollup = rollupCountries((data ?? []) as CountryRow[]);
+  const rows = (data ?? []) as (CountryRow & {
+    country_signals: { language?: string | null } | null;
+  })[];
+
+  // A non-English email is a localized list — an authoritative country signal
+  // that's allowed to override a web-lookup result. Without one, we must not let
+  // the email rollup clobber a market that the brand-level HQ lookup resolved
+  // (its source is more reliable than an anonymous English/.com email guess).
+  const hasNonEnglishSignal = rows.some(
+    (r) => r.detected_country && r.country_signals?.language && r.country_signals.language !== "en"
+  );
+
+  if (!hasNonEnglishSignal) {
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("market_source, primary_market_country, market_confidence")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (company?.market_source === "web") {
+      return {
+        country: company.primary_market_country ?? null,
+        confidence:
+          company.market_confidence === null || company.market_confidence === undefined
+            ? null
+            : Number(company.market_confidence),
+        emailsConsidered: 0
+      };
+    }
+  }
+
+  const rollup = rollupCountries(rows as CountryRow[]);
 
   const { error: updateError } = await supabaseAdmin
     .from("companies")
     .update({
       primary_market_country: rollup.country,
-      market_confidence: rollup.confidence
+      market_confidence: rollup.confidence,
+      market_source: "email"
     })
     .eq("id", companyId);
 
