@@ -14,7 +14,10 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot
-  }
+  },
+  // sharp is a native module used by the logo-invert route — keep it external
+  // so Next doesn't try to bundle its platform-specific binaries.
+  serverExternalPackages: ["sharp"]
 };
 
 export default nextConfig;

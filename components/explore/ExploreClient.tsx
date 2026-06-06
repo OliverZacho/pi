@@ -205,6 +205,11 @@ export default function ExploreClient({
   const [sort, setSort] = useState<ExploreSortKey>("newest");
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
 
+  // Flips true once the initial filter/open-email state has been read
+  // from the URL. Gates the URL-writer effect so it never clobbers the
+  // incoming query string before we've had a chance to hydrate from it.
+  const [hydrated, setHydrated] = useState(false);
+
   // Server-driven result state. `emails` is the union of every page
   // fetched so far for the current filter combo; resetting it is how we
   // start a fresh search.
@@ -244,11 +249,68 @@ export default function ExploreClient({
   const skipNextFetchRef = useRef(true);
   const activeRequestRef = useRef<AbortController | null>(null);
 
+  // True while the open modal owns a dedicated history entry we pushed
+  // on open. Lets the close handler decide between popping that entry
+  // (Back) and stripping the param in place (deep-linked open).
+  const modalPushedRef = useRef(false);
+  // Latest emails list, read inside event handlers (popstate) without
+  // making them depend on — and churn with — the array reference.
+  const emailsRef = useRef(emails);
+  emailsRef.current = emails;
+
+  // Resolve a card by id from the loaded set (or fetch it on its own
+  // when it isn't on the current page) and open it in the modal.
+  const openEmailById = useCallback((id: string) => {
+    const existing = emailsRef.current.find((email) => email.id === id);
+    if (existing) {
+      setOpenEmail(existing);
+      return;
+    }
+    fetch(`/api/explore/emails?id=${encodeURIComponent(id)}&pageSize=1`, {
+      credentials: "include"
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: FetchResponse | null) => {
+        const card = body?.items?.[0];
+        if (card) setOpenEmail(card);
+      })
+      .catch(() => {
+        /* a missing email just leaves the modal closed */
+      });
+  }, []);
+
   const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
+    // Push a dedicated history entry so the browser Back button closes
+    // the modal instead of navigating away from Explore.
+    const params = new URLSearchParams(window.location.search);
+    params.set("email", email.id);
+    modalPushedRef.current = true;
+    window.history.pushState(
+      window.history.state,
+      "",
+      `${window.location.pathname}?${params.toString()}`
+    );
   }, []);
 
   const handleCloseEmail = useCallback(() => {
+    if (modalPushedRef.current) {
+      // Pop the entry we pushed on open; the popstate handler clears
+      // openEmail and the browser restores the filters-only URL.
+      modalPushedRef.current = false;
+      window.history.back();
+      return;
+    }
+    // Opened from a deep link (no pushed entry), so just strip the email
+    // param in place rather than navigating away from the page.
+    const params = new URLSearchParams(window.location.search);
+    params.delete("email");
+    const qs = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      "",
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    );
     setOpenEmail(null);
   }, []);
 
@@ -422,6 +484,114 @@ export default function ExploreClient({
       document.removeEventListener("keydown", handleKey);
     };
   }, [openPopover]);
+
+  // Hydrate filters + the open-email modal from the URL on first mount so
+  // a shared / bookmarked link reproduces the same view. Runs once; the
+  // writer effect below keeps the URL in sync from here on. Seeding state
+  // here (rather than in the SSR'd defaults) triggers the fetch effect to
+  // reload with the URL's filters, replacing the default first page.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+
+    const q = sp.get("q");
+    if (q) {
+      setQueryInput(q);
+      setDebouncedQuery(q.trim());
+    }
+
+    const brands = sp.getAll("brand").filter(Boolean);
+    if (brands.length > 0) setSelectedBrandIds(new Set(brands));
+
+    const markets = sp.getAll("market").filter(Boolean);
+    if (markets.length > 0) setSelectedMarkets(new Set(markets));
+
+    const categories = sp.getAll("category").filter(Boolean);
+    if (categories.length > 0) setSelectedCategories(new Set(categories));
+
+    if (sp.get("gif") === "1") setHasGif(true);
+    if (sp.get("dark") === "1") setHasDarkMode(true);
+
+    const from = sp.get("from");
+    if (from) setReceivedAfter(from);
+    const to = sp.get("to");
+    if (to) setReceivedBefore(to);
+
+    const sortParam = sp.get("sort");
+    if (sortParam && sortParam in SORT_LABEL) {
+      setSort(sortParam as ExploreSortKey);
+    }
+
+    // A deep-linked email shares the landing history entry (no extra
+    // entry to pop), so leave `modalPushedRef` false — closing it strips
+    // the param in place instead of navigating away.
+    const emailId = sp.get("email");
+    if (emailId) openEmailById(emailId);
+
+    setHydrated(true);
+    // Mount-only: we intentionally read the URL a single time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror the active filters + open email into the URL with replaceState
+  // (no new history entry) so the view is always shareable. Gated on
+  // `hydrated` so the first commit can't overwrite the incoming URL.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const params = new URLSearchParams();
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    for (const id of selectedBrandIds) params.append("brand", id);
+    for (const market of selectedMarkets) params.append("market", market);
+    for (const category of selectedCategories) {
+      params.append("category", category);
+    }
+    if (hasGif) params.set("gif", "1");
+    if (hasDarkMode) params.set("dark", "1");
+    if (receivedAfter) params.set("from", receivedAfter);
+    if (receivedBefore) params.set("to", receivedBefore);
+    if (sort !== "newest") params.set("sort", sort);
+    // The open-email param is owned by the modal's push/popstate logic,
+    // not this filter writer — preserve whatever is currently in the URL
+    // so a filter tweak while the modal is open doesn't drop it.
+    const currentEmail = new URLSearchParams(window.location.search).get(
+      "email"
+    );
+    if (currentEmail) params.set("email", currentEmail);
+
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", url);
+  }, [
+    hydrated,
+    debouncedQuery,
+    selectedBrandIds,
+    selectedMarkets,
+    selectedCategories,
+    hasGif,
+    hasDarkMode,
+    receivedAfter,
+    receivedBefore,
+    sort
+  ]);
+
+  // Sync the modal to browser navigation: Back from an open email pops
+  // the pushed entry (email param gone -> close); a restored entry that
+  // still carries an email param reopens it.
+  useEffect(() => {
+    function handlePop() {
+      modalPushedRef.current = false;
+      const emailId = new URLSearchParams(window.location.search).get("email");
+      if (!emailId) {
+        setOpenEmail(null);
+        return;
+      }
+      openEmailById(emailId);
+    }
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [openEmailById]);
 
   // Build the search URL the API route expects. Centralized so the
   // initial fetch and the infinite-scroll fetch use identical encoding.
@@ -772,7 +942,7 @@ export default function ExploreClient({
               aria-haspopup="true"
               aria-expanded={openPopover === "brandCategories"}
             >
-              <span>Brand categories</span>
+              <span>Categories</span>
               {selectedMarkets.size > 0 ? (
                 <span className={styles.filterCount}>
                   {selectedMarkets.size}
@@ -793,7 +963,7 @@ export default function ExploreClient({
                     onChange={(event) => setMarketQuery(event.target.value)}
                     placeholder="Search categories"
                     className={styles.popoverSearchInput}
-                    aria-label="Search brand categories"
+                    aria-label="Search categories"
                   />
                 </div>
                 <div className={styles.popoverScroll}>
@@ -855,7 +1025,7 @@ export default function ExploreClient({
               aria-haspopup="true"
               aria-expanded={openPopover === "categories"}
             >
-              <span>Categories</span>
+              <span>Content type</span>
               {selectedCategories.size > 0 ? (
                 <span className={styles.filterCount}>
                   {selectedCategories.size}
@@ -871,7 +1041,7 @@ export default function ExploreClient({
                 <div className={styles.popoverScroll}>
                   {categoryOptions.length === 0 ? (
                     <div className={styles.popoverEmpty}>
-                      No categories yet
+                      No content types yet
                     </div>
                   ) : (
                     categoryOptions.map((option) => {

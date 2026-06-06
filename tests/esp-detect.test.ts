@@ -775,6 +775,39 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Bloomreach Engagement (Exponea) routed through a brand-CNAMEd tracking host via the /e/<token>/click|open URL shape + xnpe-attr (no headers)", () => {
+    // Distilled from a real Acne Studios send. Bloomreach Engagement lets
+    // tenants CNAME a brand domain (here `link.acnestudios.com`) at the
+    // tracking edge, so none of the `cdn.<region>.exponea.com` host
+    // fingerprints fire. Detection rides on the host-agnostic
+    // `/<tenant>/e/<base64url-token>/click` + `…/open` path pair plus the
+    // `xnpe-attr` attribute emitted on every tracked anchor.
+    const html = `
+      <a href="https://link.acnestudios.com/acnestudios-prod/e/.eJzj4smSaPr772BlVZB8_UEhBZHsXKaFfOuYNJ-ZC8x2ijG8ui9Vrs2Ws4vhSPXcKWV3XAwDM5TPLO645ZjFk5nevrg7fk7wioXu008wMl5ilODiTY4vT00qzixJjS9KLBdiT0zOS41Pyb7EKMLFCZdCEhbi4kmOz8lPTsyBaGBKzbvEyMfFAROECAhwcQEFEvPSSxPTwUINTIwAP4dBgA.rvTze01UsD2U5Q/click" xnpe-attr="notextnorew">
+        <img width="1" height="1" alt="" src="https://link.acnestudios.com/acnestudios-prod/e/.eJzj4smSaPr772BlVZB8_UEhBZHsXKaFfOuYNJ-ZC8x2ijG8ui9Vrs2Ws4vhSPXcKWV3XAwDM5TPLO645ZjFk5nevrg7fk7wioXu0y8xSnDxJseXpyYVZ5akxhcllguxJybnpcanZF9iFOHihEshCQtx8STH5-QnJ-ZANDCl5l1i5OPigAlCBAS4uIACiXnppYnpYKEGJkYAjSBAtg.aKIihKzugqU4IQ/open" style="display: none;" />
+      </a>
+      <a href="https://link.acnestudios.com/acnestudios-prod/e/.eJwTUhDJzmVayLeOSfOZucBspxjDq_tS5dpsObsYjlTPnVJ2x0VKOqOkpKDYSl-_vLxcLzE5L7W4pDQlM79YLzk_1zAwQ.2amtuVdTxa9P4w/click" target="_blank">ACNESTUDIOS.COM</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://link.acnestudios.com/acnestudios-prod/e/.eJzj4smSaPr772BlVZB8_UEhBZHsXKaFfOuYNJ-ZC8x2ijG8ui9Vrs2Ws4vhSPXcKWV3XAwDM5TPLO645ZjFk5nevrg7fk7wioXu008wMl5ilODiTY4vT00qzixJjS9KLBdiT0zOS41Pyb7EKMLFCZdCEhbi4kmOz8lPTsyBaGBKzbvEyMfFAROECAhwcQEFEvPSSxPTwUINTIwAP4dBgA.rvTze01UsD2U5Q/click"
+        ),
+        link(
+          "https://link.acnestudios.com/acnestudios-prod/e/.eJwTUhDJzmVayLeOSfOZucBspxjDq_tS5dpsObsYjlTPnVJ2x0VKOqOkpKDYSl-_vLxcLzE5L7W4pDQlM79YLzk_1zAwQ.2amtuVdTxa9P4w/click"
+        )
+      ],
+      resourceHosts: ["link.acnestudios.com"]
+    });
+    expect(result.provider).toBe("exponea");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("identifies Voyado on its <tenant>.customer.eclub.se host plus /link/<id>/a/ and /open/email/online URL shapes (no headers)", () => {
     // Distilled from a real Samsøe Samsøe welcome send. Voyado Engage
     // (formerly "Apptus eSales eClub") hosts every tenant on

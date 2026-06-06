@@ -80,6 +80,25 @@ export default function CompareBrandStrip({
   );
   const remainingSlots = MAX_BRANDS_PER_COMPARISON - brands.length;
 
+  // Default the "add a brand" picker to the cohort's dominant region so peers
+  // added to an existing comparison stay same-market by default.
+  const defaultCountry = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of brands) {
+      const cc = b.brand.primaryMarketCountry;
+      if (cc) counts.set(cc, (counts.get(cc) ?? 0) + 1);
+    }
+    let top: string | null = null;
+    let topN = 0;
+    for (const [cc, n] of counts) {
+      if (n > topN) {
+        top = cc;
+        topN = n;
+      }
+    }
+    return top;
+  }, [brands]);
+
   async function handleRename(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!setId || pending) return;
@@ -346,6 +365,7 @@ export default function CompareBrandStrip({
               onChange={setPendingAdds}
               variant="modal"
               placeholder="Search for a brand or category to add…"
+              defaultCountry={defaultCountry}
             />
 
             {addError ? (

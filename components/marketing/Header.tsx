@@ -21,7 +21,7 @@ export default function Header() {
           <Link href="#" className={styles.navLink}>
             Explore
           </Link>
-          <Link href="#" className={styles.navLink}>
+          <Link href="/docs" className={styles.navLink}>
             Docs
           </Link>
           <Link href="#" className={styles.navLink}>

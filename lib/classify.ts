@@ -6,7 +6,18 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const RULES_TRUST_THRESHOLD = 0.85;
 const PROMPT_TEXT_LIMIT = 4_000;
+// The legal/postal footer (address, VAT/CVR, +country phone) is the strongest
+// region signal but lives at the very bottom of the email — past the head we
+// feed for categorisation. When the body is longer than the head budget we also
+// append its tail so the footer is visible to the model.
+const PROMPT_FOOTER_LIMIT = 1_500;
 const LLM_TIMEOUT_MS = 15_000;
+// Below this confidence we record the country as unknown (null) rather than
+// guess. A wrong region poisons same-market comparisons; an unknown one simply
+// falls back to the all-regions peer set. The harder guard against guessing is
+// the "real signal" requirement in resolveDetectedCountry — this just trims the
+// genuinely shaky picks.
+const COUNTRY_CONFIDENCE_THRESHOLD = 0.6;
 
 const CATEGORY_VALUES: EmailCategory[] = [...EMAIL_CATEGORIES];
 
@@ -14,6 +25,27 @@ export type ClassifierInput = {
   subject: string;
   html: string;
   plainText?: string;
+  /**
+   * The brand's sending address or domain (e.g. `news@norr11.dk` or
+   * `norr11.dk`). Used only to derive a country-code TLD hint (`.dk`,
+   * `.co.uk`) that we pass to the model as a supporting region signal.
+   */
+  senderDomain?: string;
+};
+
+/**
+ * Where a {@link ClassificationResult.detectedCountry} pick came from, kept on
+ * the email so brand-level rollups and the admin UI can audit weak picks.
+ */
+export type CountrySignals = {
+  /** ISO 639-1 language the copy is written in, when the model could tell. */
+  language: string | null;
+  /** Country-code TLD we derived from the sender domain, e.g. "dk", "uk". */
+  tld: string | null;
+  /** The dominant evidence the model leaned on for the country. */
+  source: "footer_address" | "vat" | "phone" | "language" | "tld" | "mixed" | "none";
+  /** Raw model country before the confidence threshold collapsed it to null. */
+  rawCountry: string | null;
 };
 
 export type ClassificationResult = {
@@ -29,6 +61,14 @@ export type ClassificationResult = {
   promoCode?: string | null;
   primaryCtaText?: string | null;
   primaryCtaUrlHint?: string | null;
+  /**
+   * ISO 3166-1 alpha-2 country the email is addressed to, or `null` when the
+   * model wasn't confident enough (see {@link COUNTRY_CONFIDENCE_THRESHOLD}).
+   */
+  detectedCountry?: string | null;
+  /** The model's raw country confidence (0–1), kept even when below threshold. */
+  countryConfidence?: number | null;
+  countrySignals?: CountrySignals | null;
 };
 
 type LlmExtraction = {
@@ -41,6 +81,10 @@ type LlmExtraction = {
   promoCode: string | null;
   primaryCtaText: string | null;
   primaryCtaUrlHint: string | null;
+  country: string | null;
+  language: string | null;
+  countryConfidence: number;
+  countrySource: CountrySignals["source"];
 };
 
 function getModel(): string {
@@ -62,7 +106,10 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
       currency: null,
       promoCode: null,
       primaryCtaText: null,
-      primaryCtaUrlHint: null
+      primaryCtaUrlHint: null,
+      detectedCountry: null,
+      countryConfidence: null,
+      countrySignals: null
     };
   }
 
@@ -86,11 +133,25 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
       currency: null,
       promoCode: null,
       primaryCtaText: null,
-      primaryCtaUrlHint: null
+      primaryCtaUrlHint: null,
+      detectedCountry: null,
+      countryConfidence: null,
+      countrySignals: null
     };
   }
 
   const useRulesCategory = rules.confidence >= RULES_TRUST_THRESHOLD;
+
+  // Collapse a low-confidence / no-real-signal country to "unknown" so we never
+  // benchmark a brand against the wrong region. The raw pick + confidence are
+  // still kept on the signals payload for auditing and possible re-rollup.
+  const tldHint = countryCodeTld(input.senderDomain);
+  const detectedCountry = resolveDetectedCountry({
+    rawCountry: llm.country,
+    confidence: llm.countryConfidence,
+    source: llm.countrySource,
+    tld: tldHint
+  });
 
   return {
     category: useRulesCategory ? rules.category : llm.category,
@@ -103,15 +164,55 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
     currency: llm.currency,
     promoCode: llm.promoCode,
     primaryCtaText: llm.primaryCtaText,
-    primaryCtaUrlHint: llm.primaryCtaUrlHint
+    primaryCtaUrlHint: llm.primaryCtaUrlHint,
+    detectedCountry,
+    countryConfidence: llm.countryConfidence,
+    countrySignals: {
+      language: llm.language,
+      tld: tldHint,
+      source: llm.countrySource,
+      rawCountry: llm.country
+    }
   };
+}
+
+/**
+ * Decides the committed country from a model pick plus its signals, applying
+ * the "unknown over wrong" guards:
+ *  - confidence must clear {@link COUNTRY_CONFIDENCE_THRESHOLD}, and
+ *  - a `tld` rationale is only trusted when a real country-code TLD exists.
+ *
+ * The second guard is narrow on purpose. The model fabricates `source: "tld"`
+ * for anonymous English `.com` senders that have no country TLD at all — its
+ * way of defaulting (usually to US), which is the Gisou failure mode. Every
+ * other source (`footer_address`, `language`, and especially `mixed`, which is
+ * what genuinely-classified brands like &Tradition / Fenty carry) is trusted:
+ * those rest on the model actually reading the email, so guarding them would
+ * wrongly drop correct Danish / Swedish / US brands.
+ *
+ * Exported so the backfill can re-apply the exact same rules to already-stored
+ * `country_signals` without re-calling the model.
+ */
+export function resolveDetectedCountry(args: {
+  rawCountry: string | null;
+  confidence: number;
+  source: CountrySignals["source"];
+  tld: string | null;
+}): string | null {
+  const { rawCountry, confidence, source, tld } = args;
+  if (!rawCountry) return null;
+  if (confidence < COUNTRY_CONFIDENCE_THRESHOLD) return null;
+  if (source === "tld" && tld === null) return null;
+  return rawCountry;
 }
 
 async function classifyWithAnthropic(
   input: ClassifierInput,
   apiKey: string
 ): Promise<LlmExtraction> {
-  const promptText = (input.plainText ?? stripHtml(input.html)).slice(0, PROMPT_TEXT_LIMIT);
+  const fullText = input.plainText ?? stripHtml(input.html);
+  const promptText = buildPromptText(fullText);
+  const tldHint = countryCodeTld(input.senderDomain);
 
   const body = {
     model: getModel(),
@@ -144,7 +245,17 @@ async function classifyWithAnthropic(
       "currency: 3-letter ISO code (e.g. USD, EUR, GBP, DKK) when an amount or price is shown, else null. " +
       "promo_code: the literal promo/coupon code (e.g. SPRING25), null if none. " +
       "primary_cta_text: the visible label of the email's main call-to-action — the link or button the brand most wants the reader to click. This is usually a short imperative phrase ('Shop now', 'Explore Hippo Chair', 'Find resellers', 'Explore our Instagram', 'Read the story', 'Sign me up'). Pick the most prominent action link even when the email is editorial or content-focused and the link is styled as plain text rather than a button — if the email has any clear action target, return its label rather than null. Return null only when the email truly has no action link (e.g. a pure visual teaser). " +
-      "primary_cta_url_hint: the destination URL (or domain) that the CTA points to when visible in the email body. Return the destination link as it appears in the body even when the brand also routes clicks through a tracking redirect; null when no destination is shown.",
+      "primary_cta_url_hint: the destination URL (or domain) that the CTA points to when visible in the email body. Return the destination link as it appears in the body even when the brand also routes clicks through a tracking redirect; null when no destination is shown. " +
+      "Region detection — determine which single country this email is primarily ADDRESSED TO (the audience), not where the brand happens to be incorporated. Weigh these signals, strongest first: " +
+      "(1) the legal/postal footer — a physical address, a VAT/CVR/company-registration number, or a customer-service phone with a country calling code (+45 Denmark, +46 Sweden, +44 UK, +49 Germany, +1 US/Canada); " +
+      "(2) the language the copy is written in (Danish→DK, Swedish→SE, German→DE/AT, etc.); " +
+      "(3) the sender domain country-code TLD provided below as a hint. " +
+      "IMPORTANT: ignore currency and any currency selector — multi-currency checkouts are i18n noise and do NOT indicate the audience's country. " +
+      "country: the ISO 3166-1 alpha-2 code (uppercase, e.g. DK, SE, GB, DE, US) for the addressed market, or null if you genuinely cannot tell. Do not guess from currency alone. " +
+      "CRITICAL: never default to US (or GB) just because the copy is in English. English is the global default and is NOT evidence of a US audience. If the only thing you can observe is 'English copy from a .com with no readable address', return country null with a low confidence — do NOT return US. Only name a country when a concrete positive signal supports it (a readable address/VAT/phone, a non-English language, or a real country-code TLD). " +
+      "language: the ISO 639-1 code (lowercase, e.g. da, sv, de, en) of the copy, or null. " +
+      "country_confidence: 0–1, how sure you are about country. Use a LOW value (<0.5) for generic English emails from a .com with no address — it is better to be unsure than wrong. " +
+      "country_source: which signal actually drove the country pick — one of footer_address, vat, phone, language, tld, mixed, or none. Only answer 'tld' when a real country-code TLD is shown in the hint below; if no TLD hint is given, never claim 'tld'. Use 'none' when you are returning null.",
     tools: [
       {
         name: "classify_email",
@@ -192,6 +303,25 @@ async function classifyWithAnthropic(
             primary_cta_url_hint: {
               type: ["string", "null"],
               maxLength: 500
+            },
+            country: {
+              type: ["string", "null"],
+              minLength: 2,
+              maxLength: 2
+            },
+            language: {
+              type: ["string", "null"],
+              minLength: 2,
+              maxLength: 3
+            },
+            country_confidence: {
+              type: ["number", "null"],
+              minimum: 0,
+              maximum: 1
+            },
+            country_source: {
+              type: ["string", "null"],
+              enum: ["footer_address", "vat", "phone", "language", "tld", "mixed", "none", null]
             }
           },
           required: ["category", "confidence", "reasoning"]
@@ -202,7 +332,10 @@ async function classifyWithAnthropic(
     messages: [
       {
         role: "user",
-        content: `Subject: ${input.subject}\n\nBody:\n${promptText}`
+        content:
+          `Subject: ${input.subject}\n\n` +
+          (tldHint ? `Sender domain TLD hint: .${tldHint}\n\n` : "") +
+          `Body:\n${promptText}`
       }
     ]
   };
@@ -270,7 +403,11 @@ async function classifyWithAnthropic(
     currency: normalizeCurrency(candidate.currency),
     promoCode: normalizeShortString(candidate.promo_code, 64),
     primaryCtaText: normalizeShortString(candidate.primary_cta_text, 120),
-    primaryCtaUrlHint: normalizeShortString(candidate.primary_cta_url_hint, 500)
+    primaryCtaUrlHint: normalizeShortString(candidate.primary_cta_url_hint, 500),
+    country: normalizeCountryCode(candidate.country),
+    language: normalizeLanguageCode(candidate.language),
+    countryConfidence: clampNumberInRange(candidate.country_confidence, 0, 1) ?? 0,
+    countrySource: normalizeCountrySource(candidate.country_source)
   };
 }
 
@@ -305,6 +442,83 @@ function normalizeShortString(value: unknown, maxLen: number): string | null {
     return null;
   }
   return trimmed.slice(0, maxLen);
+}
+
+function normalizeCountryCode(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function normalizeLanguageCode(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return /^[a-z]{2,3}$/.test(trimmed) ? trimmed : null;
+}
+
+const COUNTRY_SOURCES: ReadonlySet<CountrySignals["source"]> = new Set([
+  "footer_address",
+  "vat",
+  "phone",
+  "language",
+  "tld",
+  "mixed",
+  "none"
+]);
+
+function normalizeCountrySource(value: unknown): CountrySignals["source"] {
+  if (typeof value === "string" && COUNTRY_SOURCES.has(value as CountrySignals["source"])) {
+    return value as CountrySignals["source"];
+  }
+  return "none";
+}
+
+/**
+ * Pulls the country-code TLD from a sender address/domain so we can hand the
+ * model a deterministic supporting hint. Returns the ccTLD lower-cased (e.g.
+ * "dk", "uk", "de") or `null` for generic TLDs (`.com`, `.net`) and anything we
+ * can't parse — those carry no country signal. Handles `news@brand.co.uk` and
+ * bare `brand.dk` alike, and unwraps two-level public suffixes like `.co.uk`.
+ */
+export function countryCodeTld(senderDomain: string | undefined): string | null {
+  if (!senderDomain) {
+    return null;
+  }
+  const afterAt = senderDomain.includes("@")
+    ? senderDomain.slice(senderDomain.lastIndexOf("@") + 1)
+    : senderDomain;
+  const host = afterAt.trim().toLowerCase().replace(/[.>\s]+$/, "");
+  const labels = host.split(".").filter(Boolean);
+  if (labels.length < 2) {
+    return null;
+  }
+  const last = labels[labels.length - 1];
+  // Two-level suffixes (co.uk, com.au): the ccTLD is the final label.
+  if (!/^[a-z]{2}$/.test(last)) {
+    return null;
+  }
+  // Generic two-letter TLDs that aren't really country audiences in practice.
+  if (last === "io" || last === "co" || last === "ai" || last === "tv") {
+    return null;
+  }
+  return last;
+}
+
+function buildPromptText(fullText: string): string {
+  if (fullText.length <= PROMPT_TEXT_LIMIT) {
+    return fullText;
+  }
+  const head = fullText.slice(0, PROMPT_TEXT_LIMIT);
+  const tail = fullText.slice(-PROMPT_FOOTER_LIMIT);
+  // Don't duplicate text when head and tail would overlap.
+  if (fullText.length <= PROMPT_TEXT_LIMIT + PROMPT_FOOTER_LIMIT) {
+    return fullText.slice(0, PROMPT_TEXT_LIMIT + PROMPT_FOOTER_LIMIT);
+  }
+  return `${head}\n\n[…trimmed…]\n\nEmail footer:\n${tail}`;
 }
 
 function stripHtml(html: string): string {

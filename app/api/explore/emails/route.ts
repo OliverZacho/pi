@@ -35,8 +35,11 @@ export async function GET(request: Request) {
       ? (sortRaw as ExploreSortKey)
       : "newest";
 
+  const emailIds = params.getAll("id").filter(Boolean);
+
   const search: ExploreSearchParams = {
     query: params.get("q") ?? undefined,
+    emailIds: emailIds.length > 0 ? emailIds : undefined,
     brandIds: params.getAll("brand").filter(Boolean),
     markets: params.getAll("market").filter(Boolean),
     categories: params.getAll("category").filter(Boolean),

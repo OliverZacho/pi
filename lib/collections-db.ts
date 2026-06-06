@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
+import { type CollectionIcon, isCollectionIcon } from "./collection-icons";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
@@ -118,6 +119,13 @@ export class CollectionRulesValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "CollectionRulesValidationError";
+  }
+}
+
+export class CollectionIconValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CollectionIconValidationError";
   }
 }
 
@@ -411,6 +419,8 @@ function parseCondition(
 export type CollectionCardData = {
   id: string;
   name: string;
+  /** Curated emoji icon, or `null` to fall back to the generic glyph. */
+  icon: CollectionIcon | null;
   shareSlug: string;
   emailCount: number;
   previewEmailIds: string[];
@@ -426,12 +436,21 @@ export type CollectionCardData = {
 export type CollectionSummary = {
   id: string;
   name: string;
+  /** Curated emoji icon, or `null` to fall back to the generic glyph. */
+  icon: CollectionIcon | null;
   shareSlug: string;
+  /**
+   * True when the collection has automatic rules and at least one
+   * matching email arrived after the owner last opened the collection.
+   */
+  hasNewEmails?: boolean;
 };
 
 export type CollectionDetail = {
   id: string;
   name: string;
+  /** Curated emoji icon, or `null` to fall back to the generic glyph. */
+  icon: CollectionIcon | null;
   shareSlug: string;
   ownerId: string;
   emailCount: number;
@@ -458,7 +477,7 @@ export async function listCollectionsWithPreviews(
 ): Promise<CollectionCardData[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug, created_at, updated_at, rules")
+    .select("id, name, icon, share_slug, created_at, updated_at, rules")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
@@ -527,6 +546,7 @@ export async function listCollectionsWithPreviews(
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
+    icon: readIcon(row.icon),
     shareSlug: row.share_slug,
     emailCount: counts.get(row.id) ?? 0,
     previewEmailIds: previews.get(row.id) ?? [],
@@ -546,16 +566,52 @@ export async function listCollectionSummaries(
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug")
+    .select("id, name, icon, share_slug, rules, last_viewed_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    shareSlug: row.share_slug
-  }));
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const summaries = await Promise.all(
+    rows.map(async (row) => {
+      const rules = safeParseStoredRules(row.rules);
+      let hasNewEmails = false;
+      if (rules && row.last_viewed_at) {
+        hasNewEmails = await ruleCollectionHasEmailsAddedAfter(
+          supabase,
+          rules,
+          row.last_viewed_at
+        );
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        icon: readIcon(row.icon),
+        shareSlug: row.share_slug,
+        ...(hasNewEmails ? { hasNewEmails: true } : {})
+      };
+    })
+  );
+  return summaries;
+}
+
+/**
+ * Marks a collection as viewed by its owner. Clears the sidebar "new
+ * emails" dot for rule-based collections until another match arrives.
+ */
+export async function markCollectionViewed(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("collections")
+    .update({ last_viewed_at: new Date().toISOString() })
+    .eq("id", collectionId)
+    .eq("user_id", userId);
+  if (error) throw error;
 }
 
 /**
@@ -569,7 +625,7 @@ export async function getCollectionForOwner(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, share_slug, user_id, created_at, updated_at, rules")
+    .select("id, name, icon, share_slug, user_id, created_at, updated_at, rules")
     .eq("id", collectionId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -585,6 +641,7 @@ export async function getCollectionForOwner(
   return {
     id: data.id,
     name: data.name,
+    icon: readIcon(data.icon),
     shareSlug: data.share_slug,
     ownerId: data.user_id,
     emailCount: emails.length,
@@ -605,7 +662,7 @@ export async function getCollectionBySlugPublic(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await adminClient
     .from("collections")
-    .select("id, name, share_slug, user_id, created_at, updated_at, rules")
+    .select("id, name, icon, share_slug, user_id, created_at, updated_at, rules")
     .eq("share_slug", slug)
     .maybeSingle();
 
@@ -620,6 +677,7 @@ export async function getCollectionBySlugPublic(
   return {
     id: data.id,
     name: data.name,
+    icon: readIcon(data.icon),
     shareSlug: data.share_slug,
     ownerId: data.user_id,
     emailCount: emails.length,
@@ -670,9 +728,11 @@ export async function isEmailInPublicCollection(
 export async function createCollection(
   supabase: SupabaseClient<Database>,
   userId: string,
-  rawName: string
+  rawName: string,
+  icon?: CollectionIcon | null
 ): Promise<CollectionSummary> {
   const name = sanitizeName(rawName);
+  const safeIcon = isCollectionIcon(icon) ? icon : null;
 
   // Retry on the (astronomically unlikely) chance of a slug collision
   // — the table has a unique index, so we'd get a 23505 otherwise.
@@ -680,12 +740,17 @@ export async function createCollection(
     const slug = generateShareSlug();
     const { data, error } = await supabase
       .from("collections")
-      .insert({ user_id: userId, name, share_slug: slug })
-      .select("id, name, share_slug")
+      .insert({ user_id: userId, name, share_slug: slug, icon: safeIcon })
+      .select("id, name, icon, share_slug")
       .single();
 
     if (!error && data) {
-      return { id: data.id, name: data.name, shareSlug: data.share_slug };
+      return {
+        id: data.id,
+        name: data.name,
+        icon: readIcon(data.icon),
+        shareSlug: data.share_slug
+      };
     }
 
     if (error && (error.code === "23505" || /duplicate key/i.test(error.message))) {
@@ -708,12 +773,49 @@ export async function renameCollection(
     .update({ name })
     .eq("id", collectionId)
     .eq("user_id", userId)
-    .select("id, name, share_slug")
+    .select("id, name, icon, share_slug")
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
-  return { id: data.id, name: data.name, shareSlug: data.share_slug };
+  return {
+    id: data.id,
+    name: data.name,
+    icon: readIcon(data.icon),
+    shareSlug: data.share_slug
+  };
+}
+
+/**
+ * Set (or clear, with `null`) a collection's emoji icon. Validates the
+ * value against the curated allow-list — anything else is rejected with
+ * `CollectionIconValidationError` so the API layer can return a 400.
+ */
+export async function setCollectionIcon(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  icon: CollectionIcon | null
+): Promise<CollectionSummary | null> {
+  if (icon !== null && !isCollectionIcon(icon)) {
+    throw new CollectionIconValidationError("Unsupported collection icon");
+  }
+  const { data, error } = await supabase
+    .from("collections")
+    .update({ icon })
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .select("id, name, icon, share_slug")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id,
+    name: data.name,
+    icon: readIcon(data.icon),
+    shareSlug: data.share_slug
+  };
 }
 
 /**
@@ -730,7 +832,15 @@ export async function setCollectionRules(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("collections")
-    .update({ rules: rules === null ? null : (rules as unknown as Json) })
+    .update({
+      rules: rules === null ? null : (rules as unknown as Json),
+      // Treat the current membership snapshot as "seen" so saving
+      // rules does not light up the sidebar dot for emails already
+      // in the collection.
+      ...(rules !== null
+        ? { last_viewed_at: new Date().toISOString() }
+        : {})
+    })
     .eq("id", collectionId)
     .eq("user_id", userId)
     .select("id")
@@ -939,9 +1049,39 @@ export async function evaluateCollectionRules(
  * Used by the public-render guard which only needs to know whether a
  * given email belongs to the rule-derived membership.
  */
+type RuleIdQueryOptions = {
+  /**
+   * Only emails ingested (added to the system) strictly after this
+   * timestamp. Compared against `created_at` — i.e. "when did this row
+   * appear" — rather than `received_at` ("when did the brand send it"),
+   * so a late-ingested email with an older send date still counts as
+   * newly added to a rule-based collection.
+   */
+  createdAfter?: string;
+  limit?: number;
+};
+
+/**
+ * Returns whether any email matching the rule set was added to the
+ * system after the given timestamp. Powers the sidebar "new emails"
+ * indicator for rule-based (auto-populated) collections.
+ */
+export async function ruleCollectionHasEmailsAddedAfter(
+  client: SupabaseClient<Database>,
+  rules: CollectionRules,
+  after: string
+): Promise<boolean> {
+  const ids = await evaluateCollectionRuleIds(client, rules, {
+    createdAfter: after,
+    limit: 1
+  });
+  return ids.length > 0;
+}
+
 export async function evaluateCollectionRuleIds(
   client: SupabaseClient<Database>,
-  rules: CollectionRules
+  rules: CollectionRules,
+  options?: RuleIdQueryOptions
 ): Promise<string[]> {
   const compiled = await compileRules(client, rules);
   if (compiled === "no_match") {
@@ -950,7 +1090,11 @@ export async function evaluateCollectionRuleIds(
   let query = client
     .from("captured_emails")
     .select("id")
-    .limit(RULE_EVAL_LIMIT);
+    .limit(options?.limit ?? RULE_EVAL_LIMIT);
+
+  if (options?.createdAfter) {
+    query = query.gt("created_at", options.createdAfter);
+  }
 
   if (rules.scope === "future" && rules.appliedAt) {
     query = query.gte("received_at", rules.appliedAt);
@@ -1121,7 +1265,8 @@ function buildSearchOrParts(term: string, brandIds: string[]): string[] {
   const parts = [
     `subject.ilike.${wrapped}`,
     `preheader.ilike.${wrapped}`,
-    `primary_cta_text.ilike.${wrapped}`
+    `primary_cta_text.ilike.${wrapped}`,
+    `plain_text.ilike.${wrapped}`
   ];
   const safe = brandIds.filter((id) => UUID_PATTERN.test(id));
   if (safe.length > 0) {
@@ -1314,6 +1459,15 @@ async function touchCollection(
   if (error) {
     console.warn("Failed to touch collection updated_at", error);
   }
+}
+
+/**
+ * Read the stored icon, dropping anything outside the curated allow-list
+ * (a `null` column, a legacy row, or a hand-edited value) back to `null`
+ * so the UI consistently falls back to the generic glyph.
+ */
+function readIcon(value: unknown): CollectionIcon | null {
+  return isCollectionIcon(value) ? value : null;
 }
 
 function sanitizeName(raw: string): string {

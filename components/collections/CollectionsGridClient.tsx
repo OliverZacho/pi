@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CollectionCardData } from "@/lib/collections-db";
+import type { CollectionIcon } from "@/lib/collection-icons";
 import CollectionCard from "./CollectionCard";
+import CollectionIconPicker from "./CollectionIconPicker";
 import styles from "./collections.module.css";
 import exploreStyles from "../explore/explore.module.css";
 
@@ -33,6 +35,7 @@ export default function CollectionsGridClient({
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createIcon, setCreateIcon] = useState<CollectionIcon | null>(null);
   const [createPending, setCreatePending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const createInputRef = useRef<HTMLInputElement | null>(null);
@@ -72,12 +75,13 @@ export default function CollectionsGridClient({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, icon: createIcon })
       });
       if (!res.ok) throw new Error(`Failed (${res.status})`);
       const body = await res.json();
       const newId = body?.collection?.id as string | undefined;
       setCreateName("");
+      setCreateIcon(null);
       setCreateOpen(false);
       if (newId) {
         router.push(`/collections/${newId}`);
@@ -123,17 +127,25 @@ export default function CollectionsGridClient({
           >
             <div className={styles.createBody}>
               <span className={styles.createTitle}>New collection</span>
-              <input
-                ref={createInputRef}
-                type="text"
-                value={createName}
-                onChange={(event) => setCreateName(event.target.value)}
-                placeholder="e.g. Black Friday"
-                maxLength={120}
-                className={styles.createInput}
-                aria-label="New collection name"
-                disabled={createPending}
-              />
+              <div className={styles.createNameRow}>
+                <CollectionIconPicker
+                  value={createIcon}
+                  onChange={setCreateIcon}
+                  label="Choose an icon for this collection"
+                  disabled={createPending}
+                />
+                <input
+                  ref={createInputRef}
+                  type="text"
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
+                  placeholder="e.g. Black Friday"
+                  maxLength={120}
+                  className={styles.createInput}
+                  aria-label="New collection name"
+                  disabled={createPending}
+                />
+              </div>
               <div className={styles.createButtons}>
                 <button
                   type="button"
@@ -141,6 +153,7 @@ export default function CollectionsGridClient({
                   onClick={() => {
                     setCreateOpen(false);
                     setCreateName("");
+                    setCreateIcon(null);
                     setCreateError(null);
                   }}
                   disabled={createPending}

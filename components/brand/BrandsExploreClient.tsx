@@ -18,6 +18,7 @@ import type {
   BrandsSortKey
 } from "@/lib/brands-explore-db";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import { countryFlag, countryName } from "@/lib/country";
 import {
   endOfDayInZone,
   parseDayKey,
@@ -58,7 +59,14 @@ type Props = {
   facets: BrandsFacets;
 };
 
-type PopoverName = "markets" | "esp" | "cadence" | "more" | "sort" | null;
+type PopoverName =
+  | "markets"
+  | "region"
+  | "esp"
+  | "cadence"
+  | "more"
+  | "sort"
+  | null;
 
 type FetchResponse = {
   items: BrandsExploreCard[];
@@ -79,6 +87,8 @@ export default function BrandsExploreClient({
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [selectedGlobal, setSelectedGlobal] = useState(false);
   const [selectedMarkets, setSelectedMarkets] = useState<Set<string>>(
     new Set()
   );
@@ -106,6 +116,11 @@ export default function BrandsExploreClient({
   const [subscribedAfter, setSubscribedAfter] = useState("");
   const [subscribedBefore, setSubscribedBefore] = useState("");
   const [sort, setSort] = useState<BrandsSortKey>("most_active");
+
+  // Flips true once the initial filter state has been read from the URL.
+  // Gates the URL-writer effect so it can't clobber the incoming query
+  // string before we've hydrated from it.
+  const [hydrated, setHydrated] = useState(false);
 
   const [brands, setBrands] = useState<BrandsExploreCard[]>(initialBrands);
   const [total, setTotal] = useState(initialTotal);
@@ -173,11 +188,130 @@ export default function BrandsExploreClient({
     return n;
   }, [minEmailsInput]);
 
+  // Hydrate filters from the URL on first mount so a shared / bookmarked
+  // link reproduces the same view. Runs once; the writer effect below
+  // keeps the URL in sync from here on. Seeding state here triggers the
+  // fetch effect to reload with the URL's filters in place of the SSR'd
+  // default first page.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+
+    const q = sp.get("q");
+    if (q) {
+      setQueryInput(q);
+      setDebouncedQuery(q.trim());
+    }
+
+    const markets = sp.getAll("market").filter(Boolean);
+    if (markets.length > 0) setSelectedMarkets(new Set(markets));
+
+    if (sp.get("global") === "1") {
+      setSelectedGlobal(true);
+    } else {
+      const country = sp.get("country");
+      if (country && /^[A-Za-z]{2}$/.test(country)) {
+        setSelectedCountry(country.toUpperCase());
+      }
+    }
+
+    const validEsps = new Set(facets.espProviders.map((esp) => esp.id));
+    const esps = sp
+      .getAll("esp")
+      .filter((id): id is EspProvider => validEsps.has(id as EspProvider));
+    if (esps.length > 0) setSelectedEsps(new Set(esps));
+
+    const cadenceMin = Number.parseFloat(sp.get("cadenceMin") ?? "");
+    const cadenceMax = Number.parseFloat(sp.get("cadenceMax") ?? "");
+    if (Number.isFinite(cadenceMin) || Number.isFinite(cadenceMax)) {
+      const lo = Number.isFinite(cadenceMin) ? Math.max(0, cadenceMin) : 0;
+      const hi = Number.isFinite(cadenceMax)
+        ? Math.min(facets.cadenceMaxDays, cadenceMax)
+        : facets.cadenceMaxDays;
+      setCadenceRange([Math.min(lo, hi), Math.max(lo, hi)]);
+    }
+
+    const activityParam = sp.get("activity");
+    if (
+      activityParam &&
+      ACTIVITY_OPTIONS.some((option) => option.id === activityParam)
+    ) {
+      setActivity(activityParam as BrandsActivityWindow);
+    }
+
+    const minEmails = sp.get("minEmails");
+    if (minEmails) setMinEmailsInput(minEmails);
+
+    if (sp.get("logo") === "1") setHasLogo(true);
+
+    const from = sp.get("from");
+    if (from) setSubscribedAfter(from);
+    const to = sp.get("to");
+    if (to) setSubscribedBefore(to);
+
+    const sortParam = sp.get("sort");
+    if (sortParam && sortParam in SORT_LABEL) {
+      setSort(sortParam as BrandsSortKey);
+    }
+
+    setHydrated(true);
+    // Mount-only: we intentionally read the URL a single time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror the active filters into the URL with replaceState (no new
+  // history entry) so the view is always shareable. Gated on `hydrated`
+  // so the first commit can't overwrite the incoming URL.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const params = new URLSearchParams();
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    for (const market of selectedMarkets) params.append("market", market);
+    if (selectedGlobal) params.set("global", "1");
+    else if (selectedCountry) params.set("country", selectedCountry);
+    for (const esp of selectedEsps) params.append("esp", esp);
+    if (cadenceActive) {
+      params.set("cadenceMin", cadenceRange[0].toFixed(1));
+      params.set("cadenceMax", cadenceRange[1].toFixed(1));
+    }
+    if (activity) params.set("activity", activity);
+    if (parsedMinEmails !== null) {
+      params.set("minEmails", String(parsedMinEmails));
+    }
+    if (hasLogo) params.set("logo", "1");
+    if (subscribedAfter) params.set("from", subscribedAfter);
+    if (subscribedBefore) params.set("to", subscribedBefore);
+    if (sort !== "most_active") params.set("sort", sort);
+
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", url);
+  }, [
+    hydrated,
+    debouncedQuery,
+    selectedMarkets,
+    selectedCountry,
+    selectedGlobal,
+    selectedEsps,
+    cadenceActive,
+    cadenceRange,
+    activity,
+    parsedMinEmails,
+    hasLogo,
+    subscribedAfter,
+    subscribedBefore,
+    sort
+  ]);
+
   const buildSearchUrl = useCallback(
     (nextPage: number) => {
       const params = new URLSearchParams();
       if (debouncedQuery) params.set("q", debouncedQuery);
       for (const market of selectedMarkets) params.append("market", market);
+      if (selectedGlobal) params.set("global", "1");
+      else if (selectedCountry) params.set("country", selectedCountry);
       for (const esp of selectedEsps) params.append("esp", esp);
       if (cadenceActive) {
         params.set("cadenceMin", cadenceRange[0].toFixed(1));
@@ -210,6 +344,8 @@ export default function BrandsExploreClient({
     [
       debouncedQuery,
       selectedMarkets,
+      selectedCountry,
+      selectedGlobal,
       selectedEsps,
       cadenceActive,
       cadenceRange,
@@ -447,6 +583,8 @@ export default function BrandsExploreClient({
 
   const hasAnyFilter =
     selectedMarkets.size > 0 ||
+    selectedCountry !== null ||
+    selectedGlobal ||
     selectedEsps.size > 0 ||
     cadenceActive ||
     moreFiltersCount > 0 ||
@@ -548,6 +686,100 @@ export default function BrandsExploreClient({
               </div>
             ) : null}
           </div>
+
+          {facets.countries.length > 0 ? (
+            <div className={styles.filterChipWrap}>
+              <button
+                type="button"
+                className={`${styles.filterChip}${
+                  selectedCountry || selectedGlobal ? ` ${styles.filterChipActive}` : ""
+                }${openPopover === "region" ? ` ${styles.filterChipOpen}` : ""}`}
+                onClick={() => togglePopover("region")}
+                aria-haspopup="true"
+                aria-expanded={openPopover === "region"}
+              >
+                <span>
+                  {selectedGlobal
+                    ? "🌍 Global"
+                    : selectedCountry
+                      ? `${countryFlag(selectedCountry)} ${countryName(selectedCountry)}`
+                      : "Region"}
+                </span>
+                <ChevronIcon />
+              </button>
+              {openPopover === "region" ? (
+                <div
+                  className={`${styles.popover} ${styles.popoverList}`}
+                  role="menu"
+                >
+                  <div className={styles.popoverScroll}>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selectedGlobal}
+                      className={styles.checkRow}
+                      onClick={() => {
+                        setSelectedGlobal((v) => !v);
+                        setSelectedCountry(null);
+                      }}
+                    >
+                      <span
+                        className={`${styles.checkBox}${
+                          selectedGlobal ? ` ${styles.checkBoxChecked}` : ""
+                        }`}
+                      >
+                        {selectedGlobal ? <CheckIcon /> : null}
+                      </span>
+                      <span className={styles.checkLabel}>🌍 Global brands</span>
+                    </button>
+                    {facets.countries.map((code) => {
+                      const checked = !selectedGlobal && selectedCountry === code;
+                      return (
+                        <button
+                          key={code}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={checked}
+                          className={styles.checkRow}
+                          onClick={() => {
+                            setSelectedGlobal(false);
+                            setSelectedCountry((current) =>
+                              current === code ? null : code
+                            );
+                          }}
+                        >
+                          <span
+                            className={`${styles.checkBox}${
+                              checked ? ` ${styles.checkBoxChecked}` : ""
+                            }`}
+                          >
+                            {checked ? <CheckIcon /> : null}
+                          </span>
+                          <span className={styles.checkLabel}>
+                            {countryFlag(code)} {countryName(code)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedCountry || selectedGlobal ? (
+                    <div className={styles.popoverFooter}>
+                      <button
+                        type="button"
+                        className={styles.popoverClear}
+                        onClick={() => {
+                          setSelectedCountry(null);
+                          setSelectedGlobal(false);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className={styles.filterChipWrap}>
             <button
@@ -1082,7 +1314,23 @@ function BrandGridCard({
       </span>
 
       <div className={styles.cardBody}>
-        <span className={styles.cardName}>{brand.name}</span>
+        <span className={styles.cardName}>
+          {brand.name}
+          {brand.primaryMarketCountry ? (
+            <span
+              aria-hidden="true"
+              title={countryName(brand.primaryMarketCountry)}
+              style={{ marginLeft: "0.4rem" }}
+            >
+              {countryFlag(brand.primaryMarketCountry)}
+            </span>
+          ) : null}
+          {brand.isGlobal ? (
+            <span title="Global brand" style={{ marginLeft: "0.3rem" }}>
+              🌍
+            </span>
+          ) : null}
+        </span>
         {brand.markets.length > 0 ? (
           <span className={styles.cardMarket}>
             {brand.markets.map(formatMarketLabel).join(" · ")}

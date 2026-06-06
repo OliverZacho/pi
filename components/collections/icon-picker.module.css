@@ -1,0 +1,118 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: border-color 120ms ease, background 120ms ease,
+    transform 120ms ease;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: #0f172a;
+  color: #0f172a;
+}
+
+.trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.triggerLg {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-color: transparent;
+  background: #f1f5f9;
+  border-radius: 9px;
+  font-size: 1.3rem;
+}
+
+.triggerLg:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: transparent;
+}
+
+.triggerIcon {
+  font-size: inherit;
+  line-height: 1;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: 17rem;
+  padding: 0.6rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, 2rem);
+  gap: 0.25rem;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: background 100ms ease, border-color 100ms ease,
+    transform 100ms ease;
+}
+
+.option:hover {
+  background: #f1f5f9;
+  transform: scale(1.08);
+}
+
+.optionSelected {
+  background: #eef2ff;
+  border-color: #6366f1;
+}
+
+.clear {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.clear:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}

@@ -22,6 +22,14 @@ export type BrandsExploreCard = {
   markets: string[];
   logoUrl: string | null;
   /**
+   * The brand's rolled-up primary audience country (ISO 3166-1 alpha-2),
+   * or `null` when unknown. Lets the explorer / compare picker show and
+   * filter by region so peers can be kept same-market.
+   */
+  primaryMarketCountry: string | null;
+  /** True for genuine global brands (Nike, LEGO); they still carry an HQ country. */
+  isGlobal: boolean;
+  /**
    * Primary email-service provider this brand sends with, derived from
    * the modal ESP across captured emails. `null` when we have not
    * detected an ESP on any captured message yet.
@@ -48,6 +56,10 @@ export type BrandsActivityWindow = "30d" | "90d" | "180d" | "inactive";
 export type BrandsSearchParams = {
   query?: string;
   markets?: string[];
+  /** ISO 3166-1 alpha-2 country to restrict to (the brand's primary market). */
+  country?: string | null;
+  /** Restrict to global brands only (mutually exclusive with `country` in the UI). */
+  global?: boolean;
   espProviders?: EspProvider[];
   /**
    * Inclusive cadence window in days. Either bound can be null to mean
@@ -76,6 +88,12 @@ export type BrandsSearchResult = {
 
 export type BrandsFacets = {
   markets: string[];
+  /**
+   * Distinct primary-market countries (ISO 3166-1 alpha-2) present across
+   * tracked brands, sorted alphabetically. Powers the region filter; brands
+   * of unknown region contribute nothing here.
+   */
+  countries: string[];
   espProviders: { id: EspProvider; label: string }[];
   /**
    * Observed upper bound for the cadence slider. Computed from real
@@ -114,6 +132,8 @@ type CompanyRow = {
   name: string;
   domain: string;
   markets: string[] | null;
+  primary_market_country: string | null;
+  is_global: boolean | null;
   subscribed_since: string;
   logo_storage_path: string | null;
   company_email_stats:
@@ -168,7 +188,7 @@ export async function searchBrands(
   let query = supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
     )
     .is("deleted_at", null);
 
@@ -177,6 +197,15 @@ export async function searchBrands(
     // one tag with the user's selection — so a brand tagged
     // `["fashion", "ecommerce"]` is returned under both filters.
     query = query.overlaps("markets", params.markets);
+  }
+
+  if (params.global) {
+    query = query.eq("is_global", true);
+  } else if (params.country) {
+    // Restrict to one audience so peer comparisons stay same-market. Brands
+    // whose region we couldn't determine (NULL) are intentionally excluded
+    // when a country filter is active.
+    query = query.eq("primary_market_country", params.country);
   }
 
   const trimmedQuery = (params.query ?? "").trim();
@@ -340,6 +369,8 @@ export async function searchBrands(
       id: row.id,
       name: row.name,
       markets: Array.isArray(row.markets) ? row.markets : [],
+      primaryMarketCountry: row.primary_market_country ?? null,
+      isGlobal: row.is_global ?? false,
       logoUrl,
       primaryEsp: row.primaryEsp
         ? {
@@ -448,7 +479,7 @@ export async function getBrandsFacets(
   const [companiesResult, aggregates] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, markets, company_email_stats(email_count)")
+      .select("id, markets, primary_market_country, company_email_stats(email_count)")
       .is("deleted_at", null),
     computeBrandAggregates(supabase)
   ]);
@@ -456,6 +487,7 @@ export async function getBrandsFacets(
   if (companiesResult.error) throw companiesResult.error;
 
   const marketSet = new Set<string>();
+  const countrySet = new Set<string>();
   let totalBrands = 0;
   let brandsWithEmails = 0;
   for (const row of companiesResult.data ?? []) {
@@ -467,12 +499,16 @@ export async function getBrandsFacets(
         }
       }
     }
+    if (typeof row.primary_market_country === "string" && row.primary_market_country.length > 0) {
+      countrySet.add(row.primary_market_country);
+    }
     const stats = relationFirst(row.company_email_stats);
     const count = stats?.email_count ?? 0;
     if (count > 0) brandsWithEmails += 1;
   }
 
   const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
+  const countries = Array.from(countrySet).sort((a, b) => a.localeCompare(b));
 
   const espProviders = Array.from(aggregates.espIdsInUse)
     .map((id) => ({
@@ -494,6 +530,7 @@ export async function getBrandsFacets(
 
   return {
     markets,
+    countries,
     espProviders,
     cadenceMaxDays,
     totalBrands,

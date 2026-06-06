@@ -59,9 +59,17 @@ export async function GET(request: Request) {
     .getAll("esp")
     .filter((id): id is EspProvider => VALID_ESP_IDS.has(id as EspProvider));
 
+  const countryRaw = params.get("country");
+  const country =
+    countryRaw && /^[A-Za-z]{2}$/.test(countryRaw)
+      ? countryRaw.toUpperCase()
+      : null;
+
   const search: BrandsSearchParams = {
     query: params.get("q") ?? undefined,
     markets: params.getAll("market").filter(Boolean),
+    country,
+    global: params.get("global") === "1",
     espProviders,
     cadenceMinDays: parseNonNegativeFloat(params.get("cadenceMin")),
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),

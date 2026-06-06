@@ -7,6 +7,7 @@ import {
   type CompanyDetail,
   type CompanyInbox,
   type CompanySubscription,
+  type MarketCitation,
   type EmailCategory,
   type EspProvider,
   type FontFamily,
@@ -15,6 +16,7 @@ import {
   type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
+import { LOGO_REVIEW_MAX_CONFIDENCE } from "./extract-logo";
 import {
   BRAND_LOGO_TRANSFORM,
   getSignedAssets,
@@ -126,7 +128,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -181,7 +183,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, auth_results, list_headers, metadata, companies(id, name)"
+      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -241,7 +243,13 @@ export async function getEmailDetailFromDb(
     listHeaders: parseListHeaders(data.list_headers),
     paletteColors: parsePaletteColors(data.metadata),
     fontFamilies: parseFontFamilies(data.metadata),
-    metadata: parseMetadata(data.metadata)
+    metadata: parseMetadata(data.metadata),
+    detectedCountry: data.detected_country ?? null,
+    countryConfidence:
+      data.country_confidence === null || data.country_confidence === undefined
+        ? null
+        : Number(data.country_confidence),
+    companyPrimaryMarketCountry: company?.primary_market_country ?? null
   };
 }
 
@@ -340,7 +348,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -434,7 +442,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, subscribed_since, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -485,9 +493,16 @@ type CompanyRow = {
   name: string;
   domain: string;
   markets: string[] | null;
+  primary_market_country?: string | null;
+  is_global?: boolean | null;
+  hq_country?: string | null;
+  market_source?: string | null;
+  market_citation?: unknown;
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
+  logo_confidence?: number | string | null;
+  logo_stale?: boolean | null;
   company_inboxes?: CompanyInboxRow[] | null;
   company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
 };
@@ -561,13 +576,21 @@ async function resolveCompanyLogos(
       name: company.name,
       domain: company.domain,
       markets: company.markets,
+      primaryMarketCountry: company.primaryMarketCountry,
+      isGlobal: company.isGlobal,
+      hqCountry: company.hqCountry,
+      marketSource: company.marketSource,
+      marketCitation: company.marketCitation,
       subscriptionEmail: company.subscriptionEmail,
       inboxes: company.inboxes,
       subscribedAt: company.subscribedAt,
       emailCount: company.emailCount,
       lastEmailAt: company.lastEmailAt,
       logoUrl,
-      logoSource: company.logoSource
+      logoSource: company.logoSource,
+      logoConfidence: company.logoConfidence,
+      logoStale: company.logoStale,
+      needsLogoReview: company.needsLogoReview
     };
   });
 }
@@ -604,24 +627,71 @@ type EmailListRow = {
   companies: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
+function parseMarketCitationAdmin(value: unknown): MarketCitation | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  const reasoning = typeof obj.reasoning === "string" ? obj.reasoning : null;
+  const rawSources = Array.isArray(obj.sources) ? obj.sources : [];
+  const sources: MarketCitation["sources"] = [];
+  for (const item of rawSources) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.url === "string" && entry.url.length > 0) {
+      sources.push({
+        title: typeof entry.title === "string" ? entry.title : null,
+        url: entry.url
+      });
+    }
+  }
+  if (!reasoning && sources.length === 0) return null;
+  return { reasoning, sources };
+}
+
 function rowToCompany(row: CompanyRow): CompanySubscription {
   const inboxes = sortInboxesForDisplay(row.company_inboxes ?? []);
   const primaryInbox =
     inboxes.find((inbox) => inbox.isPrimary)?.emailAddress ?? "unassigned@pirol.app";
   const stats = relationFirst(row.company_email_stats);
+  const logoSource = normalizeLogoSource(row.logo_source);
+  const logoStoragePath = row.logo_storage_path ?? null;
+  const logoConfidence =
+    row.logo_confidence === null || row.logo_confidence === undefined
+      ? null
+      : Number(row.logo_confidence);
+  const logoStale = row.logo_stale ?? false;
+  // A logo needs review when it's an admin's manual pick that has gone stale
+  // (brand stopped sending it), OR it's a non-manual pick that is missing or
+  // below the confidence floor — where the picker drifts onto QR codes / blanks.
+  const needsLogoReview =
+    logoStale ||
+    (logoSource !== "manual" &&
+      (logoStoragePath === null ||
+        logoConfidence === null ||
+        logoConfidence < LOGO_REVIEW_MAX_CONFIDENCE));
   const base: CompanyWithRawLogo = {
     id: row.id,
     name: row.name,
     domain: row.domain,
     markets: normalizeStoredMarkets(row.markets),
+    primaryMarketCountry: row.primary_market_country ?? null,
+    isGlobal: row.is_global ?? false,
+    hqCountry: row.hq_country ?? null,
+    marketSource:
+      row.market_source === "email" || row.market_source === "web"
+        ? row.market_source
+        : null,
+    marketCitation: parseMarketCitationAdmin(row.market_citation),
     subscriptionEmail: primaryInbox,
     inboxes,
     subscribedAt: row.subscribed_since,
     emailCount: stats?.email_count ?? 0,
     lastEmailAt: stats?.last_received_at ?? null,
     logoUrl: null,
-    logoSource: normalizeLogoSource(row.logo_source),
-    __logoStoragePath: row.logo_storage_path ?? null
+    logoSource,
+    logoConfidence,
+    logoStale,
+    needsLogoReview,
+    __logoStoragePath: logoStoragePath
   };
   return base;
 }
@@ -796,6 +866,11 @@ export async function createCompanySubscriptionInDb(
     name: company.name,
     domain: company.domain,
     markets: normalizeStoredMarkets(company.markets),
+    primaryMarketCountry: null,
+    isGlobal: false,
+    hqCountry: null,
+    marketSource: null,
+    marketCitation: null,
     subscriptionEmail,
     inboxes: [
       {
@@ -809,7 +884,11 @@ export async function createCompanySubscriptionInDb(
     emailCount: 0,
     lastEmailAt: null,
     logoUrl: null,
-    logoSource: null
+    logoSource: null,
+    logoConfidence: null,
+    logoStale: false,
+    // Brand-new company has no logo yet — it needs a pick once email lands.
+    needsLogoReview: true
   };
 }
 
@@ -917,6 +996,9 @@ export type StoreProcessedEmailInput = {
     promoCode?: string | null;
     primaryCtaText?: string | null;
     primaryCtaUrlHint?: string | null;
+    detectedCountry?: string | null;
+    countryConfidence?: number | null;
+    countrySignals?: unknown;
   };
   enrichment?: {
     espProvider?: string | null;
@@ -1013,6 +1095,9 @@ export async function storeProcessedEmail(
       promo_code: input.classification.promoCode ?? null,
       primary_cta_text: input.classification.primaryCtaText ?? null,
       primary_cta_url: enrichment.primaryCtaUrl ?? null,
+      detected_country: input.classification.detectedCountry ?? null,
+      country_confidence: input.classification.countryConfidence ?? null,
+      country_signals: (input.classification.countrySignals ?? null) as Json | null,
       auth_results: (enrichment.authResults ?? null) as Json | null,
       list_headers: (enrichment.listHeaders ?? null) as Json | null,
       metadata: ((enrichment.metadata ?? {}) as Json) ?? ({} as Json)

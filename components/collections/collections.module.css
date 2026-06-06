@@ -222,6 +222,12 @@
   white-space: nowrap;
 }
 
+.cardTitleIcon {
+  margin-right: 0.35rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .cardCount {
   font-size: 0.75rem;
   color: #64748b;
@@ -289,6 +295,12 @@
   font-size: 0.85rem;
   font-weight: 500;
   color: #0f172a;
+}
+
+.createNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .createInput {
@@ -408,6 +420,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+/* Icon + title (+ rename pencil) share one horizontal line; the meta
+ * row sits beneath them. align-items: center keeps the icon badge
+ * optically centered on the title text. */
+.detailTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .detailTitle {

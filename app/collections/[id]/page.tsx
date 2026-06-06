@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getCollectionForOwner,
   listCollectionSummaries,
+  markCollectionViewed,
   type CollectionSummary
 } from "@/lib/collections-db";
 import {
@@ -59,6 +60,12 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   const collection = await getCollectionForOwner(supabase, user.id, id);
   if (!collection) {
     notFound();
+  }
+
+  try {
+    await markCollectionViewed(supabase, user.id, id);
+  } catch (err) {
+    console.error("Failed to mark collection viewed", err);
   }
 
   // We still want the Save/Unsave bookmark state on every card so the

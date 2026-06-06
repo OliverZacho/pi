@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { classifyEmail } from "@/lib/classify";
+import { classifyEmail, countryCodeTld } from "@/lib/classify";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -195,5 +195,154 @@ describe("classifyEmail", () => {
 
     expect(result.source).toBe("rules");
     expect(result.llmError).toMatch(/tool_use/);
+  });
+
+  it("records a confident detected country with its signals", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.95,
+        reasoning: "Danish copy, Copenhagen footer address.",
+        country: "dk",
+        language: "da",
+        country_confidence: 0.92,
+        country_source: "footer_address"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "Nyhed: forårskollektionen er landet",
+      html: "<p>Se de nye møbler. Norr11 ApS, København, CVR 12345678.</p>",
+      senderDomain: "nyheder@norr11.dk"
+    });
+
+    expect(result.detectedCountry).toBe("DK");
+    expect(result.countryConfidence).toBeCloseTo(0.92);
+    expect(result.countrySignals).toMatchObject({
+      language: "da",
+      tld: "dk",
+      source: "footer_address",
+      rawCountry: "DK"
+    });
+  });
+
+  it("rejects a high-confidence country when the model fakes a tld source on a .com sender", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "English copy from a .com.",
+        country: "us",
+        language: "en",
+        country_confidence: 0.9,
+        country_source: "tld"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "What's your match?",
+      html: "<p>Find your shade.</p>",
+      senderDomain: "hello@gisou.com"
+    });
+
+    // No real ccTLD was passed, so a "tld" rationale is fabricated → unknown.
+    expect(result.detectedCountry).toBeNull();
+    expect(result.countrySignals).toMatchObject({ source: "tld", rawCountry: "US", tld: null });
+  });
+
+  it("accepts a real ccTLD pick", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "Sender is a .se domain.",
+        country: "se",
+        language: "en",
+        country_confidence: 0.65,
+        country_source: "tld"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "Nyheter",
+      html: "<p>See the collection.</p>",
+      senderDomain: "nyheter@brand.se"
+    });
+
+    expect(result.detectedCountry).toBe("SE");
+    expect(result.countrySignals).toMatchObject({ source: "tld", tld: "se" });
+  });
+
+  it("keeps a 'mixed'-source pick with no tld (how genuinely-classified brands are stored)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "Danish footer address plus brand cues.",
+        country: "dk",
+        language: "en",
+        country_confidence: 0.85,
+        // The narrow guard only distrusts a fabricated `tld`; `mixed` (the
+        // common real-brand label) must be trusted even with no ccTLD.
+        country_source: "mixed"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "New collection",
+      html: "<p>Designed in Copenhagen.</p>",
+      senderDomain: "hello@brand.com"
+    });
+
+    expect(result.detectedCountry).toBe("DK");
+  });
+
+  it("collapses a low-confidence country to unknown but keeps the raw pick", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "content",
+        confidence: 0.9,
+        reasoning: "Generic English newsletter, no address.",
+        country: "us",
+        language: "en",
+        country_confidence: 0.3,
+        country_source: "tld"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "This week's reads",
+      html: "<p>A few links we liked.</p>",
+      senderDomain: "hello@example.com"
+    });
+
+    expect(result.detectedCountry).toBeNull();
+    expect(result.countryConfidence).toBeCloseTo(0.3);
+    expect(result.countrySignals).toMatchObject({ rawCountry: "US", tld: null });
+  });
+});
+
+describe("countryCodeTld", () => {
+  it("extracts a ccTLD from an address or bare domain", () => {
+    expect(countryCodeTld("news@norr11.dk")).toBe("dk");
+    expect(countryCodeTld("brand.co.uk")).toBe("uk");
+    expect(countryCodeTld("Brand <hi@shop.de>")).toBe("de");
+  });
+
+  it("returns null for generic / unparseable TLDs", () => {
+    expect(countryCodeTld("hello@example.com")).toBeNull();
+    expect(countryCodeTld("team@vercel.io")).toBeNull();
+    expect(countryCodeTld(undefined)).toBeNull();
+    expect(countryCodeTld("localhost")).toBeNull();
   });
 });

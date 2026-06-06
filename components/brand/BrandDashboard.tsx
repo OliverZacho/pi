@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
+import { countryFlag, countryName } from "@/lib/country";
 import {
   formatMonthYear as formatMonthYearZoned,
   formatRelativeDate as formatRelativeDateZoned,
@@ -13,6 +14,17 @@ import BrandCtaCloud from "./BrandCtaCloud";
 import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
+
+/**
+ * Tooltip for the hero region pill. User-facing, so it stays neutral — the
+ * resolution provenance (web reasoning + source links) lives in /admin only.
+ */
+function marketTooltip(brand: BrandPageData["brand"]): string {
+  if (brand.marketSource === "email" && brand.marketConfidence !== null) {
+    return `Primary market — ${Math.round(brand.marketConfidence * 100)}% of recent emails`;
+  }
+  return "Primary market";
+}
 
 type Props = {
   data: BrandPageData;
@@ -216,6 +228,23 @@ function Hero({
                     {label}
                   </span>
                 ))}
+              </>
+            ) : null}
+            {brand.primaryMarketCountry ? (
+              <>
+                <span className={styles.heroDot} aria-hidden="true" />
+                <span className={styles.heroPill} title={marketTooltip(brand)}>
+                  {countryFlag(brand.primaryMarketCountry)}{" "}
+                  {countryName(brand.primaryMarketCountry)}
+                </span>
+                {brand.isGlobal ? (
+                  <span
+                    className={styles.heroPill}
+                    title="Global brand — sold worldwide with no single home market. Still grouped by its HQ timezone for send-time comparison."
+                  >
+                    🌍 Global
+                  </span>
+                ) : null}
               </>
             ) : null}
             <span className={styles.heroDot} aria-hidden="true" />

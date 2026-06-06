@@ -679,21 +679,30 @@ const FINGERPRINTS: Fingerprint[] = [
     // at `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`.
     // The `xnpe-attr="…"` attribute is emitted on every tracked anchor by the
     // Bloomreach email editor and is unique to this ESP. Brand-CNAMEd
-    // tracking domains exist in the wild, so the URL-shape patterns below
-    // carry the detection on their own when the host fingerprint won't fire.
+    // tracking domains are common in the wild (e.g. Acne Studios routes through
+    // `link.acnestudios.com/<tenant>/e/<token>/click`), so the host-agnostic
+    // `/e/<base64url-token>/(click|open)` URL-shape patterns below carry the
+    // detection on their own when the host fingerprint won't fire — the
+    // `/e/<token>/click` + `…/open` path pair is a Bloomreach-only convention.
     hostPatterns: [
       /(^|\.)exponea\.com$/i,
       /(^|\.)cdn\.[a-z0-9-]+\.exponea\.com$/i,
       /(^|\.)bloomreachengagement\.com$/i,
       /(^|\.)cdn\.[a-z0-9-]+\.bloomreach\.com$/i
     ],
+    // The host-agnostic `/e/<token>/(click|open)` patterns are listed FIRST so
+    // the `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers them — they match both the
+    // native `cdn.<region>.exponea.com` sends and brand-CNAMEd tracking hosts,
+    // which the host-anchored patterns below cannot.
     htmlPatterns: [
+      /\/e\/\.?[A-Za-z0-9_.-]{24,}\/(?:click|open)\b/i,
       /\bxnpe-attr\s*=\s*["']/i,
       /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bstorage\.googleapis\.com\/[a-z0-9-]+-app-storage\/[a-f0-9-]{16,}\/media\//i
     ],
     linkUrlPatterns: [
+      /\/e\/\.?[A-Za-z0-9_.-]{24,}\/(?:click|open)\b/i,
       /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i
     ],

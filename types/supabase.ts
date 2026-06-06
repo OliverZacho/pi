@@ -62,8 +62,11 @@ export type Database = {
           classification_confidence: number
           classification_source: string
           company_id: string | null
+          country_confidence: number | null
+          country_signals: Json | null
           created_at: string
           currency: string | null
+          detected_country: string | null
           discount_amount: number | null
           discount_percent: number | null
           esp_confidence: number | null
@@ -102,8 +105,11 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          country_confidence?: number | null
+          country_signals?: Json | null
           created_at?: string
           currency?: string | null
+          detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           esp_confidence?: number | null
@@ -142,8 +148,11 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          country_confidence?: number | null
+          country_signals?: Json | null
           created_at?: string
           currency?: string | null
+          detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           esp_confidence?: number | null
@@ -229,7 +238,9 @@ export type Database = {
       collections: {
         Row: {
           created_at: string
+          icon: string | null
           id: string
+          last_viewed_at: string | null
           name: string
           rules: Json | null
           share_slug: string
@@ -238,7 +249,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          icon?: string | null
           id?: string
+          last_viewed_at?: string | null
           name: string
           rules?: Json | null
           share_slug: string
@@ -247,7 +260,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          icon?: string | null
           id?: string
+          last_viewed_at?: string | null
           name?: string
           rules?: Json | null
           share_slug?: string
@@ -261,13 +276,22 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           domain: string
+          hq_country: string | null
           id: string
+          is_global: boolean
           logo_confidence: number | null
+          logo_origin_path: string | null
           logo_source: string | null
+          logo_stale: boolean
           logo_storage_path: string | null
           logo_updated_at: string | null
+          market_citation: Json | null
+          market_confidence: number | null
+          market_resolved_at: string | null
+          market_source: string | null
           markets: string[]
           name: string
+          primary_market_country: string | null
           subscribed_since: string
           updated_at: string
         }
@@ -275,13 +299,22 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           domain: string
+          hq_country?: string | null
           id?: string
+          is_global?: boolean
           logo_confidence?: number | null
+          logo_origin_path?: string | null
           logo_source?: string | null
+          logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_citation?: Json | null
+          market_confidence?: number | null
+          market_resolved_at?: string | null
+          market_source?: string | null
           markets?: string[]
           name: string
+          primary_market_country?: string | null
           subscribed_since?: string
           updated_at?: string
         }
@@ -289,13 +322,22 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           domain?: string
+          hq_country?: string | null
           id?: string
+          is_global?: boolean
           logo_confidence?: number | null
+          logo_origin_path?: string | null
           logo_source?: string | null
+          logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_citation?: Json | null
+          market_confidence?: number | null
+          market_resolved_at?: string | null
+          market_source?: string | null
           markets?: string[]
           name?: string
+          primary_market_country?: string | null
           subscribed_since?: string
           updated_at?: string
         }

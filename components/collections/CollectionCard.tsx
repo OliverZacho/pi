@@ -199,6 +199,11 @@ export default function CollectionCard({
 
       <div className={styles.cardMeta}>
         <span className={styles.cardTitle} title={collection.name}>
+          {collection.icon ? (
+            <span className={styles.cardTitleIcon} aria-hidden="true">
+              {collection.icon}
+            </span>
+          ) : null}
           {collection.name}
         </span>
         <span className={styles.cardCount}>

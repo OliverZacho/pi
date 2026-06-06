@@ -4,6 +4,7 @@ import {
   createCollection,
   listCollectionsWithPreviews
 } from "@/lib/collections-db";
+import { isCollectionIcon } from "@/lib/collection-icons";
 
 /**
  * GET `/api/collections` — every collection the current user owns,
@@ -67,11 +68,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // `icon` is optional. Reject any value that isn't in the curated
+  // allow-list, but treat an absent / null icon as "no custom icon".
+  const rawIcon =
+    body && typeof body === "object" && "icon" in body
+      ? (body as { icon: unknown }).icon
+      : undefined;
+  if (rawIcon !== undefined && rawIcon !== null && !isCollectionIcon(rawIcon)) {
+    return NextResponse.json(
+      { error: "Unsupported collection icon" },
+      { status: 400 }
+    );
+  }
+
   try {
     const collection = await createCollection(
       session.supabase,
       session.user.id,
-      rawName
+      rawName,
+      isCollectionIcon(rawIcon) ? rawIcon : null
     );
     return NextResponse.json({ collection }, { status: 201 });
   } catch (error) {

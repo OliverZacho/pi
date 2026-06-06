@@ -65,6 +65,11 @@ export type CompanyInbox = {
   createdAt: string;
 };
 
+export type MarketCitation = {
+  reasoning: string | null;
+  sources: { title: string | null; url: string }[];
+};
+
 export type CompanySubscription = {
   id: string;
   name: string;
@@ -76,6 +81,16 @@ export type CompanySubscription = {
    * is uncategorised.
    */
   markets: string[];
+  /** Resolved primary market (ISO alpha-2) or null when unknown. */
+  primaryMarketCountry: string | null;
+  /** True for genuine global brands (still carry an HQ country). */
+  isGlobal: boolean;
+  /** Web-resolved HQ country (ISO alpha-2); usually equals primaryMarketCountry. */
+  hqCountry: string | null;
+  /** How the market was resolved: email rollup or web lookup. */
+  marketSource: "email" | "web" | null;
+  /** Audit payload for a web-resolved market (admin-only surfacing). */
+  marketCitation: MarketCitation | null;
   /**
    * Primary inbox email — kept for backwards compatibility and for the
    * many UI surfaces that only need to display one address. For
@@ -100,6 +115,24 @@ export type CompanySubscription = {
    */
   logoUrl: string | null;
   logoSource: CompanyLogoSource | null;
+  /**
+   * Confidence of the stored logo pick (0–1). `null` when no logo is set.
+   * Heuristic picks score `points / 150`; frequency picks score
+   * `appearances / sampledEmails`. Drives the review queue.
+   */
+  logoConfidence: number | null;
+  /**
+   * True when a `manual` logo pick has fallen out of the brand's recent
+   * emails (likely a rebrand) and should be reviewed again. Drives the
+   * "may be outdated" review reason.
+   */
+  logoStale: boolean;
+  /**
+   * True when the logo needs an admin's eyes: a non-`manual` pick that is
+   * either missing or below {@link LOGO_REVIEW_MAX_CONFIDENCE}, OR a manual
+   * pick that has gone {@link logoStale}.
+   */
+  needsLogoReview: boolean;
 };
 
 export type EspProvider =
@@ -360,6 +393,19 @@ export type CapturedEmailDetail = CapturedEmail & {
   paletteColors: PaletteColor[];
   fontFamilies: FontFamily[];
   metadata: Record<string, unknown> | null;
+  /**
+   * The country this individual email was detected as addressed to (ISO
+   * 3166-1 alpha-2), or `null` when unknown. Per-email and noisier than the
+   * brand-level rollup — surfaced in the modal mainly to flag divergence.
+   */
+  detectedCountry: string | null;
+  countryConfidence: number | null;
+  /**
+   * The owning brand's rolled-up {@link CompanySubscription} primary market,
+   * carried here so the modal can highlight when this email's detected country
+   * disagrees with it (a multi-market send, or a misdetection to review).
+   */
+  companyPrimaryMarketCountry: string | null;
 };
 
 export type AdminOverview = {

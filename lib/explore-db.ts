@@ -39,6 +39,12 @@ export type ExploreSortKey =
 
 export type ExploreSearchParams = {
   query?: string;
+  /**
+   * Restrict the result to these specific email IDs. Used to resolve a
+   * single card for a shared `?email=<id>` deep link when the email
+   * isn't in the currently loaded page.
+   */
+  emailIds?: string[];
   brandIds?: string[];
   markets?: string[];
   categories?: string[];
@@ -93,8 +99,8 @@ const MAX_PAGE_SIZE = 96;
  * Brand-name matches are folded into the same query: when `query` is set
  * we first look up companies whose `name ILIKE %q%` and then OR the
  * resulting `company_id` set into the email-level ILIKE filter on
- * subject / preheader / promo code / primary CTA text. That keeps the
- * search to two round-trips even though we're effectively searching
+ * subject / preheader / primary CTA text / plain-text body. That keeps
+ * the search to two round-trips even though we're effectively searching
  * across joined tables.
  *
  * Pagination is plain offset (`range(start, end)`) — fine for the table
@@ -185,6 +191,9 @@ export async function searchExploreEmails(
       { count: "exact" }
     );
 
+  if (params.emailIds && params.emailIds.length > 0) {
+    emailsQuery = emailsQuery.in("id", params.emailIds);
+  }
   if (effectiveBrandIds !== null) {
     emailsQuery = emailsQuery.in("company_id", effectiveBrandIds);
   }
@@ -211,7 +220,8 @@ export async function searchExploreEmails(
       const clauses = [
         `subject.ilike.${term}`,
         `preheader.ilike.${term}`,
-        `primary_cta_text.ilike.${term}`
+        `primary_cta_text.ilike.${term}`,
+        `plain_text.ilike.${term}`
       ];
       if (brandIdsFromQuery && brandIdsFromQuery.length > 0) {
         // PostgREST `in.()` lists are comma-separated and live inside the
