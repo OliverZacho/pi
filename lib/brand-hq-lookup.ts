@@ -15,6 +15,8 @@
  * English/ambiguous/unknown.
  */
 
+import { recordAnthropicUsage } from "./anthropic-usage";
+
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_VERSION = "2023-06-01";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -154,7 +156,8 @@ export async function lookupBrandOrigin(
     return { ...empty, error: `anthropic http ${response.status}: ${text}` };
   }
 
-  const json = (await response.json()) as { content?: ContentBlock[] };
+  const json = (await response.json()) as { content?: ContentBlock[]; usage?: unknown };
+  void recordAnthropicUsage({ feature: "hq_lookup", model, usage: json });
   const blocks = json.content ?? [];
 
   const report = blocks.find(

@@ -1,4 +1,5 @@
 import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
+import { recordAnthropicUsage } from "./anthropic-usage";
 import { classifyFromRules } from "./email-utils";
 
 const DEFAULT_MODEL = "claude-haiku-4-5";
@@ -370,7 +371,10 @@ async function classifyWithAnthropic(
       name?: string;
       input?: Record<string, unknown>;
     }>;
+    usage?: unknown;
   };
+
+  void recordAnthropicUsage({ feature: "classify", model: getModel(), usage: json });
 
   const toolBlock = json.content?.find(
     (block) => block.type === "tool_use" && block.name === "classify_email"

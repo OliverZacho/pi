@@ -5,21 +5,56 @@ import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useS
 import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
+  USAGE_FEATURE_LABELS,
   type AdminOverview,
   type CapturedEmail,
   type CompanyInbox,
   type CompanySubscription,
+  type DashboardStats,
   type EmailCategory,
-  type EspProvider
+  type EspProvider,
+  type GrowthPoint,
+  type UsageFeature
 } from "@/lib/admin-types";
 import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
+import GrowthChart from "@/components/admin/GrowthChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import Logo from "@/components/Logo";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
 const CATEGORY_LABELS: Record<EmailCategory, string> = EMAIL_CATEGORY_LABELS;
+
+const USD_FORMATTER_PRECISE = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4
+});
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+const INT_FORMATTER = new Intl.NumberFormat("en-US");
+
+/** Currency with extra precision for the sub-dollar amounts cost tracking produces early on. */
+function formatUsd(value: number): string {
+  return value > 0 && value < 1 ? USD_FORMATTER_PRECISE.format(value) : USD_FORMATTER.format(value);
+}
+
+function formatInt(value: number): string {
+  return INT_FORMATTER.format(Math.round(value));
+}
+
+/** Compact token counts (1.2M / 34.5k) for the dense cost cards. */
+function formatTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return formatInt(value);
+}
 
 const ESP_PROVIDERS: EspProvider[] = [
   "mailchimp",
@@ -444,6 +479,9 @@ export default function AdminHomePage() {
   // true recent window.
   const [recentEmails, setRecentEmails] = useState<CapturedEmail[]>([]);
   const [recentEmailsLoading, setRecentEmailsLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [growth, setGrowth] = useState<GrowthPoint[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
   // The company whose logo manager modal is open, or null when closed.
   const [logoManagerCompany, setLogoManagerCompany] = useState<{
     id: string;
@@ -541,6 +579,42 @@ export default function AdminHomePage() {
       void loadRecentEmails();
     }
   }, [activeTab, loadRecentEmails]);
+
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      // Stats and the growth series are independent — load them together so the
+      // dashboard fills in with one round of requests.
+      const [statsRes, growthRes] = await Promise.all([
+        fetch("/api/admin/stats", { cache: "no-store" }),
+        fetch("/api/admin/growth", { cache: "no-store" })
+      ]);
+
+      setDashboardStats(
+        statsRes.ok ? ((await statsRes.json()) as DashboardStats) : null
+      );
+
+      if (growthRes.ok) {
+        const body = (await growthRes.json()) as { series?: GrowthPoint[] };
+        setGrowth(Array.isArray(body.series) ? body.series : []);
+      } else {
+        setGrowth([]);
+      }
+    } catch {
+      setDashboardStats(null);
+      setGrowth([]);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  // Refresh the aggregate stats whenever the operator lands on the dashboard, so
+  // freshly ingested emails and Anthropic spend show up without a full reload.
+  useEffect(() => {
+    if (activeTab === "dashboard") {
+      void loadDashboardStats();
+    }
+  }, [activeTab, loadDashboardStats]);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -1200,24 +1274,224 @@ export default function AdminHomePage() {
         </section>
 
       {activeTab === "dashboard" ? (
+      <>
       <section className="stats-grid">
         <article className="card">
           <h2>Companies</h2>
-          <p>{stats.companies}</p>
+          <p>{formatInt(dashboardStats?.totals.companies ?? stats.companies)}</p>
         </article>
         <article className="card">
           <h2>Captured Emails</h2>
-          <p>{stats.emails}</p>
+          <p>{formatInt(dashboardStats?.totals.emails ?? stats.emails)}</p>
         </article>
         <article className="card">
-          <h2>Sales / Discounts</h2>
-          <p>{stats.sales}</p>
+          <h2>Active brands (30d)</h2>
+          <p>
+            {dashboardStats ? formatInt(dashboardStats.brands.active30d) : "—"}
+            <span className="card-sub">
+              of {formatInt(dashboardStats?.brands.total ?? stats.companies)} tracked
+            </span>
+          </p>
         </article>
         <article className="card">
-          <h2>Product Launches</h2>
-          <p>{stats.launches}</p>
+          <h2>Emails (last 7d)</h2>
+          <p>
+            {dashboardStats ? formatInt(dashboardStats.velocity.emails7d) : "—"}
+            <span className="card-sub">
+              {dashboardStats ? `${formatInt(dashboardStats.velocity.emails30d)} in 30d` : " "}
+            </span>
+          </p>
         </article>
       </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Cumulative growth</h2>
+          <span className="muted">emails captured &amp; brands subscribed over time</span>
+        </div>
+        {statsLoading && growth.length === 0 ? (
+          <p className="muted">Loading growth…</p>
+        ) : (
+          <GrowthChart data={growth} />
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Anthropic API cost</h2>
+          {dashboardStats?.cost.trackingSince ? (
+            <span className="muted">
+              since {formatDateTime(dashboardStats.cost.trackingSince)}
+            </span>
+          ) : null}
+        </div>
+        {statsLoading && !dashboardStats ? (
+          <p className="muted">Loading usage…</p>
+        ) : !dashboardStats || dashboardStats.cost.totalCalls === 0 ? (
+          <p className="muted">
+            No Anthropic usage recorded yet. Spend appears here as emails are
+            classified and brands are researched. Costs are estimated from list
+            pricing and frozen per call.
+          </p>
+        ) : (
+          <>
+            <div className="stats-grid">
+              <article className="card card-inset">
+                <h2>Total spend</h2>
+                <p>{formatUsd(dashboardStats.cost.totalUsd)}</p>
+              </article>
+              <article className="card card-inset">
+                <h2>Last 30 days</h2>
+                <p>{formatUsd(dashboardStats.cost.last30dUsd)}</p>
+              </article>
+              <article className="card card-inset">
+                <h2>API calls</h2>
+                <p>{formatInt(dashboardStats.cost.totalCalls)}</p>
+              </article>
+              <article className="card card-inset">
+                <h2>Tokens in / out</h2>
+                <p className="stat-small">
+                  {formatTokens(dashboardStats.cost.inputTokens)} /{" "}
+                  {formatTokens(dashboardStats.cost.outputTokens)}
+                </p>
+              </article>
+            </div>
+
+            <div className="dashboard-split">
+              <div className="dashboard-subpanel">
+                <h3>Spend by feature</h3>
+                <ul className="cost-breakdown">
+                  {dashboardStats.cost.byFeature.map((row) => (
+                    <li key={row.feature}>
+                      <span className="cost-breakdown-label">
+                        {USAGE_FEATURE_LABELS[row.feature as UsageFeature] ?? row.feature}
+                      </span>
+                      <span className="cost-breakdown-meta">
+                        {formatInt(row.calls)} calls
+                      </span>
+                      <span className="cost-breakdown-value">{formatUsd(row.usd)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="dashboard-subpanel">
+                <h3>Spend by model</h3>
+                <ul className="cost-breakdown">
+                  {dashboardStats.cost.byModel.map((row) => (
+                    <li key={row.model}>
+                      <span className="cost-breakdown-label">{row.model}</span>
+                      <span className="cost-breakdown-meta">
+                        {formatInt(row.calls)} calls
+                      </span>
+                      <span className="cost-breakdown-value">{formatUsd(row.usd)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {dashboardStats.cost.daily14d.some((d) => d.usd > 0) ? (
+              <div className="cost-trend">
+                <h3>Daily spend (14d)</h3>
+                <div className="cost-trend-bars">
+                  {(() => {
+                    const max = Math.max(
+                      ...dashboardStats.cost.daily14d.map((d) => d.usd),
+                      0.000001
+                    );
+                    return dashboardStats.cost.daily14d.map((d) => (
+                      <div
+                        key={d.day}
+                        className="cost-trend-bar"
+                        title={`${d.day}: ${formatUsd(d.usd)}`}
+                      >
+                        <span
+                          className="cost-trend-fill"
+                          style={{ height: `${Math.max((d.usd / max) * 100, 2)}%` }}
+                        />
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            ) : null}
+
+            <p className="muted cost-footnote">
+              Cache reads {formatTokens(dashboardStats.cost.cacheReadTokens)} · web
+              searches {formatInt(dashboardStats.cost.webSearchRequests)} · figures
+              are list-price estimates frozen at call time.
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="dashboard-split">
+        <div className="card dashboard-subpanel">
+          <h2>Top brands by volume</h2>
+          {dashboardStats && dashboardStats.brands.top.length > 0 ? (
+            <ol className="rank-list">
+              {(() => {
+                const max = Math.max(
+                  ...dashboardStats.brands.top.map((b) => b.count),
+                  1
+                );
+                return dashboardStats.brands.top.map((brand) => (
+                  <li key={brand.name}>
+                    <span className="rank-label">{brand.name}</span>
+                    <span className="rank-bar">
+                      <span
+                        className="rank-fill"
+                        style={{ width: `${(brand.count / max) * 100}%` }}
+                      />
+                    </span>
+                    <span className="rank-value">{formatInt(brand.count)}</span>
+                  </li>
+                ));
+              })()}
+            </ol>
+          ) : (
+            <p className="muted">No emails captured yet.</p>
+          )}
+        </div>
+
+        <div className="card dashboard-subpanel">
+          <h2>Email categories</h2>
+          {dashboardStats && dashboardStats.categories.length > 0 ? (
+            <ol className="rank-list">
+              {(() => {
+                const max = Math.max(
+                  ...dashboardStats.categories.map((c) => c.count),
+                  1
+                );
+                return dashboardStats.categories.map((cat) => (
+                  <li key={cat.category}>
+                    <span className="rank-label">
+                      {CATEGORY_LABELS[cat.category] ?? cat.category}
+                    </span>
+                    <span className="rank-bar">
+                      <span
+                        className="rank-fill"
+                        style={{ width: `${(cat.count / max) * 100}%` }}
+                      />
+                    </span>
+                    <span className="rank-value">{formatInt(cat.count)}</span>
+                  </li>
+                ));
+              })()}
+            </ol>
+          ) : (
+            <p className="muted">No emails captured yet.</p>
+          )}
+          {dashboardStats && dashboardStats.discount.avgSaleDiscount !== null ? (
+            <p className="muted dashboard-subnote">
+              Avg discount on sale emails:{" "}
+              <strong>{dashboardStats.discount.avgSaleDiscount}%</strong> across{" "}
+              {formatInt(dashboardStats.discount.saleCountWithDiscount)} emails.
+            </p>
+          ) : null}
+        </div>
+      </section>
+      </>
       ) : null}
 
       {activeTab === "create" ? (
