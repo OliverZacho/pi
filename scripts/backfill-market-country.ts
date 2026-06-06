@@ -14,6 +14,10 @@
  *   --dry-run         Don't write anything, just print what would change.
  *   --force           Re-detect rows we've already attempted (country_signals
  *                     is not null). Off by default so reruns only fill gaps.
+ *   --thin            Re-classify only already-attempted rows with English copy
+ *                     and no real country TLD — the "could be a US-default guess"
+ *                     set. Re-reads them against the current prompt; reliable
+ *                     non-English / real-ccTLD / footer picks are left alone.
  *   --company=<id>    Only process rows belonging to <id>. Repeatable.
  *   --limit=<n>       Process at most <n> rows. Useful for spot-checks.
  *   --concurrency=<n> Max parallel LLM calls. Defaults to 2.
@@ -42,6 +46,13 @@ type Row = {
 type CliOptions = {
   dryRun: boolean;
   force: boolean;
+  /**
+   * Re-classify only "thin signal" rows: already-attempted emails whose pick
+   * rested on English copy with no real country TLD — the set where the model
+   * could have been guessing (e.g. defaulting to US). Re-reads them against the
+   * improved prompt; reliable non-English / real-ccTLD picks are left alone.
+   */
+  thin: boolean;
   onlyCompanies: Set<string> | null;
   limit: number | null;
   concurrency: number;
@@ -52,6 +63,7 @@ function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     dryRun: false,
     force: false,
+    thin: false,
     onlyCompanies: null,
     limit: null,
     concurrency: 2,
@@ -66,6 +78,8 @@ function parseArgs(argv: string[]): CliOptions {
       opts.dryRun = true;
     } else if (raw === "--force") {
       opts.force = true;
+    } else if (raw === "--thin") {
+      opts.thin = true;
     } else if (raw.startsWith("--min-interval=")) {
       const value = Number.parseInt(raw.slice("--min-interval=".length), 10);
       if (Number.isFinite(value) && value >= 0) {
@@ -272,9 +286,13 @@ async function main(): Promise<void> {
     .not("company_id", "is", null)
     .order("received_at", { ascending: false });
 
-  // Default: only rows we've never attempted (country_signals is null). --force
-  // re-detects everything.
-  if (!opts.force) {
+  // Row selection:
+  //  --thin  → already-attempted rows (re-read the shaky English/.com ones)
+  //  default → only rows we've never attempted (country_signals is null)
+  //  --force → everything
+  if (opts.thin) {
+    query = query.not("country_signals", "is", null);
+  } else if (!opts.force) {
     query = query.is("country_signals", null);
   }
 
@@ -292,10 +310,25 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const rows = (data ?? []) as Row[];
+  let rows = (data ?? []) as Row[];
+
+  // --thin: narrow to the rows where the model had no concrete signal — English
+  // copy and no real country TLD. These are the only ones at risk of being a
+  // default-to-US guess; everything else already rests on a footer / non-English
+  // language / real ccTLD and is left untouched.
+  if (opts.thin) {
+    rows = rows.filter((row) => {
+      const sig = row.country_signals as
+        | { language?: string | null; tld?: string | null }
+        | null;
+      const language = sig?.language ?? null;
+      const tld = sig?.tld ?? null;
+      return language === "en" && tld === null;
+    });
+  }
 
   console.log(
-    `Backfill plan: ${rows.length} email(s) | dry-run=${opts.dryRun} | force=${opts.force} | concurrency=${opts.concurrency}`
+    `Backfill plan: ${rows.length} email(s) | dry-run=${opts.dryRun} | force=${opts.force} | thin=${opts.thin} | concurrency=${opts.concurrency}`
   );
   if (opts.onlyCompanies) {
     console.log(`  only companies: ${[...opts.onlyCompanies].join(", ")}`);
