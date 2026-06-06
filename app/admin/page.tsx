@@ -6,6 +6,7 @@ import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
   type AdminOverview,
+  type CapturedEmail,
   type CompanyInbox,
   type CompanySubscription,
   type EmailCategory,
@@ -14,6 +15,7 @@ import {
 import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
+import Logo from "@/components/Logo";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
@@ -130,6 +132,50 @@ type SuggestedCandidate = {
 const SUGGESTION_COUNT_OPTIONS = [5, 10, 15, 20];
 
 const COMPANIES_COLLAPSED_STORAGE_KEY = "pirol.admin.companiesCollapsed";
+
+const ACTIVE_TAB_STORAGE_KEY = "pirol.admin.activeTab";
+
+type AdminTab = "dashboard" | "companies" | "mails" | "create";
+
+const ADMIN_TABS: readonly AdminTab[] = [
+  "dashboard",
+  "create",
+  "companies",
+  "mails"
+];
+
+const TAB_META: Record<
+  AdminTab,
+  { label: string; title: string; description: string }
+> = {
+  dashboard: {
+    label: "Dashboard",
+    title: "Dashboard",
+    description:
+      "At-a-glance counts across every subscribed competitor and captured newsletter."
+  },
+  create: {
+    label: "Create Subscription",
+    title: "Create Company Subscription Email",
+    description:
+      "Generate a unique inbox for a brand, then confirm the signup against mail received in the last 24 hours."
+  },
+  companies: {
+    label: "Companies",
+    title: "Subscribed Companies",
+    description:
+      "Every brand we are subscribed to, their inboxes, and the logos that represent them."
+  },
+  mails: {
+    label: "Mails",
+    title: "Recent Emails + Classification",
+    description:
+      "Browse, search, and filter every captured newsletter with its ESP and content signals."
+  }
+};
+
+/** Whole-day window (ms) used to surface mail that just landed on the Create tab. */
+const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type EditingDraft = {
   name: string;
@@ -391,6 +437,13 @@ export default function AdminHomePage() {
   const [editingError, setEditingError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [companiesCollapsed, setCompaniesCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
+  // Mail received from any subscribed brand within the last 24h, shown on the
+  // Create tab so a freshly-added subscription can be confirmed at a glance.
+  // Fetched independently of the Mails-tab filters so it always reflects the
+  // true recent window.
+  const [recentEmails, setRecentEmails] = useState<CapturedEmail[]>([]);
+  const [recentEmailsLoading, setRecentEmailsLoading] = useState(true);
   // The company whose logo manager modal is open, or null when closed.
   const [logoManagerCompany, setLogoManagerCompany] = useState<{
     id: string;
@@ -430,6 +483,64 @@ export default function AdminHomePage() {
       return next;
     });
   }, []);
+
+  // Restore the last-viewed tab so a refresh keeps the operator where they were.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const stored = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      if (stored && (ADMIN_TABS as readonly string[]).includes(stored)) {
+        setActiveTab(stored as AdminTab);
+      }
+    } catch {
+      // ignore storage failures; default to the dashboard.
+    }
+  }, []);
+
+  const selectTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab);
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, []);
+
+  const loadRecentEmails = useCallback(async () => {
+    try {
+      setRecentEmailsLoading(true);
+      // Pass the cutoff as a full ISO instant — the overview endpoint trusts a
+      // parseable timestamp as-is, giving us a true rolling 24h window rather
+      // than a calendar-day boundary.
+      const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+      const params = new URLSearchParams({ receivedAfter: since });
+      const response = await fetch(`/api/admin/overview?${params.toString()}`, {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        setRecentEmails([]);
+        return;
+      }
+      const data = asOverview(await response.json());
+      setRecentEmails(data.emails);
+    } catch {
+      setRecentEmails([]);
+    } finally {
+      setRecentEmailsLoading(false);
+    }
+  }, []);
+
+  // Load the 24h window on mount and whenever the operator opens the Create tab,
+  // so a subscription added moments ago shows its first confirming email.
+  useEffect(() => {
+    if (activeTab === "create") {
+      void loadRecentEmails();
+    }
+  }, [activeTab, loadRecentEmails]);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -1027,6 +1138,9 @@ export default function AdminHomePage() {
       prependCompanyToOverview(newCompany);
       setCreatedEmail(newCompany.subscriptionEmail);
       setCreatedEmailCopied(false);
+      // Refresh the 24h window so any mail already waiting under the new
+      // inbox surfaces immediately for confirmation.
+      void loadRecentEmails();
     }
 
     setName("");
@@ -1035,20 +1149,57 @@ export default function AdminHomePage() {
   }
 
   return (
-    <main className="admin-page">
-      <section className="header admin-header">
-        <div>
-          <h1>Pirol Admin Center</h1>
-          <p>Track subscribed competitors, ingest newsletters from Resend webhooks, and classify every email.</p>
-          {loadError ? <p className="error">{loadError}</p> : null}
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-brand">
+          <Logo className="admin-sidebar-logo" />
+          <span className="admin-sidebar-brand-sub">Admin Center</span>
         </div>
-        <form action="/auth/signout" method="post">
+        <nav className="admin-nav" aria-label="Admin sections">
+          {ADMIN_TABS.map((tab) => {
+            const isActive = tab === activeTab;
+            const badge =
+              tab === "companies" && companiesNeedingLogoReview.length > 0
+                ? companiesNeedingLogoReview.length
+                : null;
+            return (
+              <button
+                key={tab}
+                type="button"
+                className={`admin-nav-item${isActive ? " is-active" : ""}`}
+                onClick={() => selectTab(tab)}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <span className="admin-nav-label">{TAB_META[tab].label}</span>
+                {badge !== null ? (
+                  <span
+                    className="admin-nav-badge"
+                    title={`${badge} logo${badge === 1 ? "" : "s"} need review`}
+                  >
+                    {badge}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </nav>
+        <form action="/auth/signout" method="post" className="admin-sidebar-footer">
           <button type="submit" className="sign-out">
             Sign out
           </button>
         </form>
-      </section>
+      </aside>
 
+      <main className="admin-page admin-content">
+        <section className="header admin-header admin-tab-header">
+          <div>
+            <h1>{TAB_META[activeTab].title}</h1>
+            <p>{TAB_META[activeTab].description}</p>
+            {loadError ? <p className="error">{loadError}</p> : null}
+          </div>
+        </section>
+
+      {activeTab === "dashboard" ? (
       <section className="stats-grid">
         <article className="card">
           <h2>Companies</h2>
@@ -1067,7 +1218,9 @@ export default function AdminHomePage() {
           <p>{stats.launches}</p>
         </article>
       </section>
+      ) : null}
 
+      {activeTab === "create" ? (
       <section className="card suggestion-card">
         <div className="suggestion-header">
           <div>
@@ -1283,7 +1436,9 @@ export default function AdminHomePage() {
           </ul>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "create" ? (
       <section className="card">
         <h2>Create Company Subscription Email</h2>
         <p>
@@ -1319,8 +1474,69 @@ export default function AdminHomePage() {
         </form>
         {error ? <p className="error">{error}</p> : null}
       </section>
+      ) : null}
 
-      {!loading && companiesNeedingLogoReview.length > 0 ? (
+      {activeTab === "create" ? (
+        <section className="card recent-mail-card">
+          <div className="recent-mail-header">
+            <div>
+              <h2>Received in the last 24 hours</h2>
+              <p className="muted">
+                Mail captured from any subscribed brand since{" "}
+                {formatDateTime(
+                  new Date(Date.now() - RECENT_WINDOW_MS).toISOString()
+                )}
+                . Use it to confirm a brand you just added is sending.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="recent-mail-refresh"
+              onClick={() => {
+                void loadRecentEmails();
+              }}
+              disabled={recentEmailsLoading}
+            >
+              {recentEmailsLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+          {recentEmailsLoading && recentEmails.length === 0 ? (
+            <p className="muted">Loading recent mail…</p>
+          ) : recentEmails.length === 0 ? (
+            <p className="muted">
+              No mail from a subscribed brand in the last 24 hours yet.
+            </p>
+          ) : (
+            <ul className="recent-mail-list">
+              {recentEmails.map((email) => (
+                <li key={email.id} className="recent-mail-item">
+                  <Link
+                    href={`/admin/emails/${email.id}`}
+                    className="recent-mail-link"
+                  >
+                    <span className="recent-mail-company">
+                      {email.companyName}
+                    </span>
+                    <span className="recent-mail-subject">{email.subject}</span>
+                    <span className="recent-mail-meta">
+                      {email.category ? (
+                        <span className="badge">
+                          {categoryLabel(email.category)}
+                        </span>
+                      ) : null}
+                      <span className="recent-mail-time">
+                        {formatDateTime(email.receivedAt)}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "companies" && !loading && companiesNeedingLogoReview.length > 0 ? (
         <section className="card logo-review-card">
           <div className="logo-review-header">
             <h2>
@@ -1363,6 +1579,7 @@ export default function AdminHomePage() {
         </section>
       ) : null}
 
+      {activeTab === "companies" ? (
       <section className="card">
         <div className="card-header">
           <button
@@ -1746,7 +1963,9 @@ export default function AdminHomePage() {
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "mails" ? (
       <section className="card">
         <h2>Recent Emails + Classification</h2>
         <p>Classification source can be rule-based now and LLM-provided when available in webhook payload.</p>
@@ -1951,11 +2170,14 @@ export default function AdminHomePage() {
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "dashboard" ? (
       <section className="card">
         <h2>Storage Strategy</h2>
         <p>{overview.storageNotes}</p>
       </section>
+      ) : null}
 
       {logoManagerCompany ? (
         <LogoManagerModal
@@ -2064,7 +2286,8 @@ export default function AdminHomePage() {
           </div>
         </div>
       ) : null}
-    </main>
+      </main>
+    </div>
   );
 }
 

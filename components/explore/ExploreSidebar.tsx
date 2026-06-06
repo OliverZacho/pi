@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
+import Logo from "@/components/Logo";
 import styles from "./explore.module.css";
 
 type NavId =
@@ -474,7 +475,7 @@ export default function ExploreSidebar({
     <AppTopBar />
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
-        <span className={styles.brandName}>Pirol</span>
+        <Logo className={styles.brandLogo} />
       </div>
 
       <div className={styles.navGroup}>

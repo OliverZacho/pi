@@ -53,8 +53,9 @@
 }
 
 .logoMark {
-  width: 26px;
-  height: 26px;
+  height: 24px;
+  width: auto;
+  display: block;
   flex-shrink: 0;
   color: var(--ink);
 }

@@ -52,14 +52,27 @@ const ESP_LABELS: Record<EspProvider, string> = {
   voyado: "Voyado"
 };
 
-type EmailTab = "inbox" | "raw";
+type EmailTab = "inbox" | "classification" | "assets" | "raw";
 
 const TAB_LABELS: Record<EmailTab, string> = {
   inbox: "Inbox view",
+  classification: "Classification & signals",
+  assets: "Mirrored assets",
   raw: "Raw data"
 };
 
-const TABS: EmailTab[] = ["inbox", "raw"];
+const TABS: EmailTab[] = ["inbox", "classification", "assets", "raw"];
+
+/**
+ * Tab label, with a live count appended for the assets tab so the operator
+ * can see how many images were mirrored without opening the panel.
+ */
+function tabLabel(tab: EmailTab, email: CapturedEmailDetail): string {
+  if (tab === "assets") {
+    return `${TAB_LABELS.assets} (${email.imageSignedUrls.length})`;
+  }
+  return TAB_LABELS[tab];
+}
 
 function formatDateTime(value: string | null): string {
   return formatDateTimeZoned(value);
@@ -344,9 +357,24 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
       {loading ? <p>Loading...</p> : null}
 
       {email ? (
-        <>
-          <section className="card">
-            <h2>Classification &amp; signals</h2>
+        <section className="card email-content-card">
+          <div className="email-tabs" role="tablist" aria-label="Email sections">
+            {TABS.map((tab) => (
+              <button
+                key={tab}
+                role="tab"
+                type="button"
+                aria-selected={activeTab === tab}
+                className={`email-tab${activeTab === tab ? " is-active" : ""}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tabLabel(tab, email)}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "classification" ? (
+          <div role="tabpanel" className="email-tab-panel">
             {email.paletteColors.length > 0 ? (
               <div className="palette-row" aria-label="Layout color palette">
                 <span className="palette-label">Palette</span>
@@ -504,11 +532,11 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
               </p>
             ) : null}
             <ListHeadersChecklist headers={email.listHeaders} />
+          </div>
+          ) : null}
 
-          </section>
-
-          <section className="card">
-            <h2>Mirrored assets ({email.imageSignedUrls.length})</h2>
+          {activeTab === "assets" ? (
+          <div role="tabpanel" className="email-tab-panel">
             {email.imageSignedUrls.length === 0 ? (
               <p>No images were mirrored for this email.</p>
             ) : (
@@ -530,25 +558,10 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 })}
               </div>
             )}
-          </section>
+          </div>
+          ) : null}
 
-          <section className="card email-content-card">
-            <div className="email-tabs" role="tablist" aria-label="Email content view">
-              {TABS.map((tab) => (
-                <button
-                  key={tab}
-                  role="tab"
-                  type="button"
-                  aria-selected={activeTab === tab}
-                  className={`email-tab${activeTab === tab ? " is-active" : ""}`}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  {TAB_LABELS[tab]}
-                </button>
-              ))}
-            </div>
-
-            {activeTab === "inbox" ? (
+          {activeTab === "inbox" ? (
               <div role="tabpanel" className="email-tab-panel">
                 <div className="inbox-viewer">
                   <header className="inbox-viewer-header">
@@ -633,7 +646,6 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
               </div>
             ) : null}
           </section>
-        </>
       ) : null}
     </main>
   );

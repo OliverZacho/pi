@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/Logo";
 import styles from "./docs.module.css";
 
 const TABS = [
@@ -17,16 +18,7 @@ export default function DocsHeader() {
     <header className={styles.header}>
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo} aria-label="Pirol home">
-          <svg
-            className={styles.logoMark}
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="8" cy="8" r="2" fill="currentColor" />
-          </svg>
-          Pirol
+          <Logo className={styles.logoMark} />
         </Link>
 
         <nav className={styles.tabs} aria-label="Documentation">
