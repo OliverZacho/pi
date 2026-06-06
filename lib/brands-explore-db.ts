@@ -84,6 +84,12 @@ export type BrandsSearchResult = {
 
 export type BrandsFacets = {
   markets: string[];
+  /**
+   * Distinct primary-market countries (ISO 3166-1 alpha-2) present across
+   * tracked brands, sorted alphabetically. Powers the region filter; brands
+   * of unknown region contribute nothing here.
+   */
+  countries: string[];
   espProviders: { id: EspProvider; label: string }[];
   /**
    * Observed upper bound for the cadence slider. Computed from real
@@ -465,7 +471,7 @@ export async function getBrandsFacets(
   const [companiesResult, aggregates] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, markets, company_email_stats(email_count)")
+      .select("id, markets, primary_market_country, company_email_stats(email_count)")
       .is("deleted_at", null),
     computeBrandAggregates(supabase)
   ]);
@@ -473,6 +479,7 @@ export async function getBrandsFacets(
   if (companiesResult.error) throw companiesResult.error;
 
   const marketSet = new Set<string>();
+  const countrySet = new Set<string>();
   let totalBrands = 0;
   let brandsWithEmails = 0;
   for (const row of companiesResult.data ?? []) {
@@ -484,12 +491,16 @@ export async function getBrandsFacets(
         }
       }
     }
+    if (typeof row.primary_market_country === "string" && row.primary_market_country.length > 0) {
+      countrySet.add(row.primary_market_country);
+    }
     const stats = relationFirst(row.company_email_stats);
     const count = stats?.email_count ?? 0;
     if (count > 0) brandsWithEmails += 1;
   }
 
   const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
+  const countries = Array.from(countrySet).sort((a, b) => a.localeCompare(b));
 
   const espProviders = Array.from(aggregates.espIdsInUse)
     .map((id) => ({
@@ -511,6 +522,7 @@ export async function getBrandsFacets(
 
   return {
     markets,
+    countries,
     espProviders,
     cadenceMaxDays,
     totalBrands,

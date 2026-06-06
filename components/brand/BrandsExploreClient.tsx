@@ -18,6 +18,7 @@ import type {
   BrandsSortKey
 } from "@/lib/brands-explore-db";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import { countryFlag, countryName } from "@/lib/country";
 import {
   endOfDayInZone,
   parseDayKey,
@@ -58,7 +59,14 @@ type Props = {
   facets: BrandsFacets;
 };
 
-type PopoverName = "markets" | "esp" | "cadence" | "more" | "sort" | null;
+type PopoverName =
+  | "markets"
+  | "region"
+  | "esp"
+  | "cadence"
+  | "more"
+  | "sort"
+  | null;
 
 type FetchResponse = {
   items: BrandsExploreCard[];
@@ -79,6 +87,7 @@ export default function BrandsExploreClient({
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [selectedMarkets, setSelectedMarkets] = useState<Set<string>>(
     new Set()
   );
@@ -195,6 +204,11 @@ export default function BrandsExploreClient({
     const markets = sp.getAll("market").filter(Boolean);
     if (markets.length > 0) setSelectedMarkets(new Set(markets));
 
+    const country = sp.get("country");
+    if (country && /^[A-Za-z]{2}$/.test(country)) {
+      setSelectedCountry(country.toUpperCase());
+    }
+
     const validEsps = new Set(facets.espProviders.map((esp) => esp.id));
     const esps = sp
       .getAll("esp")
@@ -248,6 +262,7 @@ export default function BrandsExploreClient({
     const params = new URLSearchParams();
     if (debouncedQuery) params.set("q", debouncedQuery);
     for (const market of selectedMarkets) params.append("market", market);
+    if (selectedCountry) params.set("country", selectedCountry);
     for (const esp of selectedEsps) params.append("esp", esp);
     if (cadenceActive) {
       params.set("cadenceMin", cadenceRange[0].toFixed(1));
@@ -271,6 +286,7 @@ export default function BrandsExploreClient({
     hydrated,
     debouncedQuery,
     selectedMarkets,
+    selectedCountry,
     selectedEsps,
     cadenceActive,
     cadenceRange,
@@ -287,6 +303,7 @@ export default function BrandsExploreClient({
       const params = new URLSearchParams();
       if (debouncedQuery) params.set("q", debouncedQuery);
       for (const market of selectedMarkets) params.append("market", market);
+      if (selectedCountry) params.set("country", selectedCountry);
       for (const esp of selectedEsps) params.append("esp", esp);
       if (cadenceActive) {
         params.set("cadenceMin", cadenceRange[0].toFixed(1));
@@ -319,6 +336,7 @@ export default function BrandsExploreClient({
     [
       debouncedQuery,
       selectedMarkets,
+      selectedCountry,
       selectedEsps,
       cadenceActive,
       cadenceRange,
@@ -556,6 +574,7 @@ export default function BrandsExploreClient({
 
   const hasAnyFilter =
     selectedMarkets.size > 0 ||
+    selectedCountry !== null ||
     selectedEsps.size > 0 ||
     cadenceActive ||
     moreFiltersCount > 0 ||
@@ -657,6 +676,75 @@ export default function BrandsExploreClient({
               </div>
             ) : null}
           </div>
+
+          {facets.countries.length > 0 ? (
+            <div className={styles.filterChipWrap}>
+              <button
+                type="button"
+                className={`${styles.filterChip}${
+                  selectedCountry ? ` ${styles.filterChipActive}` : ""
+                }${openPopover === "region" ? ` ${styles.filterChipOpen}` : ""}`}
+                onClick={() => togglePopover("region")}
+                aria-haspopup="true"
+                aria-expanded={openPopover === "region"}
+              >
+                <span>
+                  {selectedCountry
+                    ? `${countryFlag(selectedCountry)} ${countryName(selectedCountry)}`
+                    : "Region"}
+                </span>
+                <ChevronIcon />
+              </button>
+              {openPopover === "region" ? (
+                <div
+                  className={`${styles.popover} ${styles.popoverList}`}
+                  role="menu"
+                >
+                  <div className={styles.popoverScroll}>
+                    {facets.countries.map((code) => {
+                      const checked = selectedCountry === code;
+                      return (
+                        <button
+                          key={code}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={checked}
+                          className={styles.checkRow}
+                          onClick={() =>
+                            setSelectedCountry((current) =>
+                              current === code ? null : code
+                            )
+                          }
+                        >
+                          <span
+                            className={`${styles.checkBox}${
+                              checked ? ` ${styles.checkBoxChecked}` : ""
+                            }`}
+                          >
+                            {checked ? <CheckIcon /> : null}
+                          </span>
+                          <span className={styles.checkLabel}>
+                            {countryFlag(code)} {countryName(code)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedCountry ? (
+                    <div className={styles.popoverFooter}>
+                      <button
+                        type="button"
+                        className={styles.popoverClear}
+                        onClick={() => setSelectedCountry(null)}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className={styles.filterChipWrap}>
             <button
@@ -1191,7 +1279,18 @@ function BrandGridCard({
       </span>
 
       <div className={styles.cardBody}>
-        <span className={styles.cardName}>{brand.name}</span>
+        <span className={styles.cardName}>
+          {brand.name}
+          {brand.primaryMarketCountry ? (
+            <span
+              aria-hidden="true"
+              title={countryName(brand.primaryMarketCountry)}
+              style={{ marginLeft: "0.4rem" }}
+            >
+              {countryFlag(brand.primaryMarketCountry)}
+            </span>
+          ) : null}
+        </span>
         {brand.markets.length > 0 ? (
           <span className={styles.cardMarket}>
             {brand.markets.map(formatMarketLabel).join(" · ")}
