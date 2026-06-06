@@ -1,3 +1,4 @@
+import { isStoredImageBlank } from "./image-analysis";
 import type { MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
 
@@ -459,26 +460,31 @@ export async function pickLogoByFrequency(
     return null;
   }
 
-  let best: { path: string; count: number } | null = null;
-  for (const [path, count] of tallies.entries()) {
-    if (!best || count > best.count) {
-      best = { path, count };
-    }
-  }
-
-  if (!best) {
-    return null;
-  }
-
   // Show up in at least half the sampled emails, and at least the minimum.
   const minRequired = Math.max(LOGO_FREQUENCY_MIN_EMAILS, Math.ceil(data.length / 2));
-  if (best.count < minRequired) {
-    return null;
+
+  // Walk candidates most-frequent first and pick the first qualifying image
+  // that isn't visually blank. Transparent spacers and solid-colour blocks are
+  // embedded in every email, so they tend to *out-count* the real logo — but
+  // they aren't one. Skipping them here stops the auto-picker from confidently
+  // choosing a blank image. The blankness check downloads bytes, so it only
+  // runs for the handful of candidates at or above the frequency threshold.
+  const ranked = Array.from(tallies.entries()).sort((a, b) => b[1] - a[1]);
+  for (const [path, count] of ranked) {
+    // Ranked descending — once we drop below the threshold nothing later
+    // qualifies either.
+    if (count < minRequired) {
+      break;
+    }
+    if (await isStoredImageBlank(path)) {
+      continue;
+    }
+    return {
+      storagePath: path,
+      emailCount: count,
+      confidence: clamp01(count / data.length)
+    };
   }
 
-  return {
-    storagePath: best.path,
-    emailCount: best.count,
-    confidence: clamp01(best.count / data.length)
-  };
+  return null;
 }

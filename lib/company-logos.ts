@@ -8,6 +8,7 @@ import {
 } from "./extract-logo";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { isStoredImageBlank } from "./image-analysis";
 import {
   BRAND_LOGO_TRANSFORM,
   EMAIL_ASSETS_BUCKET,
@@ -189,7 +190,22 @@ export async function processEmailForCompanyLogo(
     mirroredAssets: args.mirroredAssets
   });
 
-  const heuristicBest = candidates.find((c) => c.score >= LOGO_HEURISTIC_MIN_SCORE) ?? null;
+  // First candidate that clears the threshold *and* isn't visually blank.
+  // Candidates are sorted by descending score, so we can stop scanning once we
+  // fall below the threshold. The blank check skips transparent spacers and
+  // solid-colour blocks that sit at the top of an email and would otherwise
+  // score like a header logo.
+  let heuristicBest: ScoredCandidate | null = null;
+  for (const candidate of candidates) {
+    if (candidate.score < LOGO_HEURISTIC_MIN_SCORE) {
+      break;
+    }
+    if (await isStoredImageBlank(candidate.storagePath)) {
+      continue;
+    }
+    heuristicBest = candidate;
+    break;
+  }
 
   let chosen: LogoUpdate | null = null;
 
