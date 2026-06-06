@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
+import { countryFlag, countryName } from "@/lib/country";
 import {
   formatMonthYear as formatMonthYearZoned,
   formatRelativeDate as formatRelativeDateZoned,
@@ -216,6 +217,24 @@ function Hero({
                     {label}
                   </span>
                 ))}
+              </>
+            ) : null}
+            {brand.primaryMarketCountry ? (
+              <>
+                <span className={styles.heroDot} aria-hidden="true" />
+                <span
+                  className={styles.heroPill}
+                  title={
+                    brand.marketConfidence !== null
+                      ? `Primary market — ${Math.round(
+                          brand.marketConfidence * 100
+                        )}% of recent emails`
+                      : "Primary market"
+                  }
+                >
+                  {countryFlag(brand.primaryMarketCountry)}{" "}
+                  {countryName(brand.primaryMarketCountry)}
+                </span>
               </>
             ) : null}
             <span className={styles.heroDot} aria-hidden="true" />

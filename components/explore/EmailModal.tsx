@@ -10,6 +10,7 @@ import {
   type EspProvider
 } from "@/lib/admin-types";
 import type { CollectionSummary } from "@/lib/collections-db";
+import { countryFlag, countryName } from "@/lib/country";
 import { formatFullDateTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import AddToCollectionButton from "./AddToCollectionButton";
@@ -373,6 +374,21 @@ function InfoPanel({
   if (email.hasGif) pills.push({ key: "gif", label: "GIF", tone: "neutral" });
   if (email.hasDarkMode) {
     pills.push({ key: "dark", label: "Dark mode", tone: "neutral" });
+  }
+  // Per-email detected market. This is usually the same as the brand's primary
+  // market (and stays a quiet neutral pill), so the value is in the exception:
+  // when an email targets a different country than the brand normally does, we
+  // flag it (warn tone) — a multi-market send, or a detection worth reviewing.
+  if (detail?.detectedCountry) {
+    const brandMarket = detail.companyPrimaryMarketCountry;
+    const diverges = !!brandMarket && brandMarket !== detail.detectedCountry;
+    pills.push({
+      key: "market",
+      label: `${countryFlag(detail.detectedCountry)} ${countryName(
+        detail.detectedCountry
+      )}${diverges ? ` (brand: ${countryName(brandMarket)})` : ""}`,
+      tone: diverges ? "warn" : "neutral"
+    });
   }
 
   const hasOfferDetails =

@@ -182,7 +182,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, auth_results, list_headers, metadata, companies(id, name)"
+      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -242,7 +242,13 @@ export async function getEmailDetailFromDb(
     listHeaders: parseListHeaders(data.list_headers),
     paletteColors: parsePaletteColors(data.metadata),
     fontFamilies: parseFontFamilies(data.metadata),
-    metadata: parseMetadata(data.metadata)
+    metadata: parseMetadata(data.metadata),
+    detectedCountry: data.detected_country ?? null,
+    countryConfidence:
+      data.country_confidence === null || data.country_confidence === undefined
+        ? null
+        : Number(data.country_confidence),
+    companyPrimaryMarketCountry: company?.primary_market_country ?? null
   };
 }
 

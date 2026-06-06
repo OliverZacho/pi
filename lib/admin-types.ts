@@ -378,6 +378,19 @@ export type CapturedEmailDetail = CapturedEmail & {
   paletteColors: PaletteColor[];
   fontFamilies: FontFamily[];
   metadata: Record<string, unknown> | null;
+  /**
+   * The country this individual email was detected as addressed to (ISO
+   * 3166-1 alpha-2), or `null` when unknown. Per-email and noisier than the
+   * brand-level rollup — surfaced in the modal mainly to flag divergence.
+   */
+  detectedCountry: string | null;
+  countryConfidence: number | null;
+  /**
+   * The owning brand's rolled-up {@link CompanySubscription} primary market,
+   * carried here so the modal can highlight when this email's detected country
+   * disagrees with it (a multi-market send, or a misdetection to review).
+   */
+  companyPrimaryMarketCountry: string | null;
 };
 
 export type AdminOverview = {

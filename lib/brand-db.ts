@@ -41,6 +41,14 @@ export type BrandPageData = {
      * pills without doing its own slug-to-label dance.
      */
     markets: string[];
+    /**
+     * The brand's rolled-up primary audience country (ISO 3166-1 alpha-2,
+     * e.g. "DK"), or `null` when we couldn't confidently tell. Drives the
+     * region pill in the hero and, later, same-region peer comparisons.
+     */
+    primaryMarketCountry: string | null;
+    /** Confidence (0–1) of {@link primaryMarketCountry}; `null` when unknown. */
+    marketConfidence: number | null;
     logoUrl: string | null;
     subscribedSince: string;
     subscriptionEmail: string | null;
@@ -187,6 +195,8 @@ type CompanyRow = {
   name: string;
   domain: string;
   markets: string[] | null;
+  primary_market_country: string | null;
+  market_confidence: number | string | null;
   subscribed_since: string;
   logo_storage_path: string | null;
   deleted_at: string | null;
@@ -255,7 +265,7 @@ export async function getBrandPageData(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, market_confidence, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -325,6 +335,11 @@ export async function getBrandPageData(
       name: companyRow.name,
       domain: companyRow.domain,
       markets: rawMarkets.map(formatMarketLabel),
+      primaryMarketCountry: companyRow.primary_market_country ?? null,
+      marketConfidence:
+        companyRow.market_confidence === null || companyRow.market_confidence === undefined
+          ? null
+          : Number(companyRow.market_confidence),
       logoUrl,
       subscribedSince: companyRow.subscribed_since,
       subscriptionEmail: primaryInbox,
