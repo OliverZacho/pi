@@ -6,6 +6,7 @@ import { processEmailForCompanyLogo } from "./company-logos";
 import { extractImageUrlsFromHtml } from "./email-utils";
 import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
+import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
@@ -280,7 +281,7 @@ async function ingestEmailReceivedEvent(
   );
 
   const classification = await runStage("classify_email", () =>
-    classifyEmail({ subject, html, plainText })
+    classifyEmail({ subject, html, plainText, senderDomain: full.from })
   );
 
   const primaryCtaUrl = resolvePrimaryCtaUrl(
@@ -333,7 +334,10 @@ async function ingestEmailReceivedEvent(
         currency: classification.currency ?? null,
         promoCode: classification.promoCode ?? null,
         primaryCtaText: classification.primaryCtaText ?? null,
-        primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null
+        primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null,
+        detectedCountry: classification.detectedCountry ?? null,
+        countryConfidence: classification.countryConfidence ?? null,
+        countrySignals: classification.countrySignals ?? null
       },
       enrichment: {
         espProvider: espResult.provider === "unknown" ? null : espResult.provider,
@@ -363,9 +367,39 @@ async function ingestEmailReceivedEvent(
       html,
       mirroredAssets: mirror.stored
     });
+
+    await runMarketRollupStage(stored.id);
   }
 
   return stored;
+}
+
+/**
+ * Recomputes the brand's primary market from its emails' detected countries
+ * after a fresh email lands. Non-blocking: a rollup failure must never fail the
+ * ingest, since the per-email country has already been persisted and the brand
+ * will be corrected on the next email regardless.
+ */
+async function runMarketRollupStage(emailId: string): Promise<void> {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: emailRow, error } = await supabaseAdmin
+      .from("captured_emails")
+      .select("company_id")
+      .eq("id", emailId)
+      .maybeSingle();
+
+    if (error || !emailRow?.company_id) {
+      return;
+    }
+
+    await recomputeCompanyMarket(emailRow.company_id);
+  } catch (error) {
+    console.warn("Market rollup stage threw (non-blocking)", {
+      emailId,
+      error: error instanceof Error ? error.message : "unknown market rollup error"
+    });
+  }
 }
 
 async function runLogoExtractionStage(args: {

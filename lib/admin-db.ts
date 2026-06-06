@@ -946,6 +946,9 @@ export type StoreProcessedEmailInput = {
     promoCode?: string | null;
     primaryCtaText?: string | null;
     primaryCtaUrlHint?: string | null;
+    detectedCountry?: string | null;
+    countryConfidence?: number | null;
+    countrySignals?: unknown;
   };
   enrichment?: {
     espProvider?: string | null;
@@ -1042,6 +1045,9 @@ export async function storeProcessedEmail(
       promo_code: input.classification.promoCode ?? null,
       primary_cta_text: input.classification.primaryCtaText ?? null,
       primary_cta_url: enrichment.primaryCtaUrl ?? null,
+      detected_country: input.classification.detectedCountry ?? null,
+      country_confidence: input.classification.countryConfidence ?? null,
+      country_signals: (input.classification.countrySignals ?? null) as Json | null,
       auth_results: (enrichment.authResults ?? null) as Json | null,
       list_headers: (enrichment.listHeaders ?? null) as Json | null,
       metadata: ((enrichment.metadata ?? {}) as Json) ?? ({} as Json)

@@ -62,8 +62,11 @@ export type Database = {
           classification_confidence: number
           classification_source: string
           company_id: string | null
+          country_confidence: number | null
+          country_signals: Json | null
           created_at: string
           currency: string | null
+          detected_country: string | null
           discount_amount: number | null
           discount_percent: number | null
           esp_confidence: number | null
@@ -102,8 +105,11 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          country_confidence?: number | null
+          country_signals?: Json | null
           created_at?: string
           currency?: string | null
+          detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           esp_confidence?: number | null
@@ -142,8 +148,11 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          country_confidence?: number | null
+          country_signals?: Json | null
           created_at?: string
           currency?: string | null
+          detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           esp_confidence?: number | null
@@ -274,8 +283,10 @@ export type Database = {
           logo_stale: boolean
           logo_storage_path: string | null
           logo_updated_at: string | null
+          market_confidence: number | null
           markets: string[]
           name: string
+          primary_market_country: string | null
           subscribed_since: string
           updated_at: string
         }
@@ -290,8 +301,10 @@ export type Database = {
           logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_confidence?: number | null
           markets?: string[]
           name: string
+          primary_market_country?: string | null
           subscribed_since?: string
           updated_at?: string
         }
@@ -306,8 +319,10 @@ export type Database = {
           logo_stale?: boolean
           logo_storage_path?: string | null
           logo_updated_at?: string | null
+          market_confidence?: number | null
           markets?: string[]
           name?: string
+          primary_market_country?: string | null
           subscribed_since?: string
           updated_at?: string
         }
