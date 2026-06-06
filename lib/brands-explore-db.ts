@@ -22,6 +22,12 @@ export type BrandsExploreCard = {
   markets: string[];
   logoUrl: string | null;
   /**
+   * The brand's rolled-up primary audience country (ISO 3166-1 alpha-2),
+   * or `null` when unknown. Lets the explorer / compare picker show and
+   * filter by region so peers can be kept same-market.
+   */
+  primaryMarketCountry: string | null;
+  /**
    * Primary email-service provider this brand sends with, derived from
    * the modal ESP across captured emails. `null` when we have not
    * detected an ESP on any captured message yet.
@@ -48,6 +54,8 @@ export type BrandsActivityWindow = "30d" | "90d" | "180d" | "inactive";
 export type BrandsSearchParams = {
   query?: string;
   markets?: string[];
+  /** ISO 3166-1 alpha-2 country to restrict to (the brand's primary market). */
+  country?: string | null;
   espProviders?: EspProvider[];
   /**
    * Inclusive cadence window in days. Either bound can be null to mean
@@ -114,6 +122,7 @@ type CompanyRow = {
   name: string;
   domain: string;
   markets: string[] | null;
+  primary_market_country: string | null;
   subscribed_since: string;
   logo_storage_path: string | null;
   company_email_stats:
@@ -168,7 +177,7 @@ export async function searchBrands(
   let query = supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
     )
     .is("deleted_at", null);
 
@@ -177,6 +186,13 @@ export async function searchBrands(
     // one tag with the user's selection — so a brand tagged
     // `["fashion", "ecommerce"]` is returned under both filters.
     query = query.overlaps("markets", params.markets);
+  }
+
+  if (params.country) {
+    // Restrict to one audience so peer comparisons stay same-market. Brands
+    // whose region we couldn't determine (NULL) are intentionally excluded
+    // when a country filter is active.
+    query = query.eq("primary_market_country", params.country);
   }
 
   const trimmedQuery = (params.query ?? "").trim();
@@ -340,6 +356,7 @@ export async function searchBrands(
       id: row.id,
       name: row.name,
       markets: Array.isArray(row.markets) ? row.markets : [],
+      primaryMarketCountry: row.primary_market_country ?? null,
       logoUrl,
       primaryEsp: row.primaryEsp
         ? {

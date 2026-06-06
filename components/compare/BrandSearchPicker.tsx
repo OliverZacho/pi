@@ -7,6 +7,7 @@ import {
   useRef,
   useState
 } from "react";
+import { countryFlag, countryName } from "@/lib/country";
 import v2 from "./compare-v2.module.css";
 
 /**
@@ -21,6 +22,8 @@ export type BrandSearchOption = {
    * list so chip displays elsewhere can show every category.
    */
   markets: string[];
+  /** Rolled-up primary market (ISO alpha-2), or null when unknown. */
+  primaryMarketCountry: string | null;
   logoUrl: string | null;
 };
 
@@ -40,6 +43,13 @@ type Props = {
   variant?: "inline" | "modal";
   /** Lets the parent cache `{id,name,logoUrl}` for chip rendering. */
   onBrandSeen?: (brand: BrandSearchOption) => void;
+  /**
+   * ISO alpha-2 market of the brands already being compared. When present the
+   * picker defaults to scoping results to that region (keeping peers
+   * same-market for fair send-time comparison), with a one-click "All regions"
+   * escape hatch.
+   */
+  defaultCountry?: string | null;
 };
 
 /**
@@ -65,7 +75,8 @@ export default function BrandSearchPicker({
   onChange,
   placeholder = "Search brands by name or category…",
   variant = "inline",
-  onBrandSeen
+  onBrandSeen,
+  defaultCountry = null
 }: Props) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -73,8 +84,24 @@ export default function BrandSearchPicker({
   const [results, setResults] = useState<BrandSearchOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // null = search every region; otherwise restrict to this ISO alpha-2 code.
+  // Seeded from the cohort's region but the user can clear it any time.
+  const [countryScope, setCountryScope] = useState<string | null>(defaultCountry);
   const requestSeq = useRef(0);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Keep the scope in step if the cohort's region changes (e.g. the user adds
+  // their first brand), but only while the user hasn't overridden it away from
+  // the previous default.
+  const prevDefault = useRef(defaultCountry);
+  useEffect(() => {
+    if (defaultCountry !== prevDefault.current) {
+      setCountryScope((current) =>
+        current === prevDefault.current ? defaultCountry : current
+      );
+      prevDefault.current = defaultCountry;
+    }
+  }, [defaultCountry]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => setDebouncedQuery(query), 180);
@@ -102,6 +129,7 @@ export default function BrandSearchPicker({
         params.set("sort", "name_asc");
         params.set("pageSize", "40");
         params.set("q", trimmedQuery);
+        if (countryScope) params.set("country", countryScope);
         const res = await fetch(`/api/brands/list?${params.toString()}`, {
           credentials: "include",
           signal: controller.signal
@@ -112,6 +140,7 @@ export default function BrandSearchPicker({
             id: string;
             name: string;
             markets?: string[] | null;
+            primaryMarketCountry?: string | null;
             logoUrl: string | null;
           }[];
         };
@@ -125,6 +154,7 @@ export default function BrandSearchPicker({
                   typeof value === "string" && value.length > 0
               )
             : [],
+          primaryMarketCountry: item.primaryMarketCountry ?? null,
           logoUrl: item.logoUrl
         }));
         setResults(items);
@@ -147,7 +177,7 @@ export default function BrandSearchPicker({
 
     run();
     return () => controller.abort();
-  }, [trimmedQuery, hasQuery, onBrandSeen]);
+  }, [trimmedQuery, hasQuery, onBrandSeen, countryScope]);
 
   useEffect(() => {
     if (!open || variant === "modal") return;
@@ -215,6 +245,48 @@ export default function BrandSearchPicker({
         ) : null}
       </div>
 
+      {defaultCountry ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            margin: "0.4rem 0.15rem 0",
+            fontSize: "0.82rem",
+            color: "#64748b"
+          }}
+        >
+          <span>
+            {countryScope
+              ? `Showing ${countryFlag(countryScope)} ${countryName(
+                  countryScope
+                )} brands only`
+              : "Showing brands from all regions"}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setCountryScope((current) => (current ? null : defaultCountry))
+            }
+            style={{
+              border: "none",
+              background: "none",
+              padding: 0,
+              color: "#2563eb",
+              cursor: "pointer",
+              font: "inherit",
+              textDecoration: "underline"
+            }}
+          >
+            {countryScope
+              ? "Show all regions"
+              : `${countryFlag(defaultCountry)} ${countryName(
+                  defaultCountry
+                )} only`}
+          </button>
+        </div>
+      ) : null}
+
       {showDropdown ? (
         <div
           id="brand-search-results"
@@ -278,7 +350,18 @@ export default function BrandSearchPicker({
                     brand.name.charAt(0).toUpperCase()
                   )}
                 </span>
-                <span className={v2.searchRowName}>{brand.name}</span>
+                <span className={v2.searchRowName}>
+                  {brand.name}
+                  {brand.primaryMarketCountry ? (
+                    <span
+                      aria-hidden="true"
+                      title={countryName(brand.primaryMarketCountry)}
+                      style={{ marginLeft: "0.4rem" }}
+                    >
+                      {countryFlag(brand.primaryMarketCountry)}
+                    </span>
+                  ) : null}
+                </span>
                 {brand.markets.length > 0 ? (
                   <span className={v2.searchRowMarket}>
                     {formatMarketLabel(brand.markets[0])}

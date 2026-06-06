@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import { countryFlag, countryName } from "@/lib/country";
 import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
@@ -57,6 +58,8 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
         </p>
       ) : null}
 
+      <RegionNote brands={brands} />
+
       <KpiTiles brands={brands} />
       <CadenceStack brands={brands} />
       <InboxForecast brands={brands} />
@@ -67,6 +70,75 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
       <CtaGrid brands={brands} />
       <RecentCampaigns brands={brands} />
     </>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Region note
+   ----------------------------------------------------------------- */
+
+/**
+ * Send time and cadence only mean the same thing within one audience: a
+ * 09:00 send in Copenhagen is not a 09:00 send in New York. So we surface the
+ * region scope of the cohort right above the charts — a quiet confirmation when
+ * every brand shares a market, and an explicit warning when they don't, because
+ * a cross-region cohort makes the "When they send" comparison misleading.
+ */
+function RegionNote({ brands }: { brands: BrandPageData[] }) {
+  const distinct = new Set<string>();
+  for (const b of brands) {
+    if (b.brand.primaryMarketCountry) distinct.add(b.brand.primaryMarketCountry);
+  }
+  const unknownCount = brands.filter((b) => !b.brand.primaryMarketCountry).length;
+  const codes = [...distinct].sort();
+
+  // Nothing useful to say about a single brand, or when no region is known.
+  if (brands.length < 2 || codes.length === 0) return null;
+
+  const labelFor = (cc: string) => `${countryFlag(cc)} ${countryName(cc)}`;
+  const mixed = codes.length > 1;
+
+  const baseStyle: CSSProperties = {
+    display: "flex",
+    gap: "0.55rem",
+    alignItems: "baseline",
+    padding: "0.7rem 0.9rem",
+    borderRadius: "10px",
+    fontSize: "0.88rem",
+    lineHeight: 1.45,
+    margin: "0 0 1rem",
+    border: "1px solid",
+    borderColor: mixed ? "#fcd34d" : "#e2e8f0",
+    background: mixed ? "#fffbeb" : "#f8fafc",
+    color: mixed ? "#854d0e" : "#475569"
+  };
+
+  return (
+    <div style={baseStyle} role="note">
+      <span aria-hidden="true">{mixed ? "⚠️" : "📍"}</span>
+      <span>
+        {mixed ? (
+          <>
+            <strong>These brands span {codes.length} regions</strong> (
+            {codes.map(labelFor).join(", ")}
+            {unknownCount > 0 ? `, plus ${unknownCount} unknown` : ""}). Send time
+            and cadence shift with the time zone, so the timing charts below
+            aren&apos;t directly comparable across regions — narrow the cohort to
+            one market for a like-for-like read.
+          </>
+        ) : (
+          <>
+            Comparing within <strong>{labelFor(codes[0])}</strong>
+            {unknownCount > 0
+              ? ` (${unknownCount} brand${
+                  unknownCount === 1 ? "" : "s"
+                } of unknown region included)`
+              : ""}
+            . Send times and cadence are like-for-like.
+          </>
+        )}
+      </span>
+    </div>
   );
 }
 

@@ -75,6 +75,26 @@ export default function CompareLandingClient({
   // render.
   const alreadySelectedIds = useMemo(() => new Set<string>(), []);
 
+  // Region the picker should default to: the most common primary market among
+  // the brands already in the tray, so newly searched peers stay same-market by
+  // default. `null` (no picks yet, or all unknown) leaves the picker unscoped.
+  const defaultCountry = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const id of selectedIds) {
+      const cc = knownBrands.get(id)?.primaryMarketCountry;
+      if (cc) counts.set(cc, (counts.get(cc) ?? 0) + 1);
+    }
+    let top: string | null = null;
+    let topN = 0;
+    for (const [cc, n] of counts) {
+      if (n > topN) {
+        top = cc;
+        topN = n;
+      }
+    }
+    return top;
+  }, [selectedIds, knownBrands]);
+
   function handleAddFromPicker(nextPending: string[]) {
     // The picker hands back the full pending list, capped to the
     // global max so a stale ref can never exceed it. `rememberBrand`
@@ -276,6 +296,7 @@ export default function CompareLandingClient({
           pendingIds={selectedIds}
           onChange={handleAddFromPicker}
           onBrandSeen={rememberBrand}
+          defaultCountry={defaultCountry}
         />
 
         <div className={styles.pickerActions}>
