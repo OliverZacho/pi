@@ -228,6 +228,83 @@ describe("classifyEmail", () => {
     });
   });
 
+  it("rejects a high-confidence country when the model fakes a tld source on a .com sender", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "English copy from a .com.",
+        country: "us",
+        language: "en",
+        country_confidence: 0.9,
+        country_source: "tld"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "What's your match?",
+      html: "<p>Find your shade.</p>",
+      senderDomain: "hello@gisou.com"
+    });
+
+    // No real ccTLD was passed, so a "tld" rationale is fabricated → unknown.
+    expect(result.detectedCountry).toBeNull();
+    expect(result.countrySignals).toMatchObject({ source: "tld", rawCountry: "US", tld: null });
+  });
+
+  it("accepts a real ccTLD pick", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "Sender is a .se domain.",
+        country: "se",
+        language: "en",
+        country_confidence: 0.65,
+        country_source: "tld"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "Nyheter",
+      html: "<p>See the collection.</p>",
+      senderDomain: "nyheter@brand.se"
+    });
+
+    expect(result.detectedCountry).toBe("SE");
+    expect(result.countrySignals).toMatchObject({ source: "tld", tld: "se" });
+  });
+
+  it("keeps a 'mixed'-source pick with no tld (how genuinely-classified brands are stored)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "products",
+        confidence: 0.9,
+        reasoning: "Danish footer address plus brand cues.",
+        country: "dk",
+        language: "en",
+        country_confidence: 0.85,
+        // The narrow guard only distrusts a fabricated `tld`; `mixed` (the
+        // common real-brand label) must be trusted even with no ccTLD.
+        country_source: "mixed"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "New collection",
+      html: "<p>Designed in Copenhagen.</p>",
+      senderDomain: "hello@brand.com"
+    });
+
+    expect(result.detectedCountry).toBe("DK");
+  });
+
   it("collapses a low-confidence country to unknown but keeps the raw pick", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-test";
 

@@ -14,7 +14,9 @@ const PROMPT_FOOTER_LIMIT = 1_500;
 const LLM_TIMEOUT_MS = 15_000;
 // Below this confidence we record the country as unknown (null) rather than
 // guess. A wrong region poisons same-market comparisons; an unknown one simply
-// falls back to the all-regions peer set.
+// falls back to the all-regions peer set. The harder guard against guessing is
+// the "real signal" requirement in resolveDetectedCountry — this just trims the
+// genuinely shaky picks.
 const COUNTRY_CONFIDENCE_THRESHOLD = 0.6;
 
 const CATEGORY_VALUES: EmailCategory[] = [...EMAIL_CATEGORIES];
@@ -140,13 +142,16 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
 
   const useRulesCategory = rules.confidence >= RULES_TRUST_THRESHOLD;
 
-  // Collapse a low-confidence country to "unknown" so we never benchmark a
-  // brand against the wrong region. The raw pick + confidence are still kept on
-  // the signals payload for auditing and possible re-rollup.
+  // Collapse a low-confidence / no-real-signal country to "unknown" so we never
+  // benchmark a brand against the wrong region. The raw pick + confidence are
+  // still kept on the signals payload for auditing and possible re-rollup.
   const tldHint = countryCodeTld(input.senderDomain);
-  const aboveThreshold =
-    llm.country !== null && llm.countryConfidence >= COUNTRY_CONFIDENCE_THRESHOLD;
-  const detectedCountry = aboveThreshold ? llm.country : null;
+  const detectedCountry = resolveDetectedCountry({
+    rawCountry: llm.country,
+    confidence: llm.countryConfidence,
+    source: llm.countrySource,
+    tld: tldHint
+  });
 
   return {
     category: useRulesCategory ? rules.category : llm.category,
@@ -169,6 +174,36 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
       rawCountry: llm.country
     }
   };
+}
+
+/**
+ * Decides the committed country from a model pick plus its signals, applying
+ * the "unknown over wrong" guards:
+ *  - confidence must clear {@link COUNTRY_CONFIDENCE_THRESHOLD}, and
+ *  - a `tld` rationale is only trusted when a real country-code TLD exists.
+ *
+ * The second guard is narrow on purpose. The model fabricates `source: "tld"`
+ * for anonymous English `.com` senders that have no country TLD at all — its
+ * way of defaulting (usually to US), which is the Gisou failure mode. Every
+ * other source (`footer_address`, `language`, and especially `mixed`, which is
+ * what genuinely-classified brands like &Tradition / Fenty carry) is trusted:
+ * those rest on the model actually reading the email, so guarding them would
+ * wrongly drop correct Danish / Swedish / US brands.
+ *
+ * Exported so the backfill can re-apply the exact same rules to already-stored
+ * `country_signals` without re-calling the model.
+ */
+export function resolveDetectedCountry(args: {
+  rawCountry: string | null;
+  confidence: number;
+  source: CountrySignals["source"];
+  tld: string | null;
+}): string | null {
+  const { rawCountry, confidence, source, tld } = args;
+  if (!rawCountry) return null;
+  if (confidence < COUNTRY_CONFIDENCE_THRESHOLD) return null;
+  if (source === "tld" && tld === null) return null;
+  return rawCountry;
 }
 
 async function classifyWithAnthropic(
@@ -217,9 +252,10 @@ async function classifyWithAnthropic(
       "(3) the sender domain country-code TLD provided below as a hint. " +
       "IMPORTANT: ignore currency and any currency selector — multi-currency checkouts are i18n noise and do NOT indicate the audience's country. " +
       "country: the ISO 3166-1 alpha-2 code (uppercase, e.g. DK, SE, GB, DE, US) for the addressed market, or null if you genuinely cannot tell. Do not guess from currency alone. " +
+      "CRITICAL: never default to US (or GB) just because the copy is in English. English is the global default and is NOT evidence of a US audience. If the only thing you can observe is 'English copy from a .com with no readable address', return country null with a low confidence — do NOT return US. Only name a country when a concrete positive signal supports it (a readable address/VAT/phone, a non-English language, or a real country-code TLD). " +
       "language: the ISO 639-1 code (lowercase, e.g. da, sv, de, en) of the copy, or null. " +
       "country_confidence: 0–1, how sure you are about country. Use a LOW value (<0.5) for generic English emails from a .com with no address — it is better to be unsure than wrong. " +
-      "country_source: which signal drove the country pick — one of footer_address, vat, phone, language, tld, mixed, or none.",
+      "country_source: which signal actually drove the country pick — one of footer_address, vat, phone, language, tld, mixed, or none. Only answer 'tld' when a real country-code TLD is shown in the hint below; if no TLD hint is given, never claim 'tld'. Use 'none' when you are returning null.",
     tools: [
       {
         name: "classify_email",
