@@ -88,6 +88,7 @@ export default function BrandsExploreClient({
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [selectedGlobal, setSelectedGlobal] = useState(false);
   const [selectedMarkets, setSelectedMarkets] = useState<Set<string>>(
     new Set()
   );
@@ -204,9 +205,13 @@ export default function BrandsExploreClient({
     const markets = sp.getAll("market").filter(Boolean);
     if (markets.length > 0) setSelectedMarkets(new Set(markets));
 
-    const country = sp.get("country");
-    if (country && /^[A-Za-z]{2}$/.test(country)) {
-      setSelectedCountry(country.toUpperCase());
+    if (sp.get("global") === "1") {
+      setSelectedGlobal(true);
+    } else {
+      const country = sp.get("country");
+      if (country && /^[A-Za-z]{2}$/.test(country)) {
+        setSelectedCountry(country.toUpperCase());
+      }
     }
 
     const validEsps = new Set(facets.espProviders.map((esp) => esp.id));
@@ -262,7 +267,8 @@ export default function BrandsExploreClient({
     const params = new URLSearchParams();
     if (debouncedQuery) params.set("q", debouncedQuery);
     for (const market of selectedMarkets) params.append("market", market);
-    if (selectedCountry) params.set("country", selectedCountry);
+    if (selectedGlobal) params.set("global", "1");
+    else if (selectedCountry) params.set("country", selectedCountry);
     for (const esp of selectedEsps) params.append("esp", esp);
     if (cadenceActive) {
       params.set("cadenceMin", cadenceRange[0].toFixed(1));
@@ -287,6 +293,7 @@ export default function BrandsExploreClient({
     debouncedQuery,
     selectedMarkets,
     selectedCountry,
+    selectedGlobal,
     selectedEsps,
     cadenceActive,
     cadenceRange,
@@ -303,7 +310,8 @@ export default function BrandsExploreClient({
       const params = new URLSearchParams();
       if (debouncedQuery) params.set("q", debouncedQuery);
       for (const market of selectedMarkets) params.append("market", market);
-      if (selectedCountry) params.set("country", selectedCountry);
+      if (selectedGlobal) params.set("global", "1");
+      else if (selectedCountry) params.set("country", selectedCountry);
       for (const esp of selectedEsps) params.append("esp", esp);
       if (cadenceActive) {
         params.set("cadenceMin", cadenceRange[0].toFixed(1));
@@ -337,6 +345,7 @@ export default function BrandsExploreClient({
       debouncedQuery,
       selectedMarkets,
       selectedCountry,
+      selectedGlobal,
       selectedEsps,
       cadenceActive,
       cadenceRange,
@@ -575,6 +584,7 @@ export default function BrandsExploreClient({
   const hasAnyFilter =
     selectedMarkets.size > 0 ||
     selectedCountry !== null ||
+    selectedGlobal ||
     selectedEsps.size > 0 ||
     cadenceActive ||
     moreFiltersCount > 0 ||
@@ -682,16 +692,18 @@ export default function BrandsExploreClient({
               <button
                 type="button"
                 className={`${styles.filterChip}${
-                  selectedCountry ? ` ${styles.filterChipActive}` : ""
+                  selectedCountry || selectedGlobal ? ` ${styles.filterChipActive}` : ""
                 }${openPopover === "region" ? ` ${styles.filterChipOpen}` : ""}`}
                 onClick={() => togglePopover("region")}
                 aria-haspopup="true"
                 aria-expanded={openPopover === "region"}
               >
                 <span>
-                  {selectedCountry
-                    ? `${countryFlag(selectedCountry)} ${countryName(selectedCountry)}`
-                    : "Region"}
+                  {selectedGlobal
+                    ? "🌍 Global"
+                    : selectedCountry
+                      ? `${countryFlag(selectedCountry)} ${countryName(selectedCountry)}`
+                      : "Region"}
                 </span>
                 <ChevronIcon />
               </button>
@@ -701,8 +713,27 @@ export default function BrandsExploreClient({
                   role="menu"
                 >
                   <div className={styles.popoverScroll}>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selectedGlobal}
+                      className={styles.checkRow}
+                      onClick={() => {
+                        setSelectedGlobal((v) => !v);
+                        setSelectedCountry(null);
+                      }}
+                    >
+                      <span
+                        className={`${styles.checkBox}${
+                          selectedGlobal ? ` ${styles.checkBoxChecked}` : ""
+                        }`}
+                      >
+                        {selectedGlobal ? <CheckIcon /> : null}
+                      </span>
+                      <span className={styles.checkLabel}>🌍 Global brands</span>
+                    </button>
                     {facets.countries.map((code) => {
-                      const checked = selectedCountry === code;
+                      const checked = !selectedGlobal && selectedCountry === code;
                       return (
                         <button
                           key={code}
@@ -710,11 +741,12 @@ export default function BrandsExploreClient({
                           role="menuitemradio"
                           aria-checked={checked}
                           className={styles.checkRow}
-                          onClick={() =>
+                          onClick={() => {
+                            setSelectedGlobal(false);
                             setSelectedCountry((current) =>
                               current === code ? null : code
-                            )
-                          }
+                            );
+                          }}
                         >
                           <span
                             className={`${styles.checkBox}${
@@ -730,12 +762,15 @@ export default function BrandsExploreClient({
                       );
                     })}
                   </div>
-                  {selectedCountry ? (
+                  {selectedCountry || selectedGlobal ? (
                     <div className={styles.popoverFooter}>
                       <button
                         type="button"
                         className={styles.popoverClear}
-                        onClick={() => setSelectedCountry(null)}
+                        onClick={() => {
+                          setSelectedCountry(null);
+                          setSelectedGlobal(false);
+                        }}
                       >
                         Clear
                       </button>
@@ -1288,6 +1323,11 @@ function BrandGridCard({
               style={{ marginLeft: "0.4rem" }}
             >
               {countryFlag(brand.primaryMarketCountry)}
+            </span>
+          ) : null}
+          {brand.isGlobal ? (
+            <span title="Global brand" style={{ marginLeft: "0.3rem" }}>
+              🌍
             </span>
           ) : null}
         </span>

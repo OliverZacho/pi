@@ -148,6 +148,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
     name: b.brand.name,
     markets: b.brand.markets,
     primaryMarketCountry: b.brand.primaryMarketCountry,
+    isGlobal: b.brand.isGlobal,
     logoUrl: b.brand.logoUrl
   }));
 

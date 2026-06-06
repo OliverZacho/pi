@@ -15,6 +15,20 @@ import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import styles from "./brand.module.css";
 
+/** Tooltip for the hero region pill, explaining where the market came from. */
+function marketTooltip(brand: BrandPageData["brand"]): string {
+  if (brand.marketSource === "web") {
+    const base = brand.isGlobal ? "Global brand" : "Headquarters";
+    return brand.marketCitation?.reasoning
+      ? `${base} (web lookup): ${brand.marketCitation.reasoning}`
+      : `${base}, resolved via web lookup`;
+  }
+  if (brand.marketSource === "email" && brand.marketConfidence !== null) {
+    return `Primary market — ${Math.round(brand.marketConfidence * 100)}% of recent emails`;
+  }
+  return "Primary market";
+}
+
 type Props = {
   data: BrandPageData;
   /**
@@ -222,19 +236,33 @@ function Hero({
             {brand.primaryMarketCountry ? (
               <>
                 <span className={styles.heroDot} aria-hidden="true" />
-                <span
-                  className={styles.heroPill}
-                  title={
-                    brand.marketConfidence !== null
-                      ? `Primary market — ${Math.round(
-                          brand.marketConfidence * 100
-                        )}% of recent emails`
-                      : "Primary market"
-                  }
-                >
+                <span className={styles.heroPill} title={marketTooltip(brand)}>
                   {countryFlag(brand.primaryMarketCountry)}{" "}
                   {countryName(brand.primaryMarketCountry)}
                 </span>
+                {brand.isGlobal ? (
+                  <span
+                    className={styles.heroPill}
+                    title="Global brand — sold worldwide with no single home market. Still grouped by its HQ timezone for send-time comparison."
+                  >
+                    🌍 Global
+                  </span>
+                ) : null}
+                {brand.marketSource === "web" && brand.marketCitation?.sources[0] ? (
+                  <a
+                    href={brand.marketCitation.sources[0].url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.heroDomain}
+                    title={`Headquarters source: ${
+                      brand.marketCitation.sources[0].title ??
+                      brand.marketCitation.sources[0].url
+                    }`}
+                    style={{ fontSize: "0.78rem", opacity: 0.7 }}
+                  >
+                    source
+                  </a>
+                ) : null}
               </>
             ) : null}
             <span className={styles.heroDot} aria-hidden="true" />

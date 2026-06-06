@@ -24,6 +24,8 @@ export type BrandSearchOption = {
   markets: string[];
   /** Rolled-up primary market (ISO alpha-2), or null when unknown. */
   primaryMarketCountry: string | null;
+  /** True for genuine global brands. */
+  isGlobal: boolean;
   logoUrl: string | null;
 };
 
@@ -141,6 +143,7 @@ export default function BrandSearchPicker({
             name: string;
             markets?: string[] | null;
             primaryMarketCountry?: string | null;
+            isGlobal?: boolean | null;
             logoUrl: string | null;
           }[];
         };
@@ -155,6 +158,7 @@ export default function BrandSearchPicker({
               )
             : [],
           primaryMarketCountry: item.primaryMarketCountry ?? null,
+          isGlobal: item.isGlobal ?? false,
           logoUrl: item.logoUrl
         }));
         setResults(items);
@@ -359,6 +363,11 @@ export default function BrandSearchPicker({
                       style={{ marginLeft: "0.4rem" }}
                     >
                       {countryFlag(brand.primaryMarketCountry)}
+                    </span>
+                  ) : null}
+                  {brand.isGlobal ? (
+                    <span title="Global brand" style={{ marginLeft: "0.25rem" }}>
+                      🌍
                     </span>
                   ) : null}
                 </span>

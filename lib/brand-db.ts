@@ -29,6 +29,11 @@ import type { Database } from "@/types/supabase";
  * curated set of subscribed competitors the in-memory math is the
  * simpler, faster option.
  */
+export type BrandMarketCitation = {
+  reasoning: string | null;
+  sources: { title: string | null; url: string }[];
+};
+
 export type BrandPageData = {
   brand: {
     id: string;
@@ -49,6 +54,14 @@ export type BrandPageData = {
     primaryMarketCountry: string | null;
     /** Confidence (0–1) of {@link primaryMarketCountry}; `null` when unknown. */
     marketConfidence: number | null;
+    /** True for genuine global brands (Nike, LEGO) — they still carry an HQ country. */
+    isGlobal: boolean;
+    /** Web-resolved HQ country (ISO alpha-2); usually equals primaryMarketCountry. */
+    hqCountry: string | null;
+    /** Where the market was resolved: "email" rollup or "web" lookup. */
+    marketSource: "email" | "web" | null;
+    /** Audit payload for a web-resolved market: reasoning + source links. */
+    marketCitation: BrandMarketCitation | null;
     logoUrl: string | null;
     subscribedSince: string;
     subscriptionEmail: string | null;
@@ -197,6 +210,10 @@ type CompanyRow = {
   markets: string[] | null;
   primary_market_country: string | null;
   market_confidence: number | string | null;
+  is_global: boolean | null;
+  hq_country: string | null;
+  market_source: string | null;
+  market_citation: unknown;
   subscribed_since: string;
   logo_storage_path: string | null;
   deleted_at: string | null;
@@ -229,6 +246,31 @@ type EmailRow = {
 function relationFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+/**
+ * Defensively parses the `market_citation` jsonb (written by the web HQ lookup)
+ * into a typed shape for the brand page. Returns null for anything malformed so
+ * a bad payload can never break rendering.
+ */
+function parseMarketCitation(value: unknown): BrandMarketCitation | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  const reasoning = typeof obj.reasoning === "string" ? obj.reasoning : null;
+  const rawSources = Array.isArray(obj.sources) ? obj.sources : [];
+  const sources: BrandMarketCitation["sources"] = [];
+  for (const item of rawSources) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.url === "string" && entry.url.length > 0) {
+      sources.push({
+        title: typeof entry.title === "string" ? entry.title : null,
+        url: entry.url
+      });
+    }
+  }
+  if (!reasoning && sources.length === 0) return null;
+  return { reasoning, sources };
 }
 
 function formatMarketLabel(market: string): string {
@@ -265,7 +307,7 @@ export async function getBrandPageData(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, market_confidence, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -340,6 +382,13 @@ export async function getBrandPageData(
         companyRow.market_confidence === null || companyRow.market_confidence === undefined
           ? null
           : Number(companyRow.market_confidence),
+      isGlobal: companyRow.is_global ?? false,
+      hqCountry: companyRow.hq_country ?? null,
+      marketSource:
+        companyRow.market_source === "email" || companyRow.market_source === "web"
+          ? companyRow.market_source
+          : null,
+      marketCitation: parseMarketCitation(companyRow.market_citation),
       logoUrl,
       subscribedSince: companyRow.subscribed_since,
       subscriptionEmail: primaryInbox,

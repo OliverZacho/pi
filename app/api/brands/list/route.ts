@@ -69,6 +69,7 @@ export async function GET(request: Request) {
     query: params.get("q") ?? undefined,
     markets: params.getAll("market").filter(Boolean),
     country,
+    global: params.get("global") === "1",
     espProviders,
     cadenceMinDays: parseNonNegativeFloat(params.get("cadenceMin")),
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),

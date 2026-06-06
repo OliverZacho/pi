@@ -90,6 +90,11 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
     if (b.brand.primaryMarketCountry) distinct.add(b.brand.primaryMarketCountry);
   }
   const unknownCount = brands.filter((b) => !b.brand.primaryMarketCountry).length;
+  const globalCount = brands.filter((b) => b.brand.isGlobal).length;
+  const globalSuffix =
+    globalCount > 0
+      ? ` ${globalCount} of these ${globalCount === 1 ? "is a global brand" : "are global brands"} (grouped by HQ timezone).`
+      : "";
   const codes = [...distinct].sort();
 
   // Nothing useful to say about a single brand, or when no region is known.
@@ -124,7 +129,7 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
             {unknownCount > 0 ? `, plus ${unknownCount} unknown` : ""}). Send time
             and cadence shift with the time zone, so the timing charts below
             aren&apos;t directly comparable across regions — narrow the cohort to
-            one market for a like-for-like read.
+            one market for a like-for-like read.{globalSuffix}
           </>
         ) : (
           <>
@@ -134,7 +139,7 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
                   unknownCount === 1 ? "" : "s"
                 } of unknown region included)`
               : ""}
-            . Send times and cadence are like-for-like.
+            . Send times and cadence are like-for-like.{globalSuffix}
           </>
         )}
       </span>
