@@ -87,8 +87,8 @@ export type CompanySubscription = {
   isGlobal: boolean;
   /** Web-resolved HQ country (ISO alpha-2); usually equals primaryMarketCountry. */
   hqCountry: string | null;
-  /** How the market was resolved: email rollup or web lookup. */
-  marketSource: "email" | "web" | null;
+  /** How the market was resolved: email rollup, web lookup, or a manual override. */
+  marketSource: "email" | "web" | "manual" | null;
   /** Audit payload for a web-resolved market (admin-only surfacing). */
   marketCitation: MarketCitation | null;
   /**

@@ -27,6 +27,12 @@ type UpdateCompanyBody = {
    * single-element array. New code should send `markets`.
    */
   market?: unknown;
+  /**
+   * Manual primary-market override (ISO 3166-1 alpha-2). A 2-letter code
+   * pins the brand's market by hand; `null` (or empty string) clears it back
+   * to unresolved. Omit to leave the resolved value untouched.
+   */
+  primaryMarketCountry?: unknown;
 };
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -70,7 +76,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const updates: { name?: string; domain?: string; markets?: string[] } = {};
+  const updates: {
+    name?: string;
+    domain?: string;
+    markets?: string[];
+    primaryMarketCountry?: string | null;
+  } = {};
 
   if (body.name !== undefined) {
     if (typeof body.name !== "string") {
@@ -116,6 +127,29 @@ export async function PATCH(request: Request, context: RouteContext) {
       updates.markets = trimmed.length > 0 ? [trimmed] : [];
     } else {
       return NextResponse.json({ error: "market must be a string or null" }, { status: 400 });
+    }
+  }
+
+  if (body.primaryMarketCountry !== undefined) {
+    if (body.primaryMarketCountry === null) {
+      updates.primaryMarketCountry = null;
+    } else if (typeof body.primaryMarketCountry === "string") {
+      const trimmed = body.primaryMarketCountry.trim();
+      if (trimmed === "") {
+        updates.primaryMarketCountry = null;
+      } else if (/^[A-Za-z]{2}$/.test(trimmed)) {
+        updates.primaryMarketCountry = trimmed.toUpperCase();
+      } else {
+        return NextResponse.json(
+          { error: "primaryMarketCountry must be a 2-letter ISO country code or null" },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "primaryMarketCountry must be a string or null" },
+        { status: 400 }
+      );
     }
   }
 

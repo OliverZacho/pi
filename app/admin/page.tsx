@@ -232,7 +232,26 @@ type EditingDraft = {
    * for display via {@link formatMarketLabel}.
    */
   markets: string[];
+  /**
+   * Manual primary-market country (ISO alpha-2), or "" for unresolved.
+   * Setting it pins the brand's market as a `manual` override; clearing it
+   * hands the market back to automatic resolution.
+   */
+  primaryMarketCountry: string;
 };
+
+/**
+ * Curated country options for the manual market picker. Nordics first (the
+ * product's core market), then the wider European + key global markets we
+ * actually see brands from. The picker unions this with any code already
+ * present in the data, so existing values always render even if not listed.
+ */
+const MARKET_COUNTRY_OPTIONS: readonly string[] = [
+  "DK", "SE", "NO", "FI", "IS",
+  "DE", "GB", "NL", "FR", "ES", "IT", "PT", "IE", "BE", "AT", "CH",
+  "PL", "CZ", "EE", "LV", "LT",
+  "US", "CA", "AU", "JP"
+];
 
 /**
  * Mirror of `sortInboxesForDisplay` in `lib/admin-db.ts` — primary first,
@@ -764,7 +783,8 @@ export default function AdminHomePage() {
     setEditingDraft({
       name: company.name,
       domain: company.domain,
-      markets: [...company.markets]
+      markets: [...company.markets],
+      primaryMarketCountry: company.primaryMarketCountry ?? ""
     });
     setEditingError(null);
   }
@@ -805,7 +825,10 @@ export default function AdminHomePage() {
           body: JSON.stringify({
             name,
             domain,
-            markets: draftMarkets
+            markets: draftMarkets,
+            // "" clears the market back to automatic resolution; a 2-letter
+            // code pins it as a manual override.
+            primaryMarketCountry: editingDraft.primaryMarketCountry || null
           })
         }
       );
@@ -930,6 +953,18 @@ export default function AdminHomePage() {
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [overview.companies]);
+
+  // Country codes for the manual market picker: the curated list plus any code
+  // already present in the data, sorted by display name so the dropdown reads
+  // alphabetically.
+  const marketCountryOptions = useMemo(() => {
+    const set = new Set<string>(MARKET_COUNTRY_OPTIONS);
+    for (const company of overview.companies) {
+      if (company.primaryMarketCountry) set.add(company.primaryMarketCountry);
+      if (company.hqCountry) set.add(company.hqCountry);
+    }
+    return Array.from(set).sort((a, b) => countryName(a).localeCompare(countryName(b)));
   }, [overview.companies]);
 
   const suggestMarketTrimmed = suggestMarket.trim();
@@ -2123,18 +2158,41 @@ export default function AdminHomePage() {
                     {isEditing && editingDraft ? (
                       <span className="company-cell">
                         <CompanyLogo name={company.name} url={company.logoUrl} />
-                        <input
-                          ref={editNameInputRef}
-                          className="row-edit-input"
-                          value={editingDraft.name}
-                          onChange={(e) =>
-                            setEditingDraft((draft) =>
-                              draft ? { ...draft, name: e.target.value } : draft
-                            )
-                          }
-                          aria-label="Company name"
-                          disabled={savingEdit}
-                        />
+                        <span className="row-edit-name-stack">
+                          <input
+                            ref={editNameInputRef}
+                            className="row-edit-input"
+                            value={editingDraft.name}
+                            onChange={(e) =>
+                              setEditingDraft((draft) =>
+                                draft ? { ...draft, name: e.target.value } : draft
+                              )
+                            }
+                            aria-label="Company name"
+                            disabled={savingEdit}
+                          />
+                          <select
+                            className="row-edit-country"
+                            value={editingDraft.primaryMarketCountry}
+                            onChange={(e) =>
+                              setEditingDraft((draft) =>
+                                draft
+                                  ? { ...draft, primaryMarketCountry: e.target.value }
+                                  : draft
+                              )
+                            }
+                            aria-label="Primary market country"
+                            disabled={savingEdit}
+                            title="Primary market country — sets a manual override"
+                          >
+                            <option value="">— Unknown market —</option>
+                            {marketCountryOptions.map((code) => (
+                              <option key={code} value={code}>
+                                {countryFlag(code)} {countryName(code)}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
                       </span>
                     ) : (
                       <span className="company-cell">

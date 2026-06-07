@@ -1919,6 +1919,35 @@ tr.is-editing > td {
   background: #f8fafc;
 }
 
+.row-edit-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.row-edit-country {
+  width: 100%;
+  max-width: 18rem;
+  border-radius: 6px;
+  border: 1px solid #94a3b8;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  font-size: 0.8rem;
+  background: #ffffff;
+  color: #475569;
+}
+
+.row-edit-country:focus {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
+}
+
+.row-edit-country:disabled {
+  background: #f8fafc;
+  cursor: progress;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

@@ -62,6 +62,27 @@ export async function recomputeCompanyMarket(companyId: string): Promise<MarketR
     country_signals: { language?: string | null } | null;
   })[];
 
+  const { data: company } = await supabaseAdmin
+    .from("companies")
+    .select("market_source, primary_market_country, market_confidence")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  const keepExisting = (): MarketRollup => ({
+    country: company?.primary_market_country ?? null,
+    confidence:
+      company?.market_confidence === null || company?.market_confidence === undefined
+        ? null
+        : Number(company.market_confidence),
+    emailsConsidered: 0
+  });
+
+  // An operator's manual pick is authoritative — never let the automatic rollup
+  // (email or web) touch it, regardless of what the latest emails detect.
+  if (company?.market_source === "manual") {
+    return keepExisting();
+  }
+
   // A non-English email is a localized list — an authoritative country signal
   // that's allowed to override a web-lookup result. Without one, we must not let
   // the email rollup clobber a market that the brand-level HQ lookup resolved
@@ -70,22 +91,8 @@ export async function recomputeCompanyMarket(companyId: string): Promise<MarketR
     (r) => r.detected_country && r.country_signals?.language && r.country_signals.language !== "en"
   );
 
-  if (!hasNonEnglishSignal) {
-    const { data: company } = await supabaseAdmin
-      .from("companies")
-      .select("market_source, primary_market_country, market_confidence")
-      .eq("id", companyId)
-      .maybeSingle();
-    if (company?.market_source === "web") {
-      return {
-        country: company.primary_market_country ?? null,
-        confidence:
-          company.market_confidence === null || company.market_confidence === undefined
-            ? null
-            : Number(company.market_confidence),
-        emailsConsidered: 0
-      };
-    }
+  if (!hasNonEnglishSignal && company?.market_source === "web") {
+    return keepExisting();
   }
 
   const rollup = rollupCountries(rows as CountryRow[]);
