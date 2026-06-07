@@ -116,6 +116,13 @@ export type CompanySubscription = {
    * all attributed to the same company record.
    */
   inboxes: CompanyInbox[];
+  /**
+   * Admin-curated allowlist flag (`companies.is_curated`). When true the
+   * brand's emails surface in Explore's default "Recommended" feed — a
+   * filter disguised as a sort that shows only hand-picked brands, newest
+   * first.
+   */
+  isCurated: boolean;
   subscribedAt: string;
   emailCount: number;
   lastEmailAt: string | null;

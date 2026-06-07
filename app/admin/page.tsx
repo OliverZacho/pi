@@ -250,6 +250,11 @@ type EditingDraft = {
    * hands the market back to automatic resolution.
    */
   primaryMarketCountry: string;
+  /**
+   * Whether the brand sits in the Explore "Recommended" allowlist
+   * (`companies.is_curated`). Toggled inline while editing the row.
+   */
+  isCurated: boolean;
 };
 
 /**
@@ -1014,7 +1019,8 @@ export default function AdminHomePage() {
       name: company.name,
       domain: company.domain,
       markets: [...company.markets],
-      primaryMarketCountry: company.primaryMarketCountry ?? ""
+      primaryMarketCountry: company.primaryMarketCountry ?? "",
+      isCurated: company.isCurated
     });
     setEditingError(null);
   }
@@ -1058,7 +1064,8 @@ export default function AdminHomePage() {
             markets: draftMarkets,
             // "" clears the market back to automatic resolution; a 2-letter
             // code pins it as a manual override.
-            primaryMarketCountry: editingDraft.primaryMarketCountry || null
+            primaryMarketCountry: editingDraft.primaryMarketCountry || null,
+            isCurated: editingDraft.isCurated
           })
         }
       );
@@ -1324,7 +1331,7 @@ export default function AdminHomePage() {
     }
   }
 
-  function useCandidate(candidate: SuggestedCandidate) {
+  function applyCandidate(candidate: SuggestedCandidate) {
     setName(candidate.name);
     setDomain(candidate.domain);
     if (suggestMarketTrimmed) {
@@ -2121,7 +2128,7 @@ export default function AdminHomePage() {
                   <button
                     type="button"
                     className="suggestion-use"
-                    onClick={() => useCandidate(candidate)}
+                    onClick={() => applyCandidate(candidate)}
                   >
                     Use this →
                   </button>
@@ -2462,13 +2469,41 @@ export default function AdminHomePage() {
                               </option>
                             ))}
                           </select>
+                          <label
+                            className="row-edit-curated"
+                            title="Show this brand's emails in Explore's Recommended (curated) feed"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editingDraft.isCurated}
+                              onChange={(e) =>
+                                setEditingDraft((draft) =>
+                                  draft
+                                    ? { ...draft, isCurated: e.target.checked }
+                                    : draft
+                                )
+                              }
+                              disabled={savingEdit}
+                            />
+                            <span>Recommended</span>
+                          </label>
                         </span>
                       </span>
                     ) : (
                       <span className="company-cell">
                         <CompanyLogo name={company.name} url={company.logoUrl} />
                         <span>
-                          <span>{company.name}</span>
+                          <span>
+                            {company.name}
+                            {company.isCurated ? (
+                              <span
+                                className="curated-badge"
+                                title="In Explore's Recommended (curated) feed"
+                              >
+                                ★ Recommended
+                              </span>
+                            ) : null}
+                          </span>
                           <CompanyRegionDetail company={company} />
                         </span>
                       </span>

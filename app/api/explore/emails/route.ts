@@ -7,6 +7,7 @@ import {
 } from "@/lib/explore-db";
 
 const SORT_KEYS: ExploreSortKey[] = [
+  "recommended",
   "newest",
   "oldest",
   "brand_asc",

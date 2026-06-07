@@ -33,6 +33,11 @@ type UpdateCompanyBody = {
    * to unresolved. Omit to leave the resolved value untouched.
    */
   primaryMarketCountry?: unknown;
+  /**
+   * Toggle the brand in / out of the Explore "Recommended" allowlist
+   * (`companies.is_curated`). Omit to leave it untouched.
+   */
+  isCurated?: unknown;
 };
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -81,6 +86,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     domain?: string;
     markets?: string[];
     primaryMarketCountry?: string | null;
+    isCurated?: boolean;
   } = {};
 
   if (body.name !== undefined) {
@@ -151,6 +157,16 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 400 }
       );
     }
+  }
+
+  if (body.isCurated !== undefined) {
+    if (typeof body.isCurated !== "boolean") {
+      return NextResponse.json(
+        { error: "isCurated must be a boolean" },
+        { status: 400 }
+      );
+    }
+    updates.isCurated = body.isCurated;
   }
 
   if (Object.keys(updates).length === 0) {
