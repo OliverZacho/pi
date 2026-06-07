@@ -512,9 +512,6 @@ function InfoPanel({
 
       <Accordion title="Addresses">
         <InfoRow label="From" value={detail?.sender ?? "—"} mono />
-        {detail?.recipient ? (
-          <InfoRow label="To" value={detail.recipient} mono />
-        ) : null}
       </Accordion>
 
       {hasOfferDetails ? (
