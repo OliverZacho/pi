@@ -408,9 +408,26 @@ export async function getCompanyDetailFromDb(
 export async function updateCompanyInDb(
   supabase: PirolDb,
   companyId: string,
-  updates: { name?: string; domain?: string; markets?: string[] }
+  updates: {
+    name?: string;
+    domain?: string;
+    markets?: string[];
+    /**
+     * Manual primary-market override. A 2-letter ISO code commits a `manual`
+     * source that the automatic rollup never overwrites; `null` clears the
+     * market back to unresolved. Omit to leave it untouched.
+     */
+    primaryMarketCountry?: string | null;
+  }
 ): Promise<CompanySubscription> {
-  const patch: { name?: string; domain?: string; markets?: string[] } = {};
+  const patch: {
+    name?: string;
+    domain?: string;
+    markets?: string[];
+    primary_market_country?: string | null;
+    market_source?: "manual" | null;
+    market_resolved_at?: string | null;
+  } = {};
 
   if (typeof updates.name === "string") {
     const trimmed = updates.name.trim();
@@ -430,6 +447,23 @@ export async function updateCompanyInDb(
 
   if (updates.markets !== undefined) {
     patch.markets = normalizeMarkets(updates.markets);
+  }
+
+  if (updates.primaryMarketCountry !== undefined) {
+    if (updates.primaryMarketCountry === null) {
+      // Clear back to unresolved so the automatic rollup can take over again.
+      patch.primary_market_country = null;
+      patch.market_source = null;
+      patch.market_resolved_at = null;
+    } else {
+      const code = updates.primaryMarketCountry.trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(code)) {
+        throw new Error("primaryMarketCountry must be a 2-letter ISO country code");
+      }
+      patch.primary_market_country = code;
+      patch.market_source = "manual";
+      patch.market_resolved_at = new Date().toISOString();
+    }
   }
 
   if (Object.keys(patch).length === 0) {
@@ -677,7 +711,9 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     isGlobal: row.is_global ?? false,
     hqCountry: row.hq_country ?? null,
     marketSource:
-      row.market_source === "email" || row.market_source === "web"
+      row.market_source === "email" ||
+      row.market_source === "web" ||
+      row.market_source === "manual"
         ? row.market_source
         : null,
     marketCitation: parseMarketCitationAdmin(row.market_citation),

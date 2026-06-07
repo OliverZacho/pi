@@ -87,8 +87,8 @@ export type CompanySubscription = {
   isGlobal: boolean;
   /** Web-resolved HQ country (ISO alpha-2); usually equals primaryMarketCountry. */
   hqCountry: string | null;
-  /** How the market was resolved: email rollup or web lookup. */
-  marketSource: "email" | "web" | null;
+  /** How the market was resolved: email rollup, web lookup, or a manual override. */
+  marketSource: "email" | "web" | "manual" | null;
   /** Audit payload for a web-resolved market (admin-only surfacing). */
   marketCitation: MarketCitation | null;
   /**
@@ -462,6 +462,18 @@ export type DashboardStats = {
   };
   categories: { category: EmailCategory; count: number }[];
   discount: { avgSaleDiscount: number | null; saleCountWithDiscount: number };
+  /**
+   * Catalog-cleanliness counters for the founder view — how much of the
+   * dataset still needs attention. `lowConfidenceThreshold` is the shared
+   * 0.5 floor (logo confidence + classification confidence) the SQL applies,
+   * passed through so labels stay in sync with the query.
+   */
+  quality: {
+    lowConfidenceThreshold: number;
+    brandsUnknownMarket: number;
+    logosNeedingReview: number;
+    lowConfidenceEmails: number;
+  };
   cost: {
     totalUsd: number;
     totalCalls: number;

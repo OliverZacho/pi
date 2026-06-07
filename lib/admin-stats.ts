@@ -50,6 +50,7 @@ function shapeStats(raw: unknown): DashboardStats {
   const velocity = obj(root.velocity);
   const brands = obj(root.brands);
   const discount = obj(root.discount);
+  const quality = obj(root.quality);
   const cost = obj(root.cost);
 
   return {
@@ -85,6 +86,12 @@ function shapeStats(raw: unknown): DashboardStats {
           ? null
           : num(discount.avg_sale_discount),
       saleCountWithDiscount: num(discount.sale_count_with_discount)
+    },
+    quality: {
+      lowConfidenceThreshold: num(quality.low_confidence_threshold) || 0.5,
+      brandsUnknownMarket: num(quality.brands_unknown_market),
+      logosNeedingReview: num(quality.logos_needing_review),
+      lowConfidenceEmails: num(quality.low_confidence_emails)
     },
     cost: {
       totalUsd: num(cost.total_usd),

@@ -19,7 +19,12 @@ import {
 import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import GrowthChart from "@/components/admin/GrowthChart";
+import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
+import QualityDetailModal, {
+  type LowConfidenceEmail,
+  type QualityKind
+} from "@/components/admin/QualityDetailModal";
 import Logo from "@/components/Logo";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
@@ -54,6 +59,12 @@ function formatTokens(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return formatInt(value);
+}
+
+/** Whole-number share of `part` over `whole` for the cleanliness cards. */
+function formatPct(part: number, whole: number): string {
+  if (whole <= 0) return "0";
+  return formatInt((part / whole) * 100);
 }
 
 const ESP_PROVIDERS: EspProvider[] = [
@@ -221,7 +232,26 @@ type EditingDraft = {
    * for display via {@link formatMarketLabel}.
    */
   markets: string[];
+  /**
+   * Manual primary-market country (ISO alpha-2), or "" for unresolved.
+   * Setting it pins the brand's market as a `manual` override; clearing it
+   * hands the market back to automatic resolution.
+   */
+  primaryMarketCountry: string;
 };
+
+/**
+ * Curated country options for the manual market picker. Nordics first (the
+ * product's core market), then the wider European + key global markets we
+ * actually see brands from. The picker unions this with any code already
+ * present in the data, so existing values always render even if not listed.
+ */
+const MARKET_COUNTRY_OPTIONS: readonly string[] = [
+  "DK", "SE", "NO", "FI", "IS",
+  "DE", "GB", "NL", "FR", "ES", "IT", "PT", "IE", "BE", "AT", "CH",
+  "PL", "CZ", "EE", "LV", "LT",
+  "US", "CA", "AU", "JP"
+];
 
 /**
  * Mirror of `sortInboxesForDisplay` in `lib/admin-db.ts` — primary first,
@@ -482,6 +512,12 @@ export default function AdminHomePage() {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [growth, setGrowth] = useState<GrowthPoint[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  // Which "Data cleanliness" card the operator drilled into, plus the
+  // server-fetched low-confidence email list backing that one kind (the brand
+  // kinds filter the already-loaded company list, so they need no fetch).
+  const [qualityDetail, setQualityDetail] = useState<QualityKind | null>(null);
+  const [lowConfidenceEmails, setLowConfidenceEmails] = useState<LowConfidenceEmail[]>([]);
+  const [lowConfidenceLoading, setLowConfidenceLoading] = useState(false);
   // The company whose logo manager modal is open, or null when closed.
   const [logoManagerCompany, setLogoManagerCompany] = useState<{
     id: string;
@@ -616,6 +652,33 @@ export default function AdminHomePage() {
     }
   }, [activeTab, loadDashboardStats]);
 
+  const openQualityDetail = useCallback((kind: QualityKind) => {
+    setQualityDetail(kind);
+    if (kind !== "low_confidence") {
+      return;
+    }
+    // Brand kinds read from the in-memory company list; only the email kind
+    // needs a fetch. Refresh it each open so corrections are reflected.
+    setLowConfidenceLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/quality/low-confidence-emails", {
+          cache: "no-store"
+        });
+        if (!response.ok) {
+          setLowConfidenceEmails([]);
+          return;
+        }
+        const body = (await response.json()) as { emails?: LowConfidenceEmail[] };
+        setLowConfidenceEmails(Array.isArray(body.emails) ? body.emails : []);
+      } catch {
+        setLowConfidenceEmails([]);
+      } finally {
+        setLowConfidenceLoading(false);
+      }
+    })();
+  }, []);
+
   async function copySubscriptionEmail(email: string) {
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -720,7 +783,8 @@ export default function AdminHomePage() {
     setEditingDraft({
       name: company.name,
       domain: company.domain,
-      markets: [...company.markets]
+      markets: [...company.markets],
+      primaryMarketCountry: company.primaryMarketCountry ?? ""
     });
     setEditingError(null);
   }
@@ -761,7 +825,10 @@ export default function AdminHomePage() {
           body: JSON.stringify({
             name,
             domain,
-            markets: draftMarkets
+            markets: draftMarkets,
+            // "" clears the market back to automatic resolution; a 2-letter
+            // code pins it as a manual override.
+            primaryMarketCountry: editingDraft.primaryMarketCountry || null
           })
         }
       );
@@ -886,6 +953,18 @@ export default function AdminHomePage() {
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [overview.companies]);
+
+  // Country codes for the manual market picker: the curated list plus any code
+  // already present in the data, sorted by display name so the dropdown reads
+  // alphabetically.
+  const marketCountryOptions = useMemo(() => {
+    const set = new Set<string>(MARKET_COUNTRY_OPTIONS);
+    for (const company of overview.companies) {
+      if (company.primaryMarketCountry) set.add(company.primaryMarketCountry);
+      if (company.hqCountry) set.add(company.hqCountry);
+    }
+    return Array.from(set).sort((a, b) => countryName(a).localeCompare(countryName(b)));
   }, [overview.companies]);
 
   const suggestMarketTrimmed = suggestMarket.trim();
@@ -1318,6 +1397,18 @@ export default function AdminHomePage() {
 
       <section className="card dashboard-panel">
         <div className="dashboard-panel-header">
+          <h2>Brands by category</h2>
+          <span className="muted">how many subscribed brands fall in each category</span>
+        </div>
+        {loading && overview.companies.length === 0 ? (
+          <p className="muted">Loading categories…</p>
+        ) : (
+          <CategoryBrandChart companies={overview.companies} />
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
           <h2>Anthropic API cost</h2>
           {dashboardStats?.cost.trackingSince ? (
             <span className="muted">
@@ -1343,6 +1434,28 @@ export default function AdminHomePage() {
               <article className="card card-inset">
                 <h2>Last 30 days</h2>
                 <p>{formatUsd(dashboardStats.cost.last30dUsd)}</p>
+              </article>
+              <article className="card card-inset">
+                <h2>Run-rate</h2>
+                <p>
+                  {formatUsd((dashboardStats.cost.last30dUsd * 365) / 30)}
+                  <span className="card-sub">
+                    /yr · {formatUsd(dashboardStats.cost.last30dUsd)}/mo
+                  </span>
+                </p>
+              </article>
+              <article className="card card-inset">
+                <h2>Cost / email (30d)</h2>
+                <p>
+                  {dashboardStats.velocity.emails30d > 0
+                    ? formatUsd(
+                        dashboardStats.cost.last30dUsd / dashboardStats.velocity.emails30d
+                      )
+                    : "—"}
+                  <span className="card-sub">
+                    {formatInt(dashboardStats.velocity.emails30d)} emails in 30d
+                  </span>
+                </p>
               </article>
               <article className="card card-inset">
                 <h2>API calls</h2>
@@ -1422,6 +1535,77 @@ export default function AdminHomePage() {
               are list-price estimates frozen at call time.
             </p>
           </>
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Data cleanliness</h2>
+          <span className="muted">how much of the catalog still needs attention</span>
+        </div>
+        {statsLoading && !dashboardStats ? (
+          <p className="muted">Loading…</p>
+        ) : dashboardStats ? (
+          <div className="stats-grid">
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("missing_market")}
+              disabled={dashboardStats.quality.brandsUnknownMarket === 0}
+            >
+              <h2>Brands missing market</h2>
+              <p>
+                {formatInt(dashboardStats.quality.brandsUnknownMarket)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.brandsUnknownMarket,
+                    dashboardStats.brands.total
+                  )}
+                  % of {formatInt(dashboardStats.brands.total)} brands
+                </span>
+              </p>
+            </button>
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("logos")}
+              disabled={dashboardStats.quality.logosNeedingReview === 0}
+            >
+              <h2>Logos needing review</h2>
+              <p>
+                {formatInt(dashboardStats.quality.logosNeedingReview)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.logosNeedingReview,
+                    dashboardStats.brands.total
+                  )}
+                  % of brands
+                </span>
+              </p>
+            </button>
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("low_confidence")}
+              disabled={dashboardStats.quality.lowConfidenceEmails === 0}
+            >
+              <h2>Low-confidence emails</h2>
+              <p>
+                {formatInt(dashboardStats.quality.lowConfidenceEmails)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.lowConfidenceEmails,
+                    dashboardStats.totals.emails
+                  )}
+                  % · under{" "}
+                  {Math.round(dashboardStats.quality.lowConfidenceThreshold * 100)}%
+                  confidence
+                </span>
+              </p>
+            </button>
+          </div>
+        ) : (
+          <p className="muted">Stats unavailable.</p>
         )}
       </section>
 
@@ -1974,18 +2158,41 @@ export default function AdminHomePage() {
                     {isEditing && editingDraft ? (
                       <span className="company-cell">
                         <CompanyLogo name={company.name} url={company.logoUrl} />
-                        <input
-                          ref={editNameInputRef}
-                          className="row-edit-input"
-                          value={editingDraft.name}
-                          onChange={(e) =>
-                            setEditingDraft((draft) =>
-                              draft ? { ...draft, name: e.target.value } : draft
-                            )
-                          }
-                          aria-label="Company name"
-                          disabled={savingEdit}
-                        />
+                        <span className="row-edit-name-stack">
+                          <input
+                            ref={editNameInputRef}
+                            className="row-edit-input"
+                            value={editingDraft.name}
+                            onChange={(e) =>
+                              setEditingDraft((draft) =>
+                                draft ? { ...draft, name: e.target.value } : draft
+                              )
+                            }
+                            aria-label="Company name"
+                            disabled={savingEdit}
+                          />
+                          <select
+                            className="row-edit-country"
+                            value={editingDraft.primaryMarketCountry}
+                            onChange={(e) =>
+                              setEditingDraft((draft) =>
+                                draft
+                                  ? { ...draft, primaryMarketCountry: e.target.value }
+                                  : draft
+                              )
+                            }
+                            aria-label="Primary market country"
+                            disabled={savingEdit}
+                            title="Primary market country — sets a manual override"
+                          >
+                            <option value="">— Unknown market —</option>
+                            {marketCountryOptions.map((code) => (
+                              <option key={code} value={code}>
+                                {countryFlag(code)} {countryName(code)}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
                       </span>
                     ) : (
                       <span className="company-cell">
@@ -2459,6 +2666,25 @@ export default function AdminHomePage() {
           companyName={logoManagerCompany.name}
           onClose={() => setLogoManagerCompany(null)}
           onCompanyUpdated={replaceCompanyInOverview}
+        />
+      ) : null}
+
+      {qualityDetail ? (
+        <QualityDetailModal
+          kind={qualityDetail}
+          companies={overview.companies}
+          emails={lowConfidenceEmails}
+          emailsLoading={lowConfidenceLoading}
+          onClose={() => setQualityDetail(null)}
+          onReviewLogo={(company) => {
+            setQualityDetail(null);
+            setLogoManagerCompany({ id: company.id, name: company.name });
+          }}
+          onViewCompany={(company) => {
+            setQualityDetail(null);
+            setCompanySearch(company.name);
+            selectTab("companies");
+          }}
         />
       ) : null}
 
