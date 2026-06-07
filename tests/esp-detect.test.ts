@@ -852,6 +852,44 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Emarsys via brand-CNAMEd nrd.php/ems_l tracking links and VCE markup (no headers)", () => {
+    // Distilled from a real COS (H&M group) send. Emarsys routes the
+    // link-tracking edge through a brand CNAME (`link.e.cos.com`) and serves
+    // assets from a sibling host (`link.service.cos.com/custloads/<acct>/…`),
+    // so the `*.emarsys.net` host fingerprints never fire. Detection leans on
+    // the `nrd.php?…&ems_l=…&_esuh=…` click shape, the `gm.php?prm=` web-view
+    // link, the `/mo/…​.gif` open pixel and the Visual Content Editor markers
+    // (`ems:preheader`, `e-block-id`, `e-editable`).
+    const html = `
+      <html e-locale="en-DK" e-is-multilanguage="true"><body>
+        <div ems:preheader style="display:none">The latest effortless arrivals</div>
+        <tr e-block-id="69e9e047c1b321360e00000b"><td>
+          <a e-editable="urlA_1" href="https://link.e.cos.com/u/nrd.php?p=ZHWQ8PITfU_559356_558941_1_343&ems_l=924304&i=1&d=U0hPUA&_esuh=_11_7e8622bd1f519fff">SHOP NEW ARRIVALS</a>
+        </td></tr>
+        <a href="https://link.e.cos.com/u/gm.php?prm=ZHWQ8PITfU_1065630013_558941_559356&_esuh=_11_7f866bb1">view in your browser</a>
+        <img src="https://link.e.cos.com/mo/ZHWQ8PITfU_1065630013_558941_559356_924304.gif" height="2" width="2" alt="" />
+      </body></html>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://link.e.cos.com/u/nrd.php?p=ZHWQ8PITfU_559356_558941_1_343&ems_l=924304&i=1&d=U0hPUA&_esuh=_11_7e8622bd1f519fff"
+        ),
+        link(
+          "https://link.e.cos.com/u/gm.php?prm=ZHWQ8PITfU_1065630013_558941_559356&_esuh=_11_7f866bb1"
+        )
+      ],
+      resourceHosts: ["link.e.cos.com", "link.service.cos.com"]
+    });
+    expect(result.provider).toBe("emarsys");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

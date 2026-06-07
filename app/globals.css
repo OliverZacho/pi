@@ -2665,9 +2665,28 @@ tr.is-editing > td {
   gap: 0.5rem;
 }
 
+.raw-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .raw-source-link {
   font-size: 0.8rem;
   color: #2563eb;
+}
+
+button.raw-source-link {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.raw-source-link:hover {
+  text-decoration: underline;
 }
 
 .html-source {

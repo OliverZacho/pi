@@ -47,7 +47,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   pure360: "Pure360 / Spotler",
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
-  voyado: "Voyado"
+  voyado: "Voyado",
+  emarsys: "SAP Emarsys"
 };
 
 type ViewMode = "desktop" | "phone" | "html";

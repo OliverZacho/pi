@@ -108,7 +108,8 @@ const ESP_PROVIDERS: EspProvider[] = [
   "pure360",
   "heyloyalty",
   "exponea",
-  "voyado"
+  "voyado",
+  "emarsys"
 ];
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -142,7 +143,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   pure360: "Pure360 / Spotler",
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
-  voyado: "Voyado"
+  voyado: "Voyado",
+  emarsys: "SAP Emarsys"
 };
 
 type CompanySortKey =
