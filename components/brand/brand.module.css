@@ -33,6 +33,97 @@
   color: #64748b;
 }
 
+.segmentSwitcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1rem 0 1.6rem;
+}
+
+.segmentInfo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  cursor: help;
+}
+
+.segmentInfo:hover,
+.segmentInfo:focus-visible {
+  color: var(--brand-accent, #0f172a);
+  outline: none;
+}
+
+.segmentTooltip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 20rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.segmentTooltip strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* A small upward arrow on the tooltip. */
+.segmentTooltip::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0.55rem;
+  border: 5px solid transparent;
+  border-bottom-color: #0f172a;
+}
+
+.segmentInfo:hover .segmentTooltip,
+.segmentInfo:focus-visible .segmentTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.segmentTab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.segmentTab:hover {
+  border-color: var(--brand-accent, #0f172a);
+  color: #0f172a;
+}
+
+.segmentTabActive,
+.segmentTabActive:hover {
+  background: var(--brand-accent, #0f172a);
+  border-color: var(--brand-accent, #0f172a);
+  color: var(--brand-accent-fg, #ffffff);
+}
+
 .breadcrumbLink {
   display: inline-flex;
   align-items: center;

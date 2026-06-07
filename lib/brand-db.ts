@@ -66,6 +66,26 @@ export type BrandPageData = {
     subscribedSince: string;
     subscriptionEmail: string | null;
     /**
+     * Tabs for the dashboard's list switcher — one per segment we've tagged
+     * (i.e. per mailing list we separate out). Each tab is named by the
+     * operator's `Label` (the brand's own term, e.g. "Homeware") and
+     * `inboxId` scopes the dashboard to that inbox's emails. `categoryLabel`
+     * is the prettified category it maps to, shown as a tooltip. The "All"
+     * tab is added by the UI. Empty when the brand has no tagged segments,
+     * in which case no switcher renders.
+     */
+    listTabs: {
+      key: string;
+      label: string;
+      inboxId: string;
+      categoryLabel: string | null;
+    }[];
+    /**
+     * The inbox id the current view is scoped to, or `null` for the "All"
+     * aggregate. The dashboard uses this to highlight the active tab.
+     */
+    activeSegmentId: string | null;
+    /**
      * Auto-derived accent color used to tint the dashboard's stats
      * and graphs (KPI icons, cadence bars, clock heatmap, etc.).
      * Picked from the brand's extracted email palette so each brand
@@ -218,7 +238,14 @@ type CompanyRow = {
   logo_storage_path: string | null;
   deleted_at: string | null;
   company_inboxes:
-    | { email_address: string; is_primary: boolean }[]
+    | {
+        id: string;
+        email_address: string;
+        is_primary: boolean;
+        segment_label: string | null;
+        segment_category: string | null;
+        segment_country: string | null;
+      }[]
     | null;
   company_email_stats:
     | { email_count: number | null; last_received_at: string | null }
@@ -273,6 +300,25 @@ function parseMarketCitation(value: unknown): BrandMarketCitation | null {
   return { reasoning, sources };
 }
 
+/**
+ * Human label for a segment switcher tab. Prefers the operator's explicit
+ * `segment_label`; otherwise composes one from the category and/or country
+ * (e.g. "Jewellery", "US", or "Jewellery · US") so a minimally-tagged inbox
+ * still reads sensibly.
+ */
+function segmentDisplayLabel(inbox: {
+  segment_label: string | null;
+  segment_category: string | null;
+  segment_country: string | null;
+}): string {
+  const explicit = (inbox.segment_label ?? "").trim();
+  if (explicit) return explicit;
+  const parts: string[] = [];
+  if (inbox.segment_category) parts.push(formatMarketLabel(inbox.segment_category));
+  if (inbox.segment_country) parts.push(inbox.segment_country);
+  return parts.join(" · ") || "Segment";
+}
+
 function formatMarketLabel(market: string): string {
   const trimmed = market.trim();
   if (!trimmed) return market;
@@ -302,12 +348,13 @@ function formatMarketLabel(market: string): string {
  */
 export async function getBrandPageData(
   supabase: SupabaseClient<Database>,
-  companyId: string
+  companyId: string,
+  options: { segmentInboxId?: string | null } = {}
 ): Promise<BrandPageData | null> {
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(email_address, is_primary), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(id, email_address, is_primary, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -315,12 +362,55 @@ export async function getBrandPageData(
   if (companyError) throw companyError;
   if (!companyRow || companyRow.deleted_at) return null;
 
-  const { data: emailRowsRaw, error: emailError } = await supabase
+  // Build the segment list from inboxes the operator has actually tagged.
+  // An inbox counts as a segment if it carries any of label / category /
+  // country; un-tagged inboxes (single-list brands) produce no segments and
+  // the switcher stays hidden.
+  const inboxRows = companyRow.company_inboxes ?? [];
+  const segments = inboxRows
+    .filter(
+      (inbox) =>
+        inbox.segment_label || inbox.segment_category || inbox.segment_country
+    )
+    .map((inbox) => ({
+      id: inbox.id,
+      label: segmentDisplayLabel(inbox),
+      category: inbox.segment_category ?? null,
+      country: inbox.segment_country ?? null,
+      emailAddress: inbox.email_address
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  // Only honour a segment scope that maps to a real segment on this brand;
+  // anything else falls back to the "All" aggregate.
+  const activeSegmentId =
+    options.segmentInboxId &&
+    segments.some((segment) => segment.id === options.segmentInboxId)
+      ? options.segmentInboxId
+      : null;
+
+  // One tab per segment we've actually tagged. The tab is named by the
+  // operator's Label (the brand's own term, e.g. "Homeware") and scopes the
+  // dashboard to that inbox's emails. `categoryLabel` is the prettified
+  // version of the category it's mapped to, surfaced as the tab's tooltip so
+  // the brand's term stays connected to our taxonomy.
+  const listTabs = segments.map((segment) => ({
+    key: `segment:${segment.id}`,
+    label: segment.label,
+    inboxId: segment.id,
+    categoryLabel: segment.category ? formatMarketLabel(segment.category) : null
+  }));
+
+  let emailsQuery = supabase
     .from("captured_emails")
     .select(
       "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, esp_provider, metadata"
     )
-    .eq("company_id", companyId)
+    .eq("company_id", companyId);
+  if (activeSegmentId) {
+    emailsQuery = emailsQuery.eq("inbox_id", activeSegmentId);
+  }
+  const { data: emailRowsRaw, error: emailError } = await emailsQuery
     .order("received_at", { ascending: false })
     .limit(STATS_ROW_CAP);
 
@@ -340,9 +430,15 @@ export async function getBrandPageData(
     inboxes[0]?.email_address ??
     null;
 
-  const totalsCount = stats?.email_count ?? emailRows.length;
-  const lastReceivedAt =
-    stats?.last_received_at ?? emailRows[0]?.received_at ?? null;
+  // The materialised `company_email_stats` counters are company-wide, so
+  // they're only the source of truth for the "All" view. When a segment is
+  // active we derive the totals from the (capped) segment rows instead.
+  const totalsCount = activeSegmentId
+    ? emailRows.length
+    : stats?.email_count ?? emailRows.length;
+  const lastReceivedAt = activeSegmentId
+    ? emailRows[0]?.received_at ?? null
+    : stats?.last_received_at ?? emailRows[0]?.received_at ?? null;
   const firstReceivedAt =
     emailRows.length > 0 ? emailRows[emailRows.length - 1].received_at : null;
 
@@ -392,6 +488,8 @@ export async function getBrandPageData(
       logoUrl,
       subscribedSince: companyRow.subscribed_since,
       subscriptionEmail: primaryInbox,
+      listTabs,
+      activeSegmentId,
       accent
     },
     totals: {

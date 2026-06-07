@@ -91,7 +91,8 @@ function shapeStats(raw: unknown): DashboardStats {
       lowConfidenceThreshold: num(quality.low_confidence_threshold) || 0.5,
       brandsUnknownMarket: num(quality.brands_unknown_market),
       logosNeedingReview: num(quality.logos_needing_review),
-      lowConfidenceEmails: num(quality.low_confidence_emails)
+      lowConfidenceEmails: num(quality.low_confidence_emails),
+      unattributedEmails: num(quality.unattributed_emails)
     },
     cost: {
       totalUsd: num(cost.total_usd),

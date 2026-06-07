@@ -128,7 +128,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -348,7 +348,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -476,7 +476,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -520,6 +520,9 @@ type CompanyInboxRow = {
   email_address: string;
   is_primary: boolean;
   created_at: string;
+  segment_label?: string | null;
+  segment_category?: string | null;
+  segment_country?: string | null;
 };
 
 type CompanyRow = {
@@ -559,7 +562,10 @@ function sortInboxesForDisplay(rows: CompanyInboxRow[]): CompanyInbox[] {
       id: row.id,
       emailAddress: row.email_address,
       isPrimary: row.is_primary,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      segmentLabel: row.segment_label ?? null,
+      segmentCategory: row.segment_category ?? null,
+      segmentCountry: row.segment_country ?? null
     }));
 }
 
@@ -913,7 +919,10 @@ export async function createCompanySubscriptionInDb(
         id: inboxRow.id,
         emailAddress: inboxRow.email_address,
         isPrimary: inboxRow.is_primary,
-        createdAt: inboxRow.created_at
+        createdAt: inboxRow.created_at,
+        segmentLabel: null,
+        segmentCategory: null,
+        segmentCountry: null
       }
     ],
     subscribedAt: company.subscribed_since,
@@ -946,7 +955,8 @@ export async function createCompanySubscriptionInDb(
  */
 export async function addCompanyInboxInDb(
   supabase: PirolDb,
-  companyId: string
+  companyId: string,
+  segment?: InboxSegmentInput
 ): Promise<CompanyInbox> {
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
@@ -964,7 +974,8 @@ export async function addCompanyInboxInDb(
 
   const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
-    .select("email_address");
+    .select("email_address, is_primary")
+    .eq("company_id", companyRow.id);
 
   if (inboxesError) {
     throw inboxesError;
@@ -975,14 +986,24 @@ export async function addCompanyInboxInDb(
     (existingInboxes ?? []).map((item) => item.email_address)
   );
 
+  // If the company has no primary inbox (e.g. the old catch-all was deleted),
+  // the inbox we're adding becomes the primary so the brand always has a
+  // canonical address and the partial unique index stays satisfied.
+  const hasPrimary = (existingInboxes ?? []).some((item) => item.is_primary);
+
+  const normalizedSegment = normalizeInboxSegment(segment);
+
   const { data: inboxRow, error: insertError } = await supabase
     .from("company_inboxes")
     .insert({
       company_id: companyRow.id,
       email_address: emailAddress,
-      is_primary: false
+      is_primary: !hasPrimary,
+      ...normalizedSegment
     })
-    .select("id, email_address, is_primary, created_at")
+    .select(
+      "id, email_address, is_primary, created_at, segment_label, segment_category, segment_country"
+    )
     .single();
 
   if (insertError) {
@@ -993,8 +1014,177 @@ export async function addCompanyInboxInDb(
     id: inboxRow.id,
     emailAddress: inboxRow.email_address,
     isPrimary: inboxRow.is_primary,
-    createdAt: inboxRow.created_at
+    createdAt: inboxRow.created_at,
+    segmentLabel: inboxRow.segment_label ?? null,
+    segmentCategory: inboxRow.segment_category ?? null,
+    segmentCountry: inboxRow.segment_country ?? null
   };
+}
+
+/**
+ * Loosely-typed segment patch accepted from the API layer (raw JSON body).
+ * `undefined` means "leave unchanged"; `null` / empty string means "clear".
+ */
+export type InboxSegmentInput = {
+  segmentLabel?: string | null;
+  segmentCategory?: string | null;
+  segmentCountry?: string | null;
+};
+
+/**
+ * Normalises a segment patch into the column shape: labels trimmed,
+ * categories lower-cased to match `companies.markets`, countries upper-cased
+ * to the ISO alpha-2 the check constraint expects. Blank values become null
+ * so an inbox can be cleared back to "un-segmented". Only keys present on the
+ * input are returned, so a partial PATCH leaves the other columns untouched.
+ */
+export function normalizeInboxSegment(
+  segment: InboxSegmentInput | undefined
+): Partial<{
+  segment_label: string | null;
+  segment_category: string | null;
+  segment_country: string | null;
+}> {
+  if (!segment) return {};
+  const out: Partial<{
+    segment_label: string | null;
+    segment_category: string | null;
+    segment_country: string | null;
+  }> = {};
+  if ("segmentLabel" in segment) {
+    const v = (segment.segmentLabel ?? "").trim();
+    out.segment_label = v.length > 0 ? v : null;
+  }
+  if ("segmentCategory" in segment) {
+    const v = (segment.segmentCategory ?? "").trim().toLowerCase();
+    out.segment_category = v.length > 0 ? v : null;
+  }
+  if ("segmentCountry" in segment) {
+    const v = (segment.segmentCountry ?? "").trim().toUpperCase();
+    out.segment_country = /^[A-Z]{2}$/.test(v) ? v : null;
+  }
+  return out;
+}
+
+/**
+ * Re-tags an existing inbox's segment. The DB trigger
+ * `company_inboxes_sync_email_segment` propagates the new category/country
+ * onto every email already attributed to this inbox, so the brand page and
+ * Explore reflect the change without a manual backfill.
+ *
+ * Throws {@link CompanyNotFoundError} when the inbox doesn't belong to the
+ * given (non-deleted) company, so the API can return a 404.
+ */
+export async function updateCompanyInboxInDb(
+  supabase: PirolDb,
+  companyId: string,
+  inboxId: string,
+  segment: InboxSegmentInput
+): Promise<CompanyInbox> {
+  const patch = normalizeInboxSegment(segment);
+  if (Object.keys(patch).length === 0) {
+    throw new Error("No segment fields supplied");
+  }
+
+  const { data: inboxRow, error: updateError } = await supabase
+    .from("company_inboxes")
+    .update(patch)
+    .eq("id", inboxId)
+    .eq("company_id", companyId)
+    .select(
+      "id, email_address, is_primary, created_at, segment_label, segment_category, segment_country"
+    )
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+  if (!inboxRow) {
+    throw new CompanyNotFoundError(companyId);
+  }
+
+  return {
+    id: inboxRow.id,
+    emailAddress: inboxRow.email_address,
+    isPrimary: inboxRow.is_primary,
+    createdAt: inboxRow.created_at,
+    segmentLabel: inboxRow.segment_label ?? null,
+    segmentCategory: inboxRow.segment_category ?? null,
+    segmentCountry: inboxRow.segment_country ?? null
+  };
+}
+
+/**
+ * Deletes one of a company's inboxes. Used to drop an old unsegmented
+ * catch-all address so it can be replaced with segmented inboxes.
+ *
+ * Emails already captured on the inbox are preserved — the
+ * `captured_emails.inbox_id` FK is `on delete set null`, so they stay
+ * attributed to the company (and keep showing in the "All" view) but lose
+ * their inbox link. If the deleted inbox was the primary, the oldest
+ * remaining inbox is promoted to primary so the brand keeps a canonical
+ * address; the promoted id is returned so the caller can update its state.
+ *
+ * Throws {@link CompanyNotFoundError} when the inbox doesn't belong to the
+ * given company, so the API can return a 404.
+ */
+export async function deleteCompanyInboxInDb(
+  supabase: PirolDb,
+  companyId: string,
+  inboxId: string
+): Promise<{ promotedInboxId: string | null }> {
+  const { data: target, error: fetchError } = await supabase
+    .from("company_inboxes")
+    .select("id, is_primary")
+    .eq("id", inboxId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw fetchError;
+  }
+  if (!target) {
+    throw new CompanyNotFoundError(companyId);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("company_inboxes")
+    .delete()
+    .eq("id", inboxId)
+    .eq("company_id", companyId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  let promotedInboxId: string | null = null;
+  if (target.is_primary) {
+    const { data: remaining, error: remainingError } = await supabase
+      .from("company_inboxes")
+      .select("id")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (remainingError) {
+      throw remainingError;
+    }
+
+    const next = remaining?.[0];
+    if (next) {
+      const { error: promoteError } = await supabase
+        .from("company_inboxes")
+        .update({ is_primary: true })
+        .eq("id", next.id);
+
+      if (promoteError) {
+        throw promoteError;
+      }
+      promotedInboxId = next.id;
+    }
+  }
+
+  return { promotedInboxId };
 }
 
 /**
@@ -1069,12 +1259,18 @@ export async function storeProcessedEmail(
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
-  let matchedInbox: { id: string; company_id: string; recipient: string } | null = null;
+  let matchedInbox: {
+    id: string;
+    company_id: string;
+    recipient: string;
+    segment_category: string | null;
+    segment_country: string | null;
+  } | null = null;
 
   if (lowercaseRecipients.length > 0) {
     const { data: inboxRows, error: inboxError } = await supabaseAdmin
       .from("company_inboxes")
-      .select("id, company_id, email_address")
+      .select("id, company_id, email_address, segment_category, segment_country")
       .in("email_address", lowercaseRecipients);
 
     if (inboxError) {
@@ -1088,7 +1284,9 @@ export async function storeProcessedEmail(
       matchedInbox = {
         id: firstMatch.id,
         company_id: firstMatch.company_id,
-        recipient: firstMatch.email_address
+        recipient: firstMatch.email_address,
+        segment_category: firstMatch.segment_category ?? null,
+        segment_country: firstMatch.segment_country ?? null
       };
     }
   }
@@ -1102,6 +1300,11 @@ export async function storeProcessedEmail(
     .insert({
       company_id: matchedInbox?.company_id ?? null,
       inbox_id: matchedInbox?.id ?? null,
+      // Denormalise the matched inbox's segment so Explore filtering and
+      // brand-page scoping run without a join. Stays in sync with later
+      // inbox re-tags via the company_inboxes_sync_email_segment trigger.
+      segment_category: matchedInbox?.segment_category ?? null,
+      segment_country: matchedInbox?.segment_country ?? null,
       resend_message_id: input.resendId,
       sender_email: input.from,
       recipient_email: recipient,

@@ -26,6 +26,62 @@ function marketTooltip(brand: BrandPageData["brand"]): string {
   return "Primary market";
 }
 
+/**
+ * Tab strip letting the user scope the whole dashboard to one of the brand's
+ * mailing lists. One tab per segment we've tagged, named by the operator's
+ * Label (the brand's own term, e.g. "Homeware"). Plain links, so it works
+ * without client JS — the brand page is server-rendered per `?segment=` value.
+ */
+function SegmentSwitcher({
+  brandId,
+  listTabs,
+  activeSegmentId
+}: {
+  brandId: string;
+  listTabs: BrandPageData["brand"]["listTabs"];
+  activeSegmentId: string | null;
+}) {
+  return (
+    <nav className={styles.segmentSwitcher} aria-label="Mailing lists">
+      <span
+        className={styles.segmentInfo}
+        tabIndex={0}
+        role="note"
+        aria-label="This brand sends from more than one mailing list. Each tab is one of those lists — pick one to see its stats on their own, or All for everything combined."
+      >
+        <InfoIcon />
+        <span className={styles.segmentTooltip} role="tooltip">
+          This brand sends from <strong>more than one mailing list</strong>.
+          Each tab is one of those lists — pick one to see its stats on their
+          own, or <strong>All</strong>{" "}for everything combined.
+        </span>
+      </span>
+      <Link
+        href={`/brands/${brandId}`}
+        className={`${styles.segmentTab} ${
+          activeSegmentId === null ? styles.segmentTabActive : ""
+        }`}
+        aria-current={activeSegmentId === null ? "page" : undefined}
+      >
+        All
+      </Link>
+      {listTabs.map((tab) => (
+        <Link
+          key={tab.key}
+          href={`/brands/${brandId}?segment=${encodeURIComponent(tab.inboxId)}`}
+          className={`${styles.segmentTab} ${
+            activeSegmentId === tab.inboxId ? styles.segmentTabActive : ""
+          }`}
+          aria-current={activeSegmentId === tab.inboxId ? "page" : undefined}
+          title={tab.categoryLabel ? `${tab.categoryLabel} emails` : undefined}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 type Props = {
   data: BrandPageData;
   /**
@@ -113,6 +169,14 @@ export default function BrandDashboard({
         groups={groups}
         groupMembershipIds={groupMembershipIds}
       />
+
+      {brand.listTabs.length > 0 ? (
+        <SegmentSwitcher
+          brandId={brand.id}
+          listTabs={brand.listTabs}
+          activeSegmentId={brand.activeSegmentId}
+        />
+      ) : null}
 
       <KpiGrid
         totals={totals}
@@ -986,6 +1050,26 @@ function ChevronLeftIcon() {
       aria-hidden="true"
     >
       <polyline points="15 6 9 12 15 18" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
     </svg>
   );
 }

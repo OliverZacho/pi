@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  FormEvent,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
@@ -23,7 +32,8 @@ import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import QualityDetailModal, {
   type LowConfidenceEmail,
-  type QualityKind
+  type QualityKind,
+  type UnattributedEmail
 } from "@/components/admin/QualityDetailModal";
 import Logo from "@/components/Logo";
 
@@ -497,6 +507,23 @@ export default function AdminHomePage() {
     string | null
   >(null);
   const [addInboxError, setAddInboxError] = useState<string | null>(null);
+  // Which company's inbox/segment detail panel is expanded (only one at a
+  // time). The main table row stays a clean summary; all inbox management
+  // happens inside this panel, so nothing shifts on hover.
+  const [expandedInboxCompanyId, setExpandedInboxCompanyId] = useState<
+    string | null
+  >(null);
+  // Per-inbox segment editor: which inbox row is open, its draft values, and
+  // the save/error state. Only one inbox is edited at a time.
+  const [editingInboxId, setEditingInboxId] = useState<string | null>(null);
+  const [inboxSegmentDraft, setInboxSegmentDraft] = useState<{
+    label: string;
+    category: string;
+    country: string;
+  }>({ label: "", category: "", country: "" });
+  const [savingInboxSegment, setSavingInboxSegment] = useState(false);
+  const [inboxSegmentError, setInboxSegmentError] = useState<string | null>(null);
+  const [deletingInboxId, setDeletingInboxId] = useState<string | null>(null);
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<EditingDraft | null>(null);
   const [editingError, setEditingError] = useState<string | null>(null);
@@ -518,6 +545,8 @@ export default function AdminHomePage() {
   const [qualityDetail, setQualityDetail] = useState<QualityKind | null>(null);
   const [lowConfidenceEmails, setLowConfidenceEmails] = useState<LowConfidenceEmail[]>([]);
   const [lowConfidenceLoading, setLowConfidenceLoading] = useState(false);
+  const [unattributedEmails, setUnattributedEmails] = useState<UnattributedEmail[]>([]);
+  const [unattributedLoading, setUnattributedLoading] = useState(false);
   // The company whose logo manager modal is open, or null when closed.
   const [logoManagerCompany, setLogoManagerCompany] = useState<{
     id: string;
@@ -654,29 +683,49 @@ export default function AdminHomePage() {
 
   const openQualityDetail = useCallback((kind: QualityKind) => {
     setQualityDetail(kind);
-    if (kind !== "low_confidence") {
+    // Brand kinds read from the in-memory company list; the email kinds each
+    // need a fetch. Refresh on open so corrections/new mail are reflected.
+    if (kind === "low_confidence") {
+      setLowConfidenceLoading(true);
+      void (async () => {
+        try {
+          const response = await fetch("/api/admin/quality/low-confidence-emails", {
+            cache: "no-store"
+          });
+          if (!response.ok) {
+            setLowConfidenceEmails([]);
+            return;
+          }
+          const body = (await response.json()) as { emails?: LowConfidenceEmail[] };
+          setLowConfidenceEmails(Array.isArray(body.emails) ? body.emails : []);
+        } catch {
+          setLowConfidenceEmails([]);
+        } finally {
+          setLowConfidenceLoading(false);
+        }
+      })();
       return;
     }
-    // Brand kinds read from the in-memory company list; only the email kind
-    // needs a fetch. Refresh it each open so corrections are reflected.
-    setLowConfidenceLoading(true);
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/quality/low-confidence-emails", {
-          cache: "no-store"
-        });
-        if (!response.ok) {
-          setLowConfidenceEmails([]);
-          return;
+    if (kind === "unattributed") {
+      setUnattributedLoading(true);
+      void (async () => {
+        try {
+          const response = await fetch("/api/admin/quality/unattributed-emails", {
+            cache: "no-store"
+          });
+          if (!response.ok) {
+            setUnattributedEmails([]);
+            return;
+          }
+          const body = (await response.json()) as { emails?: UnattributedEmail[] };
+          setUnattributedEmails(Array.isArray(body.emails) ? body.emails : []);
+        } catch {
+          setUnattributedEmails([]);
+        } finally {
+          setUnattributedLoading(false);
         }
-        const body = (await response.json()) as { emails?: LowConfidenceEmail[] };
-        setLowConfidenceEmails(Array.isArray(body.emails) ? body.emails : []);
-      } catch {
-        setLowConfidenceEmails([]);
-      } finally {
-        setLowConfidenceLoading(false);
-      }
-    })();
+      })();
+    }
   }, []);
 
   async function copySubscriptionEmail(email: string) {
@@ -738,6 +787,145 @@ export default function AdminHomePage() {
     },
     []
   );
+
+  const replaceInboxInCompany = useCallback(
+    (companyId: string, inbox: CompanyInbox) => {
+      setOverview((current) => ({
+        ...current,
+        companies: current.companies.map((company) => {
+          if (company.id !== companyId) {
+            return company;
+          }
+          return {
+            ...company,
+            inboxes: company.inboxes.map((entry) =>
+              entry.id === inbox.id ? inbox : entry
+            )
+          };
+        })
+      }));
+    },
+    []
+  );
+
+  const removeInboxFromCompany = useCallback(
+    (companyId: string, inboxId: string, promotedInboxId: string | null) => {
+      setOverview((current) => ({
+        ...current,
+        companies: current.companies.map((company) => {
+          if (company.id !== companyId) {
+            return company;
+          }
+          const inboxes = company.inboxes
+            .filter((entry) => entry.id !== inboxId)
+            .map((entry) =>
+              promotedInboxId && entry.id === promotedInboxId
+                ? { ...entry, isPrimary: true }
+                : entry
+            );
+          const primaryEmail =
+            inboxes.find((entry) => entry.isPrimary)?.emailAddress ??
+            inboxes[0]?.emailAddress ??
+            company.subscriptionEmail;
+          return {
+            ...company,
+            inboxes,
+            subscriptionEmail: primaryEmail
+          };
+        })
+      }));
+    },
+    []
+  );
+
+  async function deleteInbox(companyId: string, inboxId: string) {
+    if (deletingInboxId) {
+      return;
+    }
+    if (
+      !window.confirm(
+        "Delete this inbox? Emails already captured stay on the brand, but this address will no longer receive mail. Make sure you've unsubscribed it at the source."
+      )
+    ) {
+      return;
+    }
+    setDeletingInboxId(inboxId);
+    setInboxSegmentError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/companies/${companyId}/inboxes/${inboxId}`,
+        { method: "DELETE" }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        promotedInboxId?: string | null;
+        error?: string;
+      };
+      if (!response.ok) {
+        setInboxSegmentError(body.error ?? "Could not delete inbox.");
+        return;
+      }
+      if (editingInboxId === inboxId) {
+        setEditingInboxId(null);
+      }
+      removeInboxFromCompany(companyId, inboxId, body.promotedInboxId ?? null);
+    } catch {
+      setInboxSegmentError("Could not delete inbox.");
+    } finally {
+      setDeletingInboxId(null);
+    }
+  }
+
+  function startEditingInboxSegment(inbox: CompanyInbox) {
+    setEditingInboxId(inbox.id);
+    setInboxSegmentDraft({
+      label: inbox.segmentLabel ?? "",
+      category: inbox.segmentCategory ?? "",
+      country: inbox.segmentCountry ?? ""
+    });
+    setInboxSegmentError(null);
+  }
+
+  function cancelEditingInboxSegment() {
+    setEditingInboxId(null);
+    setInboxSegmentError(null);
+    setSavingInboxSegment(false);
+  }
+
+  async function saveInboxSegment(companyId: string, inboxId: string) {
+    if (savingInboxSegment) {
+      return;
+    }
+    setSavingInboxSegment(true);
+    setInboxSegmentError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/companies/${companyId}/inboxes/${inboxId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            segmentLabel: inboxSegmentDraft.label,
+            segmentCategory: inboxSegmentDraft.category,
+            segmentCountry: inboxSegmentDraft.country
+          })
+        }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        inbox?: CompanyInbox;
+        error?: string;
+      };
+      if (!response.ok || !body.inbox) {
+        setInboxSegmentError(body.error ?? "Could not save segment.");
+        return;
+      }
+      replaceInboxInCompany(companyId, body.inbox);
+      setEditingInboxId(null);
+    } catch {
+      setInboxSegmentError("Could not save segment.");
+    } finally {
+      setSavingInboxSegment(false);
+    }
+  }
 
   const prependCompanyToOverview = useCallback(
     (company: CompanySubscription) => {
@@ -1603,6 +1791,24 @@ export default function AdminHomePage() {
                 </span>
               </p>
             </button>
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("unattributed")}
+              disabled={dashboardStats.quality.unattributedEmails === 0}
+            >
+              <h2>Unattributed emails</h2>
+              <p>
+                {formatInt(dashboardStats.quality.unattributedEmails)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.unattributedEmails,
+                    dashboardStats.totals.emails
+                  )}
+                  % · matched no inbox
+                </span>
+              </p>
+            </button>
           </div>
         ) : (
           <p className="muted">Stats unavailable.</p>
@@ -2152,8 +2358,30 @@ export default function AdminHomePage() {
             <tbody>
               {filteredCompanies.map((company) => {
                 const isEditing = editingCompanyId === company.id;
+                const isInboxExpanded = expandedInboxCompanyId === company.id;
+                const inboxList =
+                  company.inboxes.length > 0
+                    ? company.inboxes
+                    : [
+                        {
+                          id: `fallback-${company.id}`,
+                          emailAddress: company.subscriptionEmail,
+                          isPrimary: true,
+                          createdAt: company.subscribedAt,
+                          segmentLabel: null,
+                          segmentCategory: null,
+                          segmentCountry: null
+                        }
+                      ];
+                const segmentCount = inboxList.filter(
+                  (inbox) =>
+                    inbox.segmentLabel ||
+                    inbox.segmentCategory ||
+                    inbox.segmentCountry
+                ).length;
                 return (
-                <tr key={company.id} className={isEditing ? "is-editing" : undefined}>
+                <Fragment key={company.id}>
+                <tr className={isEditing ? "is-editing" : undefined}>
                   <td>
                     {isEditing && editingDraft ? (
                       <span className="company-cell">
@@ -2248,92 +2476,94 @@ export default function AdminHomePage() {
                     )}
                   </td>
                   <td>
-                    <div className="inbox-stack">
-                      {(company.inboxes.length > 0
-                        ? company.inboxes
-                        : [
-                            {
-                              id: `fallback-${company.id}`,
-                              emailAddress: company.subscriptionEmail,
-                              isPrimary: true,
-                              createdAt: company.subscribedAt
-                            }
-                          ]
-                      ).map((inbox) => (
-                        <span key={inbox.id} className="email-cell">
-                          <code>{inbox.emailAddress}</code>
-                          {company.inboxes.length > 1 ? (
-                            <span
-                              className={`inbox-badge${
-                                inbox.isPrimary ? " is-primary" : ""
-                              }`}
-                              title={
-                                inbox.isPrimary
-                                  ? "Primary inbox (shown on brand pages)"
-                                  : "Additional inbox routed to the same company"
-                              }
-                            >
-                              {inbox.isPrimary ? "Primary" : "Extra"}
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="copy-button"
-                            onClick={() => {
-                              void copySubscriptionEmail(inbox.emailAddress);
-                            }}
-                            aria-label={`Copy ${inbox.emailAddress}`}
-                            title={
-                              copiedEmail === inbox.emailAddress
-                                ? "Copied!"
-                                : "Copy email"
-                            }
-                          >
-                            {copiedEmail === inbox.emailAddress ? (
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.4"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
-                              >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            ) : (
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
-                              >
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </span>
-                      ))}
+                    <div className="inbox-summary">
+                      <code
+                        className="inbox-address"
+                        title={company.subscriptionEmail}
+                      >
+                        {company.subscriptionEmail}
+                      </code>
                       <button
                         type="button"
-                        className="add-inbox-button"
+                        className="copy-button"
                         onClick={() => {
-                          void addInboxToCompany(company.id);
+                          void copySubscriptionEmail(company.subscriptionEmail);
                         }}
-                        disabled={addingInboxForCompanyId === company.id}
-                        title="Generate an additional inbox for this company (e.g. a separate list)"
+                        aria-label={`Copy ${company.subscriptionEmail}`}
+                        title={
+                          copiedEmail === company.subscriptionEmail
+                            ? "Copied!"
+                            : "Copy email"
+                        }
                       >
-                        {addingInboxForCompanyId === company.id
-                          ? "Adding…"
-                          : "+ Add inbox"}
+                        {copiedEmail === company.subscriptionEmail ? (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`inbox-toggle${
+                          isInboxExpanded ? " is-open" : ""
+                        }`}
+                        onClick={() =>
+                          setExpandedInboxCompanyId(
+                            isInboxExpanded ? null : company.id
+                          )
+                        }
+                        aria-expanded={isInboxExpanded}
+                        title="Manage inboxes & segments"
+                      >
+                        <svg
+                          className="inbox-toggle-chevron"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <span>
+                          {inboxList.length > 1
+                            ? `${inboxList.length} inboxes`
+                            : "Manage"}
+                          {segmentCount > 0
+                            ? ` · ${segmentCount} segment${
+                                segmentCount > 1 ? "s" : ""
+                              }`
+                            : ""}
+                        </span>
                       </button>
                     </div>
                   </td>
@@ -2434,6 +2664,250 @@ export default function AdminHomePage() {
                     )}
                   </td>
                 </tr>
+                {isInboxExpanded ? (
+                  <tr className="inbox-detail-row">
+                    <td colSpan={8}>
+                      <div className="inbox-panel">
+                        <div className="inbox-panel-head">
+                          <h4>Inboxes &amp; segments</h4>
+                          <p>
+                            Each inbox is one mailing list. Tag it with a
+                            product line and/or country so the brand page and
+                            Explore can split this brand&apos;s sends.
+                          </p>
+                        </div>
+                        <div className="inbox-panel-list">
+                          {inboxList.map((inbox) => {
+                            const isSynthetic =
+                              inbox.id.startsWith("fallback-");
+                            const isEditingSegment =
+                              editingInboxId === inbox.id;
+                            const segmentSummary = [
+                              inbox.segmentLabel,
+                              inbox.segmentCategory,
+                              inbox.segmentCountry
+                            ]
+                              .filter(Boolean)
+                              .join(" · ");
+                            return (
+                              <div key={inbox.id} className="inbox-card">
+                                <div className="inbox-card-main">
+                                  <code title={inbox.emailAddress}>
+                                    {inbox.emailAddress}
+                                  </code>
+                                  {inboxList.length > 1 ? (
+                                    <span
+                                      className={`inbox-badge${
+                                        inbox.isPrimary ? " is-primary" : ""
+                                      }`}
+                                    >
+                                      {inbox.isPrimary ? "Primary" : "Extra"}
+                                    </span>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className="copy-button"
+                                    onClick={() => {
+                                      void copySubscriptionEmail(
+                                        inbox.emailAddress
+                                      );
+                                    }}
+                                    aria-label={`Copy ${inbox.emailAddress}`}
+                                    title={
+                                      copiedEmail === inbox.emailAddress
+                                        ? "Copied!"
+                                        : "Copy email"
+                                    }
+                                  >
+                                    {copiedEmail === inbox.emailAddress ? (
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.4"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    ) : (
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <rect
+                                          x="9"
+                                          y="9"
+                                          width="13"
+                                          height="13"
+                                          rx="2"
+                                          ry="2"
+                                        />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                  {!isSynthetic ? (
+                                    <button
+                                      type="button"
+                                      className="inbox-delete-button"
+                                      onClick={() => {
+                                        void deleteInbox(company.id, inbox.id);
+                                      }}
+                                      disabled={deletingInboxId === inbox.id}
+                                      aria-label={`Delete ${inbox.emailAddress}`}
+                                      title="Delete this inbox"
+                                    >
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                        <path d="M10 11v6" />
+                                        <path d="M14 11v6" />
+                                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                      </svg>
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <div className="inbox-card-segment">
+                                  {isEditingSegment ? (
+                                    <div className="segment-editor">
+                                      <input
+                                        type="text"
+                                        placeholder="Label (e.g. Jewellery)"
+                                        value={inboxSegmentDraft.label}
+                                        onChange={(event) =>
+                                          setInboxSegmentDraft((draft) => ({
+                                            ...draft,
+                                            label: event.target.value
+                                          }))
+                                        }
+                                      />
+                                      <input
+                                        type="text"
+                                        list="admin-existing-markets"
+                                        placeholder="Category (e.g. jewellery)"
+                                        value={inboxSegmentDraft.category}
+                                        onChange={(event) =>
+                                          setInboxSegmentDraft((draft) => ({
+                                            ...draft,
+                                            category: event.target.value
+                                          }))
+                                        }
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Country"
+                                        maxLength={2}
+                                        value={inboxSegmentDraft.country}
+                                        onChange={(event) =>
+                                          setInboxSegmentDraft((draft) => ({
+                                            ...draft,
+                                            country:
+                                              event.target.value.toUpperCase()
+                                          }))
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        className="row-action row-action--primary"
+                                        onClick={() => {
+                                          void saveInboxSegment(
+                                            company.id,
+                                            inbox.id
+                                          );
+                                        }}
+                                        disabled={savingInboxSegment}
+                                      >
+                                        {savingInboxSegment
+                                          ? "Saving…"
+                                          : "Save"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="row-action"
+                                        onClick={cancelEditingInboxSegment}
+                                        disabled={savingInboxSegment}
+                                      >
+                                        Cancel
+                                      </button>
+                                      {inboxSegmentError ? (
+                                        <span className="error">
+                                          {inboxSegmentError}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : segmentSummary ? (
+                                    <button
+                                      type="button"
+                                      className="segment-pill"
+                                      onClick={() =>
+                                        startEditingInboxSegment(inbox)
+                                      }
+                                      title="Edit segment"
+                                    >
+                                      {segmentSummary}
+                                    </button>
+                                  ) : isSynthetic ? (
+                                    <span className="dim">
+                                      No inbox yet — waiting for first email
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="segment-add"
+                                      onClick={() =>
+                                        startEditingInboxSegment(inbox)
+                                      }
+                                    >
+                                      + Add segment
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          className="add-inbox-button"
+                          onClick={() => {
+                            void addInboxToCompany(company.id);
+                          }}
+                          disabled={addingInboxForCompanyId === company.id}
+                          title="Generate an additional inbox for this company (e.g. a separate list)"
+                        >
+                          {addingInboxForCompanyId === company.id
+                            ? "Adding…"
+                            : "+ Add inbox"}
+                        </button>
+                        {addInboxError ? (
+                          <p className="error">{addInboxError}</p>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
                 );
               })}
             </tbody>
@@ -2675,6 +3149,8 @@ export default function AdminHomePage() {
           companies={overview.companies}
           emails={lowConfidenceEmails}
           emailsLoading={lowConfidenceLoading}
+          unattributedEmails={unattributedEmails}
+          unattributedLoading={unattributedLoading}
           onClose={() => setQualityDetail(null)}
           onReviewLogo={(company) => {
             setQualityDetail(null);

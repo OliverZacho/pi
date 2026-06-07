@@ -63,6 +63,18 @@ export type CompanyInbox = {
   emailAddress: string;
   isPrimary: boolean;
   createdAt: string;
+  /**
+   * Subscription "segment" this inbox represents. A brand can run several
+   * lists sliced by product line and/or country; tagging the inbox lets the
+   * brand page offer a per-segment switcher and lets Explore filter
+   * precisely (a furniture-segment email no longer surfaces under a
+   * jewellery filter). All three are null for an un-segmented inbox.
+   */
+  segmentLabel: string | null;
+  /** Product-line tag, lower-cased to match `companies.markets`. */
+  segmentCategory: string | null;
+  /** ISO 3166-1 alpha-2 (uppercase) when the list is country-specific. */
+  segmentCountry: string | null;
 };
 
 export type MarketCitation = {
@@ -473,6 +485,12 @@ export type DashboardStats = {
     brandsUnknownMarket: number;
     logosNeedingReview: number;
     lowConfidenceEmails: number;
+    /**
+     * Captured emails with no matching company inbox (`company_id is null`) —
+     * mail that arrived at an address we don't track (e.g. a deleted catch-all)
+     * or that was never registered. Admin-only visibility.
+     */
+    unattributedEmails: number;
   };
   cost: {
     totalUsd: number;
