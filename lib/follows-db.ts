@@ -45,6 +45,10 @@ export type FollowedBrandCard = {
   name: string;
   domain: string | null;
   markets: string[];
+  /** Two-letter market country, for the flag chip on the card. */
+  primaryMarketCountry: string | null;
+  /** Brand operates globally rather than in a single market. */
+  isGlobal: boolean;
   logoUrl: string | null;
   followedAt: string;
 };
@@ -176,7 +180,7 @@ export async function listFollowedBrandCards(
     .select(
       `created_at,
        company_id,
-       companies!inner(id, name, domain, markets, logo_storage_path, deleted_at)`
+       companies!inner(id, name, domain, markets, primary_market_country, is_global, logo_storage_path, deleted_at)`
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -214,6 +218,8 @@ export async function listFollowedBrandCards(
               typeof value === "string" && value.length > 0
           )
         : [],
+      primaryMarketCountry: company.primary_market_country ?? null,
+      isGlobal: company.is_global ?? false,
       logoUrl: logoPath ? signed[logoPath] ?? null : null,
       followedAt: row.created_at
     });
@@ -225,25 +231,18 @@ export function isValidCompanyId(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
 
-type CompanyField =
-  | {
-      id: string;
-      name: string;
-      domain?: string | null;
-      markets?: string[] | null;
-      logo_storage_path?: string | null;
-      deleted_at?: string | null;
-    }
-  | Array<{
-      id: string;
-      name: string;
-      domain?: string | null;
-      markets?: string[] | null;
-      logo_storage_path?: string | null;
-      deleted_at?: string | null;
-    }>
-  | null
-  | undefined;
+type CompanyRow = {
+  id: string;
+  name: string;
+  domain?: string | null;
+  markets?: string[] | null;
+  primary_market_country?: string | null;
+  is_global?: boolean | null;
+  logo_storage_path?: string | null;
+  deleted_at?: string | null;
+};
+
+type CompanyField = CompanyRow | CompanyRow[] | null | undefined;
 
 function pickCompany(value: CompanyField) {
   if (!value) return null;

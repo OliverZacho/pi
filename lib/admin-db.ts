@@ -128,7 +128,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -442,7 +442,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -512,6 +512,11 @@ export async function updateCompanyInDb(
      * market back to unresolved. Omit to leave it untouched.
      */
     primaryMarketCountry?: string | null;
+    /**
+     * Toggle the brand in / out of the Explore "Recommended" allowlist
+     * (`companies.is_curated`). Omit to leave the flag untouched.
+     */
+    isCurated?: boolean;
   }
 ): Promise<CompanySubscription> {
   const patch: {
@@ -521,6 +526,7 @@ export async function updateCompanyInDb(
     primary_market_country?: string | null;
     market_source?: "manual" | null;
     market_resolved_at?: string | null;
+    is_curated?: boolean;
   } = {};
 
   if (typeof updates.name === "string") {
@@ -541,6 +547,10 @@ export async function updateCompanyInDb(
 
   if (updates.markets !== undefined) {
     patch.markets = normalizeMarkets(updates.markets);
+  }
+
+  if (updates.isCurated !== undefined) {
+    patch.is_curated = updates.isCurated;
   }
 
   if (updates.primaryMarketCountry !== undefined) {
@@ -570,7 +580,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -626,6 +636,7 @@ type CompanyRow = {
   markets: string[] | null;
   primary_market_country?: string | null;
   is_global?: boolean | null;
+  is_curated?: boolean | null;
   hq_country?: string | null;
   market_source?: string | null;
   market_citation?: unknown;
@@ -712,6 +723,7 @@ async function resolveCompanyLogos(
       markets: company.markets,
       primaryMarketCountry: company.primaryMarketCountry,
       isGlobal: company.isGlobal,
+      isCurated: company.isCurated,
       hqCountry: company.hqCountry,
       marketSource: company.marketSource,
       marketCitation: company.marketCitation,
@@ -809,6 +821,7 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     markets: normalizeStoredMarkets(row.markets),
     primaryMarketCountry: row.primary_market_country ?? null,
     isGlobal: row.is_global ?? false,
+    isCurated: row.is_curated ?? false,
     hqCountry: row.hq_country ?? null,
     marketSource:
       row.market_source === "email" ||
@@ -1027,6 +1040,9 @@ export async function createCompanySubscriptionInDb(
     markets: normalizeStoredMarkets(company.markets),
     primaryMarketCountry: null,
     isGlobal: false,
+    // Brand-new companies start outside the curated allowlist; an admin
+    // opts them into the Explore "Recommended" feed later.
+    isCurated: false,
     hqCountry: null,
     marketSource: null,
     marketCitation: null,

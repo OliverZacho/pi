@@ -14,6 +14,10 @@ import EmailModal from "./EmailModal";
 import styles from "./explore.module.css";
 
 const SORT_OPTIONS: { id: ExploreSortKey; label: string }[] = [
+  // "Recommended" is a curated-brand filter disguised as a sort: it shows
+  // only emails from the admin-picked allowlist, newest first. Listed
+  // first because it's the default landing order on Explore.
+  { id: "recommended", label: "Recommended" },
   { id: "newest", label: "Newest first" },
   { id: "oldest", label: "Oldest first" },
   { id: "brand_asc", label: "Brand A–Z" },
@@ -49,6 +53,21 @@ type Props = {
    * Powers the "Add to collection" popover on every card / modal.
    */
   initialCollections: CollectionSummary[];
+  /**
+   * Paged-search endpoint the grid fetches from. Defaults to the global
+   * Explore feed; `/following` passes its follow-scoped route so the same
+   * component renders an email flow confined to the brands the user
+   * follows. Must accept the same query params and return the same
+   * `FetchResponse` shape.
+   */
+  searchEndpoint?: string;
+  /**
+   * Sort selected on first paint and treated as the "clean URL" default
+   * (omitted from the query string). Explore passes `"recommended"` so
+   * landing users see the curated feed; `/following` leaves it at
+   * `"newest"` since the curated allowlist isn't its organising idea.
+   */
+  defaultSort?: ExploreSortKey;
 };
 
 function SearchIcon() {
@@ -182,7 +201,9 @@ export default function ExploreClient({
   pageSize,
   facets,
   initialSavedIds,
-  initialCollections
+  initialCollections,
+  searchEndpoint = "/api/explore/emails",
+  defaultSort = "newest"
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -202,7 +223,7 @@ export default function ExploreClient({
   const [hasDarkMode, setHasDarkMode] = useState(false);
   const [receivedAfter, setReceivedAfter] = useState("");
   const [receivedBefore, setReceivedBefore] = useState("");
-  const [sort, setSort] = useState<ExploreSortKey>("newest");
+  const [sort, setSort] = useState<ExploreSortKey>(defaultSort);
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
 
   // Flips true once the initial filter/open-email state has been read
@@ -266,7 +287,7 @@ export default function ExploreClient({
       setOpenEmail(existing);
       return;
     }
-    fetch(`/api/explore/emails?id=${encodeURIComponent(id)}&pageSize=1`, {
+    fetch(`${searchEndpoint}?id=${encodeURIComponent(id)}&pageSize=1`, {
       credentials: "include"
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -277,7 +298,7 @@ export default function ExploreClient({
       .catch(() => {
         /* a missing email just leaves the modal closed */
       });
-  }, []);
+  }, [searchEndpoint]);
 
   const handleOpenEmail = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
@@ -532,6 +553,37 @@ export default function ExploreClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // "Recommended" is a curated *subset* of brands. The moment the user
+  // engages any filter or search we widen back to the full feed by
+  // switching to Newest, so they see every matching email instead of only
+  // the curated brands. One-way by design: once we've moved off
+  // Recommended we leave the choice alone, so re-clearing filters doesn't
+  // snap the user back into the curated view. Also catches deep links that
+  // arrive with filters already in the URL.
+  useEffect(() => {
+    if (sort !== "recommended") return;
+    const filtersActive =
+      selectedBrandIds.size > 0 ||
+      selectedMarkets.size > 0 ||
+      selectedCategories.size > 0 ||
+      hasGif ||
+      hasDarkMode ||
+      receivedAfter !== "" ||
+      receivedBefore !== "" ||
+      debouncedQuery.length > 0;
+    if (filtersActive) setSort("newest");
+  }, [
+    sort,
+    selectedBrandIds,
+    selectedMarkets,
+    selectedCategories,
+    hasGif,
+    hasDarkMode,
+    receivedAfter,
+    receivedBefore,
+    debouncedQuery
+  ]);
+
   // Mirror the active filters + open email into the URL with replaceState
   // (no new history entry) so the view is always shareable. Gated on
   // `hydrated` so the first commit can't overwrite the incoming URL.
@@ -549,14 +601,18 @@ export default function ExploreClient({
     if (hasDarkMode) params.set("dark", "1");
     if (receivedAfter) params.set("from", receivedAfter);
     if (receivedBefore) params.set("to", receivedBefore);
-    if (sort !== "newest") params.set("sort", sort);
+    if (sort !== defaultSort) params.set("sort", sort);
     // The open-email param is owned by the modal's push/popstate logic,
     // not this filter writer — preserve whatever is currently in the URL
     // so a filter tweak while the modal is open doesn't drop it.
-    const currentEmail = new URLSearchParams(window.location.search).get(
-      "email"
-    );
+    const currentSearch = new URLSearchParams(window.location.search);
+    const currentEmail = currentSearch.get("email");
     if (currentEmail) params.set("email", currentEmail);
+    // Likewise the host page's view toggle (`?view=emails` on /following)
+    // isn't ours to manage — preserve it so a filter tweak doesn't drop
+    // the user back to the default view on the next reload.
+    const currentView = currentSearch.get("view");
+    if (currentView) params.set("view", currentView);
 
     const qs = params.toString();
     const url = qs
@@ -573,7 +629,8 @@ export default function ExploreClient({
     hasDarkMode,
     receivedAfter,
     receivedBefore,
-    sort
+    sort,
+    defaultSort
   ]);
 
   // Sync the modal to browser navigation: Back from an open email pops
@@ -626,7 +683,7 @@ export default function ExploreClient({
       params.set("sort", sort);
       params.set("page", String(nextPage));
       params.set("pageSize", String(pageSize));
-      return `/api/explore/emails?${params.toString()}`;
+      return `${searchEndpoint}?${params.toString()}`;
     },
     [
       debouncedQuery,
@@ -638,7 +695,8 @@ export default function ExploreClient({
       receivedAfter,
       receivedBefore,
       sort,
-      pageSize
+      pageSize,
+      searchEndpoint
     ]
   );
 

@@ -345,6 +345,7 @@ export type Database = {
           domain: string
           hq_country: string | null
           id: string
+          is_curated: boolean
           is_global: boolean
           logo_confidence: number | null
           logo_origin_path: string | null
@@ -368,6 +369,7 @@ export type Database = {
           domain: string
           hq_country?: string | null
           id?: string
+          is_curated?: boolean
           is_global?: boolean
           logo_confidence?: number | null
           logo_origin_path?: string | null
@@ -391,6 +393,7 @@ export type Database = {
           domain?: string
           hq_country?: string | null
           id?: string
+          is_curated?: boolean
           is_global?: boolean
           logo_confidence?: number | null
           logo_origin_path?: string | null

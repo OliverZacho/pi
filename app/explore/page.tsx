@@ -51,10 +51,14 @@ export default async function ExplorePage() {
   // real data on first paint. The client takes over for subsequent
   // filtering / search / infinite scroll via the `/api/explore/*` routes.
   const [initialResult, facets] = await Promise.all([
+    // "Recommended" is the default Explore order: emails from the
+    // admin-curated brand allowlist, newest first. SSR with the same sort
+    // the client initialises to so the first paint matches and doesn't
+    // flip to a different ordering on hydration.
     searchExploreEmails(supabase, {
       page: 1,
       pageSize: EXPLORE_PAGE_SIZE,
-      sort: "newest"
+      sort: "recommended"
     }),
     getExploreFacets(supabase)
   ]);
@@ -115,6 +119,7 @@ export default async function ExplorePage() {
           facets={facets}
           initialSavedIds={initialSavedIds}
           initialCollections={initialCollections}
+          defaultSort="recommended"
         />
       </main>
     </div>

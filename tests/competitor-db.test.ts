@@ -45,7 +45,7 @@ describe("dedupeBrandIds", () => {
 
   it("ignores non-string entries that slip through TS narrowing", () => {
     expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       dedupeBrandIds([null as any, undefined as any, 42 as any])
     ).toEqual([]);
   });

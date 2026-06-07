@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -13,7 +12,16 @@ import {
   listFollowedBrandCards,
   type FollowedBrandCard
 } from "@/lib/follows-db";
+import {
+  EXPLORE_PAGE_SIZE,
+  getExploreFacets,
+  searchExploreEmails,
+  type ExploreFacets,
+  type ExploreSearchResult
+} from "@/lib/explore-db";
+import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import FollowingClient from "@/components/following/FollowingClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
 export const metadata = {
@@ -22,15 +30,17 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_FACETS: ExploreFacets = { brands: [], markets: [], categories: [] };
+
 /**
- * `/following` — every brand the current user follows.
+ * `/following` — everything from the brands the current user follows.
  *
- * Companion to `/brands`: same shell + card grid, but scoped to the
- * brands the user has explicitly opted in to via the Follow toggle on
- * the brand dashboard. The data layer is intentionally lightweight
- * (no ESP / cadence aggregates) since this list is short and we want
- * the page to render without paying for the captured-emails sweep
- * that `searchBrands` does.
+ * Two views share the page via a toggle: a brand-card grid (companion to
+ * `/brands`, scoped to follows) and a follow-scoped email flow (companion
+ * to `/explore`, restricted server-side to the followed brands). Both
+ * support search + filters. We SSR the first page of each so switching
+ * views is instant; the email flow then takes over client-side via
+ * `/api/following/emails`.
  */
 export default async function FollowingPage() {
   const supabase = await createClient();
@@ -68,6 +78,51 @@ export default async function FollowingPage() {
     })
   ]);
 
+  const followedIds = followed.map((brand) => brand.id);
+
+  // SSR the follow-scoped email flow + its facets so the Emails tab is
+  // hydrated the moment the user switches to it. Skip the work entirely
+  // when the user follows nothing — there's nothing to scope to.
+  const [emailResult, emailFacets, savedIds] = await Promise.all([
+    followedIds.length > 0
+      ? searchExploreEmails(supabase, {
+          page: 1,
+          pageSize: EXPLORE_PAGE_SIZE,
+          sort: "newest",
+          restrictBrandIds: followedIds
+        }).catch((err) => {
+          console.error("Failed to load followed-brand emails", err);
+          return {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: EXPLORE_PAGE_SIZE,
+            hasMore: false
+          } as ExploreSearchResult;
+        })
+      : Promise.resolve({
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: EXPLORE_PAGE_SIZE,
+          hasMore: false
+        } as ExploreSearchResult),
+    followedIds.length > 0
+      ? getExploreFacets(supabase, { restrictBrandIds: followedIds }).catch(
+          (err) => {
+            console.error("Failed to load followed-brand facets", err);
+            return EMPTY_FACETS;
+          }
+        )
+      : Promise.resolve(EMPTY_FACETS),
+    listSavedEmailIds(supabase, user.id)
+      .then((set) => Array.from(set))
+      .catch((err) => {
+        console.error("Failed to load saved email IDs", err);
+        return [] as string[];
+      })
+  ]);
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -82,68 +137,22 @@ export default async function FollowingPage() {
           <p>
             {followed.length === 0
               ? "Brands you follow will show up here."
-              : `${followed.length} ${followed.length === 1 ? "brand" : "brands"} you follow.`}
+              : `${followed.length} ${
+                  followed.length === 1 ? "brand" : "brands"
+                } you follow.`}
           </p>
         </header>
 
-        {followed.length === 0 ? (
-          <div className={styles.empty}>
-            You&apos;re not following any brands yet. Open{" "}
-            <Link href="/brands">Brands</Link> and tap{" "}
-            <strong>Follow brand</strong> on the ones you care about.
-          </div>
-        ) : (
-          <div className={styles.grid}>
-            {followed.map((brand) => (
-              <FollowingCard key={brand.id} brand={brand} />
-            ))}
-          </div>
-        )}
+        <FollowingClient
+          brands={followed}
+          initialEmails={emailResult.items}
+          initialHasMore={emailResult.hasMore}
+          emailPageSize={EXPLORE_PAGE_SIZE}
+          emailFacets={emailFacets}
+          initialSavedIds={savedIds}
+          initialCollections={sidebarCollections}
+        />
       </main>
     </div>
   );
-}
-
-function FollowingCard({ brand }: { brand: FollowedBrandCard }) {
-  return (
-    <Link
-      href={`/brands/${brand.id}`}
-      className={styles.card}
-      aria-label={`Open ${brand.name} dashboard`}
-    >
-      <span className={styles.cardAvatar} aria-hidden="true">
-        {brand.logoUrl ? (
-          <img
-            src={brand.logoUrl}
-            alt=""
-            className={styles.cardAvatarLogo}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span className={styles.cardAvatarMonogram}>
-            {brand.name.charAt(0).toUpperCase()}
-          </span>
-        )}
-      </span>
-
-      <div className={styles.cardBody}>
-        <span className={styles.cardName}>{brand.name}</span>
-        {brand.markets.length > 0 ? (
-          <span className={styles.cardMarket}>
-            {brand.markets.map(formatMarketLabel).join(" · ")}
-          </span>
-        ) : null}
-      </div>
-    </Link>
-  );
-}
-
-function formatMarketLabel(market: string): string {
-  if (!market) return market;
-  return market
-    .split("_")
-    .map((part) =>
-      part.length === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
-    )
-    .join(" ");
 }

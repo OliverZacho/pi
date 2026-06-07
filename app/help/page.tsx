@@ -1,3 +1,4 @@
+import Link from "next/link";
 import DocsHeader from "@/components/docs/DocsHeader";
 import ContactForm from "@/components/docs/ContactForm";
 import { SUPPORT_EMAIL, SALES_EMAIL } from "@/lib/docs/support";
@@ -61,7 +62,7 @@ export default function HelpPage() {
                     <path d="M8 10h8M8 14h5M21 12a9 9 0 1 1-3.5-7.1L21 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span>
-                    Browse the <a href="/docs">documentation</a> for guides on ESPs,
+                    Browse the <Link href="/docs">documentation</Link> for guides on ESPs,
                     deliverability, and strategy.
                   </span>
                 </li>

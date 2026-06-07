@@ -31,6 +31,7 @@ export type ExploreEmailCard = {
 };
 
 export type ExploreSortKey =
+  | "recommended"
   | "newest"
   | "oldest"
   | "brand_asc"
@@ -46,6 +47,15 @@ export type ExploreSearchParams = {
    */
   emailIds?: string[];
   brandIds?: string[];
+  /**
+   * Hard restriction applied *after* the brand / market union: the final
+   * company set is intersected with this list. Used by the `/following`
+   * email flow to confine results to the brands the user follows, while
+   * still letting the in-view brand / market chips narrow further within
+   * that set. An empty array short-circuits to zero results (the user
+   * follows no brands). `null` / omitted means no restriction.
+   */
+  restrictBrandIds?: string[] | null;
   markets?: string[];
   categories?: string[];
   hasGif?: boolean;
@@ -164,13 +174,57 @@ export async function searchExploreEmails(
     // short-circuit with an empty result rather than building a query
     // with `in("company_id", [])` (which behaves implementation-defined).
     if (effectiveBrandIds.length === 0) {
-      return {
-        items: [],
-        total: 0,
-        page,
-        pageSize,
-        hasMore: false
-      };
+      return emptyResult(page, pageSize);
+    }
+  }
+
+  // Apply the follow-scope (or any caller-supplied) restriction as an
+  // intersection on top of whatever the brand / market chips resolved
+  // to. Done after the union above so the in-view filters narrow within
+  // the restricted set rather than escaping it.
+  if (params.restrictBrandIds) {
+    if (params.restrictBrandIds.length === 0) {
+      return emptyResult(page, pageSize);
+    }
+    if (effectiveBrandIds === null) {
+      effectiveBrandIds = params.restrictBrandIds;
+    } else {
+      const allowed = new Set(params.restrictBrandIds);
+      effectiveBrandIds = effectiveBrandIds.filter((id) => allowed.has(id));
+      if (effectiveBrandIds.length === 0) {
+        return emptyResult(page, pageSize);
+      }
+    }
+  }
+
+  // The "Recommended" sort is a filter wearing a sort's clothes: it
+  // confines the feed to the admin-curated brand allowlist
+  // (`companies.is_curated`) and then orders newest-first below. We
+  // resolve the curated company set and intersect it into
+  // `effectiveBrandIds` using the same mechanism as the follow scope, so
+  // the in-view brand / market chips still narrow *within* the curated
+  // set and `/following` composes correctly (curated ∩ followed). An
+  // empty curated set short-circuits to zero results — the UI shows its
+  // empty state rather than silently widening to every brand.
+  if (sort === "recommended") {
+    const { data, error } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("is_curated", true)
+      .is("deleted_at", null);
+    if (error) throw error;
+    const curatedIds = (data ?? []).map((row) => row.id);
+    if (curatedIds.length === 0) {
+      return emptyResult(page, pageSize);
+    }
+    if (effectiveBrandIds === null) {
+      effectiveBrandIds = curatedIds;
+    } else {
+      const allowed = new Set(curatedIds);
+      effectiveBrandIds = effectiveBrandIds.filter((id) => allowed.has(id));
+      if (effectiveBrandIds.length === 0) {
+        return emptyResult(page, pageSize);
+      }
     }
   }
 
@@ -294,6 +348,9 @@ export async function searchExploreEmails(
         .order("discount_percent", { ascending: false, nullsFirst: false })
         .order("received_at", { ascending: false });
       break;
+    // "Recommended" has already restricted the set to the curated
+    // allowlist above; within that set we still surface newest first.
+    case "recommended":
     case "newest":
     default:
       emailsQuery = emailsQuery
@@ -363,18 +420,31 @@ export async function searchExploreEmails(
  * to filter to.
  */
 export async function getExploreFacets(
-  supabase: SupabaseClient<Database>
+  supabase: SupabaseClient<Database>,
+  options: { restrictBrandIds?: string[] | null } = {}
 ): Promise<ExploreFacets> {
+  // The `/following` page scopes its facets to the brands the user
+  // follows. An empty restriction means there's nothing to show.
+  if (options.restrictBrandIds && options.restrictBrandIds.length === 0) {
+    return { brands: [], markets: [], categories: [] };
+  }
+
   // We join through `captured_emails` so the facet list only contains
   // companies that actually have at least one email. The same query
   // gives us markets at no extra cost.
-  const { data: emailRows, error: emailError } = await supabase
+  let facetQuery = supabase
     .from("captured_emails")
     // `logo_storage_path` deliberately omitted: facets don't render
     // logos, so we save the DB round-trip column and the downstream
     // signed-URL fan-out.
     .select("category, segment_category, company_id, companies!inner(id, name, markets)")
     .limit(10000);
+
+  if (options.restrictBrandIds) {
+    facetQuery = facetQuery.in("company_id", options.restrictBrandIds);
+  }
+
+  const { data: emailRows, error: emailError } = await facetQuery;
 
   if (emailError) throw emailError;
 
@@ -457,6 +527,11 @@ function pickCompany(value: CompaniesField) {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] ?? null;
   return value;
+}
+
+/** Shared zero-result payload for the various short-circuit paths. */
+function emptyResult(page: number, pageSize: number): ExploreSearchResult {
+  return { items: [], total: 0, page, pageSize, hasMore: false };
 }
 
 /**

@@ -2128,6 +2128,36 @@ tr.is-editing > td {
   cursor: progress;
 }
 
+.row-edit-curated {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.row-edit-curated input {
+  cursor: pointer;
+}
+
+/* "Recommended" allowlist badge on a company row. Amber to read as an
+   editorial pick, distinct from the neutral grey market chips. */
+.curated-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.45rem;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
