@@ -183,7 +183,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
+      "id, company_id, duplicate_of, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -198,9 +198,10 @@ export async function getEmailDetailFromDb(
   const company = relationFirst(data.companies);
   const imagePaths: string[] = data.image_urls ?? [];
 
-  const [htmlSignedUrl, signedAssets] = await Promise.all([
+  const [htmlSignedUrl, signedAssets, sentToLists] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    getSignedAssets(imagePaths, { transform: options.imageTransform })
+    getSignedAssets(imagePaths, { transform: options.imageTransform }),
+    loadSentToLists(supabase, data.id, data.duplicate_of ?? null)
   ]);
 
   return {
@@ -249,8 +250,101 @@ export async function getEmailDetailFromDb(
       data.country_confidence === null || data.country_confidence === undefined
         ? null
         : Number(data.country_confidence),
-    companyPrimaryMarketCountry: company?.primary_market_country ?? null
+    companyPrimaryMarketCountry: company?.primary_market_country ?? null,
+    sentToLists
   };
+}
+
+/**
+ * Resolve the mailing lists an email was sent to when it's part of a
+ * de-dup group — i.e. the brand fired identical content to several tagged
+ * inbox segments at once. Walks from the email to its group canonical
+ * (`duplicate_of`), pulls every copy in the group, and maps each to its
+ * segment label. Returns `[]` for an ordinary single send (group of one),
+ * so the modal only renders the "Sent to" row when it's actually
+ * meaningful.
+ */
+async function loadSentToLists(
+  supabase: PirolDb,
+  emailId: string,
+  duplicateOf: string | null
+): Promise<CapturedEmailDetail["sentToLists"]> {
+  const canonicalId = duplicateOf ?? emailId;
+  const { data, error } = await supabase
+    .from("captured_emails")
+    .select(
+      "id, inbox_id, company_inboxes(id, email_address, segment_label, segment_category, segment_country)"
+    )
+    .or(`id.eq.${canonicalId},duplicate_of.eq.${canonicalId}`);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = data ?? [];
+  // A group of one is just a normal email — nothing to disambiguate.
+  if (rows.length < 2) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const lists: CapturedEmailDetail["sentToLists"] = [];
+  for (const row of rows) {
+    const inbox = relationFirst(row.company_inboxes);
+    // De-dup by inbox so two copies that happened to share an inbox don't
+    // double up; distinct lists (Men vs Women) keep separate entries.
+    const key = row.inbox_id ?? `email:${row.id}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    lists.push({
+      inboxId: row.inbox_id ?? null,
+      label: composeSegmentLabel(inbox),
+      isCurrent: row.id === emailId
+    });
+  }
+
+  lists.sort((a, b) => {
+    // Surface the copy the viewer opened first, then alphabetical.
+    if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+    return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+  });
+
+  return lists;
+}
+
+/**
+ * Human label for a mailing-list segment, mirroring the brand dashboard's
+ * tab naming: prefer the operator's explicit label, else compose from the
+ * mapped category / country, else fall back to the inbox address.
+ */
+function composeSegmentLabel(
+  inbox: {
+    email_address?: string | null;
+    segment_label?: string | null;
+    segment_category?: string | null;
+    segment_country?: string | null;
+  } | null
+): string {
+  const explicit = (inbox?.segment_label ?? "").trim();
+  if (explicit) return explicit;
+  const parts: string[] = [];
+  if (inbox?.segment_category) parts.push(formatSegmentWord(inbox.segment_category));
+  if (inbox?.segment_country) parts.push(inbox.segment_country);
+  if (parts.length > 0) return parts.join(" · ");
+  const address = (inbox?.email_address ?? "").trim();
+  if (address) return address.split("@")[0] ?? address;
+  return "List";
+}
+
+function formatSegmentWord(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  return trimmed
+    .split(/[\s_-]+/)
+    .map((word) => (word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)))
+    .join(" ");
 }
 
 const PALETTE_SOURCE_VALUES: PaletteColorSource[] = ["inline", "style_block", "attribute"];
@@ -863,6 +957,29 @@ export async function createCompanySubscriptionInDb(
   const normalizedDomain = input.domain.trim().toLowerCase();
   const marketsValue = normalizeMarkets(input.markets);
 
+  // Guard against accidentally subscribing to the same brand twice: reject
+  // when an active (non-deleted) company already uses this name
+  // (case-insensitive) or domain. We compare in JS so brand names containing
+  // PostgREST/ilike metacharacters (`%`, `_`, commas) can't slip through.
+  const { data: activeCompanies, error: dupCheckError } = await supabase
+    .from("companies")
+    .select("name, domain")
+    .is("deleted_at", null);
+
+  if (dupCheckError) {
+    throw dupCheckError;
+  }
+
+  const nameKey = normalizedName.toLowerCase();
+  for (const existing of activeCompanies ?? []) {
+    if ((existing.domain ?? "").trim().toLowerCase() === normalizedDomain) {
+      throw new DuplicateCompanyError("domain", existing.name);
+    }
+    if ((existing.name ?? "").trim().toLowerCase() === nameKey) {
+      throw new DuplicateCompanyError("name", existing.name);
+    }
+  }
+
   const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
     .select("email_address");
@@ -1195,6 +1312,27 @@ export class CompanyNotFoundError extends Error {
   constructor(companyId: string) {
     super(`Company ${companyId} not found or has been deleted`);
     this.name = "CompanyNotFoundError";
+  }
+}
+
+/**
+ * Thrown by {@link createCompanySubscriptionInDb} when an active company
+ * already uses the same name (case-insensitive) or domain. Carries which
+ * field collided so the API layer can return a helpful message and avoid
+ * accidentally subscribing to the same brand twice.
+ */
+export class DuplicateCompanyError extends Error {
+  readonly field: "name" | "domain";
+  readonly conflictingName: string;
+  constructor(field: "name" | "domain", conflictingName: string) {
+    super(
+      field === "domain"
+        ? `A company already uses the domain (matches "${conflictingName}")`
+        : `A company already uses the name "${conflictingName}"`
+    );
+    this.name = "DuplicateCompanyError";
+    this.field = field;
+    this.conflictingName = conflictingName;
   }
 }
 

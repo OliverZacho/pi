@@ -32,6 +32,7 @@ export type EspProvider =
   | "heyloyalty"
   | "exponea"
   | "voyado"
+  | "emarsys"
   | "unknown";
 
 export type EspSignal = {
@@ -778,6 +779,61 @@ const FINGERPRINTS: Fingerprint[] = [
       "x-eclub-message-id",
       "x-eclub-campaign-id"
     ]
+  },
+  {
+    provider: "emarsys",
+    // SAP Emarsys hosts every tenant's link-tracking + web-view + open-pixel
+    // edge on a CNAMEd brand domain (e.g. `link.e.cos.com`), with images and
+    // template assets served from a sibling host (e.g. `link.service.cos.com`)
+    // under `/custloads/<account-id>/…`. Native sends land on `*.emarsys.net`,
+    // but the overwhelming majority of production traffic routes through the
+    // brand CNAME, so the host fingerprints almost never fire on their own and
+    // the URL-shape + HTML-marker patterns below carry the detection.
+    hostPatterns: [
+      /(^|\.)emarsys\.net$/i,
+      /(^|\.)emarsysmail\.com$/i,
+      /(^|\.)emarsys\.com$/i
+    ],
+    // Emarsys's tracking URL shapes are highly distinctive:
+    //   /u/nrd.php?p=<token>_<digits>…&ems_l=<digits>&i=<n>&d=<base64>&_esuh=<hash>
+    //     → click redirect (the `nrd.php` handler plus the `ems_l=` link id and
+    //       the `_esuh=` security hash are an Emarsys-only combination)
+    //   /u/gm.php?prm=<token>&_esuh=<hash>
+    //     → "view in browser" / get-mailing web-view link
+    //   /mo/<token>_<digits>_<digits>_<digits>_<digits>.gif
+    //     → open-tracking pixel ("mo" = mail-open)
+    //   /predict/recommender/<hex>/<token>/<n>.jpg?ci=<digits>
+    //     → Emarsys Predict / Web Extend product-recommendation image
+    // The Visual Content Editor also stamps `e-block-id`, `e-editable`,
+    // `e-repeatable` attributes and an `ems:preheader` marker into the markup.
+    // The URL-shape patterns are listed FIRST so the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints.
+    htmlPatterns: [
+      /\/u\/nrd\.php\?[^"'<>\s]*\bems_l=\d+/i,
+      /\/u\/(?:nrd|gm|rd)\.php\?[^"'<>\s]*\b_esuh=/i,
+      /\/u\/gm\.php\?prm=[A-Za-z0-9_]+/i,
+      /\/mo\/[A-Za-z0-9]+_\d+_\d+_\d+_\d+\.gif/i,
+      /\/predict\/recommender\/[A-F0-9]{8,}\//i,
+      /\bems:preheader\b/i,
+      /\be-block-id\s*=\s*["'][0-9a-f]{16,}["']/i,
+      /\be-(?:editable|repeatable(?:-item)?)\b/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives us
+    // `link_url`-weight signals so an Emarsys send routed only through a brand
+    // CNAME (no DKIM / Return-Path / x- headers available to us) still clears
+    // the 0.6 confidence threshold confidently.
+    linkUrlPatterns: [
+      /\/u\/nrd\.php\?[^"'<>\s]*\bems_l=\d+/i,
+      /\/u\/(?:nrd|gm|rd)\.php\?[^"'<>\s]*\b_esuh=/i,
+      /\/u\/gm\.php\?prm=[A-Za-z0-9_]+/i
+    ],
+    dkimPatterns: [/emarsys\.net/i, /emarsysmail\.com/i, /emarsys\.com/i],
+    returnPathPatterns: [
+      /emarsys\.net/i,
+      /emarsysmail\.com/i,
+      /bounce[^@]*@[^>\s]*emarsys/i
+    ],
+    xHeaderNames: ["x-ems-stamp", "x-emarsys-message-id", "x-ems-msgid"]
   }
 ];
 

@@ -49,7 +49,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   pure360: "Pure360 / Spotler",
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
-  voyado: "Voyado"
+  voyado: "Voyado",
+  emarsys: "SAP Emarsys"
 };
 
 type EmailTab = "inbox" | "classification" | "assets" | "raw";
@@ -287,6 +288,7 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<EmailTab>("inbox");
+  const [htmlCopied, setHtmlCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -612,16 +614,35 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                 <div className="raw-section">
                   <div className="raw-section-header">
                     <h3>HTML source</h3>
-                    {email.htmlSignedUrl ? (
-                      <a
-                        href={email.htmlSignedUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="raw-source-link"
-                      >
-                        Open original .html &rarr;
-                      </a>
-                    ) : null}
+                    <div className="raw-section-actions">
+                      {email.htmlContent ? (
+                        <button
+                          type="button"
+                          className="raw-source-link"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(email.htmlContent ?? "");
+                              setHtmlCopied(true);
+                              setTimeout(() => setHtmlCopied(false), 2000);
+                            } catch {
+                              setHtmlCopied(false);
+                            }
+                          }}
+                        >
+                          {htmlCopied ? "Copied!" : "Copy HTML"}
+                        </button>
+                      ) : null}
+                      {email.htmlSignedUrl ? (
+                        <a
+                          href={email.htmlSignedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="raw-source-link"
+                        >
+                          Open original .html &rarr;
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                   {email.htmlContent ? (
                     <pre className="json-dump html-source">{email.htmlContent}</pre>
@@ -633,8 +654,8 @@ export default function EmailDetailPage({ params }: DetailPageProps) {
                   <div className="raw-section">
                     <h3>Remote image URLs ({email.remoteImageUrls.length})</h3>
                     <ul className="remote-url-list">
-                      {email.remoteImageUrls.map((url) => (
-                        <li key={url}>
+                      {email.remoteImageUrls.map((url, index) => (
+                        <li key={`${url}-${index}`}>
                           <a href={url} target="_blank" rel="noreferrer">
                             {url}
                           </a>

@@ -41,7 +41,8 @@ const VALID_ESP_PROVIDERS: EspProvider[] = [
   "pure360",
   "heyloyalty",
   "exponea",
-  "voyado"
+  "voyado",
+  "emarsys"
 ];
 
 function parseBoolean(raw: string | null): boolean | null {

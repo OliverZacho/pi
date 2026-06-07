@@ -1626,6 +1626,32 @@ div.infoBrandRow {
   gap: 0.3rem;
 }
 
+/* ---- Sent-to-lists (identical send fired to several mailing lists) ---- */
+
+.sentToBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #f8fafc;
+}
+
+.sentToLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.sentToPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
 /* ---- Stat tile grid (HTML / images) ---- */
 
 .statGrid {

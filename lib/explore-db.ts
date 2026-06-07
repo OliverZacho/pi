@@ -193,6 +193,13 @@ export async function searchExploreEmails(
 
   if (params.emailIds && params.emailIds.length > 0) {
     emailsQuery = emailsQuery.in("id", params.emailIds);
+  } else {
+    // Collapse identical campaign copies sent to several mailing lists
+    // (e.g. a welcome blast fired once per inbox segment) down to the
+    // single canonical row, so Explore shows the email once. When a
+    // specific id is requested (shared `?email=` deep link) we skip the
+    // filter so a link to a duplicate copy still resolves.
+    emailsQuery = emailsQuery.is("duplicate_of", null);
   }
   if (effectiveBrandIds !== null) {
     emailsQuery = emailsQuery.in("company_id", effectiveBrandIds);
@@ -206,18 +213,25 @@ export async function searchExploreEmails(
   // carries a segment (it arrived on a tagged list), we additionally
   // require that segment to be one of the selected lines, so a furniture
   // email no longer leaks under a jewellery filter. Un-segmented emails
-  // (segment_category IS NULL) keep the old brand-level behaviour.
+  // keep the old brand-level behaviour.
+  //
+  // We overlap against `group_segment_categories` — the union of segments
+  // across the email's de-dup group — not the scalar `segment_category`.
+  // A multi-list blast collapses to its canonical copy (whose own segment
+  // is whichever list arrived first); matching on the group's full segment
+  // set keeps the collapsed email visible under *any* list it was sent to.
+  // NULL means the group carries no segment at all → brand-level fallback.
   if (params.markets && params.markets.length > 0) {
     const safe = params.markets
       .map((market) => market.trim().toLowerCase())
       .filter(Boolean)
-      // PostgREST `in.(...)` values live inside an `or()` string; quote each
-      // and escape embedded quotes/backslashes so a category with a comma or
-      // space can't break the clause.
+      // These values live inside an `or()` string and a PG array literal
+      // (`{...}`); quote each and escape embedded quotes/backslashes so a
+      // category with a comma or space can't break the clause.
       .map((market) => `"${market.replace(/["\\]/g, "\\$&")}"`);
     if (safe.length > 0) {
       emailsQuery = emailsQuery.or(
-        `segment_category.is.null,segment_category.in.(${safe.join(",")})`
+        `group_segment_categories.is.null,group_segment_categories.ov.{${safe.join(",")}}`
       );
     }
   }

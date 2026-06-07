@@ -47,7 +47,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   pure360: "Pure360 / Spotler",
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
-  voyado: "Voyado"
+  voyado: "Voyado",
+  emarsys: "SAP Emarsys"
 };
 
 type ViewMode = "desktop" | "phone" | "html";
@@ -487,6 +488,24 @@ function InfoPanel({
         ))}
       </div>
 
+      {detail && detail.sentToLists.length > 1 ? (
+        <div className={styles.sentToBlock}>
+          <span className={styles.sentToLabel}>
+            Sent to {detail.sentToLists.length} mailing lists
+          </span>
+          <div className={styles.sentToPills}>
+            {detail.sentToLists.map((list) => (
+              <Pill
+                key={list.inboxId ?? list.label}
+                tone={list.isCurrent ? "good" : "neutral"}
+              >
+                {list.label}
+              </Pill>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className={styles.statGrid}>
         <Stat
           label="HTML size"
@@ -512,9 +531,6 @@ function InfoPanel({
 
       <Accordion title="Addresses">
         <InfoRow label="From" value={detail?.sender ?? "—"} mono />
-        {detail?.recipient ? (
-          <InfoRow label="To" value={detail.recipient} mono />
-        ) : null}
       </Accordion>
 
       {hasOfferDetails ? (
