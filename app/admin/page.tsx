@@ -21,6 +21,10 @@ import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import GrowthChart from "@/components/admin/GrowthChart";
 import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
+import QualityDetailModal, {
+  type LowConfidenceEmail,
+  type QualityKind
+} from "@/components/admin/QualityDetailModal";
 import Logo from "@/components/Logo";
 
 const ALL_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
@@ -55,6 +59,12 @@ function formatTokens(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return formatInt(value);
+}
+
+/** Whole-number share of `part` over `whole` for the cleanliness cards. */
+function formatPct(part: number, whole: number): string {
+  if (whole <= 0) return "0";
+  return formatInt((part / whole) * 100);
 }
 
 const ESP_PROVIDERS: EspProvider[] = [
@@ -483,6 +493,12 @@ export default function AdminHomePage() {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [growth, setGrowth] = useState<GrowthPoint[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  // Which "Data cleanliness" card the operator drilled into, plus the
+  // server-fetched low-confidence email list backing that one kind (the brand
+  // kinds filter the already-loaded company list, so they need no fetch).
+  const [qualityDetail, setQualityDetail] = useState<QualityKind | null>(null);
+  const [lowConfidenceEmails, setLowConfidenceEmails] = useState<LowConfidenceEmail[]>([]);
+  const [lowConfidenceLoading, setLowConfidenceLoading] = useState(false);
   // The company whose logo manager modal is open, or null when closed.
   const [logoManagerCompany, setLogoManagerCompany] = useState<{
     id: string;
@@ -616,6 +632,33 @@ export default function AdminHomePage() {
       void loadDashboardStats();
     }
   }, [activeTab, loadDashboardStats]);
+
+  const openQualityDetail = useCallback((kind: QualityKind) => {
+    setQualityDetail(kind);
+    if (kind !== "low_confidence") {
+      return;
+    }
+    // Brand kinds read from the in-memory company list; only the email kind
+    // needs a fetch. Refresh it each open so corrections are reflected.
+    setLowConfidenceLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/quality/low-confidence-emails", {
+          cache: "no-store"
+        });
+        if (!response.ok) {
+          setLowConfidenceEmails([]);
+          return;
+        }
+        const body = (await response.json()) as { emails?: LowConfidenceEmail[] };
+        setLowConfidenceEmails(Array.isArray(body.emails) ? body.emails : []);
+      } catch {
+        setLowConfidenceEmails([]);
+      } finally {
+        setLowConfidenceLoading(false);
+      }
+    })();
+  }, []);
 
   async function copySubscriptionEmail(email: string) {
     try {
@@ -1358,6 +1401,28 @@ export default function AdminHomePage() {
                 <p>{formatUsd(dashboardStats.cost.last30dUsd)}</p>
               </article>
               <article className="card card-inset">
+                <h2>Run-rate</h2>
+                <p>
+                  {formatUsd((dashboardStats.cost.last30dUsd * 365) / 30)}
+                  <span className="card-sub">
+                    /yr · {formatUsd(dashboardStats.cost.last30dUsd)}/mo
+                  </span>
+                </p>
+              </article>
+              <article className="card card-inset">
+                <h2>Cost / email (30d)</h2>
+                <p>
+                  {dashboardStats.velocity.emails30d > 0
+                    ? formatUsd(
+                        dashboardStats.cost.last30dUsd / dashboardStats.velocity.emails30d
+                      )
+                    : "—"}
+                  <span className="card-sub">
+                    {formatInt(dashboardStats.velocity.emails30d)} emails in 30d
+                  </span>
+                </p>
+              </article>
+              <article className="card card-inset">
                 <h2>API calls</h2>
                 <p>{formatInt(dashboardStats.cost.totalCalls)}</p>
               </article>
@@ -1435,6 +1500,77 @@ export default function AdminHomePage() {
               are list-price estimates frozen at call time.
             </p>
           </>
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Data cleanliness</h2>
+          <span className="muted">how much of the catalog still needs attention</span>
+        </div>
+        {statsLoading && !dashboardStats ? (
+          <p className="muted">Loading…</p>
+        ) : dashboardStats ? (
+          <div className="stats-grid">
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("missing_market")}
+              disabled={dashboardStats.quality.brandsUnknownMarket === 0}
+            >
+              <h2>Brands missing market</h2>
+              <p>
+                {formatInt(dashboardStats.quality.brandsUnknownMarket)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.brandsUnknownMarket,
+                    dashboardStats.brands.total
+                  )}
+                  % of {formatInt(dashboardStats.brands.total)} brands
+                </span>
+              </p>
+            </button>
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("logos")}
+              disabled={dashboardStats.quality.logosNeedingReview === 0}
+            >
+              <h2>Logos needing review</h2>
+              <p>
+                {formatInt(dashboardStats.quality.logosNeedingReview)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.logosNeedingReview,
+                    dashboardStats.brands.total
+                  )}
+                  % of brands
+                </span>
+              </p>
+            </button>
+            <button
+              type="button"
+              className="card card-inset quality-card"
+              onClick={() => openQualityDetail("low_confidence")}
+              disabled={dashboardStats.quality.lowConfidenceEmails === 0}
+            >
+              <h2>Low-confidence emails</h2>
+              <p>
+                {formatInt(dashboardStats.quality.lowConfidenceEmails)}
+                <span className="card-sub">
+                  {formatPct(
+                    dashboardStats.quality.lowConfidenceEmails,
+                    dashboardStats.totals.emails
+                  )}
+                  % · under{" "}
+                  {Math.round(dashboardStats.quality.lowConfidenceThreshold * 100)}%
+                  confidence
+                </span>
+              </p>
+            </button>
+          </div>
+        ) : (
+          <p className="muted">Stats unavailable.</p>
         )}
       </section>
 
@@ -2472,6 +2608,25 @@ export default function AdminHomePage() {
           companyName={logoManagerCompany.name}
           onClose={() => setLogoManagerCompany(null)}
           onCompanyUpdated={replaceCompanyInOverview}
+        />
+      ) : null}
+
+      {qualityDetail ? (
+        <QualityDetailModal
+          kind={qualityDetail}
+          companies={overview.companies}
+          emails={lowConfidenceEmails}
+          emailsLoading={lowConfidenceLoading}
+          onClose={() => setQualityDetail(null)}
+          onReviewLogo={(company) => {
+            setQualityDetail(null);
+            setLogoManagerCompany({ id: company.id, name: company.name });
+          }}
+          onViewCompany={(company) => {
+            setQualityDetail(null);
+            setCompanySearch(company.name);
+            selectTab("companies");
+          }}
         />
       ) : null}
 

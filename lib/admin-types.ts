@@ -462,6 +462,18 @@ export type DashboardStats = {
   };
   categories: { category: EmailCategory; count: number }[];
   discount: { avgSaleDiscount: number | null; saleCountWithDiscount: number };
+  /**
+   * Catalog-cleanliness counters for the founder view — how much of the
+   * dataset still needs attention. `lowConfidenceThreshold` is the shared
+   * 0.5 floor (logo confidence + classification confidence) the SQL applies,
+   * passed through so labels stay in sync with the query.
+   */
+  quality: {
+    lowConfidenceThreshold: number;
+    brandsUnknownMarket: number;
+    logosNeedingReview: number;
+    lowConfidenceEmails: number;
+  };
   cost: {
     totalUsd: number;
     totalCalls: number;
