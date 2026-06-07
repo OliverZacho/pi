@@ -488,6 +488,24 @@ function InfoPanel({
         ))}
       </div>
 
+      {detail && detail.sentToLists.length > 1 ? (
+        <div className={styles.sentToBlock}>
+          <span className={styles.sentToLabel}>
+            Sent to {detail.sentToLists.length} mailing lists
+          </span>
+          <div className={styles.sentToPills}>
+            {detail.sentToLists.map((list) => (
+              <Pill
+                key={list.inboxId ?? list.label}
+                tone={list.isCurrent ? "good" : "neutral"}
+              >
+                {list.label}
+              </Pill>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className={styles.statGrid}>
         <Stat
           label="HTML size"

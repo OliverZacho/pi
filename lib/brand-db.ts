@@ -408,7 +408,14 @@ export async function getBrandPageData(
     )
     .eq("company_id", companyId);
   if (activeSegmentId) {
+    // A specific list/segment tab: scope to that inbox. Each list keeps
+    // its own copy of an identical multi-list send, so no dedup here.
     emailsQuery = emailsQuery.eq("inbox_id", activeSegmentId);
+  } else {
+    // The "All" view collapses identical campaign copies (a welcome blast
+    // sent once per list) to the canonical row, so the recent-campaign
+    // thumbnails and the cadence/volume stats count the send once.
+    emailsQuery = emailsQuery.is("duplicate_of", null);
   }
   const { data: emailRowsRaw, error: emailError } = await emailsQuery
     .order("received_at", { ascending: false })

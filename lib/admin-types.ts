@@ -420,6 +420,15 @@ export type CapturedEmailDetail = CapturedEmail & {
    * disagrees with it (a multi-market send, or a misdetection to review).
    */
   companyPrimaryMarketCountry: string | null;
+  /**
+   * The mailing lists this exact email was sent to. Populated only when the
+   * brand fired the same content to several tagged inbox segments at once
+   * (e.g. a welcome blast to Women / Men / Children / Homeware) — i.e. when
+   * the de-dup grouping found more than one copy. Each entry is one segment;
+   * `isCurrent` flags the copy this detail view was opened from. Empty for an
+   * ordinary single send. See `captured_emails.duplicate_of`.
+   */
+  sentToLists: { inboxId: string | null; label: string; isCurrent: boolean }[];
 };
 
 export type AdminOverview = {

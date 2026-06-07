@@ -107,6 +107,7 @@ export type Database = {
           classification_confidence: number
           classification_source: string
           company_id: string | null
+          content_hash: string | null
           country_confidence: number | null
           country_signals: Json | null
           created_at: string
@@ -114,9 +115,11 @@ export type Database = {
           detected_country: string | null
           discount_amount: number | null
           discount_percent: number | null
+          duplicate_of: string | null
           esp_confidence: number | null
           esp_provider: string | null
           esp_signals: Json | null
+          group_segment_categories: string[] | null
           has_dark_mode: boolean
           has_gif: boolean
           html_content: string
@@ -152,6 +155,7 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          content_hash?: string | null
           country_confidence?: number | null
           country_signals?: Json | null
           created_at?: string
@@ -159,9 +163,11 @@ export type Database = {
           detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
+          duplicate_of?: string | null
           esp_confidence?: number | null
           esp_provider?: string | null
           esp_signals?: Json | null
+          group_segment_categories?: string[] | null
           has_dark_mode?: boolean
           has_gif?: boolean
           html_content: string
@@ -197,6 +203,7 @@ export type Database = {
           classification_confidence?: number
           classification_source?: string
           company_id?: string | null
+          content_hash?: string | null
           country_confidence?: number | null
           country_signals?: Json | null
           created_at?: string
@@ -204,9 +211,11 @@ export type Database = {
           detected_country?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
+          duplicate_of?: string | null
           esp_confidence?: number | null
           esp_provider?: string | null
           esp_signals?: Json | null
+          group_segment_categories?: string[] | null
           has_dark_mode?: boolean
           has_gif?: boolean
           html_content?: string
@@ -242,6 +251,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captured_emails_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "captured_emails"
             referencedColumns: ["id"]
           },
           {
@@ -651,6 +667,14 @@ export type Database = {
       }
     }
     Functions: {
+      captured_email_content_hash: {
+        Args: { p_plain_text: string; p_subject: string }
+        Returns: string
+      }
+      captured_email_group_segments: {
+        Args: { p_canonical: string }
+        Returns: string[]
+      }
       claim_webhook_events: {
         Args: { batch_limit?: number }
         Returns: {
