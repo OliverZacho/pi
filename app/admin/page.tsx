@@ -19,6 +19,7 @@ import {
 import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import GrowthChart from "@/components/admin/GrowthChart";
+import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import Logo from "@/components/Logo";
 
@@ -1313,6 +1314,18 @@ export default function AdminHomePage() {
           <p className="muted">Loading growth…</p>
         ) : (
           <GrowthChart data={growth} />
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Brands by category</h2>
+          <span className="muted">how many subscribed brands fall in each category</span>
+        </div>
+        {loading && overview.companies.length === 0 ? (
+          <p className="muted">Loading categories…</p>
+        ) : (
+          <CategoryBrandChart companies={overview.companies} />
         )}
       </section>
 

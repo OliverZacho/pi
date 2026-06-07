@@ -633,6 +633,90 @@ code {
   gap: 0.35rem;
 }
 
+/* Brands-by-category bar chart. */
+.cat-chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.cat-chart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem 0.25rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.cat-chart-toggle:hover {
+  border-color: #cbd5e1;
+}
+
+.cat-chart-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.cat-chart-toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cat-chart-toggle.is-on .cat-chart-toggle-track {
+  background: #2563eb;
+}
+
+.cat-chart-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.cat-chart-toggle.is-on .cat-chart-toggle-thumb {
+  transform: translateX(12px);
+}
+
+.cat-chart-legend {
+  flex: 1;
+  min-width: 0;
+}
+
+.cat-chart-legend-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-left: 0.1rem;
+}
+
+.cat-chart-bar {
+  transition: opacity 0.12s ease;
+}
+
+.cat-chart-tooltip-total {
+  margin-top: 0.2rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(248, 250, 252, 0.2);
+}
+
 .inline-form {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
