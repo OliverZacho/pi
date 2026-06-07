@@ -957,6 +957,29 @@ export async function createCompanySubscriptionInDb(
   const normalizedDomain = input.domain.trim().toLowerCase();
   const marketsValue = normalizeMarkets(input.markets);
 
+  // Guard against accidentally subscribing to the same brand twice: reject
+  // when an active (non-deleted) company already uses this name
+  // (case-insensitive) or domain. We compare in JS so brand names containing
+  // PostgREST/ilike metacharacters (`%`, `_`, commas) can't slip through.
+  const { data: activeCompanies, error: dupCheckError } = await supabase
+    .from("companies")
+    .select("name, domain")
+    .is("deleted_at", null);
+
+  if (dupCheckError) {
+    throw dupCheckError;
+  }
+
+  const nameKey = normalizedName.toLowerCase();
+  for (const existing of activeCompanies ?? []) {
+    if ((existing.domain ?? "").trim().toLowerCase() === normalizedDomain) {
+      throw new DuplicateCompanyError("domain", existing.name);
+    }
+    if ((existing.name ?? "").trim().toLowerCase() === nameKey) {
+      throw new DuplicateCompanyError("name", existing.name);
+    }
+  }
+
   const { data: existingInboxes, error: inboxesError } = await supabase
     .from("company_inboxes")
     .select("email_address");
@@ -1289,6 +1312,27 @@ export class CompanyNotFoundError extends Error {
   constructor(companyId: string) {
     super(`Company ${companyId} not found or has been deleted`);
     this.name = "CompanyNotFoundError";
+  }
+}
+
+/**
+ * Thrown by {@link createCompanySubscriptionInDb} when an active company
+ * already uses the same name (case-insensitive) or domain. Carries which
+ * field collided so the API layer can return a helpful message and avoid
+ * accidentally subscribing to the same brand twice.
+ */
+export class DuplicateCompanyError extends Error {
+  readonly field: "name" | "domain";
+  readonly conflictingName: string;
+  constructor(field: "name" | "domain", conflictingName: string) {
+    super(
+      field === "domain"
+        ? `A company already uses the domain (matches "${conflictingName}")`
+        : `A company already uses the name "${conflictingName}"`
+    );
+    this.name = "DuplicateCompanyError";
+    this.field = field;
+    this.conflictingName = conflictingName;
   }
 }
 

@@ -2063,6 +2063,16 @@ th.sortable-header.is-active .sortable-header-indicator {
   border-color: #cbd5e1;
 }
 
+.row-action--danger {
+  color: #b91c1c;
+}
+
+.row-action--danger:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
 .row-edit-input {
   width: 100%;
   min-width: 6rem;

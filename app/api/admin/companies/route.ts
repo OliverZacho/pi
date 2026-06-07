@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createCompanySubscriptionInDb } from "@/lib/admin-db";
+import { createCompanySubscriptionInDb, DuplicateCompanyError } from "@/lib/admin-db";
 import { requireAdminSession } from "@/lib/require-admin-api";
 
 type CreateCompanyBody = {
@@ -62,6 +62,9 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ company }, { status: 201 });
   } catch (error) {
+    if (error instanceof DuplicateCompanyError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("Failed to create company", error);
     return NextResponse.json({ error: "Failed to create company subscription" }, { status: 500 });
   }
