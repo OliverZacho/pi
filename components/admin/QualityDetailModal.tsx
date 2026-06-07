@@ -8,7 +8,11 @@ import {
   type EmailCategory
 } from "@/lib/admin-types";
 
-export type QualityKind = "missing_market" | "logos" | "low_confidence";
+export type QualityKind =
+  | "missing_market"
+  | "logos"
+  | "low_confidence"
+  | "unattributed";
 
 export type LowConfidenceEmail = {
   id: string;
@@ -20,10 +24,20 @@ export type LowConfidenceEmail = {
   receivedAt: string;
 };
 
+export type UnattributedEmail = {
+  id: string;
+  subject: string;
+  sender: string;
+  recipient: string;
+  category: string | null;
+  receivedAt: string;
+};
+
 const TITLES: Record<QualityKind, string> = {
   missing_market: "Brands missing a market",
   logos: "Logos needing review",
-  low_confidence: "Low-confidence emails"
+  low_confidence: "Low-confidence emails",
+  unattributed: "Unattributed emails"
 };
 
 const SUBTITLES: Record<QualityKind, string> = {
@@ -32,7 +46,9 @@ const SUBTITLES: Record<QualityKind, string> = {
   logos:
     "An auto-detected logo that's missing or below the confidence floor, or a manual pick the brand stopped sending. Review to lock in the right image.",
   low_confidence:
-    "The classifier wasn't sure about these. Open one to confirm or correct its category."
+    "The classifier wasn't sure about these. Open one to confirm or correct its category.",
+  unattributed:
+    "These arrived at an address that matched no inbox — usually a deleted catch-all or an address we never registered. Open one to inspect the recipient and decide whether to add an inbox for it."
 };
 
 function categoryLabel(slug: string | null): string | null {
@@ -80,6 +96,8 @@ export default function QualityDetailModal({
   companies,
   emails,
   emailsLoading,
+  unattributedEmails,
+  unattributedLoading,
   onClose,
   onReviewLogo,
   onViewCompany
@@ -88,6 +106,8 @@ export default function QualityDetailModal({
   companies: CompanySubscription[];
   emails: LowConfidenceEmail[];
   emailsLoading: boolean;
+  unattributedEmails: UnattributedEmail[];
+  unattributedLoading: boolean;
   onClose: () => void;
   onReviewLogo: (company: CompanySubscription) => void;
   onViewCompany: (company: CompanySubscription) => void;
@@ -107,7 +127,12 @@ export default function QualityDetailModal({
         ? companies.filter((c) => c.needsLogoReview)
         : [];
 
-  const count = kind === "low_confidence" ? emails.length : brandRows.length;
+  const count =
+    kind === "low_confidence"
+      ? emails.length
+      : kind === "unattributed"
+        ? unattributedEmails.length
+        : brandRows.length;
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -144,7 +169,40 @@ export default function QualityDetailModal({
         <p className="modal-subtitle">{SUBTITLES[kind]}</p>
 
         <div className="quality-modal-body">
-          {kind === "low_confidence" ? (
+          {kind === "unattributed" ? (
+            unattributedLoading ? (
+              <p className="muted">Loading emails…</p>
+            ) : unattributedEmails.length === 0 ? (
+              <p className="muted">
+                Nothing here — every captured email matched an inbox.
+              </p>
+            ) : (
+              <ul className="quality-list">
+                {unattributedEmails.map((email) => (
+                  <li key={email.id} className="quality-row">
+                    <Link
+                      href={`/admin/emails/${email.id}`}
+                      className="quality-row-main"
+                      onClick={onClose}
+                    >
+                      <span className="quality-row-title">{email.subject}</span>
+                      <span className="quality-row-sub">
+                        To {email.recipient} · from {email.sender}
+                        {categoryLabel(email.category)
+                          ? ` · ${categoryLabel(email.category)}`
+                          : ""}
+                      </span>
+                    </Link>
+                    <span className="quality-row-meta">
+                      <span className="muted quality-row-date">
+                        {formatDate(email.receivedAt)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : kind === "low_confidence" ? (
             emailsLoading ? (
               <p className="muted">Loading emails…</p>
             ) : emails.length === 0 ? (

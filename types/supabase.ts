@@ -139,6 +139,8 @@ export type Database = {
           recipient_email: string
           remote_image_urls: string[]
           resend_message_id: string | null
+          segment_category: string | null
+          segment_country: string | null
           sender_email: string
           sent_at: string | null
           subcategory: string | null
@@ -182,6 +184,8 @@ export type Database = {
           recipient_email: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          segment_category?: string | null
+          segment_country?: string | null
           sender_email: string
           sent_at?: string | null
           subcategory?: string | null
@@ -225,6 +229,8 @@ export type Database = {
           recipient_email?: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          segment_category?: string | null
+          segment_country?: string | null
           sender_email?: string
           sent_at?: string | null
           subcategory?: string | null
@@ -395,6 +401,9 @@ export type Database = {
           email_address: string
           id: string
           is_primary: boolean
+          segment_category: string | null
+          segment_country: string | null
+          segment_label: string | null
         }
         Insert: {
           company_id: string
@@ -402,6 +411,9 @@ export type Database = {
           email_address: string
           id?: string
           is_primary?: boolean
+          segment_category?: string | null
+          segment_country?: string | null
+          segment_label?: string | null
         }
         Update: {
           company_id?: string
@@ -409,6 +421,9 @@ export type Database = {
           email_address?: string
           id?: string
           is_primary?: boolean
+          segment_category?: string | null
+          segment_country?: string | null
+          segment_label?: string | null
         }
         Relationships: [
           {

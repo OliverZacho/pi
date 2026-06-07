@@ -38,12 +38,24 @@ create table if not exists public.company_inboxes (
   company_id uuid not null references public.companies(id) on delete cascade,
   email_address text not null unique,
   is_primary boolean not null default true,
-  created_at timestamptz not null default now()
+  -- Subscription "segment" metadata: which product line / country this list
+  -- represents. All nullable — an un-segmented inbox behaves as before.
+  -- See migration 20260608000000_inbox_segments.sql for the full rationale.
+  segment_label text,
+  segment_category text,
+  segment_country text,
+  created_at timestamptz not null default now(),
+  constraint company_inboxes_segment_country_format
+    check (segment_country is null or segment_country ~ '^[A-Z]{2}$')
 );
 
 create unique index if not exists company_inboxes_company_primary_unique
   on public.company_inboxes (company_id)
   where is_primary = true;
+
+create index if not exists company_inboxes_segment_category_idx
+  on public.company_inboxes (segment_category)
+  where segment_category is not null;
 
 create table if not exists public.captured_emails (
   id uuid primary key default gen_random_uuid(),
@@ -87,6 +99,12 @@ create table if not exists public.captured_emails (
   esp_confidence numeric(4, 3),
   esp_signals jsonb,
   preheader text,
+  -- Denormalised copy of the matched inbox's segment (see
+  -- company_inboxes.segment_*). Powers Explore filtering and brand-page
+  -- segment scoping without a join; stamped at ingest, kept in sync by the
+  -- company_inboxes_sync_email_segment trigger.
+  segment_category text,
+  segment_country text,
   has_gif boolean not null default false,
   has_dark_mode boolean not null default false,
   discount_percent numeric(5, 2),
@@ -104,7 +122,9 @@ create table if not exists public.captured_emails (
   constraint captured_emails_discount_percent_range
     check (discount_percent is null or (discount_percent >= 0 and discount_percent <= 100)),
   constraint captured_emails_currency_format
-    check (currency is null or currency ~ '^[A-Za-z]{3}$')
+    check (currency is null or currency ~ '^[A-Za-z]{3}$'),
+  constraint captured_emails_segment_country_format
+    check (segment_country is null or segment_country ~ '^[A-Z]{2}$')
 );
 
 create unique index if not exists captured_emails_resend_message_unique
@@ -136,6 +156,12 @@ create index if not exists captured_emails_list_unsubscribe_missing_idx
   on public.captured_emails (received_at desc)
   where list_headers is not null
     and (list_headers ->> 'has_list_unsubscribe')::boolean is not true;
+create index if not exists captured_emails_segment_category_idx
+  on public.captured_emails (segment_category)
+  where segment_category is not null;
+create index if not exists captured_emails_segment_country_idx
+  on public.captured_emails (segment_country)
+  where segment_country is not null;
 
 create table if not exists public.email_products (
   id uuid primary key default gen_random_uuid(),
@@ -189,6 +215,32 @@ create trigger companies_set_updated_at
 before update on public.companies
 for each row
 execute function public.set_updated_at();
+
+-- Propagate inbox segment re-tags onto the denormalised copy on
+-- captured_emails. New emails are stamped at ingest; this only fires when
+-- an operator changes an existing inbox's segment.
+create or replace function public.sync_email_segment_from_inbox()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.segment_category is distinct from old.segment_category
+     or new.segment_country is distinct from old.segment_country then
+    update public.captured_emails
+       set segment_category = new.segment_category,
+           segment_country = new.segment_country
+     where inbox_id = new.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists company_inboxes_sync_email_segment on public.company_inboxes;
+create trigger company_inboxes_sync_email_segment
+  after update on public.company_inboxes
+  for each row
+  execute function public.sync_email_segment_from_inbox();
 
 alter table public.companies enable row level security;
 alter table public.company_inboxes enable row level security;

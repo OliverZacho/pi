@@ -200,6 +200,27 @@ export async function searchExploreEmails(
   if (params.categories && params.categories.length > 0) {
     emailsQuery = emailsQuery.in("category", params.categories);
   }
+  // Segment refinement for the product-line (markets) filter. The
+  // brand-level `markets` overlap above lets every Arket email through when
+  // "jewellery" is selected — including its furniture sends. When an email
+  // carries a segment (it arrived on a tagged list), we additionally
+  // require that segment to be one of the selected lines, so a furniture
+  // email no longer leaks under a jewellery filter. Un-segmented emails
+  // (segment_category IS NULL) keep the old brand-level behaviour.
+  if (params.markets && params.markets.length > 0) {
+    const safe = params.markets
+      .map((market) => market.trim().toLowerCase())
+      .filter(Boolean)
+      // PostgREST `in.(...)` values live inside an `or()` string; quote each
+      // and escape embedded quotes/backslashes so a category with a comma or
+      // space can't break the clause.
+      .map((market) => `"${market.replace(/["\\]/g, "\\$&")}"`);
+    if (safe.length > 0) {
+      emailsQuery = emailsQuery.or(
+        `segment_category.is.null,segment_category.in.(${safe.join(",")})`
+      );
+    }
+  }
   if (params.hasGif) {
     emailsQuery = emailsQuery.eq("has_gif", true);
   }
@@ -338,7 +359,7 @@ export async function getExploreFacets(
     // `logo_storage_path` deliberately omitted: facets don't render
     // logos, so we save the DB round-trip column and the downstream
     // signed-URL fan-out.
-    .select("category, company_id, companies!inner(id, name, markets)")
+    .select("category, segment_category, company_id, companies!inner(id, name, markets)")
     .limit(10000);
 
   if (emailError) throw emailError;
@@ -349,6 +370,10 @@ export async function getExploreFacets(
 
   for (const row of emailRows ?? []) {
     if (row.category) categorySet.add(row.category);
+    // Segment categories share the markets vocabulary and feed the same
+    // product-line filter, so surface them in the markets facet even if no
+    // brand happens to carry the tag at the company level.
+    if (row.segment_category) marketSet.add(row.segment_category);
     const company = pickCompany(row.companies);
     if (company) {
       const companyMarkets = normalizeCompanyMarkets(company.markets);

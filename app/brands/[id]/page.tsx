@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 type RouteParams = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ segment?: string | string[] }>;
 };
 
 /**
@@ -44,8 +45,10 @@ export async function generateMetadata({ params }: RouteParams) {
   };
 }
 
-export default async function BrandPage({ params }: RouteParams) {
+export default async function BrandPage({ params, searchParams }: RouteParams) {
   const { id } = await params;
+  const { segment } = await searchParams;
+  const segmentInboxId = Array.isArray(segment) ? segment[0] : segment ?? null;
   const supabase = await createClient();
 
   const {
@@ -67,7 +70,7 @@ export default async function BrandPage({ params }: RouteParams) {
     redirect("/access-denied");
   }
 
-  const data = await getBrandPageData(supabase, id);
+  const data = await getBrandPageData(supabase, id, { segmentInboxId });
   if (!data) {
     notFound();
   }
