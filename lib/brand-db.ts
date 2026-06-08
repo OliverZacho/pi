@@ -195,6 +195,28 @@ export type BrandPageData = {
     }[];
   };
   recentEmails: ExploreEmailCard[];
+  /**
+   * Lightweight per-email rows for the whole stats sample, shipped so the
+   * "Event run-up" card can keyword-match seasonal campaigns (Father's
+   * Day, Black Friday, …) and re-compute lead time client-side the instant
+   * the user flips between events. Body text isn't needed — seasonal sends
+   * name the occasion in the subject or preheader — but we carry the `id`
+   * and a few card fields so a marker click can open the same email modal
+   * Explore uses (which fetches the full render itself by id). Brand-level
+   * fields are passed separately, not repeated per row, to keep this lean
+   * even at the row cap.
+   */
+  seasonalSample: {
+    id: string;
+    subject: string;
+    preheader: string | null;
+    receivedAt: string;
+    category: string;
+    hasGif: boolean;
+    hasDarkMode: boolean;
+    discountPercent: number | null;
+    promoCode: string | null;
+  }[];
 };
 
 const DAY_LABELS = [
@@ -458,6 +480,20 @@ export async function getBrandPageData(
   const subjects = computeSubjects(emailRows);
   const ctas = computeCtas(emailRows);
   const calendar = computeCalendar(emailRows);
+  const seasonalSample = emailRows.map((row) => ({
+    id: row.id,
+    subject: row.subject,
+    preheader: row.preheader ?? null,
+    receivedAt: row.received_at,
+    category: row.category,
+    hasGif: row.has_gif ?? false,
+    hasDarkMode: row.has_dark_mode ?? false,
+    discountPercent:
+      row.discount_percent === null || row.discount_percent === undefined
+        ? null
+        : Number(row.discount_percent),
+    promoCode: row.promo_code ?? null
+  }));
   const accent =
     design.palette.length > 0
       ? pickBrandAccent(design.palette)
@@ -514,7 +550,8 @@ export async function getBrandPageData(
     subjects,
     ctas,
     calendar,
-    recentEmails
+    recentEmails,
+    seasonalSample
   };
 }
 
