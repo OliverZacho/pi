@@ -13,6 +13,7 @@ import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandCtaCloud from "./BrandCtaCloud";
 import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
+import BrandSeasonalRunup from "./BrandSeasonalRunup";
 import styles from "./brand.module.css";
 
 /**
@@ -205,6 +206,19 @@ export default function BrandDashboard({
             <BrandClockHeatmap
               brandName={brand.name}
               hourly={cadence.hourly}
+            />
+          </section>
+
+          <section className={styles.recentSection}>
+            <BrandSeasonalRunup
+              brand={{
+                id: brand.id,
+                name: brand.name,
+                domain: brand.domain,
+                markets: brand.markets,
+                logoUrl: brand.logoUrl
+              }}
+              sample={data.seasonalSample}
             />
           </section>
 

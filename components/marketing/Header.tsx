@@ -82,10 +82,10 @@ export default function Header() {
       </div>
 
       <div className={styles.headerRight}>
-        <Link href="#" className={styles.linkBtn}>
+        <Link href="/login" className={styles.linkBtn}>
           Login
         </Link>
-        <Link href="#" className={styles.primaryBtn}>
+        <Link href="/login" className={styles.primaryBtn}>
           Sign up
         </Link>
       </div>

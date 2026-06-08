@@ -1,0 +1,129 @@
+/* 3D fanned stack of real newsletters. Card size + placement are set inline
+   from the `geometry` prop, so this module only carries the shared look,
+   perspective, mask, and entrance animation. */
+
+.fan {
+  position: absolute;
+  inset: 0;
+  perspective: 2200px;
+  perspective-origin: 45% 45%;
+  /* Fade the cascade into the top/bottom edges (endless feel) AND the right
+     edge, so the small back cards dissolve there instead of hard-clipping
+     against the container. The two gradients are intersected so a pixel only
+     shows where both are opaque. */
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0, #000 9%, #000 90%, transparent 100%),
+    linear-gradient(to right, #000 85%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, transparent 0, #000 9%, #000 90%, transparent 100%),
+    linear-gradient(to right, #000 85%, transparent 100%);
+  mask-composite: intersect;
+  /* Without this the gradient tiles across any overflow, producing odd
+     repeating fade bands. */
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* Positioned/rotated slot — placement + size set inline per card. */
+.fanSlot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-style: preserve-3d;
+}
+
+/* Entrance wrapper — carries the deal-in animation so the card's own transform
+   stays free for the hover pull-out. */
+.fanEnter {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  /* Each card fades + settles into place. Decelerating easing + a front-loaded
+     per-card delay (inline) make the stack deal in fast, then slow, then
+     settle. Paused by default; `.fanReady` runs it (static disables it). */
+  opacity: 0;
+  animation: fanIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-play-state: paused;
+}
+
+.fanReady .fanEnter {
+  animation-play-state: running;
+}
+
+/* Static variant (login page): no entrance, cards visible immediately. */
+.fanStatic .fanEnter {
+  opacity: 1;
+  animation: none;
+}
+
+@keyframes fanIn {
+  from {
+    opacity: 0;
+    transform: translate(40px, -30px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* Respect reduced-motion: render the final stack with no entrance. */
+@media (prefers-reduced-motion: reduce) {
+  .fanEnter {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+.fanCard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.45);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s ease;
+}
+
+/* Hover pull-out (homepage only). The rotateZ/rotateY cancel the slot's
+   constant rotation so the card straightens flat-on; translateZ lifts it
+   toward the camera; `.fanSlot:hover` raises it above its neighbours. */
+.fanInteractive .fanSlot:hover {
+  z-index: 100;
+}
+
+.fanInteractive .fanCard:hover {
+  transform: rotateZ(-16deg) rotateY(16deg) translateZ(90px) scale(1.04);
+  box-shadow: 0 50px 100px -25px rgba(15, 23, 42, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fanInteractive .fanCard {
+    transition: none;
+  }
+}
+
+/* Pre-baked WebP thumbnail of the email's top slice, filling the card. */
+.fanImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+/* Soft fade at the bottom so the cropped emails dissolve instead of cutting
+   off hard. */
+.fanCard::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 5rem;
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}

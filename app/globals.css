@@ -641,6 +641,36 @@ code {
   gap: 0.5rem 1rem;
 }
 
+.cat-chart-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.cat-chart-select select {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.cat-chart-select select:hover {
+  border-color: #cbd5e1;
+}
+
+.cat-chart-select select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
 .cat-chart-toggle {
   display: inline-flex;
   align-items: center;
@@ -1646,6 +1676,71 @@ th.sortable-header.is-active .sortable-header-indicator {
   min-width: 0;
 }
 
+/* Anchors the click-to-open detail popover under the company name. */
+.company-name-stack {
+  position: relative;
+}
+
+.company-name-button {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.company-name-button:hover {
+  text-decoration: underline;
+}
+
+.company-name-button:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+/* Little pop-up holding the tucked-away website + last-email detail. */
+.company-info-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 20;
+  min-width: 13rem;
+  padding: 0.6rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.company-info-popover dl {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.company-info-popover dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.company-info-popover dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.company-info-popover a {
+  color: #2563eb;
+}
+
 .company-logo {
   flex: 0 0 auto;
   width: 28px;
@@ -1667,6 +1762,41 @@ th.sortable-header.is-active .sortable-header-indicator {
   color: #475569;
   background: #e2e8f0;
   text-transform: uppercase;
+}
+
+/* Clickable logo in the company table: opens the logo manager. */
+.company-logo-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.company-logo-button:hover:not(:disabled) .company-logo {
+  border-color: #94a3b8;
+}
+
+.company-logo-button:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.company-logo-button:disabled {
+  cursor: default;
+}
+
+/* Amber ring flags a logo whose pick needs a human review. */
+.company-logo-button--review .company-logo {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px #fef3c7;
+}
+
+.company-logo-button--review:hover:not(:disabled) .company-logo {
+  border-color: #d97706;
 }
 
 .copy-button {

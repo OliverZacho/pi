@@ -465,6 +465,33 @@ export type GrowthPoint = {
   brands: number;
 };
 
+/**
+ * Average send cadence for one category (a `companies.markets` tag, or the
+ * `__uncategorized__` sentinel for untagged brands). Aggregated only over
+ * brands with 5+ captured emails so the welcome-series burst of freshly
+ * subscribed brands doesn't skew the cadence. `emailsPerWeek` and
+ * `daysBetween` are both averages of the per-brand rate. Served by
+ * `/api/admin/category-frequency`.
+ */
+export type CategoryFrequencyPoint = {
+  category: string;
+  brands: number;
+  emailsPerWeek: number;
+  daysBetween: number;
+};
+
+/**
+ * Average send cadence for one (category, country) pair, where country is the
+ * brand's resolved `primary_market_country` (ISO alpha-2) or the
+ * `__unknown__` sentinel. Same 5+ captured-email filter and per-brand rate as
+ * {@link CategoryFrequencyPoint}; lets the dashboard compare cadence between
+ * countries inside a category. Served by
+ * `/api/admin/category-country-frequency`.
+ */
+export type CategoryCountryFrequencyPoint = CategoryFrequencyPoint & {
+  country: string;
+};
+
 /** The four Anthropic call sites we attribute spend to. */
 export type UsageFeature = "classify" | "suggest" | "hq_lookup" | "vision";
 

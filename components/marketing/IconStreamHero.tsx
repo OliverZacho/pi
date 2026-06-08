@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   LEFT_COLUMN,
   RIGHT_COLUMN,
@@ -359,9 +360,9 @@ export default function IconStreamHero() {
           Intelligence and inspiration across thousands of newsletters
         </h1>
         <div className={styles.ctaRow}>
-          <button type="button" className={styles.primaryBtn}>
+          <Link href="/login" className={styles.primaryBtn}>
             Sign up
-          </button>
+          </Link>
           <button type="button" className={styles.secondaryBtn}>
             See plans
             <span className={styles.secondaryArrow} aria-hidden>
