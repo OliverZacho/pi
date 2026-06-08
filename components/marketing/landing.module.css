@@ -99,11 +99,21 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  width: min(440px, 100%);
+  width: 340px;
+  max-width: 100%;
   background: var(--surface);
+  border: 0;
   border-radius: 999px;
-  padding: 0.55rem 0.9rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.9rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 30px -16px rgba(0, 0, 0, 0.18);
+  cursor: text;
+  text-align: left;
+  font: inherit;
+  transition: box-shadow 0.15s ease;
+}
+
+.search:hover {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 14px 34px -16px rgba(0, 0, 0, 0.24);
 }
 
 .searchIcon {
@@ -113,50 +123,258 @@
   flex-shrink: 0;
 }
 
-.searchInput {
+.searchTrigger {
   flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchCaret {
+  animation: caretBlink 1.05s step-end infinite;
+}
+
+@keyframes caretBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.searchPill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  border: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.searchPill:hover {
+  background: #1a1a1d;
+}
+
+/* ---------- Search overlay (glass command palette) ---------- */
+
+.overlayRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 1.25rem 2rem;
+  background: transparent;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: overlayFade 140ms ease;
+}
+
+.overlayPanel {
+  width: min(720px, 100%);
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.94),
+    rgba(255, 255, 255, 0.88)
+  );
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 30px 80px -28px rgba(15, 23, 42, 0.45);
+  color: #11151c;
+  animation: overlayPop 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.overlaySearch {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.overlaySearchIcon {
+  width: 18px;
+  height: 18px;
+  color: rgba(15, 23, 42, 0.5);
+  flex-shrink: 0;
+}
+
+.overlayInput {
+  flex: 1;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
   font: inherit;
-  font-size: 0.9rem;
-  color: var(--ink);
-  min-width: 0;
+  font-size: 1.05rem;
+  color: #11151c;
 }
 
-.searchInput::placeholder {
-  color: var(--ink-soft);
+.overlayInput::placeholder {
+  color: rgba(15, 23, 42, 0.45);
 }
 
-.searchActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--ink-soft);
+.overlayBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typing — single scrolling column of stacked groups. */
+.overlayStack {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem 0.8rem;
+}
+
+/* Browse — master/detail: titles on the left, options on the right. */
+.overlayBrowse {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.overlayNav {
+  width: 210px;
   flex-shrink: 0;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-.searchActions button {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
+.overlayNavItem {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  background: transparent;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
   border: 0;
-  border-radius: 999px;
-  color: inherit;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.68);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-align: left;
   cursor: pointer;
-  padding: 0;
+  transition: background 100ms ease, color 100ms ease;
 }
 
-.searchActions button:hover {
-  background: rgba(11, 11, 12, 0.06);
+.overlayNavItem:hover {
+  background: rgba(15, 23, 42, 0.05);
+  color: #11151c;
 }
 
-.searchActions svg {
-  width: 16px;
-  height: 16px;
+.overlayNavItemActive,
+.overlayNavItemActive:hover {
+  background: rgba(15, 23, 42, 0.09);
+  color: #11151c;
+  font-weight: 600;
+}
+
+.overlayPane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.overlayEmpty {
+  padding: 1.5rem 0.8rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.overlayGroup {
+  padding: 0.4rem 0;
+}
+
+.overlayGroupTitle {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.overlayItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.overlayItem:hover,
+.overlayItem:focus-visible {
+  background: rgba(15, 23, 42, 0.07);
+  outline: none;
+}
+
+.overlayItemIcon {
+  flex-shrink: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.overlayItemLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes overlayFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayPop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .headerRight {
