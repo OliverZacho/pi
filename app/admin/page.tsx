@@ -342,6 +342,29 @@ function formatDateTime(value: string | null): string {
   return formatDateTimeZoned(value);
 }
 
+/**
+ * Coarse "time since" for the last-email popover: minutes, then hours, then
+ * days. Deliberately tucked away behind the company-name popover so the main
+ * table stays a clean summary.
+ */
+function formatRelativeFromNow(value: string | null): string {
+  if (!value) return "never";
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return "—";
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** Normalize a stored domain (bare or full) into an href we can link to. */
+function domainHref(domain: string): string {
+  return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
+}
+
 function getCompanyInitials(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -405,33 +428,60 @@ function CompanyRegionDetail({ company }: { company: CompanySubscription }) {
 
 function CompanyLogo({
   name,
-  url
+  url,
+  onClick,
+  disabled = false,
+  needsReview = false
 }: {
   name: string;
   url: string | null;
+  /** When set, the logo becomes a button that opens the logo manager. */
+  onClick?: () => void;
+  disabled?: boolean;
+  needsReview?: boolean;
 }) {
-  if (url) {
-    return (
-      <img
-        className="company-logo"
-        src={url}
-        alt=""
-        loading="lazy"
-        width={28}
-        height={28}
-        // Logo.dev's monogram fallback already covers unknown domains, but a
-        // signed URL can still 404 if the asset was rotated. Hide so the
-        // browser doesn't paint a broken-image glyph.
-        onError={(event) => {
-          (event.currentTarget as HTMLImageElement).style.visibility = "hidden";
-        }}
-      />
-    );
-  }
-  return (
+  const inner = url ? (
+    <img
+      className="company-logo"
+      src={url}
+      alt=""
+      loading="lazy"
+      width={28}
+      height={28}
+      // Logo.dev's monogram fallback already covers unknown domains, but a
+      // signed URL can still 404 if the asset was rotated. Hide so the
+      // browser doesn't paint a broken-image glyph.
+      onError={(event) => {
+        (event.currentTarget as HTMLImageElement).style.visibility = "hidden";
+      }}
+    />
+  ) : (
     <span className="company-logo company-logo--monogram" aria-hidden="true">
       {getCompanyInitials(name)}
     </span>
+  );
+
+  if (!onClick) {
+    return inner;
+  }
+
+  return (
+    <button
+      type="button"
+      className={`company-logo-button${
+        needsReview ? " company-logo-button--review" : ""
+      }`}
+      onClick={onClick}
+      disabled={disabled}
+      title={
+        needsReview
+          ? "Logo needs review — pick the correct image"
+          : "Edit logo — pick or invert an image"
+      }
+      aria-label={`Edit logo for ${name}`}
+    >
+      {inner}
+    </button>
   );
 }
 
@@ -520,6 +570,11 @@ export default function AdminHomePage() {
   const [expandedInboxCompanyId, setExpandedInboxCompanyId] = useState<
     string | null
   >(null);
+  // Which company's name popover is open (website + last-email detail). Only
+  // one at a time; clicking the name toggles it, outside-click/Escape closes.
+  const [infoPopoverCompanyId, setInfoPopoverCompanyId] = useState<
+    string | null
+  >(null);
   // Per-inbox segment editor: which inbox row is open, its draft values, and
   // the save/error state. Only one inbox is edited at a time.
   const [editingInboxId, setEditingInboxId] = useState<string | null>(null);
@@ -577,6 +632,28 @@ export default function AdminHomePage() {
       // localStorage can throw in private-mode browsers; default to expanded.
     }
   }, []);
+
+  // Close the company-name detail popover on Escape or any outside click.
+  useEffect(() => {
+    if (!infoPopoverCompanyId) {
+      return;
+    }
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setInfoPopoverCompanyId(null);
+    };
+    const onPointer = (e: globalThis.MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest(".company-name-stack")) {
+        setInfoPopoverCompanyId(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [infoPopoverCompanyId]);
 
   const toggleCompaniesCollapsed = useCallback(() => {
     setCompaniesCollapsed((current) => {
@@ -2369,13 +2446,7 @@ export default function AdminHomePage() {
                   onSort={toggleCompanySort}
                 />
                 <SortableHeader
-                  label="Domain"
-                  sortKey="domain"
-                  sort={companySort}
-                  onSort={toggleCompanySort}
-                />
-                <SortableHeader
-                  label="Subscription Email"
+                  label="Inboxes"
                   sortKey="subscriptionEmail"
                   sort={companySort}
                   onSort={toggleCompanySort}
@@ -2393,12 +2464,6 @@ export default function AdminHomePage() {
                   onSort={toggleCompanySort}
                   numeric
                 />
-                <SortableHeader
-                  label="Last Email"
-                  sortKey="lastEmailAt"
-                  sort={companySort}
-                  onSort={toggleCompanySort}
-                />
                 <th scope="col" className="row-actions-header">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -2408,6 +2473,7 @@ export default function AdminHomePage() {
               {filteredCompanies.map((company) => {
                 const isEditing = editingCompanyId === company.id;
                 const isInboxExpanded = expandedInboxCompanyId === company.id;
+                const isInfoOpen = infoPopoverCompanyId === company.id;
                 const inboxList =
                   company.inboxes.length > 0
                     ? company.inboxes
@@ -2446,6 +2512,19 @@ export default function AdminHomePage() {
                               )
                             }
                             aria-label="Company name"
+                            disabled={savingEdit}
+                          />
+                          <input
+                            className="row-edit-input"
+                            value={editingDraft.domain}
+                            onChange={(e) =>
+                              setEditingDraft((draft) =>
+                                draft ? { ...draft, domain: e.target.value } : draft
+                              )
+                            }
+                            placeholder="company.com"
+                            aria-label="Domain"
+                            autoComplete="off"
                             disabled={savingEdit}
                           />
                           <select
@@ -2491,10 +2570,33 @@ export default function AdminHomePage() {
                       </span>
                     ) : (
                       <span className="company-cell">
-                        <CompanyLogo name={company.name} url={company.logoUrl} />
-                        <span>
+                        <CompanyLogo
+                          name={company.name}
+                          url={company.logoUrl}
+                          needsReview={company.needsLogoReview}
+                          disabled={editingCompanyId !== null}
+                          onClick={() =>
+                            setLogoManagerCompany({
+                              id: company.id,
+                              name: company.name
+                            })
+                          }
+                        />
+                        <span className="company-name-stack">
                           <span>
-                            {company.name}
+                            <button
+                              type="button"
+                              className="company-name-button"
+                              onClick={() =>
+                                setInfoPopoverCompanyId(
+                                  isInfoOpen ? null : company.id
+                                )
+                              }
+                              aria-expanded={isInfoOpen}
+                              title="Show website & last email"
+                            >
+                              {company.name}
+                            </button>
                             {company.isCurated ? (
                               <span
                                 className="curated-badge"
@@ -2505,6 +2607,46 @@ export default function AdminHomePage() {
                             ) : null}
                           </span>
                           <CompanyRegionDetail company={company} />
+                          {isInfoOpen ? (
+                            <div className="company-info-popover" role="dialog">
+                              <dl>
+                                <div>
+                                  <dt>Website</dt>
+                                  <dd>
+                                    {company.domain ? (
+                                      <a
+                                        href={domainHref(company.domain)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        {company.domain}
+                                      </a>
+                                    ) : (
+                                      <span className="dim">—</span>
+                                    )}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Last email</dt>
+                                  <dd>
+                                    {company.lastEmailAt ? (
+                                      <span
+                                        title={formatDateTime(
+                                          company.lastEmailAt
+                                        )}
+                                      >
+                                        {formatRelativeFromNow(
+                                          company.lastEmailAt
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="dim">never</span>
+                                    )}
+                                  </dd>
+                                </div>
+                              </dl>
+                            </div>
+                          ) : null}
                         </span>
                       </span>
                     )}
@@ -2534,76 +2676,7 @@ export default function AdminHomePage() {
                     )}
                   </td>
                   <td>
-                    {isEditing && editingDraft ? (
-                      <input
-                        className="row-edit-input"
-                        value={editingDraft.domain}
-                        onChange={(e) =>
-                          setEditingDraft((draft) =>
-                            draft ? { ...draft, domain: e.target.value } : draft
-                          )
-                        }
-                        placeholder="company.com"
-                        aria-label="Domain"
-                        autoComplete="off"
-                        disabled={savingEdit}
-                      />
-                    ) : (
-                      company.domain
-                    )}
-                  </td>
-                  <td>
                     <div className="inbox-summary">
-                      <code
-                        className="inbox-address"
-                        title={company.subscriptionEmail}
-                      >
-                        {company.subscriptionEmail}
-                      </code>
-                      <button
-                        type="button"
-                        className="copy-button"
-                        onClick={() => {
-                          void copySubscriptionEmail(company.subscriptionEmail);
-                        }}
-                        aria-label={`Copy ${company.subscriptionEmail}`}
-                        title={
-                          copiedEmail === company.subscriptionEmail
-                            ? "Copied!"
-                            : "Copy email"
-                        }
-                      >
-                        {copiedEmail === company.subscriptionEmail ? (
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        )}
-                      </button>
                       <button
                         type="button"
                         className={`inbox-toggle${
@@ -2646,13 +2719,6 @@ export default function AdminHomePage() {
                   </td>
                   <td>{formatDateTime(company.subscribedAt)}</td>
                   <td className="numeric">{company.emailCount}</td>
-                  <td>
-                    {company.lastEmailAt ? (
-                      formatDateTime(company.lastEmailAt)
-                    ) : (
-                      <span className="dim">never</span>
-                    )}
-                  </td>
                   <td className="row-actions-cell">
                     {isEditing ? (
                       <div className="row-actions">
@@ -2677,42 +2743,6 @@ export default function AdminHomePage() {
                       </div>
                     ) : (
                       <div className="row-actions">
-                        <button
-                          type="button"
-                          className={`row-action row-action--ghost${
-                            company.needsLogoReview ? " row-action--review" : ""
-                          }`}
-                          onClick={() =>
-                            setLogoManagerCompany({
-                              id: company.id,
-                              name: company.name
-                            })
-                          }
-                          disabled={editingCompanyId !== null}
-                          title={
-                            company.needsLogoReview
-                              ? "Logo needs review — pick the correct image"
-                              : "Manage logo — pick or invert an image"
-                          }
-                          aria-label={`Manage logo for ${company.name}`}
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                            <circle cx="8.5" cy="8.5" r="1.5" />
-                            <path d="M21 15l-5-5L5 21" />
-                          </svg>
-                          {company.needsLogoReview ? "Review logo" : "Logo"}
-                        </button>
                         <button
                           type="button"
                           className="row-action row-action--ghost"
@@ -2774,7 +2804,7 @@ export default function AdminHomePage() {
                 </tr>
                 {isInboxExpanded ? (
                   <tr className="inbox-detail-row">
-                    <td colSpan={8}>
+                    <td colSpan={6}>
                       <div className="inbox-panel">
                         <div className="inbox-panel-head">
                           <h4>Inboxes &amp; segments</h4>
