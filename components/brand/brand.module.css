@@ -1541,6 +1541,51 @@
   color: var(--brand-accent-fg, #ffffff);
 }
 
+/* ---------- Year selector (card header, top-right) ---------- */
+
+.seasonalYear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.seasonalYearLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.seasonalYearSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0.34rem 1.7rem 0.34rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.seasonalYearSelect:hover {
+  border-color: var(--brand-accent, #94a3b8);
+}
+
+.seasonalYearSelect:focus-visible {
+  outline: none;
+  border-color: var(--brand-accent, #0f172a);
+  box-shadow: 0 0 0 3px var(--brand-accent-soft, rgba(15, 23, 42, 0.12));
+}
+
 /* ---------- Headline stats (inline row) ---------- */
 
 .seasonalStats {

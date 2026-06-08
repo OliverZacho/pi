@@ -108,6 +108,23 @@ describe("analyzeSeasonalRunup", () => {
     expect(result.earliestLeadDays).toBe(21);
   });
 
+  it("narrows to a single occurrence year when one is requested", () => {
+    const emails = [
+      email("2024-05-22T09:00:00Z", "Father's Day gifts"), // 14 days before 2024
+      email("2025-05-15T09:00:00Z", "Father's Day gifts"), // 21 days before 2025
+      email("2025-06-02T09:00:00Z", "Father's Day this weekend") // 3 days before 2025
+    ];
+    const full = analyzeSeasonalRunup(emails, fathers, { now });
+    expect(full.occurrences).toBe(2);
+    expect(full.matchedCount).toBe(3);
+
+    const scoped = analyzeSeasonalRunup(emails, fathers, { now, year: 2025 });
+    expect(scoped.occurrences).toBe(1);
+    expect(scoped.matchedCount).toBe(2);
+    expect(scoped.earliestLeadDays).toBe(21);
+    expect(scoped.emails.every((e) => e.eventYear === 2025)).toBe(true);
+  });
+
   it("attributes a late-December teaser to the next New Year", () => {
     const result = analyzeSeasonalRunup(
       [email("2025-12-28T09:00:00Z", "Get ready for New Year")],

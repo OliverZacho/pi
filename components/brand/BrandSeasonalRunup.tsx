@@ -74,9 +74,30 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
   const selectedEvent =
     SEASONAL_EVENTS.find((event) => event.id === selectedId) ?? SEASONAL_EVENTS[0];
 
-  const analysis = useMemo(
+  // Full (all-years) analysis powers the year list; the selector then
+  // optionally narrows the displayed view to one occurrence.
+  const fullAnalysis = useMemo(
     () => analyzeSeasonalRunup(sample, selectedEvent),
     [sample, selectedEvent]
+  );
+  const years = useMemo(
+    () => fullAnalysis.perOccurrence.map((o) => o.year),
+    [fullAnalysis]
+  );
+
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  // Switching events can leave a year that doesn't exist for the new
+  // occasion; fall back to "All" by deriving the effective value rather
+  // than correcting state in an effect.
+  const effectiveYear =
+    selectedYear !== null && years.includes(selectedYear) ? selectedYear : null;
+
+  const analysis = useMemo(
+    () =>
+      effectiveYear === null
+        ? fullAnalysis
+        : analyzeSeasonalRunup(sample, selectedEvent, { year: effectiveYear }),
+    [fullAnalysis, sample, selectedEvent, effectiveYear]
   );
 
   // Label the flag with the most recent matched occurrence's date —
@@ -186,6 +207,27 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
             marker to open the email.
           </p>
         </div>
+        {years.length > 1 ? (
+          <label className={styles.seasonalYear}>
+            <span className={styles.seasonalYearLabel}>Year</span>
+            <select
+              className={styles.seasonalYearSelect}
+              value={effectiveYear === null ? "all" : String(effectiveYear)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSelectedYear(value === "all" ? null : Number(value));
+              }}
+              aria-label="Filter run-up by year"
+            >
+              <option value="all">All years</option>
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <div

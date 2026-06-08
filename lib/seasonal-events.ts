@@ -335,10 +335,11 @@ export function countEventMentions(
 export function analyzeSeasonalRunup(
   emails: SeasonalEmailInput[],
   event: SeasonalEvent,
-  options: { now?: Date; zone?: TimeZone } = {}
+  options: { now?: Date; zone?: TimeZone; year?: number | null } = {}
 ): SeasonalRunup {
   const now = options.now ?? new Date();
   const zone = options.zone;
+  const yearFilter = options.year ?? null;
   const matches = buildEventMatcher(event.keywords);
 
   const matched: SeasonalRunupEmail[] = [];
@@ -373,9 +374,15 @@ export function analyzeSeasonalRunup(
 
   matched.sort((a, b) => b.daysBefore - a.daysBefore);
 
+  // Optionally narrow to a single occurrence year (the year selector).
+  const scoped =
+    yearFilter === null
+      ? matched
+      : matched.filter((email) => email.eventYear === yearFilter);
+
   const referenceEventDate = upcomingOccurrence(event, now, zone);
 
-  if (matched.length === 0) {
+  if (scoped.length === 0) {
     return {
       matchedCount: 0,
       occurrences: 0,
@@ -392,7 +399,7 @@ export function analyzeSeasonalRunup(
 
   // Group by occurrence to derive each year's first-mention lead time.
   const byYear = new Map<number, SeasonalRunupEmail[]>();
-  for (const email of matched) {
+  for (const email of scoped) {
     const list = byYear.get(email.eventYear) ?? [];
     list.push(email);
     byYear.set(email.eventYear, list);
@@ -410,7 +417,7 @@ export function analyzeSeasonalRunup(
 
   const maxWeeks = Math.max(MIN_WEEKS, Math.ceil((earliestLeadDays + 1) / 7));
   const weekly = new Array(maxWeeks).fill(0);
-  for (const email of matched) {
+  for (const email of scoped) {
     const bucket = Math.min(maxWeeks - 1, Math.floor(email.daysBefore / 7));
     weekly[bucket] += 1;
   }
@@ -425,12 +432,12 @@ export function analyzeSeasonalRunup(
   }
 
   return {
-    matchedCount: matched.length,
+    matchedCount: scoped.length,
     occurrences: perOccurrence.length,
     typicalLeadDays,
     earliestLeadDays,
     perOccurrence,
-    emails: matched,
+    emails: scoped,
     weekly,
     maxWeeks,
     peakWeeksBefore,
