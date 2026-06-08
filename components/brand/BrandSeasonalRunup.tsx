@@ -86,11 +86,13 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
   );
 
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  // Switching events can leave a year that doesn't exist for the new
-  // occasion; fall back to "All" by deriving the effective value rather
-  // than correcting state in an effect.
+  // Always view a single occurrence; default to the most recent year and
+  // fall back to it when switching to an occasion that lacks the picked
+  // year — derived rather than corrected in an effect.
   const effectiveYear =
-    selectedYear !== null && years.includes(selectedYear) ? selectedYear : null;
+    selectedYear !== null && years.includes(selectedYear)
+      ? selectedYear
+      : years[0] ?? null;
 
   const analysis = useMemo(
     () =>
@@ -112,10 +114,11 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
     return instant ? formatShortDate(instant) : null;
   }, [refYear, selectedEvent]);
 
-  const perYear =
-    analysis.occurrences > 0
-      ? Math.round((analysis.matchedCount / analysis.occurrences) * 10) / 10
-      : 0;
+  // The closest send to the day (smallest days-before) — the final push.
+  const closestDays =
+    analysis.emails.length > 0
+      ? Math.min(...analysis.emails.map((email) => email.daysBefore))
+      : null;
 
   // ---- Email modal (reuses the Explore detail viewer) ----
   const cardById = useMemo(() => {
@@ -212,14 +215,10 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
             <span className={styles.seasonalYearLabel}>Year</span>
             <select
               className={styles.seasonalYearSelect}
-              value={effectiveYear === null ? "all" : String(effectiveYear)}
-              onChange={(event) => {
-                const value = event.target.value;
-                setSelectedYear(value === "all" ? null : Number(value));
-              }}
+              value={effectiveYear === null ? "" : String(effectiveYear)}
+              onChange={(event) => setSelectedYear(Number(event.target.value))}
               aria-label="Filter run-up by year"
             >
-              <option value="all">All years</option>
               {years.map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -279,11 +278,9 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
           <div className={styles.seasonalStats}>
             <div className={styles.seasonalStat}>
               <span className={styles.seasonalStatValue}>
-                {formatLead(analysis.typicalLeadDays)}
+                {formatLead(analysis.earliestLeadDays)}
               </span>
-              <span className={styles.seasonalStatLabel}>
-                {analysis.occurrences > 1 ? "typical head start" : "head start"}
-              </span>
+              <span className={styles.seasonalStatLabel}>head start</span>
             </div>
             <div className={styles.seasonalStatDivider} aria-hidden="true" />
             <div className={styles.seasonalStat}>
@@ -292,17 +289,14 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
               </span>
               <span className={styles.seasonalStatLabel}>
                 {analysis.matchedCount === 1 ? "email about it" : "emails about it"}
-                {analysis.occurrences > 1 ? ` · ~${perYear}/yr` : ""}
               </span>
             </div>
             <div className={styles.seasonalStatDivider} aria-hidden="true" />
             <div className={styles.seasonalStat}>
               <span className={styles.seasonalStatValue}>
-                {analysis.occurrences}
+                {formatLead(closestDays)}
               </span>
-              <span className={styles.seasonalStatLabel}>
-                {analysis.occurrences === 1 ? "year seen" : "years seen"}
-              </span>
+              <span className={styles.seasonalStatLabel}>last email</span>
             </div>
           </div>
 
