@@ -227,14 +227,14 @@ function PlusIcon() {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
+  { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
+  { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
   {
     id: "following",
     label: "Following",
     icon: <HeartIcon />,
     href: "/following"
   },
-  { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
-  { id: "brands", label: "Brands", icon: <BrandsIcon />, href: "/brands" },
   {
     id: "collections",
     label: "Collections",
