@@ -490,15 +490,27 @@ function InfoPanel({
 
       {detail && detail.sentToLists.length > 1 ? (
         <div className={styles.sentToBlock}>
-          <span className={styles.sentToLabel}>
-            Sent to {detail.sentToLists.length} mailing lists
+          <span className={styles.sentToHeader}>
+            <span className={styles.sentToLabel}>
+              Sent to {detail.sentToLists.length} mailing lists
+            </span>
+            <span
+              className={styles.sentToInfo}
+              tabIndex={0}
+              role="note"
+              aria-label={`${email.companyName} sent this identical email to all ${detail.sentToLists.length} of these mailing lists. We've collapsed the duplicates into one.`}
+            >
+              <InfoIcon />
+              <span className={styles.sentToTooltip} role="tooltip">
+                <strong>{email.companyName}</strong> sent this identical email to
+                all {detail.sentToLists.length}{" "}of these mailing lists.
+                We&rsquo;ve collapsed the duplicates into one.
+              </span>
+            </span>
           </span>
           <div className={styles.sentToPills}>
             {detail.sentToLists.map((list) => (
-              <Pill
-                key={list.inboxId ?? list.label}
-                tone={list.isCurrent ? "good" : "neutral"}
-              >
+              <Pill key={list.inboxId ?? list.label} tone="neutral">
                 {list.label}
               </Pill>
             ))}
@@ -1197,6 +1209,26 @@ function ChevronRightIcon() {
       aria-hidden="true"
     >
       <polyline points="9 6 15 12 9 18" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16" />
+      <line x1="12" y1="8" x2="12" y2="8" />
     </svg>
   );
 }

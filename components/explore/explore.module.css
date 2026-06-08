@@ -1638,12 +1638,77 @@ div.infoBrandRow {
   background: #f8fafc;
 }
 
+.sentToHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .sentToLabel {
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #64748b;
+}
+
+.sentToInfo {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  cursor: help;
+}
+
+.sentToInfo:hover,
+.sentToInfo:focus-visible {
+  color: #0f172a;
+  outline: none;
+}
+
+.sentToTooltip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  width: auto;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.sentToTooltip strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.sentToTooltip::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0.55rem;
+  border: 5px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.sentToInfo:hover .sentToTooltip,
+.sentToInfo:focus-visible .sentToTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .sentToPills {
