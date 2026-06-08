@@ -85,6 +85,13 @@ export type ExploreBrandFacet = {
    */
   markets: string[];
   logoUrl: string | null;
+  /**
+   * True when the brand is on the admin-curated allowlist
+   * (`companies.is_curated`) that powers the "Recommended" sort. The
+   * homepage search overlay uses this to surface a "Popular brands"
+   * shortlist before the user types.
+   */
+  isCurated: boolean;
 };
 
 export type ExploreFacets = {
@@ -437,7 +444,7 @@ export async function getExploreFacets(
     // `logo_storage_path` deliberately omitted: facets don't render
     // logos, so we save the DB round-trip column and the downstream
     // signed-URL fan-out.
-    .select("category, segment_category, company_id, companies!inner(id, name, markets)")
+    .select("category, segment_category, company_id, companies!inner(id, name, markets, is_curated)")
     .limit(10000);
 
   if (options.restrictBrandIds) {
@@ -474,7 +481,8 @@ export async function getExploreFacets(
           id: company.id,
           name: company.name,
           markets: companyMarkets,
-          logoUrl: null
+          logoUrl: null,
+          isCurated: Boolean(company.is_curated)
         });
       }
     }
@@ -512,6 +520,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      is_curated?: boolean | null;
     }
   | Array<{
       id: string;
@@ -519,6 +528,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      is_curated?: boolean | null;
     }>
   | null
   | undefined;
