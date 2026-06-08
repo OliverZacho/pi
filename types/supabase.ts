@@ -699,6 +699,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      pirol_admin_category_country_frequency: { Args: never; Returns: Json }
+      pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }
       pirol_admin_growth_series: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }

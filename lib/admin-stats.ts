@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   EMAIL_CATEGORIES,
+  type CategoryCountryFrequencyPoint,
+  type CategoryFrequencyPoint,
   type DashboardStats,
   type EmailCategory,
   type GrowthPoint,
@@ -42,6 +44,56 @@ export async function getGrowthSeries(supabase: PirolDb): Promise<GrowthPoint[]>
       return { day: str(o.day), emails: num(o.emails), brands: num(o.brands) };
     })
     .filter((point) => point.day.length > 0);
+}
+
+/**
+ * Fetches the average send frequency per category for the dashboard chart via
+ * the `pirol_admin_category_frequency` Postgres function.
+ */
+export async function getCategoryFrequency(
+  supabase: PirolDb
+): Promise<CategoryFrequencyPoint[]> {
+  const { data, error } = await supabase.rpc("pirol_admin_category_frequency");
+  if (error) {
+    throw error;
+  }
+  return arr(data)
+    .map((item) => {
+      const o = obj(item);
+      return {
+        category: str(o.category),
+        brands: num(o.brands),
+        emailsPerWeek: num(o.emails_per_week),
+        daysBetween: num(o.days_between)
+      };
+    })
+    .filter((point) => point.category.length > 0);
+}
+
+/**
+ * Fetches the average send frequency per (category, country) pair for the
+ * dashboard chart via the `pirol_admin_category_country_frequency` Postgres
+ * function.
+ */
+export async function getCategoryCountryFrequency(
+  supabase: PirolDb
+): Promise<CategoryCountryFrequencyPoint[]> {
+  const { data, error } = await supabase.rpc("pirol_admin_category_country_frequency");
+  if (error) {
+    throw error;
+  }
+  return arr(data)
+    .map((item) => {
+      const o = obj(item);
+      return {
+        category: str(o.category),
+        country: str(o.country),
+        brands: num(o.brands),
+        emailsPerWeek: num(o.emails_per_week),
+        daysBetween: num(o.days_between)
+      };
+    })
+    .filter((point) => point.category.length > 0 && point.country.length > 0);
 }
 
 function shapeStats(raw: unknown): DashboardStats {

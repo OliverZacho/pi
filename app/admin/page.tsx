@@ -17,6 +17,8 @@ import {
   USAGE_FEATURE_LABELS,
   type AdminOverview,
   type CapturedEmail,
+  type CategoryCountryFrequencyPoint,
+  type CategoryFrequencyPoint,
   type CompanyInbox,
   type CompanySubscription,
   type DashboardStats,
@@ -29,6 +31,8 @@ import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import GrowthChart from "@/components/admin/GrowthChart";
 import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
+import CategoryFrequencyChart from "@/components/admin/CategoryFrequencyChart";
+import CategoryCountryFrequencyChart from "@/components/admin/CategoryCountryFrequencyChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import QualityDetailModal, {
   type LowConfidenceEmail,
@@ -601,6 +605,10 @@ export default function AdminHomePage() {
   const [recentEmailsLoading, setRecentEmailsLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [growth, setGrowth] = useState<GrowthPoint[]>([]);
+  const [categoryFreq, setCategoryFreq] = useState<CategoryFrequencyPoint[]>([]);
+  const [categoryCountryFreq, setCategoryCountryFreq] = useState<
+    CategoryCountryFrequencyPoint[]
+  >([]);
   const [statsLoading, setStatsLoading] = useState(true);
   // Which "Data cleanliness" card the operator drilled into, plus the
   // server-fetched low-confidence email list backing that one kind (the brand
@@ -735,9 +743,11 @@ export default function AdminHomePage() {
       setStatsLoading(true);
       // Stats and the growth series are independent — load them together so the
       // dashboard fills in with one round of requests.
-      const [statsRes, growthRes] = await Promise.all([
+      const [statsRes, growthRes, freqRes, countryFreqRes] = await Promise.all([
         fetch("/api/admin/stats", { cache: "no-store" }),
-        fetch("/api/admin/growth", { cache: "no-store" })
+        fetch("/api/admin/growth", { cache: "no-store" }),
+        fetch("/api/admin/category-frequency", { cache: "no-store" }),
+        fetch("/api/admin/category-country-frequency", { cache: "no-store" })
       ]);
 
       setDashboardStats(
@@ -750,9 +760,27 @@ export default function AdminHomePage() {
       } else {
         setGrowth([]);
       }
+
+      if (freqRes.ok) {
+        const body = (await freqRes.json()) as { series?: CategoryFrequencyPoint[] };
+        setCategoryFreq(Array.isArray(body.series) ? body.series : []);
+      } else {
+        setCategoryFreq([]);
+      }
+
+      if (countryFreqRes.ok) {
+        const body = (await countryFreqRes.json()) as {
+          series?: CategoryCountryFrequencyPoint[];
+        };
+        setCategoryCountryFreq(Array.isArray(body.series) ? body.series : []);
+      } else {
+        setCategoryCountryFreq([]);
+      }
     } catch {
       setDashboardStats(null);
       setGrowth([]);
+      setCategoryFreq([]);
+      setCategoryCountryFreq([]);
     } finally {
       setStatsLoading(false);
     }
@@ -1718,6 +1746,34 @@ export default function AdminHomePage() {
           <p className="muted">Loading categories…</p>
         ) : (
           <CategoryBrandChart companies={overview.companies} />
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Send frequency by category</h2>
+          <span className="muted">
+            average cadence across brands with 5+ captured emails
+          </span>
+        </div>
+        {statsLoading && categoryFreq.length === 0 ? (
+          <p className="muted">Loading frequency…</p>
+        ) : (
+          <CategoryFrequencyChart data={categoryFreq} />
+        )}
+      </section>
+
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Send frequency by country</h2>
+          <span className="muted">
+            pick a category to compare cadence across its markets
+          </span>
+        </div>
+        {statsLoading && categoryCountryFreq.length === 0 ? (
+          <p className="muted">Loading frequency…</p>
+        ) : (
+          <CategoryCountryFrequencyChart data={categoryCountryFreq} />
         )}
       </section>
 

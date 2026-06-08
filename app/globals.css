@@ -641,6 +641,36 @@ code {
   gap: 0.5rem 1rem;
 }
 
+.cat-chart-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.cat-chart-select select {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.cat-chart-select select:hover {
+  border-color: #cbd5e1;
+}
+
+.cat-chart-select select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
 .cat-chart-toggle {
   display: inline-flex;
   align-items: center;
