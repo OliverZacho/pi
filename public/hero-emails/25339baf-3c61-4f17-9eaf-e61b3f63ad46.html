@@ -1,0 +1,895 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"><html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" e-locale="en-US" e-is-multilanguage="true">
+<head><style data-hero-frame>
+  html, body { margin: 0 !important; padding: 0 !important; }
+  /* Hide internal scrollbars — the outer hero card carries its own fade. */
+  html { scrollbar-width: none; -ms-overflow-style: none; }
+  html::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  /* Render links inert. We also strip href/target attributes from the HTML
+     below, but this is a belt-and-braces guard in case any escape past the
+     regex (e.g. server-rendered <area> maps, future captures). */
+  a { pointer-events: none !important; cursor: default !important; }
+</style>
+<title>ARKET</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="initial-scale=1, user-scalable=yes">
+<!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
+<!--[if (gte mso 9)]>
+<style type="text/css">
+body {margin:0; padding:0; background:#ffffff;}
+table {border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; border:0;}
+table td, table th {border-collapse:collapse; font-size:1px; line-height:1px;}
+.inpl-not-mailing table {border-collapse:separate;}
+.lh {line-height:100% !important;}
+.lh13p {line-height:108% !important;}
+.lh14p {line-height:117% !important;}
+.lh15p {line-height:125% !important;}
+.lh16p {line-height:133% !important;}
+.lh17p {line-height:142% !important;}
+.lh18p {line-height:150% !important;}
+.lh19p {line-height:158% !important;}
+.lh20p {line-height:167% !important;}
+.inpl-not-mailing .lh, .inpl-not-mailing .lh font {line-height:1.2 !important;}
+.inpl-not-mailing .lh13p, .inpl-not-mailing .lh13p font {line-height:1.3 !important;}
+.inpl-not-mailing .lh14p, .inpl-not-mailing .lh14p font {line-height:1.4 !important;}
+.inpl-not-mailing .lh15p, .inpl-not-mailing .lh15p font {line-height:1.5 !important;}
+.inpl-not-mailing .lh16p, .inpl-not-mailing .lh16p font {line-height:1.6 !important;}
+.inpl-not-mailing .lh17p, .inpl-not-mailing .lh17p font {line-height:1.7 !important;}
+.inpl-not-mailing .lh18p, .inpl-not-mailing .lh18p font {line-height:1.8 !important;}
+.inpl-not-mailing .lh19p, .inpl-not-mailing .lh19p font {line-height:1.9 !important;}
+.inpl-not-mailing .lh20p, .inpl-not-mailing .lh20p font {line-height:2 !important;}
+</style>
+<![endif]-->
+<!--[if (gte mso 9)|(IE)]>
+<style type="text/css">
+.ol152 {width:152px;}
+.ol213 {width:213px;}
+.ol320 {width:320px;}
+.ol640 {width:640px;}
+.ol650 {width:650px;}
+.lhp1 {line-height:100% !important; padding:8px 17px;}
+.inpl-not-mailing .lhp1 {line-height:1.2 !important; padding:0 !important;}
+.lhp2 {line-height:100% !important; padding:7px 12px;}
+.inpl-not-mailing .lhp2 {line-height:1.2 !important; padding:0 !important;}
+</style>
+<xml>
+<o:OfficeDocumentSettings>
+<o:AllowPNG/>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+<![endif]-->
+<style>.ff {font-family:Arial, Helvetica, sans-serif;}
+.fs12 {font-size:12px;}
+.fs15 {font-size:15px;}
+.fs20 {font-size:20px;}
+.fs22 {font-size:22px;}
+.lh, .lh font {line-height:1.2;}
+.lh13p, .lh13p font {line-height:1.3;}
+.lh14p, .lh14p font {line-height:1.4;}
+.lh15p, .lh15p font {line-height:1.5;}
+.lh16p, .lh16p font {line-height:1.6;}
+.lh17p, .lh17p font {line-height:1.7;}
+.lh18p, .lh18p font {line-height:1.8;}
+.lh19p, .lh19p font {line-height:1.9;}
+.lh20p, .lh20p font {line-height:2;}
+.fc1 {color:#000000;}
+.fc2 {color:#ffffff;}
+.fc3 {color:#ce4f4f;}
+.fc4 {color:#cccccc;}
+.tdn {text-decoration:none;}
+.tdu {text-decoration:underline;}
+.tds, .tds span {text-decoration:line-through;}
+.fwn {font-weight:normal;}
+.fwb {font-weight:bold;}
+.fsi {font-style:italic;}
+.upc {text-transform:uppercase;}
+.ls1 {letter-spacing:0.08em;}
+.vab {vertical-align:bottom;}
+.vat {vertical-align:top;}
+.vam {vertical-align:middle;}
+.la1 font a, .la1 font a:visited, .la1 font a:active {font-weight:normal; text-decoration:none; color:#000000;}
+.la1b font a, .la1b font a:visited, .la1b font a:active {font-weight:bold; text-decoration:none; color:#000000;}
+.la1a font a, .la1a font a:visited, .la1a font a:active {font-weight:bold; text-decoration:underline; color:#000000; font-style:normal;}
+.la2 font a, .la2 font a:visited, .la2 font a:active {font-weight:normal; text-decoration:none; color:#ffffff;}
+.la3 font a, .la3 font a:visited, .la3 font a:active {font-weight:normal; text-decoration:none; color:#ce4f4f;}
+.la4 font a, .la4 font a:visited, .la4 font a:active {font-weight:normal; text-decoration:none; color:#cccccc;}
+.lhp1, .lhp1 font, .lhp2, .lhp2 font {line-height:1.2;}
+@media only screen and (max-width:414px) {
+.fl {display:block !important; width:100% !important;}
+.fw {width:100% !important; min-width:0 !important;}
+.sec {width:100% !important; float:none !important;}
+.mh {display:none !important;}
+.image {width:100% !important; height:auto !important;}
+.comt {margin:0 auto !important;}
+.break {display:block !important;}
+.usom {display:inline-block !important; float:left !important;}
+.rh10, .rh10 div {height:10px !important;}
+.rh20, .rh20 div {height:20px !important;}
+.rh30, .rh30 div {height:30px !important;}
+.rh40, .rh40 div {height:40px !important;}
+.rh50, .rh50 div {height:50px !important;}
+.mbr1 {border-right:1px solid #ffffff !important;}
+.rw40p {width:40% !important;}
+.rw60p {width:60% !important;}
+.pl5 {padding-left:5px !important;}
+.pr5 {padding-right:5px !important;}
+.mvab {vertical-align:bottom !important;}
+.com {text-align:center !important;}
+.lom {text-align:left !important;}
+.rom {text-align:right !important;}
+.mvat {vertical-align:top !important;}
+.mfs24, .mfs24 span {font-size:24px !important;}
+.mfs22, .mfs22 span {font-size:22px !important;}
+.mfs20, .mfs20 span {font-size:20px !important;}
+.mfs18, .mfs18 span {font-size:18px !important;}
+.mfs16, .mfs16 span {font-size:16px !important;}
+.mfs15, .mfs15 span {font-size:15px !important;}
+.mfs14, .mfs14 span {font-size:14px !important;}
+.mfs12, .mfs12 span {font-size:12px !important;}
+.mfs10, .mfs10 span {font-size:10px !important;}
+.rwom {width:auto !important;}
+.rhom {height:auto !important;}
+.rw5 {width:5px !important;}
+.rw33p {width:33.33333333333333% !important;}
+.rw50p {width:50% !important;}
+.s1, .s1 div {height:10px !important;}
+.s2, .s2 div {height:16px !important;}
+.s3, .s3 div {height:16px !important;}
+.ctam {padding:8px 17px !important;}
+.inpl-not-mailing .ctam {padding:8px 17px !important;}
+.ctam2 {padding:8px 5px !important;}
+.inpl-not-mailing .ctam2 {padding:8px 5px !important;}
+.iph {padding:0 !important;}
+}
+@media only screen {body {margin:0; padding:0; background:#ffffff;}}
+a, a:active, a:visited, .yshortcuts, .yshortcuts span a {text-decoration:none; font-weight:normal; color:#000000;}
+a[x-apple-data-detectors] {color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important;}
+[office365] td div, [office365] button {display:block !important;}
+table th {padding:0; Margin:0; border:0; font-weight:normal; vertical-align:top;}
+th a, th a:link, th a:visited {background:transparent; padding:0;}
+noinput {display:block !important; max-height:none !important; visibility:visible !important;}
+.mwn img {max-width:none !important;}</style>
+<style type="text/css">
+[class~="x_olf"] td, [class~="x_olf"] th {font-size:1px;}
+</style>
+<style type="text/css">
+@media only screen and (max-width: 414px) {
+.mfs24, .mfs24 span {font-size:6.66vw !important;}
+.mfs22, .mfs22 span {font-size:6.11vw !important;}
+.mfs20, .mfs20 span {font-size:5.55vw !important;}
+.mfs18, .mfs18 span {font-size:5vw !important;}
+.mfs16, .mfs16 span {font-size:4.44vw !important;}
+.mfs15, .mfs15 span {font-size:4.16vw !important;}
+.mfs14, .mfs14 span {font-size:3.88vw !important;}
+.mfs12, .mfs12 span {font-size:3.33vw !important;}
+.mfs10, .mfs10 span {font-size:2.77vw !important;}
+u + .body .gwfw {width:100% !important; width:100vw !important;}
+}
+</style>
+<style type="text/css">
+@media only screen and (max-width:414px) {
+.image1 {width:auto !important; height:auto !important; max-width:100% !important;}
+}
+</style>
+</head>
+<body class="body"><div ems:preheader style="display:none!important;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all">Wrap blouses, easy sets, fluid dresses</div>
+<table role="presentation" cellspacing="0" cellpadding="0" width="100%" height="100%" style="min-width:100%;" bgcolor="#ffffff" class="gwfw olf">
+<tr>
+<td width="100%" align="center" style="vertical-align:top;">
+<style type="text/css">.olm-fragment-custom .image1 {width:100% !important; height:auto !important; max-width:100% !important;}</style> <table role="presentation" cellspacing="0" cellpadding="0" width="650" class="ol650 fw">
+<tr>
+<td style="padding:0 5px;" class="iph">
+<table role="presentation" cellspacing="0" cellpadding="0" width="640" bgcolor="#ffffff" class="ol640 fw">
+<tr e-block-id="6867d1e9504b861546000004">
+<td bgcolor="#ffffff">
+<table role="presentation" cellspacing="0" cellpadding="0" width="100%">
+<tr>
+<td colspan="3" height="21"></td>
+</tr>
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellspacing="0" cellpadding="0" width="100%">
+<tr>
+<td align="left" class="vab" style="vertical-align: bottom;" valign="bottom">
+<table role="presentation" cellspacing="0" cellpadding="0" width="100%">
+<tr>
+<td align="left"><a e-editable="image_urlA_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/vce/arket_logo_b.png" width="159" border="0" style="display:block;" class="rhi22" alt="Arket"></a></td>
+</tr>	<tr>
+<td height="4"></td>
+</tr>
+</table>
+</td>
+<td align="right" class="vab" style="vertical-align: bottom;" valign="bottom">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td width="16"></td>
+<td align="left" class="lh mfs16 vat" style="line-height: 1.2; vertical-align: top;" valign="top"><a e-editable="urlA_2" style="color: #000000; font-weight: normal; text-decoration: none;" title data-hero-disarmed><font e-editable="link_textA_2" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs16">Women</font></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+<tr>
+<td colspan="3" height="21"></td>
+</tr>
+<tr>
+<td colspan="3" height="1" bgcolor="#ffffff"></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="68b54a022325b11701000004">	<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_259941.jpg" width="640" border="0" style="display: block; width: 640px;" class="image" alt></a></td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a031f0f9eb9504f01000004">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="lh la1 mfs20" style="line-height: 1.2;"><font e-editable="textA_1" class="ff fs20 fc1 fwn mfs20" style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #000000; font-weight: normal; line-height: 1.2;">Linen, shaped anew</font></td>
+</tr>
+<tr>
+<td height="16" class="s2"><div></div></td>	</tr>
+<tr>
+<td align="left" class="lh15p la1a mfs15" style="line-height: 1.5;"><font e-editable="textB_1" class="ff fs15 fc1 fwn mfs15" style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; line-height: 1.5;">The familiar, tactile hand feel of linen is shaped anew for SS26. Discover our new edit of naturally textured pieces: from wrap blouses to easy sets and dresses.</font></td>
+</tr>
+<tr>
+<td height="16" class="s3"><div></div></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#000000" style="border:1px solid #000000; border-collapse:separate; -webkit-border-radius:4px; -moz-border-radius:4px; border-radius:4px;">
+<tr>
+<td align="center" class="lhp2" style="line-height: 1.2;"><a e-editable="urlC_1" style="padding: 7px 12px; font-size: 15px; color: #ffffff; font-weight: normal; text-decoration: none; display: block;" class="ctam mfs15" title data-hero-disarmed><font e-editable="link_textC_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #ffffff; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Shop now</font></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+<tr>
+<td colspan="3" height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable e-block-id="6a1d847b0ee8fda007000004">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" class="fw">
+<tr>
+<td e-repeatable-item="1" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_260899.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="2" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_2" src="https://link.e.arket.com/custloads/790441622/md_260898.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="3" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_3" src="https://link.e.arket.com/custloads/790441622/md_260897.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable e-block-id="6a1d847c0ee8fda007000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" class="fw">
+<tr>
+<td e-repeatable-item="1" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_260896.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="2" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_2" src="https://link.e.arket.com/custloads/790441622/md_260895.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="3" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_3" src="https://link.e.arket.com/custloads/790441622/md_260894.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable e-block-id="6a1d847c0ee8fda007000005">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" class="fw">
+<tr>
+<td e-repeatable-item="1" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_260893.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="2" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_2" src="https://link.e.arket.com/custloads/790441622/md_260892.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+<td e-repeatable-item="3" align="left" class="vat rw33p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="213" class="ol213 fw">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_3" src="https://link.e.arket.com/custloads/790441622/md_260891.jpg" width="213" border="0" style="display: block; width: 213px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td height="20" class="rh20"><div></div></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a0f0719702fa80fe1000004">	<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_259940.jpg" width="640" border="0" style="display: block; width: 640px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a1d848f0ee8fda007000007">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="16" class="s3"><div></div></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #000000; border-collapse:separate; -webkit-border-radius:4px; -moz-border-radius:4px; border-radius:4px;">
+<tr>
+<td align="center" class="lhp2" style="line-height: 1.2;"><a e-editable="urlC_1" style="padding: 7px 12px; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; display: block;" class="ctam mfs15" title data-hero-disarmed><font e-editable="link_textC_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Shop linen</font></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+<tr>
+<td colspan="3" height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr><tr e-block-id="6a1d84a50ee8fda007000008">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a1d84a90ee8fda007000009">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="lh la1 mfs20" style="line-height: 1.2;"><font e-editable="textA_1" class="ff fs20 fc1 fwn mfs20" style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #000000; font-weight: normal; line-height: 1.2;">Bags</font></td>
+</tr>
+<tr>
+<td height="16" class="s2"><div></div></td>	</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a16b6a7bc6bb7bd55000006">	<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="center"><a title style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_262787.jpg" width="640" border="0" style="display: block; width: 640px;" class="image" alt></a></td>
+</tr>
+</table>
+</td>
+</tr><tr e-repeatable-item e-block-id="6a16a0c7d6925ffb5200000a">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="16" class="s3"><div></div></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #000000; border-collapse:separate; -webkit-border-radius:4px; -moz-border-radius:4px; border-radius:4px;">
+<tr>
+<td align="center" class="lhp2" style="line-height: 1.2;"><a e-editable="urlC_1" style="padding: 7px 12px; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; display: block;" class="ctam mfs15" title data-hero-disarmed><font e-editable="link_textC_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Shop bags</font></a></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+<tr>
+<td colspan="3" height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr><tr e-block-id="687a144c486bb7942d000007">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr><tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%"> <tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="lh la1 mfs20" style="line-height: 1.2;"><font e-editable="textA_0" class="ff fs20 fc1 fwn mfs20" style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #000000; font-weight: normal; line-height: 1.2;">Shop the collections</font></td>
+</tr>
+<tr>
+<td height="16" class="s2"><div></div></td>	</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>	</table>
+</td>
+</tr>
+<tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlA_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_1" src="https://link.e.arket.com/custloads/790441622/md_260105.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">	<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlA_1" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Women</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlA_2" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageA_2" src="https://link.e.arket.com/custloads/790441622/md_260154.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlA_2" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_2" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Men</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr>
+<tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlB_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageB_1" src="https://link.e.arket.com/custloads/790441622/md_253603.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlB_1" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Children</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlB_2" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageB_2" src="https://link.e.arket.com/custloads/790441622/md_244540.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlB_2" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_2" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Homeware</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr>
+<tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlC_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageC_1" src="https://link.e.arket.com/custloads/790441622/md_129736.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">	<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlC_1" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_1" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Travel</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td align="left" class="vat rw50p" style="vertical-align: top;" valign="top">
+<table role="presentation" cellpadding="0" cellspacing="0" width="320" class="ol320 fw">
+<tr>
+<td align="center"><a e-editable="imageUrlC_2" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageC_2" src="https://link.e.arket.com/custloads/790441622/md_71729.jpg" width="320" border="0" style="display:block;" class="image"></a></td>
+</tr>
+<tr>
+<td height="8"></td>	</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="5"></td>	</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left" class="lh" style="line-height: 1.2;"><a e-editable="urlC_2" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textA_2" style="line-height: 1.2; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="mfs15">Café</font></a></td>
+</tr>
+<tr>
+<td height="3"></td>
+</tr>
+<tr>
+<td height="1" bgcolor="#000000"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="16"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr>
+<tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#ffffff">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td height="2" bgcolor="#000000"></td>
+</tr>
+<tr>
+<td height="32"></td>
+</tr>
+<tr>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td width="16"></td>
+<td>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td align="left"><a e-editable="image_urlD_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageD_1" src="https://link.e.arket.com/custloads/790441622/vce/flogo_b.png" width="128" border="0" style="display:block;" alt="ARKET"></a></td>
+</tr>
+<tr>
+<td height="32"></td>
+</tr>
+<tr>
+<td align="left" class="lh mfs20" style="line-height: 1.2;"><a e-editable="urlH_1" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textB_1" style="font-size: 20px; line-height: 1.2; font-family: Arial, Helvetica, sans-serif; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="fs20 mfs20">Customer service</font></a></td>
+</tr>
+<tr>
+<td height="8"></td>
+</tr>
+<tr>
+<td align="left" class="lh mfs20" style="line-height: 1.2;"><a e-editable="urlI_2" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textB_2" style="font-size: 20px; line-height: 1.2; font-family: Arial, Helvetica, sans-serif; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="fs20 mfs20">Stores & cafés</font></a></td>
+</tr>
+<tr>
+<td height="8"></td>
+</tr>
+<tr>
+<td align="left" class="lh mfs20" style="line-height: 1.2;"><a e-editable="urlJ_3" style="color: #000000; font-weight: normal; text-decoration: none;" data-hero-disarmed><font e-editable="link_textB_3" style="font-size: 20px; line-height: 1.2; font-family: Arial, Helvetica, sans-serif; color: #000000; font-weight: normal; text-decoration: none; font-style: normal;" class="fs20 mfs20">About ARKET</font></a></td>
+</tr>
+<tr>
+<td height="8"></td>
+</tr>
+<tr>
+<td height="32"></td>
+</tr>
+<tr>
+<td align="left">
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td class="mwn vam" style="vertical-align: middle;" valign="middle"><a e-editable="image_urlE_1" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageE_1" src="https://link.e.arket.com/custloads/790441622/vce/instagram_b.png" width="22" border="0" style="display: block; max-width: none !important;" alt="Instagram"></a></td>
+<td width="32"></td>
+<td class="mwn vam" style="vertical-align: middle;" valign="middle"><a e-editable="image_urlF_2" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageF_2" src="https://link.e.arket.com/custloads/790441622/vce/facebook_b.png" width="22" border="0" style="display: block; max-width: none !important;" alt="Facebook"></a></td>
+<td width="32"></td>
+<td class="mwn vam" style="vertical-align: middle;" valign="middle"><a e-editable="image_urlG_3" style="text-decoration: none; font-weight: normal; color: #000000;" data-hero-disarmed><img e-editable="imageG_3" src="https://link.e.arket.com/custloads/790441622/vce/pinterest_b.png" width="22" border="0" style="display: block; max-width: none !important;" alt="Pinterest"></a></td>	</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td height="32"></td>
+</tr>
+</table>
+</td>	</tr>
+</table>
+</td>
+</tr>	</table>
+</td>
+</tr>
+<tr e-block-id="6a0da85a9cc0bfad80000006">
+<td bgcolor="#000000">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+<tr>
+<td colspan="3" height="32"></td>
+</tr>
+<tr>
+<td width="16"></td>
+<td align="left" class="lh13p la2a mfs10" style="line-height: 1.3;"><font e-editable="textA_1" class="ff fs12 fc2 mfs12" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #ffffff; line-height: 1.3;">You are receiving this email because your email address is set up to receive updates and offers from ARKET. You can unsubscribe at any time via the link below or by managing your preferences in your profile.This message was sent by ARKET H&M Hennes & Mauritz GBC AB, Mäster Samuelsgatan 46 A, 106 38 Stockholm, Sweden, Registered number: 556070-1715. Arket.com<br><br><a e-editable="urlA_2" style="text-decoration: none; font-size: 12px; color: #ffffff; font-weight: normal;" class="fs12 mfs12" data-hero-disarmed>View in browser</a><br><br><a e-editable="urlA_2" style="text-decoration: none; font-size: 12px; color: #ffffff; font-weight: normal;" class="fs12 mfs12" data-hero-disarmed>Unsubscribe</a><br><br><br>&copy; 2026 ARKET</font></td>
+<td width="16"></td>
+</tr>
+<tr>
+<td colspan="3" height="50" class="rh40"><div></div></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<div style="display:none; white-space:nowrap; font:15px courier; line-height:0;">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</div>
+<img src="https://link.e.arket.com/mo/1RfAK7DRr9_790441622_773139_826933_988102.gif" height="2" width="2" border="0" alt="" aria-hidden="true"></body>
+</html>

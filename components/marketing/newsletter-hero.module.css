@@ -1,0 +1,139 @@
+/* =========================================================
+   Newsletter Hero (/)
+   - Two-column grid: headline + CTAs on the left, animated
+     3D fan of real newsletters on the right.
+   ========================================================= */
+
+.hero {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 2rem;
+  align-items: center;
+  padding: 2rem 2.5rem 4rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ---------- Left: copy + CTAs ---------- */
+
+.heroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem 0 0 1rem;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(2.4rem, 4.4vw, 3.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+  color: #0b0b0c;
+  max-width: 14ch;
+}
+
+.subhead {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: #6b6b70;
+  max-width: 42ch;
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.primaryBtn {
+  background: #0b0b0c;
+  color: #ffffff;
+}
+
+.primaryBtn:hover {
+  background: #1a1a1d;
+  transform: translateY(-1px);
+}
+
+.secondaryBtn {
+  background: #ffffff;
+  color: #0b0b0c;
+  border: 1px solid rgba(11, 11, 12, 0.12);
+}
+
+.secondaryBtn:hover {
+  background: #fafafa;
+  transform: translateY(-1px);
+}
+
+.secondaryArrow {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.secondaryBtn:hover .secondaryArrow {
+  transform: translateX(2px);
+}
+
+/* ---------- Right: animated fan ---------- */
+
+.visual {
+  position: relative;
+  height: min(680px, 78vh);
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1024px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 1.5rem 1.5rem 4rem;
+  }
+
+  .heroCopy {
+    padding: 1rem 0 0;
+    text-align: center;
+    align-items: center;
+  }
+
+  .headline {
+    max-width: 18ch;
+  }
+
+  .subhead {
+    max-width: 46ch;
+  }
+
+  .ctaRow {
+    justify-content: center;
+  }
+
+  .visual {
+    height: min(560px, 60vh);
+  }
+}

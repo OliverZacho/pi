@@ -1,0 +1,230 @@
+/* Two-column auth layout: white form panel on the left, vivid branded
+   visual on the right. The right panel collapses on small screens so the
+   form gets the full width. */
+
+.layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
+  color: #0b0b0c;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .visual {
+    display: none;
+  }
+}
+
+/* ---------- Left: form panel ---------- */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem;
+}
+
+.brand {
+  color: #0b0b0c;
+  display: inline-flex;
+  width: fit-content;
+}
+
+.brandMark {
+  height: 2rem;
+  width: auto;
+}
+
+.formWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.form {
+  width: 100%;
+  max-width: 24rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin: 0;
+}
+
+.subtitle {
+  color: #6b6b70;
+  text-align: center;
+  margin: 0.5rem 0 1.75rem;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f1f0ee;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  color: #0b0b0c;
+}
+
+.input::placeholder {
+  color: #8a8a8f;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #0b0b0c;
+  background: #ffffff;
+}
+
+.primaryBtn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  background: #0b0b0c;
+  color: #ffffff;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #9a9a9f;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 1.25rem 0;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e6e5e2;
+}
+
+.oauthBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #dcdbd7;
+  background: #ffffff;
+  color: #0b0b0c;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.oauthBtn:hover:not(:disabled) {
+  background: #f7f6f4;
+}
+
+.primaryBtn:disabled,
+.oauthBtn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.footer {
+  margin-top: 1.75rem;
+  text-align: center;
+  color: #6b6b70;
+  font-size: 0.9rem;
+}
+
+.footer + .footer {
+  margin-top: 0.5rem;
+}
+
+.link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+.error {
+  margin: 1rem 0 0;
+  color: #dc2626;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.cookies {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 2.5rem;
+  color: #9a9a9f;
+  font-size: 0.8rem;
+}
+
+/* "Check your email" confirmation state */
+.sentIcon {
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 0.5rem;
+  color: #2563eb;
+}
+
+/* ---------- Right: 3D fanned newsletter stack ---------- */
+
+.visual {
+  position: relative;
+  overflow: hidden;
+  background: #ecf8ff;
+}

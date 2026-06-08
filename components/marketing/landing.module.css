@@ -1,7 +1,7 @@
 /* ---------- Page shell ---------- */
 
 .page {
-  --bg: #f4f2ee;
+  --bg: #ecf8ff;
   --ink: #0b0b0c;
   --ink-soft: #6b6b70;
   --line: rgba(11, 11, 12, 0.08);
@@ -21,7 +21,7 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 80% at 50% 40%, transparent 45%, rgba(244, 242, 238, 0.85) 75%, var(--bg) 100%);
+    radial-gradient(120% 80% at 50% 40%, transparent 45%, rgba(236, 248, 255, 0.85) 75%, var(--bg) 100%);
   pointer-events: none;
   z-index: 2;
 }

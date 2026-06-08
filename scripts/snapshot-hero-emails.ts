@@ -13,12 +13,19 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types/supabase";
+import { LOGIN_SHOWCASE } from "../lib/marketing/login-showcase";
 
 const HERO_EMAIL_IDS: string[] = [
   "7002d123-edc8-4669-a4db-990a3ba56e08", // HAY — Take dining outside
   "f15538ab-51fa-4147-85ee-952aa8cfd16b", // Audo Copenhagen — Portable Lamps
   "080f1c61-dc56-41fb-8532-2ac56d7dda6e"  // Ferm Living — Free shipping
 ];
+
+// The login page fans a wider set of real newsletters; snapshot those too.
+// De-duped against the hero set so we don't fetch the same email twice.
+const SNAPSHOT_IDS: string[] = Array.from(
+  new Set([...HERO_EMAIL_IDS, ...LOGIN_SHOWCASE.map((n) => n.id)])
+);
 
 const OUT_DIR = resolve(process.cwd(), "public", "hero-emails");
 
@@ -154,7 +161,7 @@ async function main() {
 
   mkdirSync(OUT_DIR, { recursive: true });
 
-  for (const id of HERO_EMAIL_IDS) {
+  for (const id of SNAPSHOT_IDS) {
     const { data, error } = await supabase
       .from("captured_emails")
       .select("id, subject, html_content")
