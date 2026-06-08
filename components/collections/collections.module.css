@@ -1172,8 +1172,7 @@ select.ruleOperator:focus {
   flex-wrap: wrap;
   padding: 0.85rem 1rem;
   margin: 0 0 1.2rem;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  background: var(--on-blue-active);
   border-radius: 10px;
 }
 

@@ -2,13 +2,21 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Site-wide page background — the light blue from the marketing frontpage. */
+  --page-bg: #ecf8ff;
+  /* Flat blue-tinted interactive states for controls on the blue background. */
+  --on-blue-hover: #e3f3fc;
+  --on-blue-active: #d4ebf9;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
   font-family: Inter, Arial, Helvetica, sans-serif;
   color: #0f172a;
-  background: #f8fafc;
+  background: var(--page-bg);
 }
 
 code {

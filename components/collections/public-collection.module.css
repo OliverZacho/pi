@@ -6,7 +6,7 @@
 
 .shell {
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--page-bg);
   color: #0f172a;
   display: flex;
   flex-direction: column;
