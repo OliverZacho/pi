@@ -207,7 +207,7 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
             marker to open the email.
           </p>
         </div>
-        {years.length > 1 ? (
+        {years.length > 0 ? (
           <label className={styles.seasonalYear}>
             <span className={styles.seasonalYearLabel}>Year</span>
             <select
