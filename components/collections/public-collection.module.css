@@ -6,7 +6,7 @@
 
 .shell {
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--page-bg);
   color: #0f172a;
   display: flex;
   flex-direction: column;
@@ -43,33 +43,31 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #0f172a;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease,
-    color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease, box-shadow 0.15s ease;
 }
 
 .copyButton:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .copyButtonCopied {
   background: #16a34a;
-  border-color: #16a34a;
   color: #ffffff;
 }
 
 .copyButtonCopied:hover {
   background: #15803d;
-  border-color: #15803d;
 }
 
 .main {

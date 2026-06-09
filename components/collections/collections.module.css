@@ -24,12 +24,11 @@
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: box-shadow 160ms ease, transform 160ms ease,
-    border-color 160ms ease;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 160ms ease, transform 160ms ease;
   isolation: isolate;
   text-align: left;
   font: inherit;
@@ -37,9 +36,7 @@
 }
 
 .card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--card-shadow-hover);
   transform: translateY(-2px);
 }
 
@@ -248,9 +245,9 @@
   gap: 0.7rem;
   min-height: 100%;
   aspect-ratio: 1 / 1.18;
-  border-style: dashed;
-  border-color: #cbd5e1;
-  background: #ffffff;
+  border: 1.5px dashed #cbd5e1;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
   color: #64748b;
   cursor: pointer;
   transition: border-color 140ms ease, color 140ms ease,
@@ -260,6 +257,7 @@
 .newTile:hover {
   border-color: #0f172a;
   color: #0f172a;
+  background: rgba(255, 255, 255, 0.75);
   transform: translateY(-2px);
 }
 
@@ -349,19 +347,21 @@
 }
 
 .createSubmit {
-  padding: 0.4rem 0.85rem;
-  border-radius: 7px;
-  border: 1px solid #0f172a;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 0;
   background: #0f172a;
   color: #ffffff;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--primary-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .createSubmit:hover:not(:disabled) {
-  background: #1e293b;
+  background: #1a1a1d;
 }
 
 .createSubmit:disabled {
@@ -475,22 +475,23 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #0f172a;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
   text-decoration: none;
 }
 
 .detailButton:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .detailButton:disabled {
@@ -500,13 +501,12 @@
 
 .detailButtonPrimary {
   background: #0f172a;
-  border-color: #0f172a;
   color: #ffffff;
+  box-shadow: var(--primary-shadow);
 }
 
 .detailButtonPrimary:hover {
-  background: #1e293b;
-  border-color: #1e293b;
+  background: #1a1a1d;
 }
 
 .detailButtonDanger {
@@ -515,7 +515,6 @@
 
 .detailButtonDanger:hover {
   background: #fef2f2;
-  border-color: #fecaca;
 }
 
 .detailButtonCopied {
@@ -555,9 +554,9 @@
   gap: 1rem;
   padding: 1.25rem 1.4rem 1.3rem;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: var(--panel-shadow-sm);
 }
 
 .rulesEditorHeader {
@@ -584,9 +583,13 @@
 
 .rulesCombinator {
   display: inline-flex;
-  padding: 3px;
-  background: #f1f5f9;
+  padding: 4px;
+  background: var(--glass-track-bg);
+  border: 1px solid var(--glass-track-border);
   border-radius: 999px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--toggle-track-shadow);
 }
 
 .combinatorOption {
@@ -612,7 +615,7 @@
 .combinatorOptionActive {
   background: #ffffff;
   color: #0f172a;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--toggle-active-shadow);
 }
 
 .combinatorHint {
@@ -651,7 +654,9 @@
   padding: 3px;
   background: #ffffff;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 22px -14px rgba(15, 23, 42, 0.22);
 }
 
 .scopeOption {
@@ -677,7 +682,8 @@
 .scopeOptionActive {
   background: #0f172a;
   color: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 22px -12px rgba(15, 23, 42, 0.35);
 }
 
 .scopeOptionActive:hover {
@@ -893,19 +899,21 @@ select.ruleOperator:focus {
 }
 
 .ruleSaveButton {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: 1px solid #0f172a;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 0;
   background: #0f172a;
   color: #ffffff;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--primary-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .ruleSaveButton:hover:not(:disabled) {
-  background: #1e293b;
+  background: #1a1a1d;
 }
 
 .ruleSaveButton:disabled {
@@ -983,10 +991,9 @@ select.ruleOperator:focus {
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.05);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--popover-shadow);
   padding: 0.3rem;
   animation: multiSelectIn 120ms ease;
 }
@@ -1170,11 +1177,15 @@ select.ruleOperator:focus {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.85rem 1rem;
+  padding: 0.9rem 1.05rem;
   margin: 0 0 1.2rem;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--glass-track-bg);
+  border: 1px solid var(--glass-track-border);
+  border-radius: 16px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px -18px rgba(15, 23, 42, 0.22);
 }
 
 .rulesSummaryLabel {
@@ -1203,18 +1214,20 @@ select.ruleOperator:focus {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.3rem 0.55rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 0;
   font-size: 0.78rem;
   color: #0f172a;
+  box-shadow: var(--chip-shadow);
 }
 
 .rulesSummaryChipScope {
   background: #0f172a;
   color: #ffffff;
-  border-color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08),
+    0 6px 16px -10px rgba(15, 23, 42, 0.35);
 }
 
 .rulesSummaryChipScope .rulesSummaryChipLabel {
@@ -1243,21 +1256,22 @@ select.ruleOperator:focus {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.4rem 0.7rem;
-  border-radius: 7px;
-  border: 1px solid #e5e7eb;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #0f172a;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .rulesSummaryButton:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .rulesSummaryButton:disabled {
@@ -1267,12 +1281,10 @@ select.ruleOperator:focus {
 
 .rulesSummaryButtonDanger {
   color: #b91c1c;
-  border-color: #fecaca;
 }
 
 .rulesSummaryButtonDanger:hover:not(:disabled) {
   background: #fef2f2;
-  border-color: #fca5a5;
 }
 
 /* Public share page hint */

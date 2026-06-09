@@ -309,12 +309,10 @@ function AppTopBar() {
         gap: "0.4rem",
         padding: "0.55rem 0.7rem 0.7rem",
         background: "#ffffff",
-        borderLeft: "1px solid #e5e7eb",
-        borderRight: "1px solid #e5e7eb",
-        borderBottom: "1px solid #e5e7eb",
-        borderBottomLeftRadius: 12,
-        borderBottomRightRadius: 12,
-        boxShadow: "0 6px 16px -10px rgba(15, 23, 42, 0.18)",
+        border: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
+        boxShadow: "var(--popover-shadow)",
         transform: `translateY(${offset}px)`,
         transition: "transform 220ms ease",
         pointerEvents,
@@ -359,17 +357,19 @@ function AppTopBar() {
           alignItems: "center",
           gap: "0.4rem",
           height: 30,
-          padding: "0 0.3rem 0 0.65rem",
-          borderRadius: 8,
-          border: `1px solid ${hoverHelp ? "#cbd5e1" : "#e2e8f0"}`,
-          background: hoverHelp ? "#f8fafc" : "#ffffff",
+          padding: "0 0.5rem 0 0.8rem",
+          borderRadius: 999,
+          border: 0,
+          background: "#ffffff",
           color: hoverHelp ? "#0f172a" : "#475569",
           font: "inherit",
           fontSize: "0.83rem",
           fontWeight: 500,
           cursor: "pointer",
-          transition:
-            "background 100ms ease, color 100ms ease, border-color 100ms ease"
+          boxShadow: hoverHelp
+            ? "var(--pill-shadow-hover)"
+            : "var(--pill-shadow)",
+          transition: "color 100ms ease, box-shadow 0.15s ease"
         }}
       >
         <span>Need help?</span>

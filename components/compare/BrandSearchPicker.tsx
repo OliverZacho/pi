@@ -234,14 +234,16 @@ export default function BrandSearchPicker({
           autoFocus={variant === "modal"}
           style={{
             width: "100%",
-            padding: "0.6rem 0.85rem",
-            border: "1px solid #e2e8f0",
-            borderRadius: "10px",
+            padding: "0.7rem 1.1rem",
+            border: 0,
+            borderRadius: "999px",
             fontSize: "0.92rem",
-            background: "#f8fafc",
+            background: "#ffffff",
             color: "inherit",
             outline: "none",
-            font: "inherit"
+            font: "inherit",
+            boxShadow:
+              "var(--search-shadow)"
           }}
         />
         {loading ? (

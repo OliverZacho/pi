@@ -11,7 +11,7 @@
 .shell {
   display: flex;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--page-bg);
   color: #0f172a;
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -116,20 +116,18 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 1.05rem 1.1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 16px;
   background: #ffffff;
   text-decoration: none;
   color: inherit;
-  transition: border-color 120ms ease, box-shadow 120ms ease,
-    transform 120ms ease;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s ease, transform 120ms ease;
+  box-shadow: var(--card-shadow);
 }
 
 .setCard:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
-  transform: translateY(-1px);
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
 }
 
 .setCardName {
@@ -194,10 +192,10 @@
 .pickerCard {
   margin-top: 1rem;
   padding: 1.2rem 1.3rem 1.4rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border: 0;
+  border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .pickerHead {
@@ -370,9 +368,9 @@
   right: 0;
   z-index: 12;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--popover-shadow);
   padding: 0.4rem;
   max-height: 22rem;
   overflow-y: auto;
@@ -589,19 +587,22 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.55rem 1.1rem;
-  border-radius: 10px;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
   background: #0f172a;
   color: #ffffff;
   font-size: 0.9rem;
   font-weight: 600;
   border: 0;
   cursor: pointer;
-  transition: opacity 120ms ease, transform 120ms ease;
+  box-shadow: var(--primary-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease,
+    transform 120ms ease;
 }
 
 .pickerCompare:hover {
-  opacity: 0.92;
+  background: #1a1a1d;
+  box-shadow: var(--primary-shadow-hover);
   transform: translateY(-1px);
 }
 
@@ -609,26 +610,28 @@
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .pickerSecondary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
   background: #ffffff;
   color: #0f172a;
   font-size: 0.88rem;
   font-weight: 500;
-  border: 1px solid #e2e8f0;
+  border: 0;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .pickerSecondary:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .pickerSecondary:disabled {
@@ -678,10 +681,10 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.3rem 1.4rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border: 0;
+  border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .compareHeaderRow {
@@ -722,25 +725,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 0.65rem;
-  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
   background: #ffffff;
   color: #475569;
-  border: 1px solid #e2e8f0;
+  border: 0;
   cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: color 120ms ease, background 120ms ease, box-shadow 0.15s ease;
   gap: 0.35rem;
   font-size: 0.82rem;
 }
 
 .iconButton:hover {
-  border-color: #cbd5e1;
   color: #0f172a;
-  background: #f8fafc;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .iconButton_danger:hover {
-  border-color: #fecaca;
   background: #fef2f2;
   color: #b91c1c;
 }
@@ -755,13 +758,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.45rem 0.65rem 0.45rem 0.45rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  padding: 0.45rem 0.7rem 0.45rem 0.5rem;
+  background: #ffffff;
+  border: 0;
   border-radius: 999px;
   font-size: 0.86rem;
   font-weight: 500;
   position: relative;
+  box-shadow: var(--pill-shadow);
 }
 
 .brandStripAccentDot {
@@ -828,10 +832,10 @@
 .section {
   margin-top: 1.4rem;
   padding: 1.3rem 1.4rem 1.45rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border: 0;
+  border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .sectionEyebrow {
