@@ -107,14 +107,19 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
     display: "flex",
     gap: "0.55rem",
     alignItems: "baseline",
-    padding: "0.7rem 0.9rem",
-    borderRadius: "10px",
+    padding: "0.8rem 1.05rem",
+    borderRadius: "16px",
     fontSize: "0.88rem",
     lineHeight: 1.45,
     margin: "0 0 1rem",
-    border: "1px solid",
-    borderColor: mixed ? "#fcd34d" : "#e2e8f0",
-    background: mixed ? "#fffbeb" : "#f8fafc",
+    border: mixed
+      ? "1px solid rgba(252, 211, 77, 0.6)"
+      : "1px solid rgba(255, 255, 255, 0.7)",
+    background: mixed ? "rgba(255, 251, 235, 0.75)" : "rgba(255, 255, 255, 0.55)",
+    backdropFilter: "blur(12px) saturate(160%)",
+    WebkitBackdropFilter: "blur(12px) saturate(160%)",
+    boxShadow:
+      "0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 30px -18px rgba(15, 23, 42, 0.22)",
     color: mixed ? "#854d0e" : "#475569"
   };
 

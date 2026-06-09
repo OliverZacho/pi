@@ -70,13 +70,14 @@
 
 .section {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 0;
+  border-radius: 18px;
   padding: 1.25rem 1.35rem;
+  box-shadow: var(--panel-shadow);
 }
 
 .sectionDanger {
-  border-color: #fecaca;
+  border: 1px solid #fecaca;
   background: #fff7f7;
 }
 

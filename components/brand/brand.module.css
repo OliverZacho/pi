@@ -101,27 +101,28 @@
 .segmentTab {
   display: inline-flex;
   align-items: center;
-  padding: 0.4rem 0.85rem;
+  padding: 0.45rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
+  border: 0;
   background: #ffffff;
   color: #475569;
   font-size: 0.85rem;
   font-weight: 500;
   text-decoration: none;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease, box-shadow 0.15s ease;
 }
 
 .segmentTab:hover {
-  border-color: var(--brand-accent, #0f172a);
   color: #0f172a;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .segmentTabActive,
 .segmentTabActive:hover {
   background: var(--brand-accent, #0f172a);
-  border-color: var(--brand-accent, #0f172a);
   color: var(--brand-accent-fg, #ffffff);
+  box-shadow: var(--primary-shadow);
 }
 
 .breadcrumbLink {
@@ -161,10 +162,10 @@
   gap: 1.5rem;
   flex-wrap: wrap;
   padding: 1.6rem 1.7rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border: 0;
+  border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .heroIdentity {
@@ -181,8 +182,10 @@
   width: 3.6rem;
   height: 3.6rem;
   border-radius: 14px;
-  background: #f1f5f9;
-  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 22px -14px rgba(15, 23, 42, 0.22);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -248,13 +251,14 @@
 .heroPill {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.6rem;
+  padding: 0.25rem 0.7rem;
   border-radius: 999px;
-  background: #f1f5f9;
+  background: #ffffff;
   color: #475569;
   font-size: 0.74rem;
   font-weight: 500;
   letter-spacing: 0.01em;
+  box-shadow: var(--chip-shadow);
 }
 
 .heroActions {
@@ -268,43 +272,46 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #0f172a;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .actionGhost:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .actionPrimary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.55rem 0.95rem;
-  border-radius: 8px;
-  border: 1px solid var(--brand-accent, #0f172a);
+  padding: 0.6rem 1.05rem;
+  border-radius: 999px;
+  border: 0;
   background: var(--brand-accent, #0f172a);
   color: var(--brand-accent-fg, #ffffff);
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--primary-shadow);
   /* Filter-brightness on hover works for every accent (light or dark)
      without needing a second variable for the hover shade. */
-  transition: filter 120ms ease;
+  transition: filter 120ms ease, box-shadow 0.15s ease;
 }
 
 .actionPrimary:hover {
   filter: brightness(0.92);
+  box-shadow: var(--primary-shadow-hover);
 }
 
 .actionGhost:disabled,
@@ -322,9 +329,9 @@
 
 .popover {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--popover-shadow);
   padding: 0.4rem;
   z-index: 50;
   display: flex;
@@ -474,29 +481,32 @@
 }
 
 .popoverGhost {
-  border: 1px solid #e5e7eb;
+  border: 0;
   background: #ffffff;
-  border-radius: 7px;
-  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
   font: inherit;
   font-size: 0.82rem;
   color: #0f172a;
   cursor: pointer;
+  box-shadow: var(--pill-shadow);
+  transition: box-shadow 0.15s ease;
 }
 
 .popoverGhost:hover {
-  background: #f8fafc;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .popoverPrimary {
-  border: 1px solid var(--brand-accent, #0f172a);
+  border: 0;
   background: var(--brand-accent, #0f172a);
   color: var(--brand-accent-fg, #ffffff);
-  border-radius: 7px;
-  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
   font: inherit;
   font-size: 0.82rem;
   cursor: pointer;
+  box-shadow: var(--primary-shadow);
 }
 
 .popoverPrimary:disabled,
@@ -525,10 +535,10 @@
   flex-direction: column;
   gap: 0.55rem;
   padding: 1.15rem 1.25rem 1.2rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--card-shadow);
   min-width: 0;
 }
 
@@ -617,10 +627,10 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem 1.35rem 1.4rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--panel-shadow-sm);
   min-width: 0;
 }
 
@@ -1319,12 +1329,11 @@
   min-width: 240px;
   max-width: 320px;
   padding: 0.6rem 0.7rem 0.65rem;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
   color: #1f2937;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04),
-    0 8px 24px rgba(15, 23, 42, 0.12);
+  border: 0;
+  box-shadow: var(--popover-shadow);
   pointer-events: none;
   transition: opacity 90ms ease;
   font-family: inherit;
@@ -1478,22 +1487,22 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.45rem 0.8rem;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 0;
   background: #ffffff;
   color: #334155;
   font-size: 0.82rem;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease,
-    box-shadow 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease, box-shadow 0.15s ease;
 }
 
 .seasonalChip:hover {
-  border-color: var(--brand-accent, #94a3b8);
   color: #0f172a;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .seasonalChip:focus-visible {
@@ -1503,9 +1512,9 @@
 
 .seasonalChipActive,
 .seasonalChipActive:hover {
-  border-color: var(--brand-accent, #0f172a);
   background: var(--brand-accent, #0f172a);
   color: var(--brand-accent-fg, #ffffff);
+  box-shadow: var(--primary-shadow);
 }
 
 .seasonalChipDim {

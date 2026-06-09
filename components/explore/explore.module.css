@@ -274,9 +274,10 @@
   flex-direction: column;
   gap: 0.55rem;
   padding: 0.85rem 0.85rem 0.95rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fafafa;
+  border: 0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--card-shadow);
 }
 
 .usageHeader {
@@ -383,19 +384,20 @@
   gap: 0.55rem;
   width: 100%;
   max-width: 320px;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 0;
   background: #ffffff;
   color: #94a3b8;
   font-size: 0.88rem;
   cursor: text;
+  box-shadow: var(--search-shadow);
+  transition: box-shadow 0.15s ease;
 }
 
 .searchField:focus-within {
-  border-color: #cbd5e1;
   color: #475569;
-  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--search-shadow-focus);
 }
 
 .searchField svg {
@@ -433,22 +435,23 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 0;
   background: #ffffff;
   color: #334155;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease,
-    color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease,
+    box-shadow 0.15s ease;
 }
 
 .filterChip:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .filterChip svg {
@@ -457,15 +460,15 @@
 }
 
 .filterChipOpen {
-  border-color: #0f172a;
   background: #f8fafc;
   color: #0f172a;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .filterChipActive {
-  border-color: #0f172a;
   background: #0f172a;
   color: #ffffff;
+  box-shadow: var(--primary-shadow);
 }
 
 .filterChipActive svg {
@@ -473,8 +476,7 @@
 }
 
 .filterChipActive:hover {
-  background: #1e293b;
-  border-color: #1e293b;
+  background: #1a1a1d;
 }
 
 .filterCount {
@@ -519,10 +521,9 @@
   z-index: 30;
   min-width: 220px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.05);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--popover-shadow);
   padding: 0.35rem;
   animation: popoverIn 120ms ease;
 }
@@ -837,12 +838,11 @@
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: box-shadow 160ms ease, transform 160ms ease,
-    border-color 160ms ease;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 160ms ease, transform 160ms ease;
   isolation: isolate;
   cursor: pointer;
   text-align: left;
@@ -851,9 +851,7 @@
 }
 
 .card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--card-shadow-hover);
   transform: translateY(-2px);
 }
 
@@ -1216,9 +1214,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
-  padding: 0.2rem;
-  background: #f1f5f9;
+  padding: 0.3rem;
+  background: var(--glass-track-bg);
+  border: 1px solid var(--glass-track-border);
   border-radius: 999px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--toggle-track-shadow);
 }
 
 .viewToggleButton {
@@ -1244,8 +1246,7 @@
 .viewToggleButtonActive {
   background: #ffffff;
   color: #0f172a;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08),
-    0 0 0 1px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--toggle-active-shadow);
 }
 
 .modalClose {
@@ -1255,19 +1256,18 @@
   width: 2.1rem;
   height: 2.1rem;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 0;
   background: #ffffff;
   color: #475569;
   cursor: pointer;
   margin-left: auto;
-  transition: background 120ms ease, color 120ms ease,
-    border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease, box-shadow 0.15s ease;
 }
 
 .modalClose:hover {
-  background: #f1f5f9;
   color: #0f172a;
-  border-color: #cbd5e1;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .modalStage {
@@ -1423,21 +1423,22 @@
 
 .infoActionPrimary {
   flex: 1;
-  padding: 0.55rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  padding: 0.6rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #0f172a;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, box-shadow 0.15s ease;
 }
 
 .infoActionPrimary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .infoActionIcon {
@@ -1446,19 +1447,18 @@
   justify-content: center;
   width: 2.1rem;
   height: 2.1rem;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  border: 0;
   background: #ffffff;
   color: #475569;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease,
-    border-color 120ms ease;
+  box-shadow: var(--pill-shadow);
+  transition: background 120ms ease, color 120ms ease, box-shadow 0.15s ease;
 }
 
 .infoActionIcon:hover {
-  background: #f8fafc;
   color: #0f172a;
-  border-color: #cbd5e1;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 .infoActionIcon:disabled {

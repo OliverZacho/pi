@@ -8,6 +8,54 @@
   /* Flat blue-tinted interactive states for controls on the blue background. */
   --on-blue-hover: #e3f3fc;
   --on-blue-active: #d4ebf9;
+
+  /* ----------------------------------------------------------------
+   * Floating-glass design tokens.
+   * Single source of truth for the borderless, soft-shadow surfaces
+   * used across the app (Explore, Brand, Compare, Collections,
+   * Following). Tweak depth/spread here and it updates everywhere.
+   * ---------------------------------------------------------------- */
+  /* Cards & tiles (email cards, KPI tiles, set cards, collection tiles). */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 14px 34px -20px rgba(15, 23, 42, 0.22);
+  --card-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 18px 40px -18px rgba(15, 23, 42, 0.3);
+  /* Large panels (hero, section, picker, compare header). */
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 20px 48px -24px rgba(15, 23, 42, 0.24);
+  /* Mid panels (rules editor, data cards). */
+  --panel-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 18px 44px -24px rgba(15, 23, 42, 0.22);
+  /* Secondary/ghost pills & buttons. */
+  --pill-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 24px -12px rgba(0, 0, 0, 0.12);
+  --pill-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 12px 30px -14px rgba(0, 0, 0, 0.22);
+  /* Primary (dark) buttons. */
+  --primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.08),
+    0 12px 30px -14px rgba(15, 23, 42, 0.4);
+  --primary-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.1),
+    0 16px 36px -14px rgba(15, 23, 42, 0.45);
+  /* Floating dropdowns / popovers. */
+  --popover-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 24px 56px -20px rgba(15, 23, 42, 0.32);
+  /* Pill-shaped search fields. */
+  --search-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px -16px rgba(0, 0, 0, 0.18);
+  --search-shadow-focus: 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 14px 34px -16px rgba(0, 0, 0, 0.24);
+  /* Small inline chips (rule chips, hero pills). */
+  --chip-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 6px 16px -10px rgba(15, 23, 42, 0.18);
+  /* Active segment inside a frosted toggle track. */
+  --toggle-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px -12px rgba(15, 23, 42, 0.28);
+  --toggle-track-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 10px 26px -16px rgba(15, 23, 42, 0.22);
+  /* Frosted segmented-toggle track. */
+  --glass-track-bg: rgba(255, 255, 255, 0.55);
+  --glass-track-border: rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(12px) saturate(160%);
 }
 
 html,
