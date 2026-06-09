@@ -275,7 +275,7 @@ export default function SearchOverlay({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Sites, brands, categories, content type, regions or ESPs…"
+            placeholder="Search thousands of newsletters, brands, categories, content type, region, ESPs…"
             aria-label="Search"
           />
         </form>
