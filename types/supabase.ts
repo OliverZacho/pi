@@ -133,6 +133,33 @@ export type Database = {
           },
         ]
       }
+      brand_requests: {
+        Row: {
+          company_name: string
+          created_at: string
+          handled_at: string | null
+          id: string
+          status: string
+          website: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          status?: string
+          website: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          status?: string
+          website?: string
+        }
+        Relationships: []
+      }
       captured_emails: {
         Row: {
           auth_results: Json | null

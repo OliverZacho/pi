@@ -24,6 +24,8 @@ import {
   parseDayKey,
   startOfDayInZone
 } from "@/lib/datetime";
+import BrandRequestForm from "./BrandRequestForm";
+import requestStyles from "./BrandRequest.module.css";
 import styles from "./brands-explore.module.css";
 
 const SORT_OPTIONS: { id: BrandsSortKey; label: string }[] = [
@@ -1155,11 +1157,19 @@ export default function BrandsExploreClient({
       ) : null}
 
       {brands.length === 0 && !loading ? (
-        <p className={styles.empty}>
-          {hasAnyFilter
-            ? "No brands match the current filters."
-            : "No brands have been added yet."}
-        </p>
+        hasAnyFilter ? (
+          <div className={requestStyles.inline}>
+            <h2 className={requestStyles.inlineHeading}>No brands match yet</h2>
+            <p className={requestStyles.inlineLead}>
+              We couldn&apos;t find a brand for that search. Request it below and
+              we&apos;ll add it — brands are usually added within 24 hours, so
+              check back soon.
+            </p>
+            <BrandRequestForm defaultCompanyName={queryInput.trim()} />
+          </div>
+        ) : (
+          <p className={styles.empty}>No brands have been added yet.</p>
+        )
       ) : (
         <>
           <div className={styles.resultCount} aria-live="polite">

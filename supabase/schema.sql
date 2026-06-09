@@ -456,6 +456,45 @@ with check (exists (select 1 from public.admin_users au where au.user_id = auth.
 
 grant select, insert, update, delete on public.suggestion_skips to authenticated;
 
+create table if not exists public.brand_requests (
+  id uuid primary key default gen_random_uuid(),
+  company_name text not null,
+  website text not null,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  handled_at timestamptz
+);
+
+create index if not exists brand_requests_status_created_idx
+  on public.brand_requests (status, created_at desc);
+
+alter table public.brand_requests enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'brand_requests' and policyname = 'service_role_full_access_brand_requests'
+  ) then
+    create policy service_role_full_access_brand_requests
+    on public.brand_requests
+    for all
+    to service_role
+    using (true)
+    with check (true);
+  end if;
+end $$;
+
+drop policy if exists brand_requests_admin_all on public.brand_requests;
+create policy brand_requests_admin_all
+on public.brand_requests
+for all
+to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+grant select, insert, update, delete on public.brand_requests to authenticated;
+
 create table if not exists public.saved_emails (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,

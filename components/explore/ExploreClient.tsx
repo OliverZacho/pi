@@ -12,6 +12,8 @@ import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import Link from "next/link";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
+import BrandRequestModal from "@/components/brand/BrandRequestModal";
+import requestStyles from "@/components/brand/BrandRequest.module.css";
 import styles from "./explore.module.css";
 import publicStyles from "./public-explore.module.css";
 
@@ -233,6 +235,7 @@ export default function ExploreClient({
     new Set()
   );
   const [brandQuery, setBrandQuery] = useState("");
+  const [brandRequestOpen, setBrandRequestOpen] = useState(false);
   const [marketQuery, setMarketQuery] = useState("");
   const [hasGif, setHasGif] = useState(false);
   const [hasDarkMode, setHasDarkMode] = useState(false);
@@ -959,7 +962,19 @@ export default function ExploreClient({
                 </div>
                 <div className={styles.popoverScroll}>
                   {filteredBrandOptions.length === 0 ? (
-                    <div className={styles.popoverEmpty}>No brands found</div>
+                    <>
+                      <div className={styles.popoverEmpty}>No brands found</div>
+                      <button
+                        type="button"
+                        className={requestStyles.triggerLink}
+                        onClick={() => {
+                          setOpenPopover(null);
+                          setBrandRequestOpen(true);
+                        }}
+                      >
+                        Request a brand?
+                      </button>
+                    </>
                   ) : (
                     filteredBrandOptions.map((option) => {
                       const checked = selectedBrandIds.has(option.id);
@@ -1393,6 +1408,13 @@ export default function ExploreClient({
             onRequestMemberships={requestMemberships}
           />
         )
+      ) : null}
+
+      {brandRequestOpen ? (
+        <BrandRequestModal
+          defaultCompanyName={brandQuery.trim()}
+          onClose={() => setBrandRequestOpen(false)}
+        />
       ) : null}
     </>
   );
