@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getViewer, PUBLIC_EXPLORE_LIMIT } from "@/lib/access";
 import {
   EXPLORE_PAGE_SIZE,
   getExploreFacets,
@@ -23,29 +24,54 @@ export const metadata = {
 };
 
 export default async function ExplorePage() {
-  // The render endpoint that powers each card iframe is admin-only, so the
-  // page itself enforces the same gate. When we later expose Explore to
-  // non-admin users, swap this for a public render endpoint (or pre-generated
-  // thumbnails) and drop the redirect.
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/explore");
+  // Logged-out / unpaid viewers get the interactive teaser: the real
+  // Explore UI (search / filter / sort) capped to PUBLIC_EXPLORE_LIMIT with
+  // a fade + unlock box. SSR the first slice + facets via the service-role
+  // client (RLS would otherwise return nothing); the client then queries the
+  // public `/api/public/explore/*` routes and renders previews through the
+  // public render endpoint.
+  if (!viewer || !viewer.hasAccess) {
+    const admin = getSupabaseAdmin();
+    const [preview, facets] = await Promise.all([
+      searchExploreEmails(admin, {
+        page: 1,
+        pageSize: PUBLIC_EXPLORE_LIMIT,
+        sort: "recommended"
+      }),
+      getExploreFacets(admin)
+    ]);
+
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar hasAccess={false} />
+
+        <main className={styles.main}>
+          <header className={styles.heading}>
+            <h1>Explore</h1>
+            <p>Browse marketing emails from competing brands</p>
+          </header>
+
+          <ExploreClient
+            mode="public"
+            initialEmails={preview.items}
+            initialHasMore={false}
+            pageSize={PUBLIC_EXPLORE_LIMIT}
+            facets={facets}
+            initialSavedIds={[]}
+            initialCollections={[]}
+            searchEndpoint="/api/public/explore/emails"
+            renderUrlBase="/api/explore/emails"
+            defaultSort="recommended"
+          />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
   // Server-render the first page + facets so the grid is hydrated with
   // real data on first paint. The client takes over for subsequent
@@ -70,7 +96,7 @@ export default async function ExplorePage() {
   // errors here so a broken saves table never breaks Explore itself.
   let initialSavedIds: string[] = [];
   try {
-    const savedSet = await listSavedEmailIds(supabase, user.id);
+    const savedSet = await listSavedEmailIds(supabase, userId);
     initialSavedIds = Array.from(savedSet);
   } catch (err) {
     console.error("Failed to load saved email IDs", err);
@@ -81,7 +107,7 @@ export default async function ExplorePage() {
   // strategy: a broken collections table shouldn't take down Explore.
   let initialCollections: CollectionSummary[] = [];
   try {
-    initialCollections = await listCollectionSummaries(supabase, user.id);
+    initialCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
@@ -93,7 +119,7 @@ export default async function ExplorePage() {
   try {
     initialCompetitorSets = await listCompetitorSetSummaries(
       supabase,
-      user.id
+      userId
     );
   } catch (err) {
     console.error("Failed to load competitor sets", err);

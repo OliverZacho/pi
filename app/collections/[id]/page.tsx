@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCollectionForOwner,
@@ -12,6 +12,8 @@ import {
 } from "@/lib/competitor-db";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/explore/explore.module.css";
@@ -38,32 +40,30 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect(`/login?next=/collections/${id}`);
+  // Collections is a paid feature — public (non-admin) users get a
+  // subscribe panel instead of the collection detail.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="collections" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="collections" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const userId = viewer.userId;
 
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
-
-  const collection = await getCollectionForOwner(supabase, user.id, id);
+  const collection = await getCollectionForOwner(supabase, userId, id);
   if (!collection) {
     notFound();
   }
 
   try {
-    await markCollectionViewed(supabase, user.id, id);
+    await markCollectionViewed(supabase, userId, id);
   } catch (err) {
     console.error("Failed to mark collection viewed", err);
   }
@@ -74,7 +74,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   try {
     const set = await listSavedEmailIds(
       supabase,
-      user.id,
+      userId,
       collection.emails.map((email) => email.id)
     );
     savedIds = Array.from(set);
@@ -86,14 +86,14 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   // collection" popover on each card works without an extra fetch.
   let collections: CollectionSummary[] = [];
   try {
-    collections = await listCollectionSummaries(supabase, user.id);
+    collections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
 
   let competitorSets: CompetitorSetSummary[] = [];
   try {
-    competitorSets = await listCompetitorSetSummaries(supabase, user.id);
+    competitorSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load competitor sets", err);
   }

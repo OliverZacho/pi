@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { listSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
 
 /**
@@ -15,7 +15,7 @@ import { listSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
  *     each card.
  */
 export async function GET(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

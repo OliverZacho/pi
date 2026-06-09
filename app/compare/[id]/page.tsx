@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCompetitorComparison,
@@ -7,6 +7,8 @@ import {
   listCompetitorSetSummaries
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
@@ -37,31 +39,30 @@ export default async function CompareSetPage({ params }: PageProps) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
-  if (authError || !user) {
-    redirect(`/login?next=/compare/${id}`);
+  const viewer = await getViewer();
+  // Compare is a paid feature — public (non-admin) users get a subscribe
+  // panel instead of the saved-set dashboard.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="compare" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="compare" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
-  const set = await getCompetitorSetForOwner(supabase, user.id, id);
+  const set = await getCompetitorSetForOwner(supabase, userId, id);
   if (!set) {
     notFound();
   }
 
   const [collections, sidebarSets, comparison] = await Promise.all([
-    listCollectionSummaries(supabase, user.id),
-    listCompetitorSetSummaries(supabase, user.id),
+    listCollectionSummaries(supabase, userId),
+    listCompetitorSetSummaries(supabase, userId),
     getCompetitorComparison(
       supabase,
       set.brands.map((b) => b.id)

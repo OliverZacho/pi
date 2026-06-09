@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   BRANDS_PAGE_SIZE,
   getBrandsFacets,
@@ -13,6 +13,7 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { getViewer } from "@/lib/access";
 import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import styles from "@/components/brand/brands-explore.module.css";
@@ -37,24 +38,52 @@ export const dynamic = "force-dynamic";
  */
 export default async function BrandsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/brands");
+  // The brand directory is fully browsable for everyone — logged-out /
+  // unpaid visitors get the same search/filter directory (via the public,
+  // service-role API), they just can't open a brand's locked analytics.
+  if (!viewer || !viewer.hasAccess) {
+    const admin = getSupabaseAdmin();
+    const [publicResult, publicFacets] = await Promise.all([
+      searchBrands(admin, {
+        page: 1,
+        pageSize: BRANDS_PAGE_SIZE,
+        sort: "most_active"
+      }),
+      getBrandsFacets(admin)
+    ]);
+
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="brands" hasAccess={false} />
+        <main className={styles.main}>
+          <header className={styles.heading}>
+            <div className={styles.headingRow}>
+              <div>
+                <h1>Brands</h1>
+                <p>
+                  Search every tracked competitor and filter by what we know.
+                </p>
+              </div>
+            </div>
+          </header>
+
+          <BrandsExploreClient
+            initialBrands={publicResult.items}
+            initialHasMore={publicResult.hasMore}
+            initialTotal={publicResult.total}
+            pageSize={BRANDS_PAGE_SIZE}
+            facets={publicFacets}
+            searchEndpoint="/api/public/brands/list"
+            isPublic
+          />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
   const [initialResult, facets] = await Promise.all([
     searchBrands(supabase, {
@@ -67,13 +96,13 @@ export default async function BrandsPage() {
 
   let sidebarCollections: CollectionSummary[] = [];
   try {
-    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+    sidebarCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
   let sidebarSets: CompetitorSetSummary[] = [];
   try {
-    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+    sidebarSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load competitor sets", err);
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { removeBrandFromSet } from "@/lib/competitor-db";
 
 const UUID_PATTERN =
@@ -15,7 +15,7 @@ type RouteContext = {
  * unless the set itself doesn't belong to the caller.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

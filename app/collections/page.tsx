@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import {
   listCollectionSummaries,
   listCollectionsWithPreviews,
@@ -18,36 +19,30 @@ export const metadata = {
 };
 
 export default async function CollectionsPage() {
-  // Admin gate matches `/explore` and `/saved` — the per-card preview
-  // iframes still hit `/api/admin/emails/[id]/render`. When we expose
-  // Pirol more broadly we'll route preview iframes through a public
-  // endpoint instead.
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/collections");
+  // Collections is a paid feature — public (non-admin) users see a
+  // subscribe panel instead of (their non-existent) collections.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="collections" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="collections" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const userId = viewer.userId;
 
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
-
-  const items = await listCollectionsWithPreviews(supabase, user.id);
+  const items = await listCollectionsWithPreviews(supabase, userId);
   // Sidebar summaries include the "new emails" dot flag for rule-based
   // collections; the grid still uses the richer preview payload above.
   let sidebarCollections: CollectionSummary[] = [];
   try {
-    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+    sidebarCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collection summaries", err);
     sidebarCollections = items.map((item) => ({
@@ -60,7 +55,7 @@ export default async function CollectionsPage() {
 
   let sidebarSets: CompetitorSetSummary[] = [];
   try {
-    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+    sidebarSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load competitor sets", err);
   }

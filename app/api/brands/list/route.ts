@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { ESP_LABELS, type EspProvider } from "@/lib/admin-types";
 import {
   searchBrands,
@@ -35,7 +35,7 @@ const VALID_ESP_IDS = new Set<EspProvider>(
  * infinite-scroll page bumps.
  */
 export async function GET(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

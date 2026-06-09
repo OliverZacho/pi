@@ -63,16 +63,34 @@ type Props = {
   email: ExploreEmailCard;
   onClose: () => void;
   /**
+   * Base path for the rendered-preview iframe; the modal builds
+   * `${renderUrlBase}/${id}/render`. Defaults to the admin route; the
+   * public teaser passes `/api/explore/emails` (no auth, links stripped).
+   */
+  renderUrlBase?: string;
+  /**
+   * Base path for the email-detail fetch (metadata panel); builds
+   * `${detailUrlBase}/${id}`. Defaults to the admin route; the public
+   * teaser passes `/api/public/emails`.
+   */
+  detailUrlBase?: string;
+  /**
+   * Read-only modal (public teaser): hides the account actions (Follow /
+   * Save / Add-to-collection / Download) and the raw-HTML source tab. The
+   * full metadata panel still renders.
+   */
+  readOnly?: boolean;
+  /**
    * Whether the email is currently saved by the viewing user. Drives
    * the bookmark icon's filled / outline state and the active styling
    * on the right-pane action button.
    */
-  isSaved: boolean;
+  isSaved?: boolean;
   /**
    * Toggle handler — parent owns the optimistic state + API call so the
    * modal stays in sync with the card grid behind it.
    */
-  onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
+  onToggleSave?: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
   /**
    * User's full collections list, plus this email's current
    * memberships and toggle/create handlers. Optional so existing call
@@ -105,7 +123,10 @@ type Props = {
 export default function EmailModal({
   email,
   onClose,
-  isSaved,
+  renderUrlBase = "/api/admin/emails",
+  detailUrlBase = "/api/admin/emails",
+  readOnly = false,
+  isSaved = false,
   onToggleSave,
   collections,
   membershipIds,
@@ -114,9 +135,14 @@ export default function EmailModal({
   onRequestMemberships
 }: Props) {
   const collectionsEnabled =
+    !readOnly &&
     Array.isArray(collections) &&
     typeof onToggleCollection === "function" &&
     typeof onCreateCollection === "function";
+  // The raw-HTML source tab is hidden in read-only (public) mode.
+  const viewOptions = readOnly
+    ? VIEW_OPTIONS.filter((option) => option.id !== "html")
+    : VIEW_OPTIONS;
   const [view, setView] = useState<ViewMode>("desktop");
   const [detail, setDetail] = useState<CapturedEmailDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -128,7 +154,7 @@ export default function EmailModal({
   const [savePending, setSavePending] = useState(false);
 
   async function handleToggleSave() {
-    if (savePending) return;
+    if (savePending || !onToggleSave) return;
     setSavePending(true);
     try {
       await onToggleSave(email, !isSaved);
@@ -161,7 +187,7 @@ export default function EmailModal({
     let cancelled = false;
     setDetailLoading(true);
     setDetailError(null);
-    fetch(`/api/admin/emails/${email.id}`, { credentials: "include" })
+    fetch(`${detailUrlBase}/${email.id}`, { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Failed (${res.status})`);
@@ -181,9 +207,9 @@ export default function EmailModal({
     return () => {
       cancelled = true;
     };
-  }, [email.id]);
+  }, [email.id, detailUrlBase]);
 
-  const renderUrl = `/api/admin/emails/${email.id}/render`;
+  const renderUrl = `${renderUrlBase}/${email.id}/render`;
 
   const htmlSize = useMemo(() => {
     if (!detail?.htmlContent) return null;
@@ -222,7 +248,7 @@ export default function EmailModal({
         <div className={styles.modalPreview}>
           <div className={styles.modalToolbar}>
             <div className={styles.viewToggle} role="tablist" aria-label="Preview mode">
-              {VIEW_OPTIONS.map((option) => {
+              {viewOptions.map((option) => {
                 const active = view === option.id;
                 return (
                   <button
@@ -286,6 +312,7 @@ export default function EmailModal({
             primaryFonts={primaryFonts}
             compliance={compliance}
             dateLabel={dateLabel}
+            readOnly={readOnly}
             isSaved={isSaved}
             savePending={savePending}
             onToggleSave={handleToggleSave}
@@ -311,6 +338,7 @@ type InfoPanelProps = {
   primaryFonts: string[];
   compliance: ReturnType<typeof classifyListHeaders> | null;
   dateLabel: string;
+  readOnly: boolean;
   isSaved: boolean;
   savePending: boolean;
   onToggleSave: () => void;
@@ -338,6 +366,7 @@ function InfoPanel({
   primaryFonts,
   compliance,
   dateLabel,
+  readOnly,
   isSaved,
   savePending,
   onToggleSave,
@@ -399,38 +428,44 @@ function InfoPanel({
 
   return (
     <>
-      <div className={styles.infoActions}>
-        <button type="button" className={styles.infoActionPrimary}>
-          Follow
-        </button>
-        <button
-          type="button"
-          className={`${styles.infoActionIcon}${
-            isSaved ? ` ${styles.infoActionIconSaved}` : ""
-          }`}
-          aria-label={isSaved ? "Remove from saved" : "Save email"}
-          aria-pressed={isSaved}
-          disabled={savePending}
-          onClick={onToggleSave}
-        >
-          {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
-        </button>
-        {collectionsEnabled ? (
-          <AddToCollectionButton
-            variant="icon"
-            emailId={email.id}
-            collections={collections ?? []}
-            membershipIds={membershipIds ?? new Set()}
-            onToggleCollection={onToggleCollection!}
-            onCreateCollection={onCreateCollection!}
-            onRequestMemberships={onRequestMemberships}
-            align="right"
-          />
-        ) : null}
-        <button type="button" className={styles.infoActionIcon} aria-label="Download email">
-          <DownloadIcon />
-        </button>
-      </div>
+      {readOnly ? null : (
+        <div className={styles.infoActions}>
+          <button type="button" className={styles.infoActionPrimary}>
+            Follow
+          </button>
+          <button
+            type="button"
+            className={`${styles.infoActionIcon}${
+              isSaved ? ` ${styles.infoActionIconSaved}` : ""
+            }`}
+            aria-label={isSaved ? "Remove from saved" : "Save email"}
+            aria-pressed={isSaved}
+            disabled={savePending}
+            onClick={onToggleSave}
+          >
+            {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
+          </button>
+          {collectionsEnabled ? (
+            <AddToCollectionButton
+              variant="icon"
+              emailId={email.id}
+              collections={collections ?? []}
+              membershipIds={membershipIds ?? new Set()}
+              onToggleCollection={onToggleCollection!}
+              onCreateCollection={onCreateCollection!}
+              onRequestMemberships={onRequestMemberships}
+              align="right"
+            />
+          ) : null}
+          <button
+            type="button"
+            className={styles.infoActionIcon}
+            aria-label="Download email"
+          >
+            <DownloadIcon />
+          </button>
+        </div>
+      )}
 
       {/*
         Whole row is a link so it's keyboard-focusable and navigates to

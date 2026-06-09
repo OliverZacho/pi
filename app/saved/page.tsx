@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import { listSavedEmails } from "@/lib/saved-emails-db";
 import {
   listCollectionSummaries,
@@ -18,35 +19,30 @@ export const metadata = {
 };
 
 export default async function SavedPage() {
-  // Same admin gate as `/explore` — the render endpoint that powers the
-  // card iframes still requires admin. When we expose Pirol to non-admin
-  // users we'll swap the iframe source for a public endpoint and drop
-  // both checks together.
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/saved");
+  // Saving requires the full archive (admin-only under RLS) and the Save
+  // action, neither of which the public preview exposes — so public users
+  // get a subscribe panel instead of an always-empty gallery.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="saved" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const userId = viewer.userId;
 
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
-
-  const { items, total } = await listSavedEmails(supabase, user.id);
+  const { items, total } = await listSavedEmails(supabase, userId);
 
   let initialCollections: CollectionSummary[] = [];
   try {
-    initialCollections = await listCollectionSummaries(supabase, user.id);
+    initialCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
@@ -55,7 +51,7 @@ export default async function SavedPage() {
   try {
     initialCompetitorSets = await listCompetitorSetSummaries(
       supabase,
-      user.id
+      userId
     );
   } catch (err) {
     console.error("Failed to load competitor sets", err);

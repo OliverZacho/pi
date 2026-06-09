@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/access";
 import {
   listCollectionSummaries,
   type CollectionSummary
@@ -17,46 +18,37 @@ export const metadata = {
 };
 
 export default async function SettingsPage() {
-  // Same admin gate as the rest of the app shell (/explore, /saved, …).
+  // Settings stays open to any signed-in user so an unpaid visitor can
+  // manage their account and reach billing to subscribe — only logged-out
+  // visitors are bounced. `hasAccess` just tunes the shared sidebar.
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
+  if (!viewer) {
     redirect("/login?next=/settings");
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const { userId, hasAccess } = viewer;
 
   // The sidebar is shared across the app shell, so fetch the same
   // collections / competitor sets it renders on every other page.
   let initialCollections: CollectionSummary[] = [];
   try {
-    initialCollections = await listCollectionSummaries(supabase, user.id);
+    initialCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
 
   let initialCompetitorSets: CompetitorSetSummary[] = [];
   try {
-    initialCompetitorSets = await listCompetitorSetSummaries(supabase, user.id);
+    initialCompetitorSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load competitor sets", err);
   }
 
   // The Team tab restricts invites to the same email domain, so surface
   // the signed-in user's email/domain to the client skeleton.
-  const email = user.email ?? "";
+  const email = viewer.email ?? "";
   const emailDomain = email.includes("@") ? email.split("@")[1] : "";
 
   return (
@@ -65,6 +57,7 @@ export default async function SettingsPage() {
         activeId="settings"
         collections={initialCollections}
         competitorSets={initialCompetitorSets}
+        hasAccess={hasAccess}
       />
 
       <main className={styles.main}>

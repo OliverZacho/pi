@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { listFollowedBrands } from "@/lib/follows-db";
 
 /**
@@ -9,7 +9,7 @@ import { listFollowedBrands } from "@/lib/follows-db";
  * trip.
  */
 export async function GET() {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

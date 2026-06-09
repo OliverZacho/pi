@@ -13,17 +13,29 @@ type Props = {
   email: ExploreEmailCard;
   onOpen: (email: ExploreEmailCard) => void;
   /**
+   * Base path for the preview iframe's render endpoint; the card builds
+   * `${renderUrlBase}/${id}/render`. Defaults to the admin route; the
+   * public Explore teaser passes `/api/explore/emails` (no auth, links
+   * stripped).
+   */
+  renderUrlBase?: string;
+  /**
+   * Read-only card (public teaser): hides the Save + Add-to-collection
+   * controls regardless of whether handlers are passed.
+   */
+  readOnly?: boolean;
+  /**
    * Whether the current user has already saved this email. Drives both
    * the Save button label ("Save" vs "Saved") and the pinned bookmark
    * indicator that shows even when the card is not hovered.
    */
-  isSaved: boolean;
+  isSaved?: boolean;
   /**
    * Toggle handler. Parent owns the optimistic state + API call so the
    * card stays a thin presentational component and Saved gallery state
    * can be lifted (and persisted) at the page level.
    */
-  onToggleSave: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
+  onToggleSave?: (email: ExploreEmailCard, next: boolean) => Promise<void> | void;
   /**
    * User's full collections list. Passed down so the "Add to
    * collection" popover can render without firing its own request.
@@ -65,7 +77,9 @@ type Props = {
 export default function EmailCard({
   email,
   onOpen,
-  isSaved,
+  renderUrlBase = "/api/admin/emails",
+  readOnly = false,
+  isSaved = false,
   onToggleSave,
   collections,
   membershipIds,
@@ -73,7 +87,9 @@ export default function EmailCard({
   onCreateCollection,
   onRequestMemberships
 }: Props) {
+  const saveEnabled = !readOnly && typeof onToggleSave === "function";
   const collectionsEnabled =
+    !readOnly &&
     Array.isArray(collections) &&
     typeof onToggleCollection === "function" &&
     typeof onCreateCollection === "function";
@@ -120,7 +136,7 @@ export default function EmailCard({
     }
   }, []);
 
-  const renderUrl = `/api/admin/emails/${email.id}/render`;
+  const renderUrl = `${renderUrlBase}/${email.id}/render`;
 
   const frameStyle =
     scale !== null
@@ -136,7 +152,7 @@ export default function EmailCard({
   }
 
   async function handleToggleSave() {
-    if (pendingSave) return;
+    if (pendingSave || !onToggleSave) return;
     setPendingSave(true);
     try {
       await onToggleSave(email, !isSaved);
@@ -180,7 +196,7 @@ export default function EmailCard({
           style={frameStyle}
           onLoad={() => setLoaded(true)}
         />
-        {isSaved ? (
+        {saveEnabled && isSaved ? (
           <button
             type="button"
             className={styles.cardSavedBadge}
@@ -195,35 +211,39 @@ export default function EmailCard({
             <BookmarkFilledIcon />
           </button>
         ) : null}
-        <div className={styles.cardOverlay}>
-          <button
-            type="button"
-            className={`${styles.overlayButton} ${
-              isSaved ? styles.saved : styles.primary
-            }`}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleToggleSave();
-            }}
-            aria-pressed={isSaved}
-            disabled={pendingSave}
-          >
-            {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
-            <span>{isSaved ? "Saved" : "Save"}</span>
-          </button>
-          {collectionsEnabled ? (
-            <AddToCollectionButton
-              variant="overlay"
-              emailId={email.id}
-              collections={collections ?? []}
-              membershipIds={membershipIds ?? new Set()}
-              onToggleCollection={onToggleCollection!}
-              onCreateCollection={onCreateCollection!}
-              onRequestMemberships={onRequestMemberships}
-              align="right"
-            />
-          ) : null}
-        </div>
+        {saveEnabled || collectionsEnabled ? (
+          <div className={styles.cardOverlay}>
+            {saveEnabled ? (
+              <button
+                type="button"
+                className={`${styles.overlayButton} ${
+                  isSaved ? styles.saved : styles.primary
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleToggleSave();
+                }}
+                aria-pressed={isSaved}
+                disabled={pendingSave}
+              >
+                {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
+                <span>{isSaved ? "Saved" : "Save"}</span>
+              </button>
+            ) : null}
+            {collectionsEnabled ? (
+              <AddToCollectionButton
+                variant="overlay"
+                emailId={email.id}
+                collections={collections ?? []}
+                membershipIds={membershipIds ?? new Set()}
+                onToggleCollection={onToggleCollection!}
+                onCreateCollection={onCreateCollection!}
+                onRequestMemberships={onRequestMemberships}
+                align="right"
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.cardMeta}>

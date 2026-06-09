@@ -1,5 +1,10 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getViewer } from "@/lib/access";
+import { normalizeCompanyMarkets } from "@/lib/explore-db";
+import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
+import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import { getBrandPageData } from "@/lib/brand-db";
 import {
   listCollectionSummaries,
@@ -51,24 +56,57 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   const segmentInboxId = Array.isArray(segment) ? segment[0] : segment ?? null;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect(`/login?next=/brands/${encodeURIComponent(id)}`);
+  // Logged-out / unpaid viewers see the brand page with full structure —
+  // hero + every section heading — but the data locked behind upgrade CTAs.
+  // Only light brand identity is fetched (service-role); the heavy analytics
+  // (`getBrandPageData`) are skipped entirely.
+  if (!viewer || !viewer.hasAccess) {
+    const admin = getSupabaseAdmin();
+    const { data: company } = await admin
+      .from("companies")
+      .select(
+        "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, subscribed_since, deleted_at"
+      )
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!company || company.deleted_at) {
+      notFound();
+    }
+
+    let logoUrl: string | null = null;
+    if (company.logo_storage_path) {
+      try {
+        const signed = await getSignedAssets([company.logo_storage_path], {
+          transform: BRAND_LOGO_TRANSFORM
+        });
+        logoUrl = signed[company.logo_storage_path] ?? null;
+      } catch (err) {
+        console.error("Failed to sign brand logo", err);
+      }
+    }
+
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="brands" hasAccess={false} />
+        <BrandLockedDashboard
+          brand={{
+            name: company.name,
+            domain: company.domain ?? null,
+            markets: normalizeCompanyMarkets(company.markets),
+            primaryMarketCountry: company.primary_market_country ?? null,
+            isGlobal: Boolean(company.is_global),
+            logoUrl,
+            subscribedSince: company.subscribed_since ?? null
+          }}
+        />
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
   const data = await getBrandPageData(supabase, id, { segmentInboxId });
   if (!data) {
@@ -77,13 +115,13 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
 
   let sidebarCollections: CollectionSummary[] = [];
   try {
-    sidebarCollections = await listCollectionSummaries(supabase, user.id);
+    sidebarCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
   let sidebarSets: CompetitorSetSummary[] = [];
   try {
-    sidebarSets = await listCompetitorSetSummaries(supabase, user.id);
+    sidebarSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load competitor sets", err);
   }
@@ -92,11 +130,11 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   // tiny lookups and we'd otherwise be paying two extra round trips
   // serially before the page renders.
   const [isFollowing, groupMembershipIds] = await Promise.all([
-    isBrandFollowed(supabase, user.id, id).catch((err) => {
+    isBrandFollowed(supabase, userId, id).catch((err) => {
       console.error("Failed to load follow status", err);
       return false;
     }),
-    listSetIdsContainingBrand(supabase, user.id, id).catch((err) => {
+    listSetIdsContainingBrand(supabase, userId, id).catch((err) => {
       console.error("Failed to load group memberships", err);
       return new Set<string>();
     })

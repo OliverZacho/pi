@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { listCollectionMembership } from "@/lib/collections-db";
 
 const UUID_PATTERN =
@@ -14,7 +14,7 @@ const UUID_PATTERN =
  * rows without needing to fetch every membership at page-load time.
  */
 export async function GET(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

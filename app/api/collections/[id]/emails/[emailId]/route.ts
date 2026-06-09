@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   addEmailToCollection,
   removeEmailFromCollection
@@ -16,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string; emailId: string }> };
  * endpoint when the user checks a row.
  */
 export async function PUT(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -54,7 +54,7 @@ export async function PUT(_request: Request, context: RouteContext) {
  * from this collection. Idempotent: no row to delete is still a 200.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

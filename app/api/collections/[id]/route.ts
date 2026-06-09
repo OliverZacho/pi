@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   CollectionRulesValidationError,
   deleteCollection,
@@ -24,7 +24,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  * plus every email currently in it. Powers `/collections/[id]`.
  */
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -63,7 +63,7 @@ export async function GET(_request: Request, context: RouteContext) {
  * flips the collection back into manual mode.
  */
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -226,7 +226,7 @@ export async function PATCH(request: Request, context: RouteContext) {
  * cascades the `collection_emails` rows for free.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

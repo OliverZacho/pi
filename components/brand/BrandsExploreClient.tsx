@@ -57,6 +57,16 @@ type Props = {
   initialTotal: number;
   pageSize: number;
   facets: BrandsFacets;
+  /**
+   * Paged search endpoint. Defaults to the authenticated route; the public
+   * directory passes `/api/public/brands/list` (no auth, all brands).
+   */
+  searchEndpoint?: string;
+  /**
+   * Public directory (logged-out / unpaid): hides the authenticated-only
+   * "select to compare" affordance. Browsing + search still work.
+   */
+  isPublic?: boolean;
 };
 
 type PopoverName =
@@ -81,7 +91,9 @@ export default function BrandsExploreClient({
   initialHasMore,
   initialTotal,
   pageSize,
-  facets
+  facets,
+  searchEndpoint = "/api/brands/list",
+  isPublic = false
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -339,7 +351,7 @@ export default function BrandsExploreClient({
       params.set("sort", sort);
       params.set("page", String(nextPage));
       params.set("pageSize", String(pageSize));
-      return `/api/brands/list?${params.toString()}`;
+      return `${searchEndpoint}?${params.toString()}`;
     },
     [
       debouncedQuery,
@@ -355,7 +367,8 @@ export default function BrandsExploreClient({
       subscribedAfter,
       subscribedBefore,
       sort,
-      pageSize
+      pageSize,
+      searchEndpoint
     ]
   );
 
@@ -1064,23 +1077,27 @@ export default function BrandsExploreClient({
           </div>
         </div>
 
-        <button
-          type="button"
-          className={`${styles.selectToggle}${
-            selectMode ? ` ${styles.selectToggle_active}` : ""
-          }`}
-          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-          aria-pressed={selectMode}
-          title="Toggle compare-select mode"
-        >
-          <span>
-            {selectMode
-              ? selectedBrandIds.length > 0
-                ? `${selectedBrandIds.length} selected`
-                : "Select…"
-              : "Select to compare"}
-          </span>
-        </button>
+        {isPublic ? null : (
+          <button
+            type="button"
+            className={`${styles.selectToggle}${
+              selectMode ? ` ${styles.selectToggle_active}` : ""
+            }`}
+            onClick={() =>
+              selectMode ? exitSelectMode() : setSelectMode(true)
+            }
+            aria-pressed={selectMode}
+            title="Toggle compare-select mode"
+          >
+            <span>
+              {selectMode
+                ? selectedBrandIds.length > 0
+                  ? `${selectedBrandIds.length} selected`
+                  : "Select…"
+                : "Select to compare"}
+            </span>
+          </button>
+        )}
 
         <div className={styles.sortWrap}>
           <button

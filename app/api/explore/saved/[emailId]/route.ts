@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { saveEmail, unsaveEmail } from "@/lib/saved-emails-db";
 
 const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ emailId: string }> };
  * card's Save button uses this).
  */
 export async function PUT(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -37,7 +37,7 @@ export async function PUT(_request: Request, context: RouteContext) {
  * `DELETE /api/explore/saved/[emailId]` — remove the bookmark.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

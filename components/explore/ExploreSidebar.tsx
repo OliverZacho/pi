@@ -49,6 +49,13 @@ type Props = {
    * few with a "View all" link to `/compare`.
    */
   competitorSets?: CompetitorSetSummary[];
+  /**
+   * Whether the viewer is entitled (admin or active subscriber). Locked-out
+   * viewers (logged-out or unpaid) don't own collections or competitor sets
+   * and can't create them, so those management sections are hidden and the
+   * usage card's CTA points at `/pricing` instead of the upgrade affordance.
+   */
+  hasAccess?: boolean;
 };
 
 // Number of collection rows surfaced in the section before falling back
@@ -399,7 +406,8 @@ function AppTopBar() {
 export default function ExploreSidebar({
   activeId = "explore",
   collections = EMPTY_COLLECTIONS,
-  competitorSets = EMPTY_COMPETITOR_SETS
+  competitorSets = EMPTY_COMPETITOR_SETS,
+  hasAccess = true
 }: Props = {}) {
   const router = useRouter();
   const [items, setItems] = useState<CollectionSummary[]>(collections);
@@ -517,6 +525,8 @@ export default function ExploreSidebar({
         })}
       </div>
 
+      {hasAccess ? (
+        <>
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
           <span>Your collections</span>
@@ -668,6 +678,8 @@ export default function ExploreSidebar({
           </Link>
         ) : null}
       </div>
+        </>
+      ) : null}
 
       <div className={styles.spacer} />
 
@@ -675,13 +687,23 @@ export default function ExploreSidebar({
         <div className={styles.usageHeader}>
           <span className={styles.usageDot} aria-hidden="true" />
           <div className={styles.usageText}>
-            18 emails saved this month
-            <span className={styles.usageMuted}>Upgrade for unlimited use</span>
+            {hasAccess ? "18 emails saved this month" : "You're on a preview"}
+            <span className={styles.usageMuted}>
+              {hasAccess
+                ? "Upgrade for unlimited use"
+                : "Subscribe to unlock everything"}
+            </span>
           </div>
         </div>
-        <button type="button" className={styles.upgradeButton} tabIndex={-1}>
-          Upgrade
-        </button>
+        {hasAccess ? (
+          <button type="button" className={styles.upgradeButton} tabIndex={-1}>
+            Upgrade
+          </button>
+        ) : (
+          <Link href="/pricing" className={styles.upgradeButton}>
+            View plans
+          </Link>
+        )}
       </div>
 
       <Link
