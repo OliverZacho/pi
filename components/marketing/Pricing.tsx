@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import styles from "./pricing.module.css";
+import PricingCompare from "./PricingCompare";
 
 type Billing = "monthly" | "annual";
 
@@ -185,6 +186,8 @@ export default function Pricing() {
       <p className={styles.guarantee}>
         Not for you? Email us within 7 days for a full refund — no questions asked.
       </p>
+
+      <PricingCompare />
     </section>
   );
 }
