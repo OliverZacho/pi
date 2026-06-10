@@ -9,6 +9,9 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { getProfile, userHasPassword } from "@/lib/profile-db";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getTeamForUser, type TeamView } from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import SettingsClient from "@/components/settings/SettingsClient";
 import styles from "@/components/explore/explore.module.css";
@@ -47,9 +50,34 @@ export default async function SettingsPage() {
   }
 
   // The Team tab restricts invites to the same email domain, so surface
-  // the signed-in user's email/domain to the client skeleton.
+  // the signed-in user's email/domain to the client.
   const email = viewer.email ?? "";
   const emailDomain = email.includes("@") ? email.split("@")[1] : "";
+
+  // User tab initial data (session client — RLS scopes to the viewer).
+  let initialFullName: string | null = null;
+  try {
+    const profile = await getProfile(supabase, userId);
+    initialFullName = profile?.fullName ?? null;
+  } catch (err) {
+    console.error("Failed to load profile", err);
+  }
+
+  let hasPassword = false;
+  try {
+    hasPassword = await userHasPassword(supabase);
+  } catch (err) {
+    console.error("Failed to check password state", err);
+  }
+
+  // Team tab initial data (admin client — team tables are RLS'd to
+  // service_role only; ownership is scoped by userId here).
+  let initialTeam: TeamView | null = null;
+  try {
+    initialTeam = await getTeamForUser(getSupabaseAdmin(), userId);
+  } catch (err) {
+    console.error("Failed to load team", err);
+  }
 
   return (
     <div className={styles.shell}>
@@ -66,7 +94,14 @@ export default async function SettingsPage() {
           <p>Manage your account, notifications, team, and billing.</p>
         </header>
 
-        <SettingsClient email={email} emailDomain={emailDomain} />
+        <SettingsClient
+          email={email}
+          emailDomain={emailDomain}
+          viewerId={userId}
+          initialFullName={initialFullName}
+          hasPassword={hasPassword}
+          initialTeam={initialTeam}
+        />
       </main>
     </div>
   );

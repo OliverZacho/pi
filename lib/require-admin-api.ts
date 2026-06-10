@@ -30,6 +30,23 @@ async function resolveSession(): Promise<
   };
 }
 
+/**
+ * Gate for routes any signed-in user may call (Settings: account, team).
+ * No entitlement check — the settings page itself only requires login so
+ * unpaid users can manage their account.
+ */
+export async function requireSession(): Promise<
+  AdminSessionOk | AdminSessionErr
+> {
+  const session = await resolveSession();
+  if (!session) {
+    return {
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    };
+  }
+  return session;
+}
+
 export async function requireAdminSession(): Promise<
   AdminSessionOk | AdminSessionErr
 > {
