@@ -33,6 +33,7 @@ export type EspProvider =
   | "exponea"
   | "voyado"
   | "emarsys"
+  | "dynamics_365"
   | "unknown";
 
 export type EspSignal = {
@@ -834,6 +835,51 @@ const FINGERPRINTS: Fingerprint[] = [
       /bounce[^@]*@[^>\s]*emarsys/i
     ],
     xHeaderNames: ["x-ems-stamp", "x-emarsys-message-id", "x-ems-msgid"]
+  },
+  {
+    provider: "dynamics_365",
+    // Microsoft Dynamics 365 Customer Insights – Journeys (formerly Dynamics
+    // 365 Marketing) routes every tenant through region-sharded Microsoft
+    // hosts: `public-<region>.mkt.dynamics.com` for click redirects, the open
+    // pixel, the "view in browser" page and consent management, and
+    // `assets-<region>.mkt.dynamics.com/<org-uuid>/digitalassets/(images|fonts)/…`
+    // for uploaded assets. Custom sending domains only change the From/DKIM
+    // domain — the tracking and asset hosts stay on `mkt.dynamics.com` — but
+    // we still keep host-agnostic URL-shape patterns first in case Microsoft
+    // ever fronts these with a brand CNAME.
+    hostPatterns: [
+      /(^|\.)mkt\.dynamics\.com$/i,
+      /(^|\.)dyn365mktg\.com$/i
+    ],
+    // The tracking URL shapes are unmistakable:
+    //   /api/orgs/<org-uuid>/r/<token>?msdynmkt_target=…&msdynmkt_digest=…&msdynmkt_secretVersion=…
+    //     → click redirect (the `msdynmkt_` query-param prefix is a
+    //       Dynamics-only convention)
+    //   /api/orgs/<org-uuid>/i/<token>
+    //     → open-tracking pixel
+    //   /<org-uuid>/digitalassets/images/<asset-uuid>?ts=<digits>
+    //     → uploaded image / font assets
+    // The email designer also stamps `data-msdyn-tracking-id="…"` on every
+    // tracked anchor. URL-shape patterns are listed FIRST so the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints.
+    htmlPatterns: [
+      /\/api\/orgs\/[a-f0-9-]{36}\/r\/[A-Za-z0-9_-]+\?[^"'<>\s]*msdynmkt_target=/i,
+      /\bmsdynmkt_digest=[A-Za-z0-9%]{8,}/i,
+      /\/api\/orgs\/[a-f0-9-]{36}\/i\/[A-Za-z0-9_-]+/i,
+      /\bdata-msdyn-tracking-id\s*=\s*["']/i,
+      /\/[a-f0-9-]{36}\/digitalassets\/(?:images|fonts)\//i,
+      /\bmkt\.dynamics\.com\b/i
+    ],
+    // Matching the click-redirect shape against parsed `<a>` links gives us
+    // `link_url`-weight signals so a Dynamics send resolves confidently even
+    // when only the links — not the full HTML or headers — are available.
+    linkUrlPatterns: [
+      /\/api\/orgs\/[a-f0-9-]{36}\/r\/[A-Za-z0-9_-]+\?[^"'<>\s]*msdynmkt_target=/i,
+      /\bmsdynmkt_digest=[A-Za-z0-9%]{8,}/i
+    ],
+    dkimPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
+    returnPathPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
+    xHeaderNames: ["x-msdynmkt-messageid", "x-ms-dynamicsmarketing-messageid"]
   }
 ];
 

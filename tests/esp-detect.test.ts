@@ -890,6 +890,40 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Dynamics 365 Customer Insights – Journeys via mkt.dynamics.com tracking links and msdynmkt_* params (no headers)", () => {
+    // Distilled from a real Sweet Protection (Active Brands) send. Dynamics
+    // routes clicks through `public-<region>.mkt.dynamics.com/api/orgs/<org>/r/<token>`
+    // with the `msdynmkt_target` / `msdynmkt_digest` / `msdynmkt_secretVersion`
+    // query params, serves assets from
+    // `assets-<region>.mkt.dynamics.com/<org>/digitalassets/(images|fonts)/…`,
+    // tracks opens via `/api/orgs/<org>/i/<token>`, and stamps
+    // `data-msdyn-tracking-id` on tracked anchors.
+    const html = `
+      <a href="https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/r/17hUm-AvKE605uICaWUCAAEAAAA?msdynmkt_target=%7B%22TargetUrl%22%3A%22https%253A%252F%252Fwww.sweetprotection.com%252Feu%252Fen%252F%22%7D&msdynmkt_digest=knMvM9Od5dWX17kEt48agA7fhKR8AIdm6K9T5aI46yA%3D&msdynmkt_secretVersion=7bb221762d0c46939816d3a5592b1359" data-msdyn-tracking-id="67c5ad726e41d1698936128337">
+        <img src="https://assets-eur.mkt.dynamics.com/3c78829e-e51c-4064-9990-00b0b7114a17/digitalassets/images/cac74890-8d79-ee11-8179-0022489b6e07?ts=638345327487636388" alt="Logo" />
+      </a>
+      <img src="https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/i/17hUm-AvKE605uICaWUCAC8AAAA" width="0" height="0" data-tracking />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/r/17hUm-AvKE605uICaWUCAAEAAAA?msdynmkt_target=%7B%22TargetUrl%22%3A%22https%253A%252F%252Fwww.sweetprotection.com%252Feu%252Fen%252F%22%7D&msdynmkt_digest=knMvM9Od5dWX17kEt48agA7fhKR8AIdm6K9T5aI46yA%3D&msdynmkt_secretVersion=7bb221762d0c46939816d3a5592b1359"
+        )
+      ],
+      resourceHosts: [
+        "public-eur.mkt.dynamics.com",
+        "assets-eur.mkt.dynamics.com"
+      ]
+    });
+    expect(result.provider).toBe("dynamics_365");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },

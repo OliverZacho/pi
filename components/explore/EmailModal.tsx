@@ -48,7 +48,8 @@ const ESP_LABELS: Record<EspProvider, string> = {
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
   voyado: "Voyado",
-  emarsys: "SAP Emarsys"
+  emarsys: "SAP Emarsys",
+  dynamics_365: "Dynamics 365"
 };
 
 type ViewMode = "desktop" | "phone" | "html";

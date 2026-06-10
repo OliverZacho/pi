@@ -186,7 +186,8 @@ export type EspProvider =
   | "heyloyalty"
   | "exponea"
   | "voyado"
-  | "emarsys";
+  | "emarsys"
+  | "dynamics_365";
 
 /**
  * Canonical user-facing labels for each ESP provider id. Shared between
@@ -225,7 +226,8 @@ export const ESP_LABELS: Record<EspProvider, string> = {
   heyloyalty: "HeyLoyalty",
   exponea: "Bloomreach / Exponea",
   voyado: "Voyado",
-  emarsys: "SAP Emarsys"
+  emarsys: "SAP Emarsys",
+  dynamics_365: "Dynamics 365"
 };
 
 export type CapturedEmail = {
