@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getViewer } from "@/lib/access";
+import { FREE_SAVE_LIMIT, getViewer } from "@/lib/access";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import LockedFeature from "@/components/access/LockedFeature";
-import { listSavedEmails } from "@/lib/saved-emails-db";
+import { countSavedEmails, listSavedEmails } from "@/lib/saved-emails-db";
 import {
   listCollectionSummaries,
   type CollectionSummary
@@ -22,10 +24,9 @@ export default async function SavedPage() {
   const supabase = await createClient();
   const viewer = await getViewer();
 
-  // Saving requires the full archive (admin-only under RLS) and the Save
-  // action, neither of which the public preview exposes — so public users
-  // get a subscribe panel instead of an always-empty gallery.
-  if (!viewer || !viewer.hasAccess) {
+  // Logged-out visitors can't save anything, so they get the subscribe
+  // panel instead of an always-empty gallery.
+  if (!viewer) {
     return (
       <div className={styles.shell}>
         <ExploreSidebar activeId="saved" hasAccess={false} />
@@ -37,6 +38,59 @@ export default async function SavedPage() {
   }
 
   const userId = viewer.userId;
+
+  // Signed-in but unpaid: show their free saves (curated only, read via
+  // the service-role client since their session token has no RLS grant on
+  // saved_emails), with an upgrade nudge. Collections stay paid.
+  if (!viewer.hasAccess) {
+    const admin = getSupabaseAdmin();
+    let items: Awaited<ReturnType<typeof listSavedEmails>>["items"] = [];
+    let savedCount = 0;
+    try {
+      const [result, count] = await Promise.all([
+        listSavedEmails(admin, userId, { curatedOnly: true }),
+        countSavedEmails(admin, userId)
+      ]);
+      items = result.items;
+      savedCount = count;
+    } catch (err) {
+      console.error("Failed to load saved emails", err);
+    }
+
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <main className={styles.main}>
+          <header className={styles.heading}>
+            <h1>Saved</h1>
+            <p>
+              {savedCount === 0
+                ? "Save emails from Explore and they'll show up here."
+                : `${savedCount} of ${FREE_SAVE_LIMIT} free saves used.`}
+            </p>
+          </header>
+
+          <div className={styles.saveQuota}>
+            <span className={styles.saveQuotaText}>
+              {savedCount >= FREE_SAVE_LIMIT
+                ? `You've used all ${FREE_SAVE_LIMIT} free saves.`
+                : `Free accounts can save up to ${FREE_SAVE_LIMIT} emails.`}{" "}
+              Upgrade for unlimited saving, collections, and the full archive.
+            </span>
+            <Link href="/pricing" className={styles.saveQuotaCta}>
+              View plans
+            </Link>
+          </div>
+
+          <SavedGalleryClient
+            initialEmails={items}
+            initialCollections={[]}
+            publicView
+          />
+        </main>
+      </div>
+    );
+  }
 
   const { items, total } = await listSavedEmails(supabase, userId);
 

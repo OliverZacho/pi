@@ -82,6 +82,16 @@ type Props = {
   mode?: "authenticated" | "public";
   /** Render-endpoint base passed to each card (see EmailCard). */
   renderUrlBase?: string;
+  /**
+   * Enable the Save button in `public` mode for signed-in but unpaid
+   * users — the free conversion hook. Logged-out visitors leave this
+   * false and keep read-only cards. Ignored outside `public` mode.
+   */
+  allowSave?: boolean;
+  /** Free-tier save cap, surfaced in the quota nudge. */
+  saveLimit?: number;
+  /** The user's current total saved count (cap basis) on first paint. */
+  initialSavedCount?: number;
 };
 
 function SearchIcon() {
@@ -219,9 +229,16 @@ export default function ExploreClient({
   searchEndpoint = "/api/explore/emails",
   defaultSort = "newest",
   mode = "authenticated",
-  renderUrlBase = "/api/admin/emails"
+  renderUrlBase = "/api/admin/emails",
+  allowSave = false,
+  saveLimit = 0,
+  initialSavedCount = 0
 }: Props) {
   const isPublic = mode === "public";
+  // Free (public + allowSave) users can save curated cards up to a cap;
+  // track the running total to drive the quota nudge.
+  const [savedCount, setSavedCount] = useState(initialSavedCount);
+  const [saveLimitHit, setSaveLimitHit] = useState(false);
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -357,12 +374,30 @@ export default function ExploreClient({
   // failure we roll back so the UI never lies about what's persisted.
   const handleToggleSave = useCallback(
     async (email: ExploreEmailCard, next: boolean) => {
+      // Optimistically flip the saved state (and, for free users, the
+      // running count) before firing the API call; roll both back on
+      // failure so the UI never lies about what's persisted.
       setSavedIds((current) => {
         const updated = new Set(current);
         if (next) updated.add(email.id);
         else updated.delete(email.id);
         return updated;
       });
+      if (allowSave) {
+        setSavedCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
+      }
+
+      const rollback = () => {
+        setSavedIds((current) => {
+          const updated = new Set(current);
+          if (next) updated.delete(email.id);
+          else updated.add(email.id);
+          return updated;
+        });
+        if (allowSave) {
+          setSavedCount((c) => (next ? Math.max(0, c - 1) : c + 1));
+        }
+      };
 
       try {
         const res = await fetch(`/api/explore/saved/${email.id}`, {
@@ -370,20 +405,28 @@ export default function ExploreClient({
           credentials: "include"
         });
         if (!res.ok) {
-          throw new Error(`Failed (${res.status})`);
+          let code: string | undefined;
+          try {
+            code = ((await res.json()) as { code?: string }).code;
+          } catch {
+            /* non-JSON error body */
+          }
+          rollback();
+          // Hitting the free cap is an expected outcome, not an error —
+          // surface the upgrade nudge instead of a red error banner.
+          if (res.status === 409 && code === "SAVE_LIMIT_REACHED") {
+            setSaveLimitHit(true);
+          } else {
+            setError(`Failed (${res.status})`);
+          }
+          return;
         }
-      } catch (err) {
-        setSavedIds((current) => {
-          const updated = new Set(current);
-          if (next) updated.delete(email.id);
-          else updated.add(email.id);
-          return updated;
-        });
-        const message = err instanceof Error ? err.message : "Failed to save";
-        setError(message);
+      } catch {
+        rollback();
+        setError("Failed to save");
       }
     },
-    []
+    [allowSave]
   );
 
   const requestMemberships = useCallback(async (emailId: string) => {
@@ -1323,6 +1366,23 @@ export default function ExploreClient({
         </div>
       ) : null}
 
+      {isPublic && allowSave ? (
+        <div
+          className={styles.saveQuota}
+          role={saveLimitHit ? "alert" : undefined}
+        >
+          <span className={styles.saveQuotaText}>
+            {savedCount >= saveLimit
+              ? `You've used all ${saveLimit} free saves.`
+              : `Saved ${savedCount} of ${saveLimit} free emails.`}{" "}
+            Upgrade to save more and unlock the full archive.
+          </span>
+          <Link href="/pricing" className={styles.saveQuotaCta}>
+            View plans
+          </Link>
+        </div>
+      ) : null}
+
       {emails.length === 0 && !loading ? (
         <p className={styles.empty}>
           {hasAnyFilter
@@ -1333,13 +1393,24 @@ export default function ExploreClient({
         <div className={isPublic ? publicStyles.gridWrap : undefined}>
           <div className={styles.grid}>
             {emails.map((email) =>
-              isPublic ? (
+              isPublic && !allowSave ? (
                 <EmailCard
                   key={email.id}
                   email={email}
                   onOpen={handleOpenEmail}
                   renderUrlBase={renderUrlBase}
                   readOnly
+                />
+              ) : isPublic && allowSave ? (
+                // Signed-in free user: Save enabled, collections withheld
+                // (no collection props ⇒ EmailCard hides that affordance).
+                <EmailCard
+                  key={email.id}
+                  email={email}
+                  onOpen={handleOpenEmail}
+                  renderUrlBase={renderUrlBase}
+                  isSaved={savedIds.has(email.id)}
+                  onToggleSave={handleToggleSave}
                 />
               ) : (
                 <EmailCard

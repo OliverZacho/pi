@@ -16,6 +16,12 @@ type Props = {
    * stay in sync.
    */
   initialCollections: CollectionSummary[];
+  /**
+   * Free (unpaid) view: render previews/detail through the public,
+   * no-auth endpoints, hide collections (a paid feature), and open the
+   * read-only modal. Removing a save still works from the card.
+   */
+  publicView?: boolean;
 };
 
 const EMPTY_ID_SET = new Set<string>();
@@ -116,7 +122,8 @@ function ChevronIcon() {
  */
 export default function SavedGalleryClient({
   initialEmails,
-  initialCollections
+  initialCollections,
+  publicView = false
 }: Props) {
   const [emails, setEmails] = useState<SavedEmailCard[]>(initialEmails);
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
@@ -421,35 +428,58 @@ export default function SavedGalleryClient({
         <p className={styles.empty}>No saved emails match your search.</p>
       ) : (
         <div className={styles.grid}>
-          {visibleEmails.map((email) => (
-            <EmailCard
-              key={email.id}
-              email={email}
-              onOpen={handleOpenEmail}
-              isSaved={savedIds.has(email.id)}
-              onToggleSave={handleToggleSave}
-              collections={collections}
-              membershipIds={membershipByEmail.get(email.id) ?? EMPTY_ID_SET}
-              onToggleCollection={handleToggleCollection}
-              onCreateCollection={handleCreateCollection}
-              onRequestMemberships={requestMemberships}
-            />
-          ))}
+          {visibleEmails.map((email) =>
+            publicView ? (
+              // Free view: public render endpoint, Save toggle (unsave)
+              // kept, collections withheld.
+              <EmailCard
+                key={email.id}
+                email={email}
+                onOpen={handleOpenEmail}
+                renderUrlBase="/api/explore/emails"
+                isSaved={savedIds.has(email.id)}
+                onToggleSave={handleToggleSave}
+              />
+            ) : (
+              <EmailCard
+                key={email.id}
+                email={email}
+                onOpen={handleOpenEmail}
+                isSaved={savedIds.has(email.id)}
+                onToggleSave={handleToggleSave}
+                collections={collections}
+                membershipIds={membershipByEmail.get(email.id) ?? EMPTY_ID_SET}
+                onToggleCollection={handleToggleCollection}
+                onCreateCollection={handleCreateCollection}
+                onRequestMemberships={requestMemberships}
+              />
+            )
+          )}
         </div>
       )}
 
       {openEmail ? (
-        <EmailModal
-          email={openEmail}
-          onClose={handleCloseEmail}
-          isSaved={savedIds.has(openEmail.id)}
-          onToggleSave={handleToggleSave}
-          collections={collections}
-          membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
-          onToggleCollection={handleToggleCollection}
-          onCreateCollection={handleCreateCollection}
-          onRequestMemberships={requestMemberships}
-        />
+        publicView ? (
+          <EmailModal
+            email={openEmail}
+            onClose={handleCloseEmail}
+            renderUrlBase="/api/explore/emails"
+            detailUrlBase="/api/public/emails"
+            readOnly
+          />
+        ) : (
+          <EmailModal
+            email={openEmail}
+            onClose={handleCloseEmail}
+            isSaved={savedIds.has(openEmail.id)}
+            onToggleSave={handleToggleSave}
+            collections={collections}
+            membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
+            onToggleCollection={handleToggleCollection}
+            onCreateCollection={handleCreateCollection}
+            onRequestMemberships={requestMemberships}
+          />
+        )
       ) : null}
     </>
   );

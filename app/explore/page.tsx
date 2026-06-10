@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getViewer, PUBLIC_EXPLORE_LIMIT } from "@/lib/access";
+import { FREE_SAVE_LIMIT, getViewer, PUBLIC_EXPLORE_LIMIT } from "@/lib/access";
 import {
   EXPLORE_PAGE_SIZE,
   getExploreFacets,
   searchExploreEmails
 } from "@/lib/explore-db";
-import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import { countSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
 import {
   listCollectionSummaries,
   type CollectionSummary
@@ -44,6 +44,26 @@ export default async function ExplorePage() {
       getExploreFacets(admin)
     ]);
 
+    // A signed-in but unpaid viewer gets the same limited teaser, but with
+    // Save enabled on its curated cards (the free conversion hook). Their
+    // saved state + count are read via the service-role client, scoped to
+    // curated emails, since their session token has no RLS grant on
+    // saved_emails. Logged-out visitors get no Save button.
+    let initialSavedIds: string[] = [];
+    let savedCount = 0;
+    if (viewer) {
+      try {
+        const [savedSet, count] = await Promise.all([
+          listSavedEmailIds(admin, viewer.userId, null, { curatedOnly: true }),
+          countSavedEmails(admin, viewer.userId)
+        ]);
+        initialSavedIds = Array.from(savedSet);
+        savedCount = count;
+      } catch (err) {
+        console.error("Failed to load saved email IDs", err);
+      }
+    }
+
     return (
       <div className={styles.shell}>
         <ExploreSidebar hasAccess={false} />
@@ -56,11 +76,14 @@ export default async function ExplorePage() {
 
           <ExploreClient
             mode="public"
+            allowSave={Boolean(viewer)}
+            saveLimit={FREE_SAVE_LIMIT}
+            initialSavedCount={savedCount}
             initialEmails={preview.items}
             initialHasMore={false}
             pageSize={PUBLIC_EXPLORE_LIMIT}
             facets={facets}
-            initialSavedIds={[]}
+            initialSavedIds={initialSavedIds}
             initialCollections={[]}
             searchEndpoint="/api/public/explore/emails"
             renderUrlBase="/api/explore/emails"

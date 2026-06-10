@@ -26,6 +26,13 @@ export type Viewer = {
 export const PUBLIC_EXPLORE_LIMIT = 16;
 
 /**
+ * How many emails a signed-in but unpaid user may save. Saving is the
+ * free conversion hook: free users bookmark curated preview emails up to
+ * this cap, then get nudged to upgrade. Paid/admin users are unlimited.
+ */
+export const FREE_SAVE_LIMIT = 25;
+
+/**
  * Resolve the current viewer for this request.
  *
  * Identity comes from `getClaims()`, which **verifies the session JWT
