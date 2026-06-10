@@ -840,7 +840,9 @@ function TeamTab({
           </div>
         ) : (
           <div className={styles.emptyState}>
-            No team members yet. Invite someone above to get started.
+            {canInvite
+              ? "No team members yet. Invite someone above to get started."
+              : "No team members yet. Upgrade to the Team plan to get started."}
           </div>
         )}
         {rowError ? (
