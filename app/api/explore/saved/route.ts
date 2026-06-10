@@ -16,9 +16,9 @@ import { listSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
  *     each card.
  *
  * Open to any signed-in user. Free (non-entitled) users read through the
- * service-role client and are scoped to curated emails only, so the
- * endpoint never leaks paywalled archive content they may have saved
- * while previously subscribed.
+ * service-role client (their session token has no RLS grant on
+ * saved_emails); the gallery renders via the link-stripped public
+ * endpoints, so no paywalled source is exposed.
  */
 export async function GET(request: Request) {
   const session = await requireSession();
@@ -27,23 +27,17 @@ export async function GET(request: Request) {
   }
 
   const { data: hasAccess } = await session.supabase.rpc("has_archive_access");
-  const entitled = Boolean(hasAccess);
-  const client = entitled ? session.supabase : getSupabaseAdmin();
-  const curatedOnly = !entitled;
+  const client = hasAccess ? session.supabase : getSupabaseAdmin();
 
   const url = new URL(request.url);
 
   try {
     if (url.searchParams.get("ids") === "1") {
-      const set = await listSavedEmailIds(client, session.user.id, null, {
-        curatedOnly
-      });
+      const set = await listSavedEmailIds(client, session.user.id);
       return NextResponse.json({ ids: Array.from(set) });
     }
 
-    const result = await listSavedEmails(client, session.user.id, {
-      curatedOnly
-    });
+    const result = await listSavedEmails(client, session.user.id);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to list saved emails", error);

@@ -45,16 +45,16 @@ export default async function ExplorePage() {
     ]);
 
     // A signed-in but unpaid viewer gets the same limited teaser, but with
-    // Save enabled on its curated cards (the free conversion hook). Their
-    // saved state + count are read via the service-role client, scoped to
-    // curated emails, since their session token has no RLS grant on
-    // saved_emails. Logged-out visitors get no Save button.
+    // Save enabled on its cards (the free conversion hook). Their saved
+    // state + count are read via the service-role client, since their
+    // session token has no RLS grant on saved_emails. Logged-out visitors
+    // get no Save button.
     let initialSavedIds: string[] = [];
     let savedCount = 0;
     if (viewer) {
       try {
         const [savedSet, count] = await Promise.all([
-          listSavedEmailIds(admin, viewer.userId, null, { curatedOnly: true }),
+          listSavedEmailIds(admin, viewer.userId),
           countSavedEmails(admin, viewer.userId)
         ]);
         initialSavedIds = Array.from(savedSet);

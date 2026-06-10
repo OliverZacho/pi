@@ -39,16 +39,17 @@ export default async function SavedPage() {
 
   const userId = viewer.userId;
 
-  // Signed-in but unpaid: show their free saves (curated only, read via
-  // the service-role client since their session token has no RLS grant on
-  // saved_emails), with an upgrade nudge. Collections stay paid.
+  // Signed-in but unpaid: show their free saves (read via the
+  // service-role client since their session token has no RLS grant on
+  // saved_emails), with an upgrade nudge. The gallery renders through the
+  // link-stripped public endpoints. Collections stay paid.
   if (!viewer.hasAccess) {
     const admin = getSupabaseAdmin();
     let items: Awaited<ReturnType<typeof listSavedEmails>>["items"] = [];
     let savedCount = 0;
     try {
       const [result, count] = await Promise.all([
-        listSavedEmails(admin, userId, { curatedOnly: true }),
+        listSavedEmails(admin, userId),
         countSavedEmails(admin, userId)
       ]);
       items = result.items;

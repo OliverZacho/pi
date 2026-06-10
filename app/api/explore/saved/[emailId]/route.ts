@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { isCuratedEmail } from "@/lib/explore-db";
 import { FREE_SAVE_LIMIT } from "@/lib/access";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -20,9 +19,11 @@ type RouteContext = { params: Promise<{ emailId: string }> };
  *  - Paid / admin (has_archive_access): unrestricted, via their own
  *    session client (RLS scopes the row).
  *  - Free: the service-role client performs the write, and the route
- *    enforces the free-tier rules — only curated preview emails, capped
- *    at FREE_SAVE_LIMIT. Free users' session tokens have no RLS grant on
- *    saved_emails, so these rules can't be bypassed via direct PostgREST.
+ *    enforces the only free-tier rule — a FREE_SAVE_LIMIT cap. (Free
+ *    users can already view the whole archive's link-stripped previews,
+ *    so there's no content/curated restriction to apply.) Their session
+ *    tokens have no RLS grant on saved_emails, so the cap can't be
+ *    bypassed via direct PostgREST.
  */
 async function resolveSaveContext() {
   const session = await requireSession();
@@ -54,14 +55,12 @@ export async function PUT(_request: Request, context: RouteContext) {
 
   try {
     if (!ctx.hasAccess) {
-      const [alreadySaved, isCurated, count] = await Promise.all([
+      const [alreadySaved, count] = await Promise.all([
         isEmailSaved(ctx.client, ctx.userId, emailId),
-        isCuratedEmail(ctx.client, emailId),
         countSavedEmails(ctx.client, ctx.userId)
       ]);
       const decision = freeSaveDecision({
         alreadySaved,
-        isCurated,
         count,
         limit: FREE_SAVE_LIMIT
       });

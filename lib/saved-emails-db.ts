@@ -15,42 +15,29 @@ import type { ExploreEmailCard } from "./explore-db";
 
 const MAX_BATCH_LOOKUP = 500;
 
-type SavedListOptions = {
-  /**
-   * Restrict to emails from curated brands (`companies.is_curated`).
-   * Used for non-entitled (free) viewers so their saved views can never
-   * surface paywalled archive content — including old non-curated saves
-   * left behind by a downgraded ex-subscriber.
-   */
-  curatedOnly?: boolean;
-};
-
 /**
- * Decide whether a non-entitled (free) user may save an email. Pure so it
- * can be unit-tested without a DB. Entitled users bypass this entirely.
+ * Decide whether a non-entitled (free) user may save another email. Pure
+ * so it can be unit-tested without a DB. Entitled users bypass this
+ * entirely.
+ *
+ * The only free-tier rule is the cap: free users can already view the
+ * whole archive's link-stripped previews via the public endpoints, so
+ * saving (which renders through those same endpoints) exposes nothing
+ * new — there's no curated/content restriction to enforce here.
  */
 export type FreeSaveDecision =
   | { ok: true }
-  | { ok: false; status: 403 | 409; code: string; error: string };
+  | { ok: false; status: 409; code: string; error: string };
 
 export function freeSaveDecision(input: {
   alreadySaved: boolean;
-  isCurated: boolean;
   count: number;
   limit: number;
 }): FreeSaveDecision {
   // Re-saving something already saved is an idempotent no-op — never
-  // blocked by the curated check or the cap.
+  // blocked by the cap.
   if (input.alreadySaved) {
     return { ok: true };
-  }
-  if (!input.isCurated) {
-    return {
-      ok: false,
-      status: 403,
-      code: "NOT_SAVEABLE",
-      error: "This email isn't part of the free preview."
-    };
   }
   if (input.count >= input.limit) {
     return {
@@ -103,19 +90,12 @@ export async function isEmailSaved(
 export async function listSavedEmailIds(
   supabase: SupabaseClient<Database>,
   userId: string,
-  scopedToEmailIds?: string[] | null,
-  options: SavedListOptions = {}
+  scopedToEmailIds?: string[] | null
 ): Promise<Set<string>> {
-  // When restricting to curated brands we have to join through
-  // captured_emails → companies; otherwise the flat `email_id` select is
-  // cheaper.
-  let query = options.curatedOnly
-    ? supabase
-        .from("saved_emails")
-        .select("email_id, captured_emails!inner(companies!inner(is_curated))")
-        .eq("user_id", userId)
-        .eq("captured_emails.companies.is_curated", true)
-    : supabase.from("saved_emails").select("email_id").eq("user_id", userId);
+  let query = supabase
+    .from("saved_emails")
+    .select("email_id")
+    .eq("user_id", userId);
 
   if (scopedToEmailIds && scopedToEmailIds.length > 0) {
     // PostgREST `.in()` materializes everything into the URL, so cap
@@ -182,41 +162,21 @@ export type SavedEmailsResult = {
  */
 export async function listSavedEmails(
   supabase: SupabaseClient<Database>,
-  userId: string,
-  options: SavedListOptions = {}
+  userId: string
 ): Promise<SavedEmailsResult> {
-  // Two literal-select variants (kept literal so supabase-js can infer
-  // the row type). For free viewers `companies!inner` + the is_curated
-  // filter drops non-curated saves entirely, so the gallery can never
-  // surface paywalled content; entitled viewers get the plain join.
-  const { data, error, count } = options.curatedOnly
-    ? await supabase
-        .from("saved_emails")
-        .select(
-          `saved_at,
-           captured_emails!inner(
-             id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-             discount_percent, promo_code, company_id,
-             companies!inner(id, name, domain, markets, logo_storage_path)
-           )`,
-          { count: "exact" }
-        )
-        .eq("user_id", userId)
-        .eq("captured_emails.companies.is_curated", true)
-        .order("saved_at", { ascending: false })
-    : await supabase
-        .from("saved_emails")
-        .select(
-          `saved_at,
-           captured_emails!inner(
-             id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-             discount_percent, promo_code, company_id,
-             companies(id, name, domain, markets, logo_storage_path)
-           )`,
-          { count: "exact" }
-        )
-        .eq("user_id", userId)
-        .order("saved_at", { ascending: false });
+  const { data, error, count } = await supabase
+    .from("saved_emails")
+    .select(
+      `saved_at,
+       captured_emails!inner(
+         id, subject, preheader, received_at, category, has_gif, has_dark_mode,
+         discount_percent, promo_code, company_id,
+         companies(id, name, domain, markets, logo_storage_path)
+       )`,
+      { count: "exact" }
+    )
+    .eq("user_id", userId)
+    .order("saved_at", { ascending: false });
 
   if (error) throw error;
 
