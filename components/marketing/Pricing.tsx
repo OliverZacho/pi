@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Caveat } from "next/font/google";
 import styles from "./pricing.module.css";
+import PricingCompare from "./PricingCompare";
+
+/** Handwritten face for the "2 months free!" annotation by the toggle. */
+const caveat = Caveat({ subsets: ["latin"], weight: "600" });
 
 type Billing = "monthly" | "annual";
 
@@ -89,34 +94,71 @@ export default function Pricing() {
           email, every brand, every dashboard.
         </p>
 
-        <div
-          className={styles.toggle}
-          role="radiogroup"
-          aria-label="Billing period"
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={billing === "monthly"}
-            className={`${styles.toggleBtn} ${
-              billing === "monthly" ? styles.toggleActive : ""
-            }`}
-            onClick={() => setBilling("monthly")}
+        <div className={styles.toggleWrap}>
+          <div
+            className={styles.toggle}
+            role="radiogroup"
+            aria-label="Billing period"
           >
-            Monthly
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={billing === "annual"}
-            className={`${styles.toggleBtn} ${
-              billing === "annual" ? styles.toggleActive : ""
-            }`}
-            onClick={() => setBilling("annual")}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={billing === "monthly"}
+              className={`${styles.toggleBtn} ${
+                billing === "monthly" ? styles.toggleActive : ""
+              }`}
+              onClick={() => setBilling("monthly")}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={billing === "annual"}
+              className={`${styles.toggleBtn} ${
+                billing === "annual" ? styles.toggleActive : ""
+              }`}
+              onClick={() => setBilling("annual")}
+            >
+              Annual
+              {/* Pill shows on small screens only; on desktop the
+                  handwritten annotation takes over (badge stays for
+                  screen readers). */}
+              <span className={styles.toggleBadge}>2 months free</span>
+            </button>
+          </div>
+
+          <span
+            className={`${styles.annot} ${caveat.className}`}
+            aria-hidden="true"
           >
-            Annual
-            <span className={styles.toggleBadge}>2 months free</span>
-          </button>
+            <svg
+              className={styles.annotArrow}
+              viewBox="0 0 52 46"
+              fill="none"
+            >
+              {/* Sweeps from the note down-left, tip pointing down at the
+                  Annual button below. */}
+              <path
+                d="M48 6 C 32 4, 14 12, 9 36"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M3 29 L9 38 L17 31"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className={styles.annotText}>
+              2 months
+              <br />
+              free!
+            </span>
+          </span>
         </div>
       </div>
 
@@ -185,6 +227,8 @@ export default function Pricing() {
       <p className={styles.guarantee}>
         Not for you? Email us within 7 days for a full refund — no questions asked.
       </p>
+
+      <PricingCompare />
     </section>
   );
 }

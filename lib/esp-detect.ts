@@ -33,6 +33,7 @@ export type EspProvider =
   | "exponea"
   | "voyado"
   | "emarsys"
+  | "dynamics_365"
   | "unknown";
 
 export type EspSignal = {
@@ -181,11 +182,29 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "braze",
+    // Braze serves every uploaded template asset (images AND @font-face
+    // webfonts) from `braze-images.com/appboy/communication/assets/…` —
+    // "Appboy" is Braze's pre-2017 name and the path survives to this day.
+    // Click/open tracking is wrapped by the underlying transport (usually a
+    // SendGrid `ls/click?upn=` CNAME on a brand domain like
+    // `click.emails.<brand>.com`), so the tracking host tells us nothing —
+    // the asset CDN and the `utm_source=braze` convention carry detection on
+    // header-less sends. We deliberately do NOT fingerprint the generic
+    // SendGrid wrapper itself, so the composing platform (Braze) outranks the
+    // transport.
     hostPatterns: [
       /(^|\.)bnc\.lt$/i,
       /(^|\.)sparkpostmail\.com$/i,
       /(^|\.)sparkpostmail1\.com$/i,
-      /(^|\.)braze\.com$/i
+      /(^|\.)braze\.com$/i,
+      /(^|\.)braze-images\.com$/i,
+      /(^|\.)appboy\.com$/i
+    ],
+    htmlPatterns: [
+      /\bbraze-images\.com\/appboy\/communication\/assets\//i,
+      /\butm_source=braze\b/i,
+      /\bbraze-images\.com\b/i,
+      /\bappboy\.com\b/i
     ],
     dkimPatterns: [/braze\.com/i, /sparkpostmail/i],
     returnPathPatterns: [/sparkpostmail/i, /braze\.com/i],
@@ -529,28 +548,31 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)peytzmail\.s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com$/i
     ],
     // The tracking URL shapes are highly distinctive:
-    //   /c/<3-char-id>/<24-hex-hash>/<token>/<context>/<numeric-id>?t=<dest>
+    //   /c/<3-char-id>/<mailing-token>/<recipient-token>/<context>/<numeric-id>?t=<dest>
     //     → click redirect (the human-readable `<context>` slug like
-    //       `header-logo-image`, `article-title`, `text-social-media` is a
+    //       `header-logo-image`, `article-title`, `product-image` is a
     //       Peytzmail-only convention)
-    //   /r/<24-hex-hash>/<token>/<numeric-id>?[f=t&]t=<dest>
+    //   /r/<mailing-token>/<recipient-token>/<numeric-id>?[f=t&]t=<dest>
     //     → image / open-pixel redirect (`?f=t&t=spacer.gif` is the
     //       open-tracking pixel signature)
-    //   /v/<24-hex-hash>/<token>/<numeric-id>/send
+    //   /v/<mailing-token>/<recipient-token>/<numeric-id>/send
     //     → "Read online" web-view link
-    //   /unsubscribe/<24-hex-hash>/<numeric-id>?email=<recipient>
+    //   /unsubscribe/<mailing-token>/<numeric-id>?email=<recipient>
     //     → list-unsubscribe link
+    // The token segments vary per tenant: some emit 24-hex hashes, others
+    // (e.g. REMA 1000) short lowercase tokens like `fdftfn` — so we match
+    // `[a-z0-9]{6,}` rather than assuming hex.
     htmlPatterns: [
       /\bpeytzmail\.com\b/i,
-      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
-      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&(?:amp;)?)?t=/i,
-      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+      /\/c\/[a-z0-9]{3}\/[a-z0-9]{6,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&(?:amp;)?)?t=/i,
+      /\/unsubscribe\/[a-z0-9]{6,}\/\d+\?email=/i
     ],
     linkUrlPatterns: [
-      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
-      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&)?t=/i,
-      /\/v\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\/send\b/i,
-      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+      /\/c\/[a-z0-9]{3}\/[a-z0-9]{6,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&)?t=/i,
+      /\/v\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\/send\b/i,
+      /\/unsubscribe\/[a-z0-9]{6,}\/\d+\?email=/i
     ],
     dkimPatterns: [/peytzmail\.com/i, /peytz\.dk/i],
     returnPathPatterns: [/peytzmail\.com/i, /bounce[^@]*@[^>\s]*peytz/i],
@@ -834,6 +856,51 @@ const FINGERPRINTS: Fingerprint[] = [
       /bounce[^@]*@[^>\s]*emarsys/i
     ],
     xHeaderNames: ["x-ems-stamp", "x-emarsys-message-id", "x-ems-msgid"]
+  },
+  {
+    provider: "dynamics_365",
+    // Microsoft Dynamics 365 Customer Insights – Journeys (formerly Dynamics
+    // 365 Marketing) routes every tenant through region-sharded Microsoft
+    // hosts: `public-<region>.mkt.dynamics.com` for click redirects, the open
+    // pixel, the "view in browser" page and consent management, and
+    // `assets-<region>.mkt.dynamics.com/<org-uuid>/digitalassets/(images|fonts)/…`
+    // for uploaded assets. Custom sending domains only change the From/DKIM
+    // domain — the tracking and asset hosts stay on `mkt.dynamics.com` — but
+    // we still keep host-agnostic URL-shape patterns first in case Microsoft
+    // ever fronts these with a brand CNAME.
+    hostPatterns: [
+      /(^|\.)mkt\.dynamics\.com$/i,
+      /(^|\.)dyn365mktg\.com$/i
+    ],
+    // The tracking URL shapes are unmistakable:
+    //   /api/orgs/<org-uuid>/r/<token>?msdynmkt_target=…&msdynmkt_digest=…&msdynmkt_secretVersion=…
+    //     → click redirect (the `msdynmkt_` query-param prefix is a
+    //       Dynamics-only convention)
+    //   /api/orgs/<org-uuid>/i/<token>
+    //     → open-tracking pixel
+    //   /<org-uuid>/digitalassets/images/<asset-uuid>?ts=<digits>
+    //     → uploaded image / font assets
+    // The email designer also stamps `data-msdyn-tracking-id="…"` on every
+    // tracked anchor. URL-shape patterns are listed FIRST so the
+    // `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers the strongest fingerprints.
+    htmlPatterns: [
+      /\/api\/orgs\/[a-f0-9-]{36}\/r\/[A-Za-z0-9_-]+\?[^"'<>\s]*msdynmkt_target=/i,
+      /\bmsdynmkt_digest=[A-Za-z0-9%]{8,}/i,
+      /\/api\/orgs\/[a-f0-9-]{36}\/i\/[A-Za-z0-9_-]+/i,
+      /\bdata-msdyn-tracking-id\s*=\s*["']/i,
+      /\/[a-f0-9-]{36}\/digitalassets\/(?:images|fonts)\//i,
+      /\bmkt\.dynamics\.com\b/i
+    ],
+    // Matching the click-redirect shape against parsed `<a>` links gives us
+    // `link_url`-weight signals so a Dynamics send resolves confidently even
+    // when only the links — not the full HTML or headers — are available.
+    linkUrlPatterns: [
+      /\/api\/orgs\/[a-f0-9-]{36}\/r\/[A-Za-z0-9_-]+\?[^"'<>\s]*msdynmkt_target=/i,
+      /\bmsdynmkt_digest=[A-Za-z0-9%]{8,}/i
+    ],
+    dkimPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
+    returnPathPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
+    xHeaderNames: ["x-msdynmkt-messageid", "x-ms-dynamicsmarketing-messageid"]
   }
 ];
 

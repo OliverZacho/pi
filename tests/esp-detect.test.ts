@@ -133,6 +133,41 @@ describe("detectEsp", () => {
     expect(result.provider).toBe("braze");
   });
 
+  it("identifies Braze via the braze-images.com asset CDN and utm_source=braze (no headers)", () => {
+    // Distilled from a real ALO Yoga send. Braze wraps clicks through a
+    // SendGrid CNAME on a brand domain (`click.emails.aloyoga.com/uni/ls/click?upn=…`),
+    // so the tracking links carry no Braze fingerprint at all. Detection
+    // leans on the `braze-images.com/appboy/communication/assets/…` CDN
+    // (used for both images and @font-face webfonts) and the
+    // `utm_source=braze` convention in direct links.
+    const html = `
+      <style>@font-face {
+        font-family: "Proximanova Regular";
+        src: url('https://braze-images.com/appboy/communication/assets/font_assets/files/698a818e1b4ecf0063119258/original.woff2?1770684814') format("woff2");
+      }</style>
+      <!--[if mso]><v:roundrect href="https://www.aloyoga.com/collections/new-arrivals?lid=jmcuhtrc55s4&utm_source=braze&utm_medium=email&utm_campaign=mktg-gen_nonpurch_f_srr-new-in-genpop_engaged_6.9.2026_x_x"><![endif]-->
+      <a href="https://click.emails.aloyoga.com/uni/ls/click?upn=u001.QV1314xvOzHBMZTXVbujrMm6kdsH41jKl0JcCKercSQnuiziM88a4QRoPcRuatNX">
+        <img src="https://braze-images.com/appboy/communication/assets/image_assets/images/683d8de7b7fc7a00660caee4/original.jpg?1748864486" alt="ALO" width="600" />
+      </a>
+      <img src="https://click.emails.aloyoga.com/wf/open?upn=u001.EMh8U-2Bet7f52HIpnSctWlAgHLYQuWsRvWd8v5hbp3wrg" alt="" width="1" height="1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://click.emails.aloyoga.com/uni/ls/click?upn=u001.QV1314xvOzHBMZTXVbujrMm6kdsH41jKl0JcCKercSQnuiziM88a4QRoPcRuatNX"
+        )
+      ],
+      resourceHosts: ["braze-images.com", "click.emails.aloyoga.com"]
+    });
+    expect(result.provider).toBe("braze");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker"])
+    );
+  });
+
   it("identifies Iterable via campaign-id link parameter", () => {
     const result = detectEsp({
       headers: {
@@ -563,6 +598,50 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Peytzmail when the tenant uses short lowercase tokens instead of hex hashes (no headers)", () => {
+    // Distilled from a real REMA 1000 send. This tenant's tracking URLs use
+    // short lowercase tokens (`fdftfn`, `gfltdh`) where other tenants emit
+    // 24-hex hashes — the URL structure (`/c/<3>/<tok>/<tok>/<context>/<id>?t=`,
+    // `/r/…?f=t&t=spacer.gif`, `/v/…/send`, `/unsubscribe/…?email=`) is
+    // otherwise identical. Previously the hex-only patterns missed this and
+    // the email scored 0.55 (host + html marker), just under the threshold.
+    const html = `
+      <a href="https://rema1000.peytzmail.com/v/fdftfn/gfltdhkggh/3998848200/send">Vis i din browser</a>
+      <a href="https://rema1000.peytzmail.com/c/yvq/fdftfn/gfltdh/image/3355613612?t=https%3A%2F%2Fwww.rema1000.dk%2F">
+        <img src="https://rema1000.peytzmail.com/r/fdftfn/gfltdh/3796056549?t=https%3A%2F%2Fimg.peytzmail.com%2Fimage%2Fupload%2Fv1715690764%2Frema1000%2Frema1000-logo.png" alt="Logo" />
+      </a>
+      <a href="https://rema1000.peytzmail.com/c/ynt/fdftfn/gfltdh/article-button/0988391450?t=https%3A%2F%2Frema1000.dk%2Favis%2FLmz4YPPE%2F24">Find opskriften i avisen</a>
+      <a href="https://rema1000.peytzmail.com/unsubscribe/fdftfn/2681455367?email=rema1000-20260522%40pirol.app">Afmeld nyhedsbrev</a>
+      <img src="https://rema1000.peytzmail.com/r/fdftfn/gfltdh/1699260882?f=t&amp;t=spacer.gif" width="1" height="1" border="0" alt="">
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://rema1000.peytzmail.com/v/fdftfn/gfltdhkggh/3998848200/send"),
+        link(
+          "https://rema1000.peytzmail.com/c/yvq/fdftfn/gfltdh/image/3355613612?t=https%3A%2F%2Fwww.rema1000.dk%2F"
+        ),
+        link(
+          "https://rema1000.peytzmail.com/c/ynt/fdftfn/gfltdh/article-button/0988391450?t=https%3A%2F%2Frema1000.dk%2Favis%2FLmz4YPPE%2F24"
+        ),
+        link(
+          "https://rema1000.peytzmail.com/unsubscribe/fdftfn/2681455367?email=rema1000-20260522%40pirol.app"
+        )
+      ],
+      resourceHosts: [
+        "rema1000.peytzmail.com",
+        "img.peytzmail.com",
+        "webfonts.peytzmail.com"
+      ]
+    });
+    expect(result.provider).toBe("peytzmail");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("identifies Peytzmail on a brand-CNAMEd tracking host using only URL shapes", () => {
     // If a customer points e.g. `email.brand.com` at Peytzmail, the host
     // patterns won't match — the `/c/<id>/<hash>/<token>/<context>/<id>?t=`,
@@ -887,6 +966,40 @@ describe("detectEsp", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.6);
     expect(result.signals.map((s) => s.kind)).toEqual(
       expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Dynamics 365 Customer Insights – Journeys via mkt.dynamics.com tracking links and msdynmkt_* params (no headers)", () => {
+    // Distilled from a real Sweet Protection (Active Brands) send. Dynamics
+    // routes clicks through `public-<region>.mkt.dynamics.com/api/orgs/<org>/r/<token>`
+    // with the `msdynmkt_target` / `msdynmkt_digest` / `msdynmkt_secretVersion`
+    // query params, serves assets from
+    // `assets-<region>.mkt.dynamics.com/<org>/digitalassets/(images|fonts)/…`,
+    // tracks opens via `/api/orgs/<org>/i/<token>`, and stamps
+    // `data-msdyn-tracking-id` on tracked anchors.
+    const html = `
+      <a href="https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/r/17hUm-AvKE605uICaWUCAAEAAAA?msdynmkt_target=%7B%22TargetUrl%22%3A%22https%253A%252F%252Fwww.sweetprotection.com%252Feu%252Fen%252F%22%7D&msdynmkt_digest=knMvM9Od5dWX17kEt48agA7fhKR8AIdm6K9T5aI46yA%3D&msdynmkt_secretVersion=7bb221762d0c46939816d3a5592b1359" data-msdyn-tracking-id="67c5ad726e41d1698936128337">
+        <img src="https://assets-eur.mkt.dynamics.com/3c78829e-e51c-4064-9990-00b0b7114a17/digitalassets/images/cac74890-8d79-ee11-8179-0022489b6e07?ts=638345327487636388" alt="Logo" />
+      </a>
+      <img src="https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/i/17hUm-AvKE605uICaWUCAC8AAAA" width="0" height="0" data-tracking />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://public-eur.mkt.dynamics.com/api/orgs/3c78829e-e51c-4064-9990-00b0b7114a17/r/17hUm-AvKE605uICaWUCAAEAAAA?msdynmkt_target=%7B%22TargetUrl%22%3A%22https%253A%252F%252Fwww.sweetprotection.com%252Feu%252Fen%252F%22%7D&msdynmkt_digest=knMvM9Od5dWX17kEt48agA7fhKR8AIdm6K9T5aI46yA%3D&msdynmkt_secretVersion=7bb221762d0c46939816d3a5592b1359"
+        )
+      ],
+      resourceHosts: [
+        "public-eur.mkt.dynamics.com",
+        "assets-eur.mkt.dynamics.com"
+      ]
+    });
+    expect(result.provider).toBe("dynamics_365");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
     );
   });
 

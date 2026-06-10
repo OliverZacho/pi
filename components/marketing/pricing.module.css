@@ -70,6 +70,65 @@
   color: #1c7a43;
 }
 
+/* ---------- "2 months free!" annotation ---------- */
+
+.toggleWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Hand-drawn arrow + note pointing at the Annual option. Decorative only
+   (aria-hidden) — the toggleBadge carries the info for screen readers. */
+.annot {
+  /* Anchored so the arrow tip hovers just above the Annual button. */
+  position: absolute;
+  left: calc(100% - 2.5rem);
+  top: -2.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  color: #0b0b0c;
+  transform: rotate(-4deg);
+  pointer-events: none;
+}
+
+.annotArrow {
+  flex-shrink: 0;
+  width: 46px;
+  height: 41px;
+  margin-top: 0.6rem;
+}
+
+.annotText {
+  font-size: 1.55rem;
+  line-height: 0.95;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Desktop: the handwritten note replaces the pill, which stays in the
+   accessibility tree (visually hidden) so "2 months free" is still read. */
+@media (min-width: 701px) {
+  .toggleBadge {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* Mobile: no room beside the toggle — fall back to the pill. */
+@media (max-width: 700px) {
+  .annot {
+    display: none;
+  }
+}
+
 /* ---------- Cards ---------- */
 
 .grid {
@@ -229,8 +288,212 @@
   color: #6b6b70;
 }
 
+/* ---------- Compare table ---------- */
+
+.compare {
+  margin-top: 4.5rem;
+}
+
+.compareTitle {
+  font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0 0 1.75rem;
+  color: #0b0b0c;
+}
+
+.compareScroll {
+  overflow-x: auto;
+}
+
+.compareTable {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.compareTable th,
+.compareTable td {
+  text-align: left;
+  padding: 1.05rem 1rem;
+}
+
+.compareHeadFeature {
+  width: 28%;
+}
+
+.compareHeadPlan {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #0b0b0c;
+}
+
+.compareGroup tr:first-child th,
+.compareGroup tr:first-child td {
+  border-top: 1px solid #ececef;
+}
+
+.compareFeatureCell {
+  font-weight: 600;
+  color: #0b0b0c;
+}
+
+.featureBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0b0b0c;
+  cursor: pointer;
+}
+
+.featureBtn:hover {
+  color: #4f46e5;
+}
+
+.featureChevron {
+  width: 16px;
+  height: 16px;
+  color: #9a9aa0;
+  transition: transform 0.15s ease;
+}
+
+.featureChevronOpen {
+  transform: rotate(180deg);
+}
+
+.compareValueCell {
+  font-size: 0.92rem;
+  color: #2a2a2e;
+}
+
+.cellText {
+  font-weight: 500;
+}
+
+.cellCheck svg {
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #e7e9f8;
+  color: #4f46e5;
+  box-sizing: content-box;
+}
+
+.cellDash {
+  color: #b6b6bb;
+}
+
+/* Expanded feature description — spans under the feature column. */
+.compareDescRow td {
+  padding-top: 0;
+}
+
+.compareDescCell {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #6b6b70;
+}
+
+.compareDescSpacer {
+  padding: 0;
+}
+
+/* Subtle highlight on the featured plan's column, like the cards above. */
+.colFeatured {
+  background: #f6f7f9;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- FAQ ---------- */
+
+.faq {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 5rem;
+}
+
+.faqTitle {
+  font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-align: center;
+  margin: 0 0 1.75rem;
+  color: #0b0b0c;
+}
+
+.faqList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.faqItem {
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--panel-shadow);
+  padding: 0 1.25rem;
+}
+
+.faqQuestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  padding: 1.05rem 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #0b0b0c;
+  cursor: pointer;
+}
+
+.faqQuestion::-webkit-details-marker {
+  display: none;
+}
+
+.faqChevron {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: #9a9aa0;
+  transition: transform 0.15s ease;
+}
+
+.faqItem[open] .faqChevron {
+  transform: rotate(180deg);
+}
+
+.faqAnswer {
+  margin: 0;
+  padding: 0 0 1.15rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #6b6b70;
+}
+
 @media (max-width: 960px) {
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .compareTitle {
+    text-align: center;
   }
 }
