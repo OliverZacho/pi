@@ -20,6 +20,20 @@ type Plan = {
 
 const PLANS: Plan[] = [
   {
+    id: "free",
+    name: "Free",
+    blurb: "For getting a feel for the archive. No card required.",
+    monthly: 0,
+    annual: 0,
+    cta: "Create free account",
+    features: [
+      "Preview the entire archive",
+      "Search & filter across every brand",
+      "Save up to 25 emails",
+      "Email breakdowns: ESP, category & design"
+    ],
+  },
+  {
     id: "solo",
     name: "Solo",
     blurb: "For the individual marketer studying the competition.",
@@ -69,8 +83,8 @@ export default function Pricing() {
           Simple pricing. The whole archive.
         </h1>
         <p className={styles.subtitle}>
-          One plan unlocks everything — every email, every brand, every dashboard.
-          No tiers of features to decode, no usage meters to watch.
+          Start free, no card required. One upgrade unlocks everything — every
+          email, every brand, every dashboard.
         </p>
 
         <div
@@ -125,9 +139,11 @@ export default function Pricing() {
               <span className={styles.per}>/mo</span>
             </div>
             <p className={styles.billingNote}>
-              {billing === "annual"
-                ? `€${plan.annual.toLocaleString()} billed yearly`
-                : "billed monthly"}
+              {plan.monthly === 0
+                ? "free forever"
+                : billing === "annual"
+                  ? `€${plan.annual.toLocaleString()} billed yearly`
+                  : "billed monthly"}
             </p>
 
             <Link

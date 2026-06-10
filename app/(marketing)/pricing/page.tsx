@@ -6,7 +6,7 @@ import styles from "@/components/marketing/landing.module.css";
 export const metadata: Metadata = {
   title: "Pricing — Pirol",
   description:
-    "One plan unlocks the entire archive — every email, every brand, every dashboard.",
+    "Start free, no card required. One upgrade unlocks the entire archive — every email, every brand, every dashboard.",
 };
 
 export default function PricingPage() {
