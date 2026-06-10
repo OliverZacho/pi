@@ -74,7 +74,9 @@ function perMonth(plan: Plan, billing: Billing): number {
 }
 
 export default function Pricing() {
-  const [billing, setBilling] = useState<Billing>("monthly");
+  // Annual is the default — it's the better deal (two months free) and
+  // the price shown first anchors the decision.
+  const [billing, setBilling] = useState<Billing>("annual");
 
   return (
     <section className={styles.section} aria-labelledby="pricing-heading">

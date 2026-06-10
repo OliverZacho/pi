@@ -76,13 +76,15 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1.25rem;
-  align-items: start;
+  /* Cards stretch to the tallest sibling so the row reads as one unit. */
+  align-items: stretch;
 }
 
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
   padding: 1.85rem 1.6rem;
   border-radius: 20px;
   background: #ffffff;
