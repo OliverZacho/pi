@@ -239,6 +239,32 @@ const TAB_META: Record<
 /** Whole-day window (ms) used to surface mail that just landed on the Create tab. */
 const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** A visitor-submitted "please add this brand" request awaiting triage. */
+type BrandRequest = {
+  id: string;
+  companyName: string;
+  website: string;
+  status: string;
+  createdAt: string;
+  handledAt: string | null;
+};
+
+/**
+ * Best-effort extraction of a bare domain from a visitor-entered website, which
+ * may arrive as "https://www.brand.com/path" or just "brand.com". Falls back to
+ * the trimmed input so the operator can fix it up in the create form.
+ */
+function brandRequestDomain(website: string): string {
+  const raw = website.trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    return url.hostname.replace(/^www\./i, "");
+  } catch {
+    return raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0];
+  }
+}
+
 type EditingDraft = {
   name: string;
   domain: string;
@@ -609,6 +635,11 @@ export default function AdminHomePage() {
   const [categoryCountryFreq, setCategoryCountryFreq] = useState<
     CategoryCountryFrequencyPoint[]
   >([]);
+  const [brandRequests, setBrandRequests] = useState<BrandRequest[]>([]);
+  const [brandRequestsLoading, setBrandRequestsLoading] = useState(true);
+  const [handlingRequestId, setHandlingRequestId] = useState<string | null>(
+    null
+  );
   const [statsLoading, setStatsLoading] = useState(true);
   // Which "Data cleanliness" card the operator drilled into, plus the
   // server-fetched low-confidence email list backing that one kind (the brand
@@ -737,6 +768,32 @@ export default function AdminHomePage() {
       void loadRecentEmails();
     }
   }, [activeTab, loadRecentEmails]);
+
+  const loadBrandRequests = useCallback(async () => {
+    try {
+      setBrandRequestsLoading(true);
+      const response = await fetch("/api/admin/brand-requests", {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        setBrandRequests([]);
+        return;
+      }
+      const data = (await response.json()) as { requests?: BrandRequest[] };
+      setBrandRequests(Array.isArray(data.requests) ? data.requests : []);
+    } catch {
+      setBrandRequests([]);
+    } finally {
+      setBrandRequestsLoading(false);
+    }
+  }, []);
+
+  // Pull the pending request queue whenever the operator opens the Create tab.
+  useEffect(() => {
+    if (activeTab === "create") {
+      void loadBrandRequests();
+    }
+  }, [activeTab, loadBrandRequests]);
 
   const loadDashboardStats = useCallback(async () => {
     try {
@@ -1457,6 +1514,43 @@ export default function AdminHomePage() {
     window.setTimeout(() => {
       nameInputRef.current?.focus();
     }, 250);
+  }
+
+  // Prefills the create form from a visitor brand request and jumps to it, so
+  // the operator can generate the subscription email in one step.
+  function useBrandRequest(req: BrandRequest) {
+    setName(req.companyName);
+    setDomain(brandRequestDomain(req.website));
+    if (createFormRef.current) {
+      createFormRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    }
+    window.setTimeout(() => {
+      nameInputRef.current?.focus();
+    }, 250);
+  }
+
+  async function markBrandRequestHandled(id: string) {
+    setHandlingRequestId(id);
+    // Drop it from the queue immediately; restore on failure.
+    const previous = brandRequests;
+    setBrandRequests((current) => current.filter((req) => req.id !== id));
+    try {
+      const response = await fetch("/api/admin/brand-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!response.ok) {
+        setBrandRequests(previous);
+      }
+    } catch {
+      setBrandRequests(previous);
+    } finally {
+      setHandlingRequestId(null);
+    }
   }
 
   async function skipCandidate(candidate: SuggestedCandidate) {
@@ -2282,6 +2376,80 @@ export default function AdminHomePage() {
           </ul>
         )}
       </section>
+      ) : null}
+
+      {activeTab === "create" ? (
+        <section className="card">
+          <div className="recent-mail-header">
+            <div>
+              <h2>Brand requests</h2>
+              <p className="muted">
+                Brands visitors asked for from Explore and the Brands page.
+                Click <em>Use this</em> to prefill the create form below, then{" "}
+                <em>Done</em> to clear it from the queue.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="recent-mail-refresh"
+              onClick={() => {
+                void loadBrandRequests();
+              }}
+              disabled={brandRequestsLoading}
+            >
+              {brandRequestsLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+          {brandRequestsLoading && brandRequests.length === 0 ? (
+            <p className="muted">Loading requests…</p>
+          ) : brandRequests.length === 0 ? (
+            <p className="muted">No pending brand requests right now.</p>
+          ) : (
+            <ul className="brand-requests-list">
+              {brandRequests.map((req) => (
+                <li key={req.id} className="brand-request-item">
+                  <div className="brand-request-main">
+                    <span className="brand-request-name">{req.companyName}</span>
+                    <a
+                      className="brand-request-site"
+                      href={
+                        req.website.includes("://")
+                          ? req.website
+                          : `https://${req.website}`
+                      }
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      {req.website}
+                    </a>
+                  </div>
+                  <span className="brand-request-time">
+                    {formatDateTime(req.createdAt)}
+                  </span>
+                  <div className="brand-request-actions">
+                    <button
+                      type="button"
+                      className="brand-request-use"
+                      onClick={() => useBrandRequest(req)}
+                    >
+                      Use this →
+                    </button>
+                    <button
+                      type="button"
+                      className="brand-request-done"
+                      onClick={() => {
+                        void markBrandRequestHandled(req.id);
+                      }}
+                      disabled={handlingRequestId === req.id}
+                    >
+                      {handlingRequestId === req.id ? "…" : "Done"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       ) : null}
 
       {activeTab === "create" ? (

@@ -50,8 +50,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isLoggedIn && path === "/login") {
+    // Land everyone on the app, not the admin console: non-admin subscribers
+    // would otherwise bounce to /access-denied. Admins reach /admin via nav.
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/admin";
+    redirectUrl.pathname = "/explore";
     redirectUrl.searchParams.delete("next");
     return NextResponse.redirect(redirectUrl);
   }

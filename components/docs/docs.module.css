@@ -4,7 +4,7 @@
    ============================================================ */
 
 .shell {
-  --bg: #f4f2ee;
+  --bg: #CEECFB;
   --ink: #0b0b0c;
   --ink-soft: #6b6b70;
   --ink-faint: #9a9aa0;
@@ -30,7 +30,7 @@
   align-items: center;
   gap: 1.25rem;
   padding: 0.85rem 1.5rem;
-  background: rgba(244, 242, 238, 0.85);
+  background: rgba(206, 236, 251, 0.85);
   backdrop-filter: saturate(1.2) blur(12px);
   border-bottom: 1px solid var(--line);
 }

@@ -513,6 +513,39 @@ export async function getExploreEmails(
   return items;
 }
 
+/**
+ * True when `emailId` belongs to a brand in the curated allowlist
+ * (`companies.is_curated`, the same set that powers the "Recommended"
+ * feed and the public Explore preview).
+ *
+ * The public render endpoint uses this to scope which emails a non-admin
+ * can fetch — mirroring how the shared-collection render route checks
+ * membership before serving HTML, so a non-admin can't enumerate
+ * `captured_emails` by guessing UUIDs.
+ */
+export async function isCuratedEmail(
+  supabase: SupabaseClient<Database>,
+  emailId: string
+): Promise<boolean> {
+  const { data: email, error: emailError } = await supabase
+    .from("captured_emails")
+    .select("company_id")
+    .eq("id", emailId)
+    .maybeSingle();
+  if (emailError) throw emailError;
+  if (!email?.company_id) return false;
+
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("id", email.company_id)
+    .eq("is_curated", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (companyError) throw companyError;
+  return Boolean(company);
+}
+
 type CompaniesField =
   | {
       id: string;

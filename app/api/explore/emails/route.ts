@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   searchExploreEmails,
   type ExploreSearchParams,
@@ -22,7 +22,7 @@ const SORT_KEYS: ExploreSortKey[] = [
  * to fan out per row.
  */
 export async function GET(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

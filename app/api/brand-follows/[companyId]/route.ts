@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   followBrand,
   isValidCompanyId,
@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ companyId: string }> };
  * page's "Follow" toggle uses this.
  */
 export async function PUT(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -39,7 +39,7 @@ export async function PUT(_request: Request, context: RouteContext) {
  * `DELETE /api/brand-follows/[companyId]` — remove the follow.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

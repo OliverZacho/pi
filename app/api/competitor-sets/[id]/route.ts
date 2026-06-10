@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   deleteCompetitorSet,
   getCompetitorSetForOwner,
@@ -18,7 +18,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  * brand currently in it (with signed logo URLs).
  */
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -51,7 +51,7 @@ export async function GET(_request: Request, context: RouteContext) {
  * PATCH `/api/competitor-sets/[id]` `{ name }` — owner-only rename.
  */
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -107,7 +107,7 @@ export async function PATCH(request: Request, context: RouteContext) {
  * cascades `competitor_set_members` for free.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

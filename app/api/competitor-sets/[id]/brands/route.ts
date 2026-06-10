@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   addBrandsToSet,
   dedupeBrandIds,
@@ -17,7 +17,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  * client can replace its local state in one go.
  */
 export async function POST(request: Request, context: RouteContext) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { getExploreFacets } from "@/lib/explore-db";
 
 /**
@@ -9,7 +9,7 @@ import { getExploreFacets } from "@/lib/explore-db";
  * on page load; the client caches it in component state.
  */
 export async function GET() {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

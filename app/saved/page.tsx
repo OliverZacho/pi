@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { listSavedEmails } from "@/lib/saved-emails-db";
+import { FREE_SAVE_LIMIT, getViewer } from "@/lib/access";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import LockedFeature from "@/components/access/LockedFeature";
+import { countSavedEmails, listSavedEmails } from "@/lib/saved-emails-db";
 import {
   listCollectionSummaries,
   type CollectionSummary
@@ -18,35 +21,83 @@ export const metadata = {
 };
 
 export default async function SavedPage() {
-  // Same admin gate as `/explore` — the render endpoint that powers the
-  // card iframes still requires admin. When we expose Pirol to non-admin
-  // users we'll swap the iframe source for a public endpoint and drop
-  // both checks together.
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/saved");
+  // Logged-out visitors can't save anything, so they get the subscribe
+  // panel instead of an always-empty gallery.
+  if (!viewer) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="saved" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const userId = viewer.userId;
 
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
+  // Signed-in but unpaid: show their free saves (read via the
+  // service-role client since their session token has no RLS grant on
+  // saved_emails), with an upgrade nudge. The gallery renders through the
+  // link-stripped public endpoints. Collections stay paid.
+  if (!viewer.hasAccess) {
+    const admin = getSupabaseAdmin();
+    let items: Awaited<ReturnType<typeof listSavedEmails>>["items"] = [];
+    let savedCount = 0;
+    try {
+      const [result, count] = await Promise.all([
+        listSavedEmails(admin, userId),
+        countSavedEmails(admin, userId)
+      ]);
+      items = result.items;
+      savedCount = count;
+    } catch (err) {
+      console.error("Failed to load saved emails", err);
+    }
+
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <main className={styles.main}>
+          <header className={styles.heading}>
+            <h1>Saved</h1>
+            <p>
+              {savedCount === 0
+                ? "Save emails from Explore and they'll show up here."
+                : `${savedCount} of ${FREE_SAVE_LIMIT} free saves used.`}
+            </p>
+          </header>
+
+          <div className={styles.saveQuota}>
+            <span className={styles.saveQuotaText}>
+              {savedCount >= FREE_SAVE_LIMIT
+                ? `You've used all ${FREE_SAVE_LIMIT} free saves.`
+                : `Free accounts can save up to ${FREE_SAVE_LIMIT} emails.`}{" "}
+              Upgrade for unlimited saving, collections, and the full archive.
+            </span>
+            <Link href="/pricing" className={styles.saveQuotaCta}>
+              View plans
+            </Link>
+          </div>
+
+          <SavedGalleryClient
+            initialEmails={items}
+            initialCollections={[]}
+            publicView
+          />
+        </main>
+      </div>
+    );
   }
 
-  const { items, total } = await listSavedEmails(supabase, user.id);
+  const { items, total } = await listSavedEmails(supabase, userId);
 
   let initialCollections: CollectionSummary[] = [];
   try {
-    initialCollections = await listCollectionSummaries(supabase, user.id);
+    initialCollections = await listCollectionSummaries(supabase, userId);
   } catch (err) {
     console.error("Failed to load collections", err);
   }
@@ -55,7 +106,7 @@ export default async function SavedPage() {
   try {
     initialCompetitorSets = await listCompetitorSetSummaries(
       supabase,
-      user.id
+      userId
     );
   } catch (err) {
     console.error("Failed to load competitor sets", err);

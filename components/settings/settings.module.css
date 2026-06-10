@@ -283,6 +283,202 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
 }
 
+/* ---------- Inline form feedback ---------- */
+
+.error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #dc2626;
+}
+
+.successNote {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #15803d;
+}
+
+/* ---------- Team-plan upgrade notice ---------- */
+
+.planNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.planNoticeText {
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.planNoticeCta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0.8rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.planNoticeCta:hover {
+  background: #1e293b;
+}
+
+/* ---------- Member / invite rows (Team tab) ---------- */
+
+.memberList {
+  display: flex;
+  flex-direction: column;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.memberRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.memberRow:first-child {
+  padding-top: 0;
+}
+
+.memberMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.memberName {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.memberEmail {
+  font-size: 0.8rem;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.memberActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.roleBadge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.rowAction {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #dc2626;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.rowAction:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.rowAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Delete-account modal ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  padding: 1.6rem 1.6rem 1.7rem;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modalLead {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.modalClose {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.modalClose:hover {
+  background: #e2e8f0;
+}
+
 /* ---------- Misc ---------- */
 
 .emptyState {

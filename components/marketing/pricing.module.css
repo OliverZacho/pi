@@ -1,0 +1,234 @@
+.section {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 3.5rem 1.25rem 5rem;
+}
+
+.head {
+  text-align: center;
+  margin-bottom: 2.75rem;
+}
+
+.title {
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.85rem;
+  color: #0b0b0c;
+}
+
+.subtitle {
+  max-width: 38rem;
+  margin: 0 auto 2rem;
+  font-size: 1.02rem;
+  line-height: 1.55;
+  color: #6b6b70;
+}
+
+/* ---------- Billing toggle ---------- */
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+  background: var(--glass-track-bg);
+  border: 1px solid var(--glass-track-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--toggle-track-shadow);
+}
+
+.toggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b6b70;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toggleActive {
+  background: #ffffff;
+  color: #0b0b0c;
+  box-shadow: var(--toggle-active-shadow);
+}
+
+.toggleBadge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #dff3e4;
+  color: #1c7a43;
+}
+
+/* ---------- Cards ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.85rem 1.6rem;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: var(--panel-shadow);
+}
+
+.cardFeatured {
+  box-shadow: var(--panel-shadow), 0 0 0 2px #0b0b0c;
+}
+
+.ribbon {
+  position: absolute;
+  top: 1.6rem;
+  right: 1.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: #0b0b0c;
+  color: #fff;
+}
+
+.cardHead {
+  margin-bottom: 1.4rem;
+}
+
+.planName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  color: #0b0b0c;
+}
+
+.planBlurb {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #6b6b70;
+  margin: 0;
+  max-width: 20rem;
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+
+.currency {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #0b0b0c;
+}
+
+.price {
+  font-size: 2.9rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: #0b0b0c;
+}
+
+.per {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #6b6b70;
+}
+
+.billingNote {
+  font-size: 0.85rem;
+  color: #6b6b70;
+  margin: 0.45rem 0 1.5rem;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+}
+
+.ctaPrimary {
+  background: #0b0b0c;
+  color: #fff;
+  box-shadow: var(--primary-shadow);
+}
+
+.ctaPrimary:hover {
+  box-shadow: var(--primary-shadow-hover);
+}
+
+.ctaGhost {
+  background: #f4f6f8;
+  color: #0b0b0c;
+}
+
+.ctaGhost:hover {
+  background: #eaeef1;
+}
+
+/* ---------- Feature list ---------- */
+
+.features {
+  list-style: none;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: #2a2a2e;
+}
+
+.check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: #1c7a43;
+}
+
+.guarantee {
+  text-align: center;
+  margin: 2.75rem auto 0;
+  font-size: 0.9rem;
+  color: #6b6b70;
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

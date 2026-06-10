@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   createCollection,
   listCollectionsWithPreviews
@@ -13,7 +13,7 @@ import { isCollectionIcon } from "@/lib/collection-icons";
  * payload than the sidebar list.
  */
 export async function GET() {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -41,7 +41,7 @@ const MAX_NAME_LENGTH = 120;
  * can't pick a predictable URL.
  */
 export async function POST(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

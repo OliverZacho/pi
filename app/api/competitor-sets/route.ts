@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   createCompetitorSet,
   dedupeBrandIds,
@@ -15,7 +15,7 @@ const MAX_NAME_LENGTH = 120;
  * "Your competitors" section without a per-page server round-trip.
  */
 export async function GET() {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }
@@ -41,7 +41,7 @@ export async function GET() {
  * `(set_id, company_id)`; bad brand ids are dropped at validation time.
  */
 export async function POST(request: Request) {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

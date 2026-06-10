@@ -9,9 +9,13 @@ import type {
 import type { CollectionSummary } from "@/lib/collections-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
 import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
+import Link from "next/link";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
+import BrandRequestModal from "@/components/brand/BrandRequestModal";
+import requestStyles from "@/components/brand/BrandRequest.module.css";
 import styles from "./explore.module.css";
+import publicStyles from "./public-explore.module.css";
 
 const SORT_OPTIONS: { id: ExploreSortKey; label: string }[] = [
   // "Recommended" is a curated-brand filter disguised as a sort: it shows
@@ -68,6 +72,26 @@ type Props = {
    * `"newest"` since the curated allowlist isn't its organising idea.
    */
   defaultSort?: ExploreSortKey;
+  /**
+   * "public" renders the logged-out / unpaid teaser: same search / filter /
+   * sort UI, but the grid is capped (no infinite scroll), Save and
+   * Add-to-collection are hidden, the detail view opens the read-only
+   * `PublicEmailModal`, card previews render via {@link renderUrlBase}, and a
+   * gradient fade + "unlock to see more" box covers the lower grid.
+   */
+  mode?: "authenticated" | "public";
+  /** Render-endpoint base passed to each card (see EmailCard). */
+  renderUrlBase?: string;
+  /**
+   * Enable the Save button in `public` mode for signed-in but unpaid
+   * users — the free conversion hook. Logged-out visitors leave this
+   * false and keep read-only cards. Ignored outside `public` mode.
+   */
+  allowSave?: boolean;
+  /** Free-tier save cap, surfaced in the quota nudge. */
+  saveLimit?: number;
+  /** The user's current total saved count (cap basis) on first paint. */
+  initialSavedCount?: number;
 };
 
 function SearchIcon() {
@@ -203,8 +227,18 @@ export default function ExploreClient({
   initialSavedIds,
   initialCollections,
   searchEndpoint = "/api/explore/emails",
-  defaultSort = "newest"
+  defaultSort = "newest",
+  mode = "authenticated",
+  renderUrlBase = "/api/admin/emails",
+  allowSave = false,
+  saveLimit = 0,
+  initialSavedCount = 0
 }: Props) {
+  const isPublic = mode === "public";
+  // Free (public + allowSave) users can save curated cards up to a cap;
+  // track the running total to drive the quota nudge.
+  const [savedCount, setSavedCount] = useState(initialSavedCount);
+  const [saveLimitHit, setSaveLimitHit] = useState(false);
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -218,6 +252,7 @@ export default function ExploreClient({
     new Set()
   );
   const [brandQuery, setBrandQuery] = useState("");
+  const [brandRequestOpen, setBrandRequestOpen] = useState(false);
   const [marketQuery, setMarketQuery] = useState("");
   const [hasGif, setHasGif] = useState(false);
   const [hasDarkMode, setHasDarkMode] = useState(false);
@@ -339,12 +374,30 @@ export default function ExploreClient({
   // failure we roll back so the UI never lies about what's persisted.
   const handleToggleSave = useCallback(
     async (email: ExploreEmailCard, next: boolean) => {
+      // Optimistically flip the saved state (and, for free users, the
+      // running count) before firing the API call; roll both back on
+      // failure so the UI never lies about what's persisted.
       setSavedIds((current) => {
         const updated = new Set(current);
         if (next) updated.add(email.id);
         else updated.delete(email.id);
         return updated;
       });
+      if (allowSave) {
+        setSavedCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
+      }
+
+      const rollback = () => {
+        setSavedIds((current) => {
+          const updated = new Set(current);
+          if (next) updated.delete(email.id);
+          else updated.add(email.id);
+          return updated;
+        });
+        if (allowSave) {
+          setSavedCount((c) => (next ? Math.max(0, c - 1) : c + 1));
+        }
+      };
 
       try {
         const res = await fetch(`/api/explore/saved/${email.id}`, {
@@ -352,20 +405,28 @@ export default function ExploreClient({
           credentials: "include"
         });
         if (!res.ok) {
-          throw new Error(`Failed (${res.status})`);
+          let code: string | undefined;
+          try {
+            code = ((await res.json()) as { code?: string }).code;
+          } catch {
+            /* non-JSON error body */
+          }
+          rollback();
+          // Hitting the free cap is an expected outcome, not an error —
+          // surface the upgrade nudge instead of a red error banner.
+          if (res.status === 409 && code === "SAVE_LIMIT_REACHED") {
+            setSaveLimitHit(true);
+          } else {
+            setError(`Failed (${res.status})`);
+          }
+          return;
         }
-      } catch (err) {
-        setSavedIds((current) => {
-          const updated = new Set(current);
-          if (next) updated.delete(email.id);
-          else updated.add(email.id);
-          return updated;
-        });
-        const message = err instanceof Error ? err.message : "Failed to save";
-        setError(message);
+      } catch {
+        rollback();
+        setError("Failed to save");
       }
     },
-    []
+    [allowSave]
   );
 
   const requestMemberships = useCallback(async (emailId: string) => {
@@ -774,6 +835,7 @@ export default function ExploreClient({
   // a stable ref + effect so it re-evaluates whenever the sentinel
   // mounts/unmounts (the empty-state and end-of-list both hide it).
   useEffect(() => {
+    if (isPublic) return; // teaser never paginates
     const node = sentinelRef.current;
     if (!node) return;
     if (!hasMore) return;
@@ -794,7 +856,7 @@ export default function ExploreClient({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [loadNextPage, hasMore, emails.length]);
+  }, [loadNextPage, hasMore, emails.length, isPublic]);
 
   const brandOptions = useMemo(
     () =>
@@ -943,7 +1005,19 @@ export default function ExploreClient({
                 </div>
                 <div className={styles.popoverScroll}>
                   {filteredBrandOptions.length === 0 ? (
-                    <div className={styles.popoverEmpty}>No brands found</div>
+                    <>
+                      <div className={styles.popoverEmpty}>No brands found</div>
+                      <button
+                        type="button"
+                        className={requestStyles.triggerLink}
+                        onClick={() => {
+                          setOpenPopover(null);
+                          setBrandRequestOpen(true);
+                        }}
+                      >
+                        Request a brand?
+                      </button>
+                    </>
                   ) : (
                     filteredBrandOptions.map((option) => {
                       const checked = selectedBrandIds.has(option.id);
@@ -1292,6 +1366,23 @@ export default function ExploreClient({
         </div>
       ) : null}
 
+      {isPublic && allowSave ? (
+        <div
+          className={styles.saveQuota}
+          role={saveLimitHit ? "alert" : undefined}
+        >
+          <span className={styles.saveQuotaText}>
+            {savedCount >= saveLimit
+              ? `You've used all ${saveLimit} free saves.`
+              : `Saved ${savedCount} of ${saveLimit} free emails.`}{" "}
+            Upgrade to save more and unlock the full archive.
+          </span>
+          <Link href="/pricing" className={styles.saveQuotaCta}>
+            View plans
+          </Link>
+        </div>
+      ) : null}
+
       {emails.length === 0 && !loading ? (
         <p className={styles.empty}>
           {hasAnyFilter
@@ -1299,47 +1390,122 @@ export default function ExploreClient({
             : "No captured emails yet. Once your subscriptions start receiving newsletters they will appear here."}
         </p>
       ) : (
-        <>
+        <div className={isPublic ? publicStyles.gridWrap : undefined}>
           <div className={styles.grid}>
-            {emails.map((email) => (
-              <EmailCard
-                key={email.id}
-                email={email}
-                onOpen={handleOpenEmail}
-                isSaved={savedIds.has(email.id)}
-                onToggleSave={handleToggleSave}
-                collections={collections}
-                membershipIds={membershipByEmail.get(email.id) ?? EMPTY_ID_SET}
-                onToggleCollection={handleToggleCollection}
-                onCreateCollection={handleCreateCollection}
-                onRequestMemberships={requestMemberships}
-              />
-            ))}
+            {emails.map((email) =>
+              isPublic && !allowSave ? (
+                <EmailCard
+                  key={email.id}
+                  email={email}
+                  onOpen={handleOpenEmail}
+                  renderUrlBase={renderUrlBase}
+                  readOnly
+                />
+              ) : isPublic && allowSave ? (
+                // Signed-in free user: Save enabled, collections withheld
+                // (no collection props ⇒ EmailCard hides that affordance).
+                <EmailCard
+                  key={email.id}
+                  email={email}
+                  onOpen={handleOpenEmail}
+                  renderUrlBase={renderUrlBase}
+                  isSaved={savedIds.has(email.id)}
+                  onToggleSave={handleToggleSave}
+                />
+              ) : (
+                <EmailCard
+                  key={email.id}
+                  email={email}
+                  onOpen={handleOpenEmail}
+                  isSaved={savedIds.has(email.id)}
+                  onToggleSave={handleToggleSave}
+                  collections={collections}
+                  membershipIds={
+                    membershipByEmail.get(email.id) ?? EMPTY_ID_SET
+                  }
+                  onToggleCollection={handleToggleCollection}
+                  onCreateCollection={handleCreateCollection}
+                  onRequestMemberships={requestMemberships}
+                />
+              )
+            )}
           </div>
 
-          {hasMore ? (
+          {isPublic ? (
+            <div className={publicStyles.fade}>
+              <div className={publicStyles.unlockBox}>
+                <span className={publicStyles.unlockLock} aria-hidden="true">
+                  <LockIcon />
+                </span>
+                <h2 className={publicStyles.unlockTitle}>Unlock to see more</h2>
+                <p className={publicStyles.unlockText}>
+                  This is a preview. Subscribe to search the entire archive,
+                  open every email, save and compare.
+                </p>
+                <Link href="/pricing" className={publicStyles.unlockCta}>
+                  View plans
+                </Link>
+              </div>
+            </div>
+          ) : hasMore ? (
             <div
               ref={sentinelRef}
               className={styles.loadMoreSentinel}
               aria-hidden="true"
             />
           ) : null}
-        </>
+        </div>
       )}
 
       {openEmail ? (
-        <EmailModal
-          email={openEmail}
-          onClose={handleCloseEmail}
-          isSaved={savedIds.has(openEmail.id)}
-          onToggleSave={handleToggleSave}
-          collections={collections}
-          membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
-          onToggleCollection={handleToggleCollection}
-          onCreateCollection={handleCreateCollection}
-          onRequestMemberships={requestMemberships}
+        isPublic ? (
+          <EmailModal
+            email={openEmail}
+            onClose={handleCloseEmail}
+            renderUrlBase={renderUrlBase}
+            detailUrlBase="/api/public/emails"
+            readOnly
+          />
+        ) : (
+          <EmailModal
+            email={openEmail}
+            onClose={handleCloseEmail}
+            isSaved={savedIds.has(openEmail.id)}
+            onToggleSave={handleToggleSave}
+            collections={collections}
+            membershipIds={membershipByEmail.get(openEmail.id) ?? EMPTY_ID_SET}
+            onToggleCollection={handleToggleCollection}
+            onCreateCollection={handleCreateCollection}
+            onRequestMemberships={requestMemberships}
+          />
+        )
+      ) : null}
+
+      {brandRequestOpen ? (
+        <BrandRequestModal
+          defaultCompanyName={brandQuery.trim()}
+          onClose={() => setBrandRequestOpen(false)}
         />
       ) : null}
     </>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }

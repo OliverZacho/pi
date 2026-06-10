@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/require-admin-api";
+import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { getBrandsFacets } from "@/lib/brands-explore-db";
 
 /**
@@ -8,7 +8,7 @@ import { getBrandsFacets } from "@/lib/brands-explore-db";
  * Cheap enough to call on page load; the client caches it in state.
  */
 export async function GET() {
-  const session = await requireAdminSession();
+  const session = await requireArchiveAccess();
   if ("response" in session) {
     return session.response;
   }

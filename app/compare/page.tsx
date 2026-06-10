@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   dedupeBrandIds,
@@ -8,6 +7,8 @@ import {
   type CompetitorSetBrand
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
@@ -40,24 +41,22 @@ type PageProps = {
  */
 export default async function ComparePage({ searchParams }: PageProps) {
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/compare");
+  // Compare is a paid feature — public (non-admin) users get a subscribe
+  // panel instead of the comparison tools.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="compare" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="compare" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
   const params = await searchParams;
   const rawBrands = params.brands;
@@ -77,8 +76,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
   // directory on demand via `/api/brands/list`, so we no longer
   // prefetch the catalogue here.
   const [sets, collections, comparison] = await Promise.all([
-    listCompetitorSetSummaries(supabase, user.id),
-    listCollectionSummaries(supabase, user.id),
+    listCompetitorSetSummaries(supabase, userId),
+    listCollectionSummaries(supabase, userId),
     requestedBrandIds.length > 0
       ? getCompetitorComparison(supabase, requestedBrandIds)
       : Promise.resolve({ brands: [], missing: [] })

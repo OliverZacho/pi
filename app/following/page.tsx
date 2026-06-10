@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   listCollectionSummaries,
@@ -20,6 +19,8 @@ import {
   type ExploreSearchResult
 } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import { getViewer } from "@/lib/access";
+import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import FollowingClient from "@/components/following/FollowingClient";
 import styles from "@/components/brand/brands-explore.module.css";
@@ -44,35 +45,33 @@ const EMPTY_FACETS: ExploreFacets = { brands: [], markets: [], categories: [] };
  */
 export default async function FollowingPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer();
 
-  if (authError || !user) {
-    redirect("/login?next=/following");
+  // Following needs the (admin-only, under RLS) brand + email tables and a
+  // browsable directory to follow from — locked for public users.
+  if (!viewer || !viewer.hasAccess) {
+    return (
+      <div className={styles.shell}>
+        <ExploreSidebar activeId="following" hasAccess={false} />
+        <main className={styles.main}>
+          <LockedFeature variant="following" />
+        </main>
+      </div>
+    );
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow) {
-    redirect("/access-denied");
-  }
+  const userId = viewer.userId;
 
   const [followed, sidebarCollections, sidebarSets] = await Promise.all([
-    listFollowedBrandCards(supabase, user.id).catch((err) => {
+    listFollowedBrandCards(supabase, userId).catch((err) => {
       console.error("Failed to load followed brands", err);
       return [] as FollowedBrandCard[];
     }),
-    listCollectionSummaries(supabase, user.id).catch((err) => {
+    listCollectionSummaries(supabase, userId).catch((err) => {
       console.error("Failed to load collections", err);
       return [] as CollectionSummary[];
     }),
-    listCompetitorSetSummaries(supabase, user.id).catch((err) => {
+    listCompetitorSetSummaries(supabase, userId).catch((err) => {
       console.error("Failed to load competitor sets", err);
       return [] as CompetitorSetSummary[];
     })
@@ -115,7 +114,7 @@ export default async function FollowingPage() {
           }
         )
       : Promise.resolve(EMPTY_FACETS),
-    listSavedEmailIds(supabase, user.id)
+    listSavedEmailIds(supabase, userId)
       .then((set) => Array.from(set))
       .catch((err) => {
         console.error("Failed to load saved email IDs", err);
