@@ -59,7 +59,7 @@ const COMPARE_ROWS: CompareRow[] = [
     id: "collections",
     label: "Collections",
     description:
-      "Group saved emails into named collections — swipe files for launches, flows or seasonal campaigns.",
+      "Group saved emails into named collections — and set rules that automatically catch new emails for you, matched by keyword, category, brand, market or discount. Build swipe files that fill themselves.",
     values: [false, true, true],
   },
   {
