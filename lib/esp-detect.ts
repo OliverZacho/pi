@@ -182,11 +182,29 @@ const FINGERPRINTS: Fingerprint[] = [
   },
   {
     provider: "braze",
+    // Braze serves every uploaded template asset (images AND @font-face
+    // webfonts) from `braze-images.com/appboy/communication/assets/…` —
+    // "Appboy" is Braze's pre-2017 name and the path survives to this day.
+    // Click/open tracking is wrapped by the underlying transport (usually a
+    // SendGrid `ls/click?upn=` CNAME on a brand domain like
+    // `click.emails.<brand>.com`), so the tracking host tells us nothing —
+    // the asset CDN and the `utm_source=braze` convention carry detection on
+    // header-less sends. We deliberately do NOT fingerprint the generic
+    // SendGrid wrapper itself, so the composing platform (Braze) outranks the
+    // transport.
     hostPatterns: [
       /(^|\.)bnc\.lt$/i,
       /(^|\.)sparkpostmail\.com$/i,
       /(^|\.)sparkpostmail1\.com$/i,
-      /(^|\.)braze\.com$/i
+      /(^|\.)braze\.com$/i,
+      /(^|\.)braze-images\.com$/i,
+      /(^|\.)appboy\.com$/i
+    ],
+    htmlPatterns: [
+      /\bbraze-images\.com\/appboy\/communication\/assets\//i,
+      /\butm_source=braze\b/i,
+      /\bbraze-images\.com\b/i,
+      /\bappboy\.com\b/i
     ],
     dkimPatterns: [/braze\.com/i, /sparkpostmail/i],
     returnPathPatterns: [/sparkpostmail/i, /braze\.com/i],

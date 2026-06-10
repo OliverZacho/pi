@@ -133,6 +133,41 @@ describe("detectEsp", () => {
     expect(result.provider).toBe("braze");
   });
 
+  it("identifies Braze via the braze-images.com asset CDN and utm_source=braze (no headers)", () => {
+    // Distilled from a real ALO Yoga send. Braze wraps clicks through a
+    // SendGrid CNAME on a brand domain (`click.emails.aloyoga.com/uni/ls/click?upn=…`),
+    // so the tracking links carry no Braze fingerprint at all. Detection
+    // leans on the `braze-images.com/appboy/communication/assets/…` CDN
+    // (used for both images and @font-face webfonts) and the
+    // `utm_source=braze` convention in direct links.
+    const html = `
+      <style>@font-face {
+        font-family: "Proximanova Regular";
+        src: url('https://braze-images.com/appboy/communication/assets/font_assets/files/698a818e1b4ecf0063119258/original.woff2?1770684814') format("woff2");
+      }</style>
+      <!--[if mso]><v:roundrect href="https://www.aloyoga.com/collections/new-arrivals?lid=jmcuhtrc55s4&utm_source=braze&utm_medium=email&utm_campaign=mktg-gen_nonpurch_f_srr-new-in-genpop_engaged_6.9.2026_x_x"><![endif]-->
+      <a href="https://click.emails.aloyoga.com/uni/ls/click?upn=u001.QV1314xvOzHBMZTXVbujrMm6kdsH41jKl0JcCKercSQnuiziM88a4QRoPcRuatNX">
+        <img src="https://braze-images.com/appboy/communication/assets/image_assets/images/683d8de7b7fc7a00660caee4/original.jpg?1748864486" alt="ALO" width="600" />
+      </a>
+      <img src="https://click.emails.aloyoga.com/wf/open?upn=u001.EMh8U-2Bet7f52HIpnSctWlAgHLYQuWsRvWd8v5hbp3wrg" alt="" width="1" height="1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://click.emails.aloyoga.com/uni/ls/click?upn=u001.QV1314xvOzHBMZTXVbujrMm6kdsH41jKl0JcCKercSQnuiziM88a4QRoPcRuatNX"
+        )
+      ],
+      resourceHosts: ["braze-images.com", "click.emails.aloyoga.com"]
+    });
+    expect(result.provider).toBe("braze");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker"])
+    );
+  });
+
   it("identifies Iterable via campaign-id link parameter", () => {
     const result = detectEsp({
       headers: {
