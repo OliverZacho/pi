@@ -530,28 +530,31 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)peytzmail\.s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com$/i
     ],
     // The tracking URL shapes are highly distinctive:
-    //   /c/<3-char-id>/<24-hex-hash>/<token>/<context>/<numeric-id>?t=<dest>
+    //   /c/<3-char-id>/<mailing-token>/<recipient-token>/<context>/<numeric-id>?t=<dest>
     //     → click redirect (the human-readable `<context>` slug like
-    //       `header-logo-image`, `article-title`, `text-social-media` is a
+    //       `header-logo-image`, `article-title`, `product-image` is a
     //       Peytzmail-only convention)
-    //   /r/<24-hex-hash>/<token>/<numeric-id>?[f=t&]t=<dest>
+    //   /r/<mailing-token>/<recipient-token>/<numeric-id>?[f=t&]t=<dest>
     //     → image / open-pixel redirect (`?f=t&t=spacer.gif` is the
     //       open-tracking pixel signature)
-    //   /v/<24-hex-hash>/<token>/<numeric-id>/send
+    //   /v/<mailing-token>/<recipient-token>/<numeric-id>/send
     //     → "Read online" web-view link
-    //   /unsubscribe/<24-hex-hash>/<numeric-id>?email=<recipient>
+    //   /unsubscribe/<mailing-token>/<numeric-id>?email=<recipient>
     //     → list-unsubscribe link
+    // The token segments vary per tenant: some emit 24-hex hashes, others
+    // (e.g. REMA 1000) short lowercase tokens like `fdftfn` — so we match
+    // `[a-z0-9]{6,}` rather than assuming hex.
     htmlPatterns: [
       /\bpeytzmail\.com\b/i,
-      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
-      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&(?:amp;)?)?t=/i,
-      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+      /\/c\/[a-z0-9]{3}\/[a-z0-9]{6,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&(?:amp;)?)?t=/i,
+      /\/unsubscribe\/[a-z0-9]{6,}\/\d+\?email=/i
     ],
     linkUrlPatterns: [
-      /\/c\/[a-z0-9]{3}\/[a-f0-9]{20,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
-      /\/r\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&)?t=/i,
-      /\/v\/[a-f0-9]{20,}\/[a-z0-9]+\/\d+\/send\b/i,
-      /\/unsubscribe\/[a-f0-9]{20,}\/\d+\?email=/i
+      /\/c\/[a-z0-9]{3}\/[a-z0-9]{6,}\/[a-z0-9]+\/[a-z0-9-]+\/\d+\?t=/i,
+      /\/r\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\?(?:f=[a-z]&)?t=/i,
+      /\/v\/[a-z0-9]{6,}\/[a-z0-9]+\/\d+\/send\b/i,
+      /\/unsubscribe\/[a-z0-9]{6,}\/\d+\?email=/i
     ],
     dkimPatterns: [/peytzmail\.com/i, /peytz\.dk/i],
     returnPathPatterns: [/peytzmail\.com/i, /bounce[^@]*@[^>\s]*peytz/i],

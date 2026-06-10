@@ -563,6 +563,50 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Peytzmail when the tenant uses short lowercase tokens instead of hex hashes (no headers)", () => {
+    // Distilled from a real REMA 1000 send. This tenant's tracking URLs use
+    // short lowercase tokens (`fdftfn`, `gfltdh`) where other tenants emit
+    // 24-hex hashes — the URL structure (`/c/<3>/<tok>/<tok>/<context>/<id>?t=`,
+    // `/r/…?f=t&t=spacer.gif`, `/v/…/send`, `/unsubscribe/…?email=`) is
+    // otherwise identical. Previously the hex-only patterns missed this and
+    // the email scored 0.55 (host + html marker), just under the threshold.
+    const html = `
+      <a href="https://rema1000.peytzmail.com/v/fdftfn/gfltdhkggh/3998848200/send">Vis i din browser</a>
+      <a href="https://rema1000.peytzmail.com/c/yvq/fdftfn/gfltdh/image/3355613612?t=https%3A%2F%2Fwww.rema1000.dk%2F">
+        <img src="https://rema1000.peytzmail.com/r/fdftfn/gfltdh/3796056549?t=https%3A%2F%2Fimg.peytzmail.com%2Fimage%2Fupload%2Fv1715690764%2Frema1000%2Frema1000-logo.png" alt="Logo" />
+      </a>
+      <a href="https://rema1000.peytzmail.com/c/ynt/fdftfn/gfltdh/article-button/0988391450?t=https%3A%2F%2Frema1000.dk%2Favis%2FLmz4YPPE%2F24">Find opskriften i avisen</a>
+      <a href="https://rema1000.peytzmail.com/unsubscribe/fdftfn/2681455367?email=rema1000-20260522%40pirol.app">Afmeld nyhedsbrev</a>
+      <img src="https://rema1000.peytzmail.com/r/fdftfn/gfltdh/1699260882?f=t&amp;t=spacer.gif" width="1" height="1" border="0" alt="">
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link("https://rema1000.peytzmail.com/v/fdftfn/gfltdhkggh/3998848200/send"),
+        link(
+          "https://rema1000.peytzmail.com/c/yvq/fdftfn/gfltdh/image/3355613612?t=https%3A%2F%2Fwww.rema1000.dk%2F"
+        ),
+        link(
+          "https://rema1000.peytzmail.com/c/ynt/fdftfn/gfltdh/article-button/0988391450?t=https%3A%2F%2Frema1000.dk%2Favis%2FLmz4YPPE%2F24"
+        ),
+        link(
+          "https://rema1000.peytzmail.com/unsubscribe/fdftfn/2681455367?email=rema1000-20260522%40pirol.app"
+        )
+      ],
+      resourceHosts: [
+        "rema1000.peytzmail.com",
+        "img.peytzmail.com",
+        "webfonts.peytzmail.com"
+      ]
+    });
+    expect(result.provider).toBe("peytzmail");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
   it("identifies Peytzmail on a brand-CNAMEd tracking host using only URL shapes", () => {
     // If a customer points e.g. `email.brand.com` at Peytzmail, the host
     // patterns won't match — the `/c/<id>/<hash>/<token>/<context>/<id>?t=`,
