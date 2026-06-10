@@ -1437,10 +1437,13 @@ export default function ExploreClient({
                 <span className={publicStyles.unlockLock} aria-hidden="true">
                   <LockIcon />
                 </span>
-                <h2 className={publicStyles.unlockTitle}>Unlock to see more</h2>
+                <h2 className={publicStyles.unlockTitle}>
+                  Unlock endless scrolling
+                </h2>
                 <p className={publicStyles.unlockText}>
-                  This is a preview. Subscribe to search the entire archive,
-                  open every email, save and compare.
+                  {allowSave
+                    ? `Free accounts see the first ${pageSize} results of every search. Upgrade to scroll the entire archive, save without limits, and unlock collections & compare.`
+                    : `You're seeing the first ${pageSize} results of every search. Create a free account to start saving emails, or subscribe to scroll the entire archive.`}
                 </p>
                 <Link href="/pricing" className={publicStyles.unlockCta}>
                   View plans
