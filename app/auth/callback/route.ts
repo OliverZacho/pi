@@ -71,5 +71,7 @@ function safeNext(value: string | null): string {
   if (value && value.startsWith("/") && !value.startsWith("//")) {
     return value;
   }
-  return "/admin";
+  // Default to the app, not the admin console — a fresh non-admin signup
+  // would bounce off /admin to /access-denied.
+  return "/explore";
 }

@@ -9,8 +9,11 @@ import styles from "./login.module.css";
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") ?? "/admin";
-  const safeNext = nextPath.startsWith("/") ? nextPath : "/admin";
+  // Land on the app by default — non-admin users bounced off /admin would
+  // otherwise hit /access-denied right after signing up. Admins reach
+  // /admin via nav.
+  const nextPath = searchParams.get("next") ?? "/explore";
+  const safeNext = nextPath.startsWith("/") ? nextPath : "/explore";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
