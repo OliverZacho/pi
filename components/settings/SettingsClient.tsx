@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TeamView } from "@/lib/teams-db";
@@ -40,6 +41,19 @@ type Props = {
   hasPassword: boolean;
   /** The viewer's team (members + pending invites), or null. */
   initialTeam: TeamView | null;
+  /**
+   * Whether the viewer may send invites — requires an active Team plan
+   * (admins bypass). Without it the tab shows an upgrade notice and the
+   * invite form is disabled; an existing team still renders so members
+   * of someone else's team can see it and leave.
+   */
+  canInviteTeam: boolean;
+  /**
+   * Whether invites are held to the inviter's email domain. True for
+   * company domains; false for consumer providers (gmail etc.), where
+   * the restriction would be meaningless.
+   */
+  inviteDomainRestricted: boolean;
 };
 
 export default function SettingsClient({
@@ -48,7 +62,9 @@ export default function SettingsClient({
   viewerId,
   initialFullName,
   hasPassword,
-  initialTeam
+  initialTeam,
+  canInviteTeam,
+  inviteDomainRestricted
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("user");
 
@@ -86,6 +102,8 @@ export default function SettingsClient({
             emailDomain={emailDomain}
             viewerId={viewerId}
             initialTeam={initialTeam}
+            canInvite={canInviteTeam}
+            domainRestricted={inviteDomainRestricted}
           />
         ) : (
           <BillingTab />
@@ -561,11 +579,15 @@ function NotificationsTab() {
 function TeamTab({
   emailDomain,
   viewerId,
-  initialTeam
+  initialTeam,
+  canInvite,
+  domainRestricted
 }: {
   emailDomain: string;
   viewerId: string;
   initialTeam: TeamView | null;
+  canInvite: boolean;
+  domainRestricted: boolean;
 }) {
   const [team, setTeam] = useState<TeamView | null>(initialTeam);
   const domainLabel = emailDomain ? `@${emailDomain}` : "your company domain";
@@ -586,7 +608,7 @@ function TeamTab({
       setInviteError("Enter an email address.");
       return;
     }
-    if (emailDomain && trimmed.split("@")[1] !== emailDomain) {
+    if (domainRestricted && emailDomain && trimmed.split("@")[1] !== emailDomain) {
       setInviteError(`Invites are restricted to ${domainLabel} addresses.`);
       return;
     }
@@ -710,8 +732,22 @@ function TeamTab({
     <div className={styles.sections}>
       <Section
         title="Invite a team member"
-        description={`Invites are restricted to addresses on ${domainLabel}.`}
+        description={
+          domainRestricted
+            ? `Invites are restricted to addresses on ${domainLabel}.`
+            : "Invite teammates by email."
+        }
       >
+        {!canInvite ? (
+          <div className={styles.planNotice} role="note">
+            <span className={styles.planNoticeText}>
+              Inviting teammates requires the <strong>Team plan</strong>.
+            </span>
+            <Link href="/pricing" className={styles.planNoticeCta}>
+              View plans
+            </Link>
+          </div>
+        ) : null}
         <form onSubmit={handleInvite}>
           <Field label="Email address">
             <div className={styles.inviteRow}>
@@ -719,16 +755,18 @@ function TeamTab({
                 type="email"
                 className={styles.input}
                 placeholder={
-                  emailDomain ? `teammate@${emailDomain}` : "teammate@company.com"
+                  domainRestricted && emailDomain
+                    ? `teammate@${emailDomain}`
+                    : "teammate@company.com"
                 }
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}
-                disabled={inviteSubmitting}
+                disabled={!canInvite || inviteSubmitting}
               />
               <button
                 type="submit"
                 className={styles.primaryBtn}
-                disabled={inviteSubmitting}
+                disabled={!canInvite || inviteSubmitting}
               >
                 {inviteSubmitting ? "Sending…" : "Send invite"}
               </button>
@@ -745,11 +783,16 @@ function TeamTab({
             {inviteSuccess}
           </p>
         ) : null}
-        {emailDomain ? (
+        {canInvite ? (
           <p className={styles.hint}>
-            Only people with an <strong>@{emailDomain}</strong> email can be
-            invited. New users get a sign-up link by email; existing users are
-            added right away.
+            {domainRestricted && emailDomain ? (
+              <>
+                Only people with an <strong>@{emailDomain}</strong> email can
+                be invited.{" "}
+              </>
+            ) : null}
+            New users get a sign-up link by email; existing users are added
+            right away.
           </p>
         ) : null}
       </Section>

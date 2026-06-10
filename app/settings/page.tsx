@@ -9,9 +9,14 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { isConsumerEmailDomain } from "@/lib/email-domains";
 import { getProfile, userHasPassword } from "@/lib/profile-db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getTeamForUser, type TeamView } from "@/lib/teams-db";
+import {
+  getTeamForUser,
+  hasActiveTeamPlan,
+  type TeamView
+} from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import SettingsClient from "@/components/settings/SettingsClient";
 import styles from "@/components/explore/explore.module.css";
@@ -79,6 +84,22 @@ export default async function SettingsPage() {
     console.error("Failed to load team", err);
   }
 
+  // Sending invites requires the Team plan (admins bypass); the tab
+  // surfaces an upgrade notice instead of the invite form otherwise.
+  let canInviteTeam = viewer.isAdmin;
+  if (!canInviteTeam) {
+    try {
+      canInviteTeam = await hasActiveTeamPlan(supabase, userId);
+    } catch (err) {
+      console.error("Failed to check team plan", err);
+    }
+  }
+
+  // The same-domain invite rule only means something on a company
+  // domain; consumer providers (gmail etc.) invite freely.
+  const inviteDomainRestricted =
+    Boolean(emailDomain) && !isConsumerEmailDomain(emailDomain);
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -101,6 +122,8 @@ export default async function SettingsPage() {
           initialFullName={initialFullName}
           hasPassword={hasPassword}
           initialTeam={initialTeam}
+          canInviteTeam={canInviteTeam}
+          inviteDomainRestricted={inviteDomainRestricted}
         />
       </main>
     </div>

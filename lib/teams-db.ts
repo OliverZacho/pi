@@ -16,6 +16,43 @@ import type { PirolSupabaseClient } from "./supabase-admin";
 
 const UNIQUE_VIOLATION = "23505";
 
+/**
+ * Whether the user has an active (or trialing, unexpired) subscription on
+ * the "team" plan — the gate for *sending* invites. Unlike the other
+ * helpers here this works with the caller's session client too: the
+ * subscriptions table has a self-select RLS policy, so each user can read
+ * their own row.
+ *
+ * Membership itself stays plan-agnostic (a member who never pays can sit
+ * on someone else's team), and so does leaving/removing — only invite
+ * creation checks this, so a downgraded owner can still wind a team down.
+ */
+export async function hasActiveTeamPlan(
+  client: PirolSupabaseClient,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("subscriptions")
+    .select("status, plan, current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load subscription: ${error.message}`);
+  }
+
+  if (!data || data.plan !== "team") {
+    return false;
+  }
+  if (data.status !== "active" && data.status !== "trialing") {
+    return false;
+  }
+  return (
+    data.current_period_end === null ||
+    new Date(data.current_period_end).getTime() > Date.now()
+  );
+}
+
 export type TeamMemberView = {
   userId: string;
   email: string;

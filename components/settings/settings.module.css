@@ -297,6 +297,43 @@
   color: #15803d;
 }
 
+/* ---------- Team-plan upgrade notice ---------- */
+
+.planNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.planNoticeText {
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.planNoticeCta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0.8rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.planNoticeCta:hover {
+  background: #1e293b;
+}
+
 /* ---------- Member / invite rows (Team tab) ---------- */
 
 .memberList {

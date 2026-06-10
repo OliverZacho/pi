@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { isConsumerEmailDomain } from "@/lib/email-domains";
+import { getProfile } from "@/lib/profile-db";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -7,14 +9,20 @@ import {
   deleteInvite,
   ensureTeamForUser,
   findUserIdByEmail,
-  getTeamForUser
+  getTeamForUser,
+  hasActiveTeamPlan
 } from "@/lib/teams-db";
 
 const EMAIL_SHAPE = /.+@.+\..+/;
 
 /**
- * POST `/api/team/invites` `{ email }` — invites a same-domain address to
- * the caller's team (created on first invite, caller becomes owner).
+ * POST `/api/team/invites` `{ email }` — invites someone to the caller's
+ * team (created on first invite, caller becomes owner).
+ *
+ * Sending invites requires an active "team" plan (admins bypass). When
+ * the inviter's email is on a company domain, invitees must share it;
+ * consumer domains (gmail etc.) carry no such signal, so those inviters
+ * can invite any address.
  *
  * Existing users are added immediately (`outcome: "added"`). Unknown
  * emails get a pending invite row plus a Supabase auth invite email — the
@@ -25,6 +33,27 @@ export async function POST(request: Request) {
   const session = await requireSession();
   if ("response" in session) {
     return session.response;
+  }
+
+  // Plan gate. Both reads go through the session client (admin_users and
+  // subscriptions are self-readable under RLS).
+  const [{ data: adminRow }, teamPlan] = await Promise.all([
+    session.supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", session.user.id)
+      .maybeSingle(),
+    hasActiveTeamPlan(session.supabase, session.user.id)
+  ]);
+
+  if (!adminRow && !teamPlan) {
+    return NextResponse.json(
+      {
+        error: "Inviting teammates requires the Team plan.",
+        code: "TEAM_PLAN_REQUIRED"
+      },
+      { status: 403 }
+    );
   }
 
   let body: unknown;
@@ -59,7 +88,9 @@ export async function POST(request: Request) {
   if (email === viewerEmail) {
     return NextResponse.json({ error: "That's your own email" }, { status: 400 });
   }
-  if (email.split("@")[1] !== emailDomain) {
+
+  const domainRestricted = !isConsumerEmailDomain(emailDomain);
+  if (domainRestricted && email.split("@")[1] !== emailDomain) {
     return NextResponse.json(
       { error: `Invites are restricted to @${emailDomain} addresses` },
       { status: 400 }
@@ -68,10 +99,22 @@ export async function POST(request: Request) {
 
   try {
     const admin = getSupabaseAdmin();
+
+    // Company teams are named after the domain; for consumer domains
+    // that would be "gmail.com", so name those after the inviter.
+    let defaultTeamName = emailDomain;
+    if (!domainRestricted) {
+      const profile = await getProfile(session.supabase, session.user.id).catch(
+        () => null
+      );
+      const inviterName = profile?.fullName?.trim() || viewerEmail.split("@")[0];
+      defaultTeamName = `${inviterName}'s team`;
+    }
+
     const { teamId } = await ensureTeamForUser(
       admin,
       session.user.id,
-      emailDomain
+      defaultTeamName
     );
 
     const existingUserId = await findUserIdByEmail(admin, email);
