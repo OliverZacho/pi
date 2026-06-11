@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Header from "@/components/marketing/Header";
+import SiteHeader from "@/components/marketing/SiteHeader";
 import Pricing from "@/components/marketing/Pricing";
 import PricingFaq from "@/components/marketing/PricingFaq";
 import { PRICING_FAQ } from "@/lib/marketing/pricing-faq";
@@ -29,7 +29,7 @@ export default function PricingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <Header />
+      <SiteHeader />
       <Pricing />
       <PricingFaq />
     </main>
