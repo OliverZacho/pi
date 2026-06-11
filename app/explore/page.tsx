@@ -17,6 +17,7 @@ import {
 } from "@/lib/competitor-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
 export const metadata = {
@@ -66,7 +67,7 @@ export default async function ExplorePage() {
 
     return (
       <div className={styles.shell}>
-        <ExploreSidebar hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} hasAccess={false} />
 
         <main className={styles.main}>
           <header className={styles.heading}>
@@ -151,6 +152,7 @@ export default async function ExplorePage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         collections={initialCollections}
         competitorSets={initialCompetitorSets}
       />

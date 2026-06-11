@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
+import type { ViewerDisplay } from "@/lib/viewer-display";
 import Logo from "@/components/Logo";
 import styles from "./explore.module.css";
 
@@ -56,6 +57,13 @@ type Props = {
    * usage card's CTA points at `/pricing` instead of the upgrade affordance.
    */
   hasAccess?: boolean;
+  /**
+   * Signed-in viewer's display identity (resolved server-side via
+   * `getViewerDisplay`). When present, the sidebar footer renders the
+   * account row + menu; when null/absent (logged-out preview) it falls
+   * back to the plain Settings link.
+   */
+  user?: ViewerDisplay | null;
 };
 
 // Number of collection rows surfaced in the section before falling back
@@ -403,11 +411,145 @@ function AppTopBar() {
   );
 }
 
+/**
+ * Initials for the account avatar: first letters of the first and last
+ * name words, falling back to the first letter of the email. Mirrors
+ * the marketing header's avatar — always initials, no photo uploads.
+ */
+function initials(user: ViewerDisplay): string {
+  const name = user.name?.trim();
+  if (name) {
+    const words = name.split(/\s+/);
+    const first = words[0]?.[0] ?? "";
+    const last = words.length > 1 ? (words[words.length - 1][0] ?? "") : "";
+    return (first + last).toUpperCase();
+  }
+  return user.email[0]?.toUpperCase() ?? "?";
+}
+
+/**
+ * Account row pinned to the sidebar footer: initials avatar + name/email,
+ * opening an upward menu (identity, Settings, Homepage, Docs, help,
+ * Log out) in the style of Resend's / Anthropic Console's account areas.
+ */
+function AccountRow({
+  user,
+  settingsActive
+}: {
+  user: ViewerDisplay;
+  settingsActive: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className={styles.accountWrap} ref={wrapRef}>
+      <button
+        type="button"
+        className={styles.accountRow}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+      >
+        <span className={styles.accountAvatar} aria-hidden="true">
+          {initials(user)}
+        </span>
+        <span className={styles.accountText}>
+          {user.name ? (
+            <span className={styles.accountName}>{user.name}</span>
+          ) : null}
+          <span className={styles.accountEmail}>{user.email}</span>
+        </span>
+        <span className={styles.navIcon}>
+          <MoreIcon />
+        </span>
+      </button>
+
+      {open && (
+        <div className={styles.accountMenu} role="menu">
+          <div className={styles.accountMenuIdentity}>
+            {user.name ? (
+              <span className={styles.accountMenuName}>{user.name}</span>
+            ) : null}
+            <span className={styles.accountMenuEmail}>{user.email}</span>
+          </div>
+          <Link
+            href="/settings"
+            className={`${styles.accountMenuItem}${
+              settingsActive ? ` ${styles.active}` : ""
+            }`}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Settings
+          </Link>
+          <Link
+            href="/"
+            className={styles.accountMenuItem}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Homepage
+          </Link>
+          <Link
+            href="/docs"
+            className={styles.accountMenuItem}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Docs
+          </Link>
+          <a
+            href="mailto:help@pirol.app"
+            className={styles.accountMenuItem}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Need help?
+          </a>
+          <form
+            action="/auth/signout"
+            method="post"
+            className={styles.accountMenuSignout}
+          >
+            <button
+              type="submit"
+              className={styles.accountMenuItem}
+              role="menuitem"
+            >
+              Log out
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ExploreSidebar({
   activeId = "explore",
   collections = EMPTY_COLLECTIONS,
   competitorSets = EMPTY_COMPETITOR_SETS,
-  hasAccess = true
+  hasAccess = true,
+  user = null
 }: Props = {}) {
   const router = useRouter();
   const [items, setItems] = useState<CollectionSummary[]>(collections);
@@ -706,18 +848,22 @@ export default function ExploreSidebar({
         )}
       </div>
 
-      <Link
-        href="/settings"
-        className={`${styles.settingsRow}${
-          activeId === "settings" ? ` ${styles.active}` : ""
-        }`}
-        aria-current={activeId === "settings" ? "page" : undefined}
-      >
-        <span>Settings</span>
-        <span className={styles.navIcon}>
-          <MoreIcon />
-        </span>
-      </Link>
+      {user ? (
+        <AccountRow user={user} settingsActive={activeId === "settings"} />
+      ) : (
+        <Link
+          href="/settings"
+          className={`${styles.settingsRow}${
+            activeId === "settings" ? ` ${styles.active}` : ""
+          }`}
+          aria-current={activeId === "settings" ? "page" : undefined}
+        >
+          <span>Settings</span>
+          <span className={styles.navIcon}>
+            <MoreIcon />
+          </span>
+        </Link>
+      )}
     </aside>
     </>
   );

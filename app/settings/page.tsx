@@ -18,6 +18,7 @@ import {
   type TeamView
 } from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import SettingsClient from "@/components/settings/SettingsClient";
 import styles from "@/components/explore/explore.module.css";
 
@@ -103,6 +104,7 @@ export default async function SettingsPage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="settings"
         collections={initialCollections}
         competitorSets={initialCompetitorSets}

@@ -18,6 +18,7 @@ import {
 import { isBrandFollowed } from "@/lib/follows-db";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/brand/brand.module.css";
 
 export const dynamic = "force-dynamic";
@@ -90,7 +91,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
 
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="brands" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="brands" hasAccess={false} />
         <BrandLockedDashboard
           brand={{
             name: company.name,
@@ -143,6 +144,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="brands"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

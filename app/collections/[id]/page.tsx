@@ -16,6 +16,7 @@ import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
 const UUID_PATTERN =
@@ -47,7 +48,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   if (!viewer || !viewer.hasAccess) {
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="collections" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="collections" hasAccess={false} />
         <main className={styles.main}>
           <LockedFeature variant="collections" />
         </main>
@@ -111,6 +112,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId={`collection:${collection.id}`}
         collections={collections}
         competitorSets={competitorSets}

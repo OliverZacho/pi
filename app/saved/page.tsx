@@ -13,6 +13,7 @@ import {
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import SavedGalleryClient from "@/components/explore/SavedGalleryClient";
 import styles from "@/components/explore/explore.module.css";
 
@@ -29,7 +30,7 @@ export default async function SavedPage() {
   if (!viewer) {
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="saved" hasAccess={false} />
         <main className={styles.main}>
           <LockedFeature variant="saved" />
         </main>
@@ -60,7 +61,7 @@ export default async function SavedPage() {
 
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="saved" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="saved" hasAccess={false} />
         <main className={styles.main}>
           <header className={styles.heading}>
             <h1>Saved</h1>
@@ -115,6 +116,7 @@ export default async function SavedPage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="saved"
         collections={initialCollections}
         competitorSets={initialCompetitorSets}
