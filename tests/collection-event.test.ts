@@ -6,6 +6,7 @@ import {
   type CollectionEventDetection
 } from "@/lib/collection-event-shared";
 import { buildTimelineModel } from "@/components/collections/CollectionEventInsights";
+import { explicitPhaseFromSubject } from "@/lib/collection-event";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 
 function card(overrides: Partial<ExploreEmailCard>): ExploreEmailCard {
@@ -85,10 +86,30 @@ function detection(
       userMessage: "It looks like you're collecting emails about 3daysofdesign."
     },
     phases: {},
-    offTopicEmailIds: [],
     ...overrides
   };
 }
+
+describe("explicitPhaseFromSubject", () => {
+  it("pins literal save-the-date subjects regardless of casing", () => {
+    expect(explicitPhaseFromSubject("SAVE THE DATES")).toBe("save_the_date");
+    expect(explicitPhaseFromSubject("Save the date for our show")).toBe(
+      "save_the_date"
+    );
+  });
+
+  it("pins doors-open subjects", () => {
+    expect(explicitPhaseFromSubject("Now Open | 3daysofdesign")).toBe("day_of");
+    expect(explicitPhaseFromSubject("We're open!")).toBe("day_of");
+    expect(explicitPhaseFromSubject("The doors are open")).toBe("day_of");
+  });
+
+  it("leaves interpretive subjects to the model", () => {
+    expect(explicitPhaseFromSubject("Join us at 3daysofdesign")).toBeNull();
+    expect(explicitPhaseFromSubject("Programme for 3daysofdesign")).toBeNull();
+    expect(explicitPhaseFromSubject("The exhibition is open")).toBeNull();
+  });
+});
 
 describe("isEventDetectionStale", () => {
   it("stays fresh until the collection grows by the threshold", () => {

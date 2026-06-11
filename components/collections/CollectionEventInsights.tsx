@@ -35,6 +35,12 @@ type Props = {
   initialDetection: CollectionEventDetection | null;
   emails: ExploreEmailCard[];
   onOpenEmail: (email: ExploreEmailCard) => void;
+  /**
+   * True while the parent's EmailModal is open on top of us. The
+   * insights pop-up ignores Escape in that case so one keypress closes
+   * only the topmost layer.
+   */
+  emailModalOpen: boolean;
 };
 
 const PHASE_COLORS: Record<CampaignPhase, string> = {
@@ -80,7 +86,8 @@ export default function CollectionEventInsights({
   collectionId,
   initialDetection,
   emails,
-  onOpenEmail
+  onOpenEmail,
+  emailModalOpen
 }: Props) {
   const [detection, setDetection] = useState<CollectionEventDetection | null>(
     initialDetection
@@ -91,6 +98,7 @@ export default function CollectionEventInsights({
     needsDetectionRun(initialDetection, emails)
   );
   const [responding, setResponding] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
   const requestedRef = useRef(false);
 
   // Fire the (cheap, cached) detection once per page view when the
@@ -124,6 +132,7 @@ export default function CollectionEventInsights({
     setResponding(true);
     const previous = detection;
     setDetection({ ...detection, confirmed });
+    if (confirmed) setPopupOpen(true);
     try {
       const res = await fetch(
         `/api/collections/${collectionId}/event-detection`,
@@ -194,12 +203,108 @@ export default function CollectionEventInsights({
     );
   }
 
+  const eventDates = formatEventDates(
+    detection.event.startDate,
+    detection.event.endDate
+  );
+
   return (
-    <EventInsightsCard
-      detection={detection}
-      emails={emails}
-      onOpenEmail={onOpenEmail}
-    />
+    <>
+      <div className={styles.insightsSummaryRow}>
+        <span className={styles.insightsBannerIcon} aria-hidden="true">
+          <CalendarSparkIcon />
+        </span>
+        <p className={styles.insightsSummaryText}>
+          <strong>{detection.event.name}</strong>
+          {eventDates ? ` — ${eventDates}` : ""}
+          {detection.event.location ? ` · ${detection.event.location}` : ""}
+        </p>
+        <button
+          type="button"
+          className={styles.insightsButton}
+          onClick={() => setPopupOpen(true)}
+        >
+          View insights
+        </button>
+      </div>
+      {popupOpen ? (
+        <InsightsPopup
+          title={`${detection.event.name} insights`}
+          emailModalOpen={emailModalOpen}
+          onClose={() => setPopupOpen(false)}
+        >
+          <EventInsightsCard
+            detection={detection}
+            emails={emails}
+            onOpenEmail={onOpenEmail}
+            inModal
+          />
+        </InsightsPopup>
+      ) : null}
+    </>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Pop-up shell — sits below the EmailModal (z-index wise) so clicking
+   a marker stacks the email viewer on top of the figures.
+   ----------------------------------------------------------------- */
+
+function InsightsPopup({
+  title,
+  emailModalOpen,
+  onClose,
+  children
+}: {
+  title: string;
+  emailModalOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  // Lock body scroll while open. The EmailModal stacked on top applies
+  // (and restores) its own lock, so the two compose cleanly.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !emailModalOpen) {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [emailModalOpen, onClose]);
+
+  return (
+    <div
+      className={styles.insightsModalBackdrop}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className={styles.insightsModalDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <button
+          type="button"
+          className={styles.insightsModalClose}
+          onClick={onClose}
+          aria-label="Close insights"
+        >
+          <CloseIcon />
+        </button>
+        <div className={styles.insightsModalBody}>{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -236,11 +341,14 @@ type TimelineModel = {
 function EventInsightsCard({
   detection,
   emails,
-  onOpenEmail
+  onOpenEmail,
+  inModal = false
 }: {
   detection: CollectionEventDetection;
   emails: ExploreEmailCard[];
   onOpenEmail: (email: ExploreEmailCard) => void;
+  /** Drops the glass-card chrome when rendered inside the pop-up. */
+  inModal?: boolean;
 }) {
   const event = detection.event!;
   const model = useMemo(
@@ -265,7 +373,10 @@ function EventInsightsCard({
   const eventDates = formatEventDates(event.startDate, event.endDate);
 
   return (
-    <section className={styles.insightsCard} aria-label="Event insights">
+    <section
+      className={`${styles.insightsCard}${inModal ? ` ${styles.insightsCardModal}` : ""}`}
+      aria-label="Event insights"
+    >
       <span className={styles.insightsEyebrow}>Event insights</span>
       <h2 className={styles.insightsTitle}>
         {event.name}
@@ -349,13 +460,6 @@ function EventInsightsCard({
         </figure>
       </div>
 
-      {detection.offTopicEmailIds.length > 0 ? (
-        <p className={styles.insightsFigureCaption} style={{ marginTop: "1rem" }}>
-          {detection.offTopicEmailIds.length}{" "}
-          {detection.offTopicEmailIds.length === 1 ? "email in this collection looks" : "emails in this collection look"}{" "}
-          unrelated to {event.name}; they are still included above.
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -1052,6 +1156,24 @@ function formatLead(days: number): string {
 
 function truncateLabel(value: string, limit: number): string {
   return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
 }
 
 function CalendarSparkIcon() {

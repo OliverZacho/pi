@@ -74,8 +74,6 @@ export type CollectionEventDetection = {
   event: CollectionDetectedEvent | null;
   /** email id → campaign phase, as labelled by the model. */
   phases: Record<string, CampaignPhase>;
-  /** Emails the model judged unrelated to the event. */
-  offTopicEmailIds: string[];
 };
 
 // ---------- Eligibility heuristic ----------
@@ -190,10 +188,6 @@ export function safeParseEventDetection(
     }
   }
 
-  const offTopicEmailIds = Array.isArray(obj.offTopicEmailIds)
-    ? obj.offTopicEmailIds.filter((id): id is string => typeof id === "string")
-    : [];
-
   return {
     version: 1,
     status: obj.status,
@@ -202,8 +196,7 @@ export function safeParseEventDetection(
     model: obj.model,
     confirmed: obj.confirmed as boolean | null,
     event,
-    phases,
-    offTopicEmailIds
+    phases
   };
 }
 

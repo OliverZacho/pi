@@ -535,6 +535,7 @@ export default function CollectionDetailClient({
           initialDetection={collection.eventDetection}
           emails={emails}
           onOpenEmail={handleOpenEmail}
+          emailModalOpen={openEmail !== null}
         />
       ) : null}
 

@@ -100,10 +100,9 @@ export async function detectCollectionEvent(
       "reminder: short-notice nudges in the final days before it starts ('see you tomorrow', 'book your spot', 'don't miss', 'ses vi?'). " +
       "day_of: sent while the event is running ('now open', 'the exhibition is open', 'we're open', 'visit us today'). " +
       "wrap_up: post-event thanks, recaps, highlights. " +
-      "other: emails in the collection that don't play a run-up role (including off-topic ones). " +
+      "other: emails in the collection that don't play a run-up role. Use it sparingly — you only see subjects and preheaders, so an email that doesn't mention the event may still be about it (e.g. a product announcement timed to the event); give such emails the phase their timing and content suggest. " +
       "IMPORTANT: when a subject explicitly names its phase ('save the date' → save_the_date, 'programme'/'agenda' → programme, 'now open'/'we're open' → day_of), that wording wins over send timing. " +
-      "off_topic_email_numbers: the numbers of emails that do NOT appear related to the detected event at all. " +
-      "If no single event emerges, return is_event_collection=false with event fields null, every phase 'other', and an empty off-topic list.",
+      "If no single event emerges, return is_event_collection=false with event fields null and every phase 'other'.",
     tools: [
       {
         name: "detect_collection_event",
@@ -127,10 +126,6 @@ export async function detectCollectionEvent(
               enum: [...COLLECTION_EVENT_KINDS, "none"]
             },
             user_message: { type: "string", maxLength: 300 },
-            off_topic_email_numbers: {
-              type: "array",
-              items: { type: "integer" }
-            },
             phases: {
               type: "array",
               description: "One entry per email, in order.",
@@ -154,7 +149,6 @@ export async function detectCollectionEvent(
             "location",
             "event_kind",
             "user_message",
-            "off_topic_email_numbers",
             "phases"
           ]
         }
@@ -255,12 +249,12 @@ function buildDetection(
     }
   }
 
-  const offTopicEmailIds: string[] = [];
-  if (Array.isArray(raw.off_topic_email_numbers)) {
-    for (const value of raw.off_topic_email_numbers) {
-      const email = emailByNumber(ordered, value);
-      if (email) offTopicEmailIds.push(email.id);
-    }
+  // Deterministic overrides — same philosophy as classifyFromRules: when
+  // the subject literally names its phase, that beats the model's timing
+  // judgement (which wavers run to run on e.g. a late "SAVE THE DATES").
+  for (const email of ordered) {
+    const explicit = explicitPhaseFromSubject(email.subject);
+    if (explicit) phases[email.id] = explicit;
   }
 
   const detected = isEvent && name.length > 0;
@@ -294,9 +288,21 @@ function buildDetection(
               : `It looks like this collection is about ${name}.`
         }
       : null,
-    phases,
-    offTopicEmailIds
+    phases
   };
+}
+
+/**
+ * Maps unambiguous subject phrasing straight to a phase. Deliberately
+ * narrow — only phrases that name the phase outright qualify, anything
+ * interpretive stays with the model. Exported for tests.
+ */
+export function explicitPhaseFromSubject(subject: string): CampaignPhase | null {
+  if (/\bsave the dates?\b/i.test(subject)) return "save_the_date";
+  if (/\b(?:now open|we'?re open|doors (?:are )?open)\b/i.test(subject)) {
+    return "day_of";
+  }
+  return null;
 }
 
 function emailByNumber(
