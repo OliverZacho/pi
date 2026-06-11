@@ -7,10 +7,12 @@ type LogoProps = {
  * Pirol wordmark (bird mark + "Pirol").
  *
  * The source artwork carves the bird shape out of a solid spiral using white
- * fills on a white background. To make the mark reusable on any background and
- * themeable via `currentColor`, those cut-outs are expressed as an SVG mask and
- * the whole wordmark is painted in a single `currentColor` fill. The viewBox is
- * trimmed to the content bounds so the logo fills its box without extra padding.
+ * fills on a white background. To make the mark reusable on any background,
+ * those cut-outs are expressed as an SVG mask and the whole wordmark is painted
+ * in a single fill driven by `--pirol-logo-color` (brand green, defined in
+ * globals.css; falls back to `currentColor` where the token is absent). The
+ * viewBox is trimmed to the content bounds so the logo fills its box without
+ * extra padding.
  */
 export default function Logo({ className, title = "Pirol" }: LogoProps) {
   return (
@@ -64,7 +66,7 @@ export default function Logo({ className, title = "Pirol" }: LogoProps) {
         y="16"
         width="95"
         height="48"
-        fill="currentColor"
+        fill="var(--pirol-logo-color, currentColor)"
         mask="url(#pirol-logo-mask)"
       />
     </svg>
