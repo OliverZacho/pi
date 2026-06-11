@@ -1,0 +1,212 @@
+/**
+ * Client-safe types + helpers for collection event detection.
+ *
+ * A collection that gathers many emails from several brands around the
+ * same real-world occasion (a trade fair, a festival, Black Friday…)
+ * can be analyzed by an LLM: "this collection is about 3daysofdesign,
+ * June 10–12". The detection itself lives in `lib/collection-event.ts`
+ * (server-only — it calls Anthropic); this module holds everything the
+ * browser also needs: the cached-payload shape, the eligibility
+ * heuristic that decides when to even ask the model, and a defensive
+ * parser for the `collections.event_detection` jsonb column.
+ */
+
+export const CAMPAIGN_PHASES = [
+  "save_the_date",
+  "programme",
+  "reminder",
+  "day_of",
+  "wrap_up",
+  "other"
+] as const;
+
+export type CampaignPhase = (typeof CAMPAIGN_PHASES)[number];
+
+export const CAMPAIGN_PHASE_LABELS: Record<CampaignPhase, string> = {
+  save_the_date: "Save the date",
+  programme: "Programme reveal",
+  reminder: "Reminder",
+  day_of: "Doors open",
+  wrap_up: "Wrap-up",
+  other: "Other"
+};
+
+export const COLLECTION_EVENT_KINDS = [
+  "trade_fair",
+  "festival",
+  "conference",
+  "sports",
+  "sale_period",
+  "product_drop",
+  "other"
+] as const;
+
+export type CollectionEventKind = (typeof COLLECTION_EVENT_KINDS)[number];
+
+export type CollectionDetectedEvent = {
+  /** Canonical event name, e.g. "3daysofdesign". */
+  name: string;
+  /** ISO date (YYYY-MM-DD) the event starts, or null when unknown. */
+  startDate: string | null;
+  /** ISO date the event ends; null for single-day or unknown. */
+  endDate: string | null;
+  location: string | null;
+  kind: CollectionEventKind;
+  /** Model confidence 0–1 that this collection is about this event. */
+  confidence: number;
+  /** One ready-to-show sentence for the banner. */
+  userMessage: string;
+};
+
+export type CollectionEventDetection = {
+  version: 1;
+  /** `no_event` is cached too, so we don't re-ask on every page view. */
+  status: "detected" | "no_event";
+  detectedAt: string;
+  /** Email count when the model ran — used to invalidate stale results. */
+  emailCountAtDetection: number;
+  model: string;
+  /**
+   * Banner state: `null` = detection ran but the user hasn't responded,
+   * `true` = confirmed (insights visible), `false` = dismissed.
+   */
+  confirmed: boolean | null;
+  event: CollectionDetectedEvent | null;
+  /** email id → campaign phase, as labelled by the model. */
+  phases: Record<string, CampaignPhase>;
+  /** Emails the model judged unrelated to the event. */
+  offTopicEmailIds: string[];
+};
+
+// ---------- Eligibility heuristic ----------
+
+export const EVENT_DETECTION_MIN_EMAILS = 8;
+export const EVENT_DETECTION_MIN_BRANDS = 3;
+/** Share of emails categorised event/seasonal needed to bother the LLM. */
+const EVENT_CATEGORY_SHARE = 0.4;
+/**
+ * A cached result goes stale once the collection has grown by this many
+ * emails since detection ran (rule-based collections keep collecting).
+ */
+export const EVENT_DETECTION_STALE_AFTER_NEW_EMAILS = 10;
+
+export type EventDetectionEligibilityInput = {
+  category: string;
+  companyName: string;
+};
+
+/**
+ * Cheap pre-filter so we only spend an LLM call on collections that
+ * plausibly revolve around one occasion: enough emails, several brands,
+ * and a meaningful share of event-ish categories. Deliberately loose —
+ * the model makes the real call (and can answer "no_event", which we
+ * also cache).
+ */
+export function isEligibleForEventDetection(
+  emails: EventDetectionEligibilityInput[]
+): boolean {
+  if (emails.length < EVENT_DETECTION_MIN_EMAILS) return false;
+
+  const brands = new Set<string>();
+  let eventish = 0;
+  for (const email of emails) {
+    brands.add(email.companyName);
+    if (email.category === "event" || email.category === "seasonal") {
+      eventish += 1;
+    }
+  }
+
+  if (brands.size < EVENT_DETECTION_MIN_BRANDS) return false;
+  return eventish / emails.length >= EVENT_CATEGORY_SHARE;
+}
+
+/**
+ * True when a cached detection should be re-run because the collection
+ * has grown well past the snapshot the model saw.
+ */
+export function isEventDetectionStale(
+  detection: CollectionEventDetection,
+  currentEmailCount: number
+): boolean {
+  return (
+    currentEmailCount - detection.emailCountAtDetection >=
+    EVENT_DETECTION_STALE_AFTER_NEW_EMAILS
+  );
+}
+
+// ---------- Defensive parse ----------
+
+const PHASE_LOOKUP = new Set<string>(CAMPAIGN_PHASES);
+const KIND_LOOKUP = new Set<string>(COLLECTION_EVENT_KINDS);
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Defensive read of the `event_detection` column — same philosophy as
+ * `safeParseStoredRules`: the column is plain jsonb, so a corrupted row
+ * must degrade to "no detection yet" rather than crash the page.
+ */
+export function safeParseEventDetection(
+  value: unknown
+): CollectionEventDetection | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+
+  if (obj.version !== 1) return null;
+  if (obj.status !== "detected" && obj.status !== "no_event") return null;
+  if (typeof obj.detectedAt !== "string") return null;
+  if (typeof obj.emailCountAtDetection !== "number") return null;
+  if (typeof obj.model !== "string") return null;
+  if (obj.confirmed !== null && typeof obj.confirmed !== "boolean") return null;
+
+  let event: CollectionDetectedEvent | null = null;
+  if (obj.status === "detected") {
+    const raw = obj.event;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const e = raw as Record<string, unknown>;
+    if (typeof e.name !== "string" || e.name.length === 0) return null;
+    if (typeof e.userMessage !== "string") return null;
+    event = {
+      name: e.name,
+      startDate: parseIsoDate(e.startDate),
+      endDate: parseIsoDate(e.endDate),
+      location: typeof e.location === "string" ? e.location : null,
+      kind: KIND_LOOKUP.has(String(e.kind))
+        ? (e.kind as CollectionEventKind)
+        : "other",
+      confidence:
+        typeof e.confidence === "number"
+          ? Math.max(0, Math.min(1, e.confidence))
+          : 0,
+      userMessage: e.userMessage
+    };
+  }
+
+  const phases: Record<string, CampaignPhase> = {};
+  if (obj.phases && typeof obj.phases === "object" && !Array.isArray(obj.phases)) {
+    for (const [id, phase] of Object.entries(obj.phases as Record<string, unknown>)) {
+      if (typeof phase === "string" && PHASE_LOOKUP.has(phase)) {
+        phases[id] = phase as CampaignPhase;
+      }
+    }
+  }
+
+  const offTopicEmailIds = Array.isArray(obj.offTopicEmailIds)
+    ? obj.offTopicEmailIds.filter((id): id is string => typeof id === "string")
+    : [];
+
+  return {
+    version: 1,
+    status: obj.status,
+    detectedAt: obj.detectedAt,
+    emailCountAtDetection: obj.emailCountAtDetection,
+    model: obj.model,
+    confirmed: obj.confirmed as boolean | null,
+    event,
+    phases,
+    offTopicEmailIds
+  };
+}
+
+function parseIsoDate(value: unknown): string | null {
+  return typeof value === "string" && ISO_DATE_PATTERN.test(value) ? value : null;
+}

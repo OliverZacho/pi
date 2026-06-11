@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
+import {
+  safeParseEventDetection,
+  type CollectionEventDetection
+} from "./collection-event-shared";
 import { type CollectionIcon, isCollectionIcon } from "./collection-icons";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database, Json } from "@/types/supabase";
@@ -463,6 +467,11 @@ export type CollectionDetail = {
    * the `collection_emails` membership table.
    */
   rules: CollectionRules | null;
+  /**
+   * Cached LLM event detection, or `null` when the collection has never
+   * qualified for (or completed) a detection run.
+   */
+  eventDetection: CollectionEventDetection | null;
 };
 
 /**
@@ -598,6 +607,31 @@ export async function listCollectionSummaries(
 }
 
 /**
+ * Persists (or clears) the cached event detection payload. The caller
+ * owns the payload shape — both the fresh-detection write and the
+ * confirm / dismiss mutations funnel through here.
+ */
+export async function saveCollectionEventDetection(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  detection: CollectionEventDetection | null
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("collections")
+    .update({
+      event_detection: detection === null ? null : (detection as unknown as Json)
+    })
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
  * Marks a collection as viewed by its owner. Clears the sidebar "new
  * emails" dot for rule-based collections until another match arrives.
  */
@@ -625,7 +659,9 @@ export async function getCollectionForOwner(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, icon, share_slug, user_id, created_at, updated_at, rules")
+    .select(
+      "id, name, icon, share_slug, user_id, created_at, updated_at, rules, event_detection"
+    )
     .eq("id", collectionId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -648,7 +684,8 @@ export async function getCollectionForOwner(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     emails,
-    rules
+    rules,
+    eventDetection: safeParseEventDetection(data.event_detection)
   };
 }
 
@@ -662,7 +699,9 @@ export async function getCollectionBySlugPublic(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await adminClient
     .from("collections")
-    .select("id, name, icon, share_slug, user_id, created_at, updated_at, rules")
+    .select(
+      "id, name, icon, share_slug, user_id, created_at, updated_at, rules, event_detection"
+    )
     .eq("share_slug", slug)
     .maybeSingle();
 
@@ -684,7 +723,8 @@ export async function getCollectionBySlugPublic(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     emails,
-    rules
+    rules,
+    eventDetection: safeParseEventDetection(data.event_detection)
   };
 }
 

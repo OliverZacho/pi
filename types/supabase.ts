@@ -335,6 +335,7 @@ export type Database = {
       collections: {
         Row: {
           created_at: string
+          event_detection: Json | null
           icon: string | null
           id: string
           last_viewed_at: string | null
@@ -346,6 +347,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          event_detection?: Json | null
           icon?: string | null
           id?: string
           last_viewed_at?: string | null
@@ -357,6 +359,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          event_detection?: Json | null
           icon?: string | null
           id?: string
           last_viewed_at?: string | null

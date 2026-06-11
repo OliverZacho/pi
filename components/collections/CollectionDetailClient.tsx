@@ -19,6 +19,7 @@ import type { CollectionIcon } from "@/lib/collection-icons";
 import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
+import CollectionEventInsights from "./CollectionEventInsights";
 import CollectionIconPicker from "./CollectionIconPicker";
 import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
@@ -525,6 +526,15 @@ export default function CollectionDetailClient({
           onSave={handleSaveRules}
           onCancel={() => setRulesEditorOpen(false)}
           showCancel
+        />
+      ) : null}
+
+      {!rulesEditorOpen && emails.length > 0 ? (
+        <CollectionEventInsights
+          collectionId={collection.id}
+          initialDetection={collection.eventDetection}
+          emails={emails}
+          onOpenEmail={handleOpenEmail}
         />
       ) : null}
 
