@@ -28,7 +28,7 @@ function initials(user: HeaderUser): string {
   return user.email[0]?.toUpperCase() ?? "?";
 }
 
-function UserMenu({ user }: { user: HeaderUser }) {
+export function UserMenu({ user }: { user: HeaderUser }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 

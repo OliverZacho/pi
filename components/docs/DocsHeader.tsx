@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/Logo";
+import { UserMenu, type HeaderUser } from "@/components/marketing/Header";
 import styles from "./docs.module.css";
 
 const TABS = [
@@ -11,7 +12,7 @@ const TABS = [
   { href: "/help", label: "Help" }
 ];
 
-export default function DocsHeader() {
+export default function DocsHeader({ user = null }: { user?: HeaderUser | null }) {
   const pathname = usePathname();
 
   return (
@@ -70,9 +71,23 @@ export default function DocsHeader() {
           </svg>
           Ask AI
         </button>
-        <Link href="/login" className={styles.primaryBtn}>
-          Open app
-        </Link>
+        {user ? (
+          <>
+            <Link href="/explore" className={styles.primaryBtn}>
+              Open app
+            </Link>
+            <UserMenu user={user} />
+          </>
+        ) : (
+          <>
+            <Link href="/login" className={styles.linkBtn}>
+              Login
+            </Link>
+            <Link href="/login" className={styles.primaryBtn}>
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
     </header>
   );
