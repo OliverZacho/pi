@@ -7,6 +7,7 @@ import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import type { ViewerDisplay } from "@/lib/viewer-display";
 import Logo from "@/components/Logo";
+import SidebarNotices from "./SidebarNotices";
 import styles from "./explore.module.css";
 
 type NavId =
@@ -825,28 +826,7 @@ export default function ExploreSidebar({
 
       <div className={styles.spacer} />
 
-      <div className={styles.usageCard}>
-        <div className={styles.usageHeader}>
-          <span className={styles.usageDot} aria-hidden="true" />
-          <div className={styles.usageText}>
-            {hasAccess ? "18 emails saved this month" : "You're on a preview"}
-            <span className={styles.usageMuted}>
-              {hasAccess
-                ? "Upgrade for unlimited use"
-                : "Subscribe to unlock everything"}
-            </span>
-          </div>
-        </div>
-        {hasAccess ? (
-          <button type="button" className={styles.upgradeButton} tabIndex={-1}>
-            Upgrade
-          </button>
-        ) : (
-          <Link href="/pricing" className={styles.upgradeButton}>
-            View plans
-          </Link>
-        )}
-      </div>
+      <SidebarNotices signedIn={Boolean(user)} />
 
       {user ? (
         <AccountRow user={user} settingsActive={activeId === "settings"} />

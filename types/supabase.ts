@@ -106,6 +106,7 @@ export type Database = {
           created_at: string
           handled_at: string | null
           id: string
+          requested_by: string | null
           status: string
           website: string
         }
@@ -114,6 +115,7 @@ export type Database = {
           created_at?: string
           handled_at?: string | null
           id?: string
+          requested_by?: string | null
           status?: string
           website: string
         }
@@ -122,6 +124,7 @@ export type Database = {
           created_at?: string
           handled_at?: string | null
           id?: string
+          requested_by?: string | null
           status?: string
           website?: string
         }

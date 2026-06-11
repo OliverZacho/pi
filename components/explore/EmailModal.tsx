@@ -14,6 +14,7 @@ import { countryFlag, countryName } from "@/lib/country";
 import { formatFullDateTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import AddToCollectionButton from "./AddToCollectionButton";
+import { LOCKED_EMAIL_EVENT, LOCKED_EMAIL_FLAG } from "./SidebarNotices";
 import styles from "./explore.module.css";
 
 const ESP_LABELS: Record<EspProvider, string> = {
@@ -153,6 +154,19 @@ export default function EmailModal({
   // while the round-trip is in flight so rapid double-clicks don't
   // fire competing PUT + DELETE requests.
   const [savePending, setSavePending] = useState(false);
+
+  // Read-only means the viewer is on the link-stripped preview — flag it
+  // so the sidebar's usage card can pitch links/source as the upgrade
+  // hook for the rest of the session.
+  useEffect(() => {
+    if (!readOnly || typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(LOCKED_EMAIL_FLAG, "1");
+    } catch {
+      // Storage blocked — the event below still updates a mounted sidebar.
+    }
+    window.dispatchEvent(new Event(LOCKED_EMAIL_EVENT));
+  }, [readOnly]);
 
   async function handleToggleSave() {
     if (savePending || !onToggleSave) return;
