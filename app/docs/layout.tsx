@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import DocsHeader from "@/components/docs/DocsHeader";
+import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
 import DocsSidebar from "@/components/docs/DocsSidebar";
 import styles from "@/components/docs/docs.module.css";
 
@@ -12,7 +12,7 @@ export const metadata = {
 export default function DocsLayout({ children }: { children: ReactNode }) {
   return (
     <div className={styles.shell}>
-      <DocsHeader />
+      <DocsSiteHeader />
       <div className={styles.docsLayout}>
         <DocsSidebar />
         {children}

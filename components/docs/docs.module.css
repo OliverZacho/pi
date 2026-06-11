@@ -1,10 +1,11 @@
 /* ============================================================
    Docs / Learn / Help — shared shell
-   Reuses the marketing design tokens (warm off-white, ink, pills).
+   Reuses the marketing design tokens (light-blue bg, ink,
+   white shadow pills — see components/marketing/landing.module.css).
    ============================================================ */
 
 .shell {
-  --bg: #CEECFB;
+  --bg: #ecf8ff;
   --ink: #0b0b0c;
   --ink-soft: #6b6b70;
   --ink-faint: #9a9aa0;
@@ -30,9 +31,8 @@
   align-items: center;
   gap: 1.25rem;
   padding: 0.85rem 1.5rem;
-  background: rgba(206, 236, 251, 0.85);
+  background: rgba(236, 248, 255, 0.85);
   backdrop-filter: saturate(1.2) blur(12px);
-  border-bottom: 1px solid var(--line);
 }
 
 .headerLeft {
@@ -53,38 +53,40 @@
 }
 
 .logoMark {
-  height: 24px;
+  height: 32px;
   width: auto;
   display: block;
   flex-shrink: 0;
   color: var(--ink);
 }
 
+/* White shadow pill, same as the marketing .navPill */
 .tabs {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.35rem 0.4rem;
+  box-shadow: var(--pill-shadow);
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
-  padding: 0.45rem 0.8rem;
+  padding: 0.5rem 0.9rem;
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--ink-soft);
+  color: var(--ink);
   text-decoration: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .tab:hover {
   background: rgba(11, 11, 12, 0.05);
-  color: var(--ink);
 }
 
 .tabActive {
-  color: var(--ink);
   background: rgba(11, 11, 12, 0.06);
 }
 
@@ -100,9 +102,14 @@
   gap: 0.55rem;
   width: min(420px, 100%);
   background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 0.5rem 0.85rem;
+  padding: 0.55rem 0.9rem;
+  box-shadow: var(--search-shadow);
+  transition: box-shadow 0.15s ease;
+}
+
+.search:focus-within {
+  box-shadow: var(--search-shadow-focus);
 }
 
 .searchIcon {
@@ -148,19 +155,22 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
+  padding: 0.55rem 0.9rem;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 0;
   color: var(--ink);
+  font: inherit;
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  box-shadow: var(--pill-shadow);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .askAi:hover {
-  background: #fafafa;
+  box-shadow: var(--pill-shadow-hover);
+  transform: translateY(-1px);
 }
 
 .askAi svg {
@@ -172,12 +182,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.55rem 1rem;
+  padding: 0.6rem 1.1rem;
   border-radius: 999px;
   background: var(--ink);
   color: #fff;
   text-decoration: none;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 500;
   border: 0;
   cursor: pointer;
@@ -187,6 +197,21 @@
 .primaryBtn:hover {
   background: #1a1a1d;
   transform: translateY(-1px);
+}
+
+.linkBtn {
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.linkBtn:hover {
+  background: rgba(11, 11, 12, 0.06);
 }
 
 /* ---------- Three-column docs layout ---------- */
@@ -255,7 +280,7 @@
   background: var(--surface);
   color: var(--ink);
   font-weight: 500;
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: var(--chip-shadow);
 }
 
 /* ---------- Center content ---------- */
@@ -353,16 +378,16 @@
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.85rem 1.1rem;
-  border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   text-decoration: none;
   max-width: 48%;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .articleNavLink:hover {
-  border-color: var(--line-strong);
+  box-shadow: var(--card-shadow-hover);
   transform: translateY(-1px);
 }
 
@@ -513,17 +538,16 @@
   gap: 0.4rem;
   padding: 1.1rem 1.2rem;
   background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 14px;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .card:hover {
-  border-color: var(--line-strong);
   transform: translateY(-2px);
-  box-shadow: 0 14px 30px -22px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .cardTitle {
@@ -587,17 +611,16 @@
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .videoCard:hover {
-  border-color: var(--line-strong);
   transform: translateY(-3px);
-  box-shadow: 0 22px 44px -30px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .videoThumb {
@@ -605,7 +628,7 @@
   aspect-ratio: 16 / 9;
   background:
     radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.5), transparent 60%),
-    linear-gradient(135deg, #e9e5dd 0%, #d8d2c7 100%);
+    linear-gradient(135deg, #ddf0fb 0%, #bfe1f4 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -700,9 +723,9 @@
 
 .formCard {
   background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 1.75rem;
+  box-shadow: var(--panel-shadow-sm);
 }
 
 .formGrid {
@@ -737,18 +760,17 @@
   font-size: 0.92rem;
   color: var(--ink);
   background: var(--bg);
-  border: 1px solid var(--line-strong);
+  border: 0;
   border-radius: 10px;
   padding: 0.65rem 0.8rem;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease;
 }
 
 .input:focus,
 .textarea:focus,
 .select:focus {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(11, 11, 12, 0.08);
+  box-shadow: inset 0 0 0 1px var(--ink), 0 0 0 3px rgba(11, 11, 12, 0.08);
 }
 
 .textarea {
@@ -845,9 +867,9 @@
 
 .contactCard {
   background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 1.3rem 1.4rem;
+  box-shadow: var(--card-shadow);
 }
 
 .contactCard h3 {

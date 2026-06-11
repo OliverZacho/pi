@@ -1,4 +1,4 @@
-import DocsHeader from "@/components/docs/DocsHeader";
+import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
@@ -108,7 +108,7 @@ const SECTIONS: TutorialSection[] = [
 export default function LearnPage() {
   return (
     <div className={styles.shell}>
-      <DocsHeader />
+      <DocsSiteHeader />
       <div className={styles.simpleLayout}>
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>Learn Pirol</h1>

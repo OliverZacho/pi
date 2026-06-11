@@ -16,6 +16,7 @@ import {
 import { getViewer } from "@/lib/access";
 import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/brand/brands-explore.module.css";
 
 export const metadata = {
@@ -56,7 +57,7 @@ export default async function BrandsPage() {
 
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="brands" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="brands" hasAccess={false} />
         <main className={styles.main}>
           <header className={styles.heading}>
             <div className={styles.headingRow}>
@@ -110,6 +111,7 @@ export default async function BrandsPage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="brands"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

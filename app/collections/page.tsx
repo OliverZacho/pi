@@ -12,6 +12,7 @@ import {
 } from "@/lib/competitor-db";
 import CollectionsGridClient from "@/components/collections/CollectionsGridClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
 export const metadata = {
@@ -27,7 +28,7 @@ export default async function CollectionsPage() {
   if (!viewer || !viewer.hasAccess) {
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="collections" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="collections" hasAccess={false} />
         <main className={styles.main}>
           <LockedFeature variant="collections" />
         </main>
@@ -63,6 +64,7 @@ export default async function CollectionsPage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="collections"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

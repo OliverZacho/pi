@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getViewer } from "@/lib/access";
 import {
   createBrandRequestInDb,
   MAX_BRAND_REQUEST_FIELD
@@ -43,7 +44,14 @@ export async function POST(request: Request) {
 
   try {
     const supabase = getSupabaseAdmin();
-    await createBrandRequestInDb(supabase, { companyName, website });
+    // Attach the signed-in requester (if any) so the sidebar can notify
+    // them when the brand lands in the archive.
+    const viewer = await getViewer();
+    await createBrandRequestInDb(supabase, {
+      companyName,
+      website,
+      requestedBy: viewer?.userId ?? null
+    });
   } catch (error) {
     console.error("Failed to record brand request", error);
     return NextResponse.json(

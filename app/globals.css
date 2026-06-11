@@ -5,6 +5,8 @@
 :root {
   /* Site-wide page background — the light blue from the marketing frontpage. */
   --page-bg: #ecf8ff;
+  /* Brand green used by the Pirol wordmark (components/Logo.tsx) everywhere. */
+  --pirol-logo-color: #377d4b;
   /* Flat blue-tinted interactive states for controls on the blue background. */
   --on-blue-hover: #e3f3fc;
   --on-blue-active: #d4ebf9;
@@ -134,7 +136,7 @@ code {
 }
 
 .admin-sidebar-logo {
-  height: 28px;
+  height: 34px;
   width: auto;
   display: block;
   flex-shrink: 0;

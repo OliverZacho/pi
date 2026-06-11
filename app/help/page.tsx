@@ -1,5 +1,5 @@
 import Link from "next/link";
-import DocsHeader from "@/components/docs/DocsHeader";
+import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
 import ContactForm from "@/components/docs/ContactForm";
 import { SUPPORT_EMAIL, SALES_EMAIL } from "@/lib/docs/support";
 import styles from "@/components/docs/docs.module.css";
@@ -13,7 +13,7 @@ export const metadata = {
 export default function HelpPage() {
   return (
     <div className={styles.shell}>
-      <DocsHeader />
+      <DocsSiteHeader />
       <div>
         <div className={styles.simpleLayout} style={{ paddingBottom: 0 }}>
           <header className={styles.pageHeader}>

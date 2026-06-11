@@ -1,0 +1,194 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { SidebarNotice } from "@/lib/sidebar-notices";
+import styles from "./explore.module.css";
+
+/**
+ * The sidebar footer notice slot (above the account row). Logged-out
+ * viewers get the static "preview" card; signed-in viewers get the
+ * highest-priority undismissed notice from `/api/notices` — the free
+ * save-cap meter, a fulfilled brand request, a team join, or new mail
+ * from followed brands. One card at a time, by design: the slot is a
+ * status line, not a feed.
+ */
+
+const DISMISSED_KEY = "pirol:dismissed-notices";
+const DISMISSED_CAP = 50;
+
+/**
+ * Set by EmailModal when a free viewer opens a link-stripped email this
+ * session; the save-usage card swaps its muted line to a contextual
+ * "links are paid" nudge. Event lets an already-mounted sidebar react.
+ */
+export const LOCKED_EMAIL_FLAG = "pirol:viewed-locked-email";
+export const LOCKED_EMAIL_EVENT = "pirol:locked-email-viewed";
+
+function readDismissed(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
+}
+
+type Props = {
+  signedIn: boolean;
+};
+
+export default function SidebarNotices({ signedIn }: Props) {
+  const [notices, setNotices] = useState<SidebarNotice[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>(readDismissed);
+  const [lockedViewed, setLockedViewed] = useState(false);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/notices", {
+          credentials: "include",
+          signal: controller.signal
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { notices?: SidebarNotice[] };
+        setNotices(Array.isArray(body.notices) ? body.notices : []);
+      } catch {
+        // Network hiccup — the slot just stays empty for this render.
+      }
+    })();
+    return () => controller.abort();
+  }, [signedIn]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setLockedViewed(window.sessionStorage.getItem(LOCKED_EMAIL_FLAG) === "1");
+    const onLockedViewed = () => setLockedViewed(true);
+    window.addEventListener(LOCKED_EMAIL_EVENT, onLockedViewed);
+    return () => window.removeEventListener(LOCKED_EMAIL_EVENT, onLockedViewed);
+  }, []);
+
+  if (!signedIn) {
+    return (
+      <div className={styles.usageCard}>
+        <div className={styles.usageHeader}>
+          <span className={styles.usageDot} aria-hidden="true" />
+          <div className={styles.usageText}>
+            You&apos;re on a preview
+            <span className={styles.usageMuted}>
+              Subscribe to unlock everything
+            </span>
+          </div>
+        </div>
+        <Link href="/pricing" className={styles.upgradeButton}>
+          View plans
+        </Link>
+      </div>
+    );
+  }
+
+  const notice = notices.find((n) => !dismissed.includes(n.id));
+  if (!notice) return null;
+
+  function dismiss(id: string) {
+    setDismissed((current) => {
+      const next = [...current.filter((entry) => entry !== id), id].slice(
+        -DISMISSED_CAP
+      );
+      try {
+        window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+      } catch {
+        // Storage full / blocked — dismissal still applies this session.
+      }
+      return next;
+    });
+  }
+
+  const progress = notice.progress ?? null;
+  const remaining = progress
+    ? Math.max(0, progress.limit - progress.count)
+    : null;
+  const atCap = remaining === 0;
+  // Contextual nudge: after the user has hit a link-stripped email this
+  // session, the usage card's muted line sells what upgrading unlocks
+  // instead of repeating the generic line. Cap copy stays as-is — at
+  // the cap the saves message is the stronger one.
+  const detail =
+    notice.kind === "save-usage" && lockedViewed && !atCap
+      ? "Links & source code are paid features"
+      : notice.detail;
+
+  const fillClass = atCap
+    ? `${styles.usageProgressFill} ${styles.usageProgressFillFull}`
+    : remaining !== null && remaining <= 5
+      ? `${styles.usageProgressFill} ${styles.usageProgressFillWarn}`
+      : styles.usageProgressFill;
+
+  return (
+    <div className={styles.usageCard} role="status">
+      {notice.dismissible ? (
+        <button
+          type="button"
+          className={styles.noticeDismiss}
+          aria-label="Dismiss notification"
+          onClick={() => dismiss(notice.id)}
+        >
+          <CloseIcon />
+        </button>
+      ) : null}
+      <div className={styles.usageHeader}>
+        <span className={styles.usageDot} aria-hidden="true" />
+        <div className={styles.usageText}>
+          {notice.title}
+          {detail ? <span className={styles.usageMuted}>{detail}</span> : null}
+        </div>
+      </div>
+      {progress ? (
+        <div
+          className={styles.usageProgress}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progress.limit}
+          aria-valuenow={progress.count}
+          aria-label="Free saves used"
+        >
+          <span
+            className={fillClass}
+            style={{
+              width: `${Math.min(100, (progress.count / progress.limit) * 100)}%`
+            }}
+          />
+        </div>
+      ) : null}
+      {notice.cta ? (
+        <Link href={notice.cta.href} className={styles.upgradeButton}>
+          {notice.cta.label}
+        </Link>
+      ) : null}
+    </div>
+  );
+}

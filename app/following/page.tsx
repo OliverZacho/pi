@@ -22,6 +22,7 @@ import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import FollowingClient from "@/components/following/FollowingClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
@@ -52,7 +53,7 @@ export default async function FollowingPage() {
   if (!viewer || !viewer.hasAccess) {
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="following" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="following" hasAccess={false} />
         <main className={styles.main}>
           <LockedFeature variant="following" />
         </main>
@@ -125,6 +126,7 @@ export default async function FollowingPage() {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="following"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

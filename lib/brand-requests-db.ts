@@ -16,7 +16,9 @@ export const MAX_BRAND_REQUEST_FIELD = 200;
 
 type BrandRequestRow = Database["public"]["Tables"]["brand_requests"]["Row"];
 
-function mapRow(row: BrandRequestRow): BrandRequest {
+// Queries select the public shape only; `requested_by` stays internal
+// to the notification lookup and is never echoed back out.
+function mapRow(row: Omit<BrandRequestRow, "requested_by">): BrandRequest {
   return {
     id: row.id,
     companyName: row.company_name,
@@ -30,14 +32,20 @@ function mapRow(row: BrandRequestRow): BrandRequest {
 /**
  * Persists a visitor's "add this brand" request. Called from the public
  * route with a service-role client so logged-out visitors can submit.
+ * `requestedBy` is the signed-in requester (when there is one) so the
+ * sidebar can notify them once the request is fulfilled.
  */
 export async function createBrandRequestInDb(
   supabase: PirolDb,
-  input: { companyName: string; website: string }
+  input: { companyName: string; website: string; requestedBy?: string | null }
 ): Promise<BrandRequest> {
   const { data, error } = await supabase
     .from("brand_requests")
-    .insert({ company_name: input.companyName, website: input.website })
+    .insert({
+      company_name: input.companyName,
+      website: input.website,
+      requested_by: input.requestedBy ?? null
+    })
     .select("id, company_name, website, status, created_at, handled_at")
     .single();
 
@@ -45,6 +53,32 @@ export async function createBrandRequestInDb(
     throw error ?? new Error("Failed to insert brand request");
   }
   return mapRow(data);
+}
+
+/**
+ * Handled requests the user submitted, newest first — feeds the sidebar
+ * "<Brand> was added" notice. "Handled" includes operator-dismissed
+ * requests, so the caller cross-checks against `companies` and only
+ * notifies when a matching brand actually exists in the archive.
+ */
+export async function listHandledBrandRequestsForUser(
+  supabase: PirolDb,
+  userId: string,
+  options: { limit?: number } = {}
+): Promise<BrandRequest[]> {
+  const { limit = 5 } = options;
+  const { data, error } = await supabase
+    .from("brand_requests")
+    .select("id, company_name, website, status, created_at, handled_at")
+    .eq("requested_by", userId)
+    .eq("status", "handled")
+    .order("handled_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+  return (data ?? []).map(mapRow);
 }
 
 /**

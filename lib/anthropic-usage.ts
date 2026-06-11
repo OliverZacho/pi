@@ -16,7 +16,12 @@
 import { getSupabaseAdmin } from "./supabase-admin";
 
 /** Which call site spent the tokens. Mirrors the DB check constraint. */
-export type UsageFeature = "classify" | "suggest" | "hq_lookup" | "vision";
+export type UsageFeature =
+  | "classify"
+  | "suggest"
+  | "hq_lookup"
+  | "vision"
+  | "collection_event";
 
 /**
  * Token counts pulled from an Anthropic Messages response. `input_tokens` and

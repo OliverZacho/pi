@@ -10,6 +10,7 @@ import { listCollectionSummaries } from "@/lib/collections-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import { getViewerDisplay } from "@/lib/viewer-display";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
 import CompareLandingClient from "@/components/compare/CompareLandingClient";
@@ -48,7 +49,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   if (!viewer || !viewer.hasAccess) {
     return (
       <div className={styles.shell}>
-        <ExploreSidebar activeId="compare" hasAccess={false} />
+        <ExploreSidebar user={await getViewerDisplay()} activeId="compare" hasAccess={false} />
         <main className={styles.main}>
           <LockedFeature variant="compare" />
         </main>
@@ -157,6 +158,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
+        user={await getViewerDisplay()}
         activeId="compare"
         collections={collections}
         competitorSets={sets}
