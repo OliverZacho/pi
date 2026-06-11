@@ -1618,10 +1618,19 @@ select.ruleOperator:focus {
   font-variant-numeric: tabular-nums;
 }
 
-.insightsMoreBrands {
-  fill: #94a3b8;
+.insightsMoreToggle {
+  fill: #64748b;
   font-size: 11px;
-  font-style: italic;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  outline: none;
+}
+
+.insightsMoreToggle:hover,
+.insightsMoreToggle:focus-visible {
+  fill: #0f172a;
 }
 
 @media (max-width: 540px) {

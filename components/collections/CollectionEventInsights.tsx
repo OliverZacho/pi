@@ -322,8 +322,8 @@ type TimelineModel = {
   totalDays: number;
   eventStartIdx: number | null;
   eventEndIdx: number | null;
+  /** Every brand, earliest sender first — the figure decides how many to show. */
   brands: Array<{ name: string; items: TimelineEmail[] }>;
-  hiddenBrandCount: number;
   dailyCounts: number[];
   maxDaily: number;
   phaseLanes: Array<{ phase: CampaignPhase; items: TimelineEmail[] }>;
@@ -535,14 +535,12 @@ export function buildTimelineModel(
     if (list) list.push(item);
     else brandMap.set(item.card.companyName, [item]);
   }
-  const allBrands = Array.from(brandMap.entries())
+  const brands = Array.from(brandMap.entries())
     .map(([name, list]) => ({ name, items: list }))
     .sort(
       (a, b) =>
         a.items[0].dayIdx - b.items[0].dayIdx || b.items.length - a.items.length
     );
-  const brands = allBrands.slice(0, MAX_SWIMLANE_BRANDS);
-  const hiddenBrandCount = allBrands.length - brands.length;
 
   const dailyCounts = new Array<number>(totalDays).fill(0);
   for (const item of items) dailyCounts[item.dayIdx] += 1;
@@ -601,7 +599,6 @@ export function buildTimelineModel(
     eventStartIdx,
     eventEndIdx,
     brands,
-    hiddenBrandCount,
     dailyCounts,
     maxDaily,
     phaseLanes,
@@ -784,11 +781,17 @@ function SwimlaneFigure({
   width: number;
   onOpenEmail: (email: ExploreEmailCard) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const scale = makeScale(model, width, LABEL_GUTTER, 12);
-  const lanes = model.brands;
+  const collapsible = model.brands.length > MAX_SWIMLANE_BRANDS;
+  const lanes =
+    collapsible && !expanded
+      ? model.brands.slice(0, MAX_SWIMLANE_BRANDS)
+      : model.brands;
+  const hiddenBrandCount = model.brands.length - lanes.length;
   const topPad = 16;
   const lanesBottom = topPad + lanes.length * LANE_HEIGHT;
-  const extraRow = model.hiddenBrandCount > 0 ? 18 : 0;
+  const extraRow = collapsible ? 18 : 0;
   const height = lanesBottom + extraRow + 26;
 
   return (
@@ -840,14 +843,29 @@ function SwimlaneFigure({
           </g>
         );
       })}
-      {model.hiddenBrandCount > 0 ? (
+      {collapsible ? (
         <text
           x={LABEL_GUTTER - 10}
           y={lanesBottom + 13}
           textAnchor="end"
-          className={styles.insightsMoreBrands}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          aria-label={
+            expanded
+              ? "Show fewer brands"
+              : `Show ${hiddenBrandCount} more brands`
+          }
+          className={styles.insightsMoreToggle}
+          onClick={() => setExpanded((current) => !current)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded((current) => !current);
+            }
+          }}
         >
-          +{model.hiddenBrandCount} more
+          {expanded ? "Show fewer" : `+${hiddenBrandCount} more`}
         </text>
       ) : null}
       <DateAxis model={model} scale={scale} y={lanesBottom + extraRow + 6} />
