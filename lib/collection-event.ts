@@ -95,12 +95,13 @@ export async function detectCollectionEvent(
       "Event dates: prefer dates stated in the emails themselves (subjects/preheaders like '10–12 June') over prior knowledge, and resolve them to the year the emails were sent. Use null when the emails don't reveal a date and you are not confident. " +
       "user_message: one friendly sentence for the collection owner, e.g. \"It looks like you're collecting emails about 3daysofdesign, a design festival happening June 10–12, 2026 in Copenhagen.\" " +
       "Campaign phases — label EVERY email with the phase it plays in the run-up to the event: " +
-      "save_the_date: first announcements and early invitations, typically weeks ahead ('you're invited', 'save the date', 'join us at …'). " +
+      "save_the_date: announcements and invitations whose point is 'this is happening, mark your calendar' ('you're invited', 'save the date', 'join us at …'). Often weeks ahead, but an explicit save-the-date/invitation subject belongs here no matter how late it was sent. " +
       "programme: agenda/programme/line-up reveals and content details ('full program unveiled', 'designtalks', 'what to expect', exhibition previews announced ahead of the event). " +
       "reminder: short-notice nudges in the final days before it starts ('see you tomorrow', 'book your spot', 'don't miss', 'ses vi?'). " +
       "day_of: sent while the event is running ('now open', 'the exhibition is open', 'we're open', 'visit us today'). " +
       "wrap_up: post-event thanks, recaps, highlights. " +
       "other: emails in the collection that don't play a run-up role (including off-topic ones). " +
+      "IMPORTANT: when a subject explicitly names its phase ('save the date' → save_the_date, 'programme'/'agenda' → programme, 'now open'/'we're open' → day_of), that wording wins over send timing. " +
       "off_topic_email_numbers: the numbers of emails that do NOT appear related to the detected event at all. " +
       "If no single event emerges, return is_event_collection=false with event fields null, every phase 'other', and an empty off-topic list.",
     tools: [
