@@ -2093,7 +2093,7 @@
 .qzLayout {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem 2.5rem;
+  gap: 1.5rem 4rem;
   align-items: flex-start;
 }
 
@@ -2140,8 +2140,10 @@
   gap: 0.75rem;
   padding: 0.5rem 0.7rem;
   border-radius: 10px;
-  background: #f0fdf4;
-  border: 1px solid #dcfce7;
+  /* Teal tint matching the grid's fill (#0f766e) so the two halves
+     read as one section. */
+  background: rgba(15, 118, 110, 0.07);
+  border: 1px solid rgba(15, 118, 110, 0.2);
 }
 
 .qzOpeningSlot {
@@ -2153,7 +2155,7 @@
 .qzOpeningMeta {
   font-size: 0.74rem;
   font-weight: 600;
-  color: #15803d;
+  color: #0f766e;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
