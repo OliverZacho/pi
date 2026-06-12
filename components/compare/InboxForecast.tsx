@@ -142,7 +142,10 @@ export default function InboxForecast({ brands }: Props) {
                     <span
                       className={fc.bar}
                       style={{
-                        height: `${Math.max(heightRatio * 100, day.expected > 0 ? 6 : 0)}%`,
+                        // Rounded so SSR and hydration produce the same
+                        // string — browsers re-serialize long floats in
+                        // style attributes and React flags the diff.
+                        height: `${Math.max(heightRatio * 100, day.expected > 0 ? 6 : 0).toFixed(2)}%`,
                         // Single neutral fill — see component header for
                         // why we don't break the bar out by brand.
                         background:
