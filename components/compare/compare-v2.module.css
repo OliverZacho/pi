@@ -426,6 +426,10 @@
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
+  /* Reserve room on the right for the section rail's hide/move controls
+     (absolutely positioned over every section's top-right corner) so
+     the range selector doesn't sit underneath them. */
+  padding-right: 6rem;
 }
 
 .lookback {
