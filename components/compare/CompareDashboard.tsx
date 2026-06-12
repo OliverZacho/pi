@@ -15,7 +15,6 @@ import {
   detectGroupChanges,
   type BrandChange
 } from "@/lib/comparison-changes";
-import { CTA_DESTINATION_LABELS } from "@/lib/cta-destinations";
 import { colorForCategory } from "@/lib/category-colors";
 import {
   defaultCompareSectionPrefs,
@@ -1058,38 +1057,18 @@ function FingerprintGrid({
 
                 {b.design.fonts.length > 0 ? (
                   <div className={styles.fpRow}>
-                    <span className={styles.fpRowLabel}>Type</span>
-                    {/* Names only, no font-family preview — we extract
-                        the name from the email CSS but the brand's
-                        licensed webfont isn't loaded here, so a
-                        "preview" would silently render the fallback. */}
-                    <span className={styles.fpRowValue}>
-                      {b.design.fonts
-                        .slice(0, 3)
-                        .map((font) => font.family)
-                        .join(" · ")}
-                    </span>
-                  </div>
-                ) : null}
-
-                {b.ctas.length > 0 ? (
-                  <div className={styles.fpRow}>
-                    <span className={styles.fpRowLabel}>CTAs</span>
-                    <span className={styles.fpRowValue}>
-                      <span className={styles.fpRowPills}>
-                        {b.ctas.slice(0, 3).map((cta) => (
-                          <span
-                            key={cta.text}
-                            className={styles.fpCtaPill}
-                            title={`${cta.count} use${cta.count === 1 ? "" : "s"}`}
-                          >
-                            {cta.text}
-                          </span>
-                        ))}
-                      </span>
-                      <CtaDestinationsLine
-                        destinations={b.ctaDestinations}
-                      />
+                    <span className={styles.fpRowLabel}>Fonts</span>
+                    {/* Name chips only, no font-family preview — we
+                        extract the name from the email CSS but the
+                        brand's licensed webfont isn't loaded here, so
+                        a "preview" would silently render the
+                        fallback. */}
+                    <span className={styles.fpRowPills}>
+                      {b.design.fonts.slice(0, 3).map((font) => (
+                        <span key={font.family} className={styles.fpFontPill}>
+                          {font.family}
+                        </span>
+                      ))}
                     </span>
                   </div>
                 ) : null}
@@ -1113,34 +1092,6 @@ function FingerprintGrid({
         })}
       </div>
     </section>
-  );
-}
-
-/**
- * One-line summary of where the brand's CTAs point ("CTAs lead to
- * products 62% · collections 21%"). Hidden below 5 classified links —
- * a two-link share is a coin flip, not a strategy.
- */
-function CtaDestinationsLine({
-  destinations
-}: {
-  destinations: BrandPageData["ctaDestinations"];
-}) {
-  const total = destinations.reduce((sum, d) => sum + d.count, 0);
-  if (total < 5) return null;
-  const top = destinations.slice(0, 2);
-  return (
-    <p className={styles.fpDestLine}>
-      CTAs lead to{" "}
-      {top
-        .map(
-          (d) =>
-            `${CTA_DESTINATION_LABELS[d.kind].toLowerCase()} ${Math.round(
-              (d.count / total) * 100
-            )}%`
-        )
-        .join(" · ")}
-    </p>
   );
 }
 
