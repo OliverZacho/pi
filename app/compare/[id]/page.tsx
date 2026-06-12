@@ -7,6 +7,7 @@ import {
   listCompetitorSetSummaries
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -61,14 +62,16 @@ export default async function CompareSetPage({ params }: PageProps) {
     notFound();
   }
 
-  const [collections, sidebarSets, comparison] = await Promise.all([
-    listCollectionSummaries(supabase, userId),
-    listCompetitorSetSummaries(supabase, userId),
-    getCompetitorComparison(
-      supabase,
-      set.brands.map((b) => b.id)
-    )
-  ]);
+  const [collections, sidebarSets, comparison, sectionPrefs] =
+    await Promise.all([
+      listCollectionSummaries(supabase, userId),
+      listCompetitorSetSummaries(supabase, userId),
+      getCompetitorComparison(
+        supabase,
+        set.brands.map((b) => b.id)
+      ),
+      getCompareSectionPrefs(supabase, userId)
+    ]);
 
   const subtitle = `${set.brands.length} brand${
     set.brands.length === 1 ? "" : "s"
@@ -114,6 +117,7 @@ export default async function CompareSetPage({ params }: PageProps) {
           <CompareDashboard
             brands={comparison.brands}
             missingIds={comparison.missing}
+            sectionPrefs={sectionPrefs}
           />
         )}
       </main>

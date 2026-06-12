@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import {
@@ -8,11 +8,17 @@ import {
   type RhythmInsight
 } from "@/lib/comparison-insights";
 import { colorForCategory } from "@/lib/category-colors";
+import {
+  defaultCompareSectionPrefs,
+  type CompareSectionId,
+  type CompareSectionPrefs
+} from "@/lib/comparison-sections";
 import { countryFlag, countryName } from "@/lib/country";
 import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
+import CompareSectionRail from "./CompareSectionRail";
 import InboxForecast from "./InboxForecast";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
@@ -22,6 +28,12 @@ type Props = {
   brands: BrandPageData[];
   /** Optional list of brand ids the caller requested but couldn't load. */
   missingIds?: string[];
+  /**
+   * The viewer's saved section layout (order + hidden), resolved by the
+   * page from `user_prefs` so the dashboard renders in the saved shape
+   * on first paint. Defaults to the standard layout.
+   */
+  sectionPrefs?: CompareSectionPrefs;
 };
 
 /**
@@ -48,7 +60,11 @@ type Props = {
  * everything else stays server-rendered so the page hits the wire
  * fully hydrated on first paint.
  */
-export default function CompareDashboard({ brands, missingIds }: Props) {
+export default function CompareDashboard({
+  brands,
+  missingIds,
+  sectionPrefs
+}: Props) {
   if (brands.length === 0) {
     return (
       <section className={styles.section}>
@@ -61,6 +77,61 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
 
   const insights = buildComparisonInsights(brands);
 
+  // One entry per section that has something to show for this cohort —
+  // data-empty sections (occasions with no events, mix with no
+  // categories) are omitted entirely so the rail never offers a
+  // collapsed bar for content that wouldn't render anyway.
+  const sections: { id: CompareSectionId; content: ReactNode }[] = [
+    { id: "kpis", content: <KpiTiles brands={brands} /> },
+    {
+      id: "rhythm",
+      content: <RhythmLeague brands={brands} insight={insights.rhythm} />
+    },
+    { id: "cadence", content: <CadenceStack brands={brands} /> },
+    { id: "forecast", content: <InboxForecast brands={brands} /> },
+    {
+      id: "send-times",
+      content: (
+        <SendTimeStrips brands={brands} takeaway={insights.timingTakeaway} />
+      )
+    },
+    {
+      id: "promo",
+      content: (
+        <PromoBlocks brands={brands} takeaway={insights.promoTakeaway} />
+      )
+    },
+    ...(insights.occasions.rows.length > 0
+      ? [
+          {
+            id: "occasions" as const,
+            content: (
+              <OccasionMatrix brands={brands} insight={insights.occasions} />
+            )
+          }
+        ]
+      : []),
+    {
+      id: "fingerprint",
+      content: (
+        <FingerprintGrid
+          brands={brands}
+          takeaway={insights.voiceTakeaway}
+          subjectLengthRange={insights.subjectLengthRange}
+        />
+      )
+    },
+    ...(insights.mix.rows.some((row) => row.segments.length > 0)
+      ? [
+          {
+            id: "content-mix" as const,
+            content: <ContentMixSection insight={insights.mix} />
+          }
+        ]
+      : []),
+    { id: "recent", content: <RecentCampaigns brands={brands} /> }
+  ];
+
   return (
     <>
       {missingIds && missingIds.length > 0 ? (
@@ -72,20 +143,10 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
 
       <RegionNote brands={brands} />
 
-      <KpiTiles brands={brands} />
-      <RhythmLeague brands={brands} insight={insights.rhythm} />
-      <CadenceStack brands={brands} />
-      <InboxForecast brands={brands} />
-      <SendTimeStrips brands={brands} takeaway={insights.timingTakeaway} />
-      <PromoBlocks brands={brands} takeaway={insights.promoTakeaway} />
-      <OccasionMatrix brands={brands} insight={insights.occasions} />
-      <FingerprintGrid
-        brands={brands}
-        takeaway={insights.voiceTakeaway}
-        subjectLengthRange={insights.subjectLengthRange}
+      <CompareSectionRail
+        sections={sections}
+        initialPrefs={sectionPrefs ?? defaultCompareSectionPrefs()}
       />
-      <ContentMixSection insight={insights.mix} />
-      <RecentCampaigns brands={brands} />
     </>
   );
 }

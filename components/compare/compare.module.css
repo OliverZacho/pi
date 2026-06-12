@@ -1962,3 +1962,94 @@
   border-radius: 3px;
   flex-shrink: 0;
 }
+
+/* ---------- Section rail (hide / reorder customization) ---------- */
+
+.railShell {
+  position: relative;
+}
+
+.railControls {
+  position: absolute;
+  top: 2.45rem;
+  right: 1.35rem;
+  z-index: 5;
+  display: inline-flex;
+  gap: 0.25rem;
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.railShell:hover .railControls,
+.railShell:focus-within .railControls,
+.railCollapsed .railControls {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .railControls {
+    opacity: 1;
+  }
+}
+
+.railButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.railButton:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.railButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Hidden section — just the title bar with a Show affordance. */
+.railCollapsed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1.4rem;
+  padding: 0.7rem 1.4rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.railCollapsedTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.railShowButton {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* In the collapsed bar the controls sit in the row, not floated. */
+.railCollapsed .railControls {
+  position: static;
+  margin-left: auto;
+}

@@ -7,6 +7,7 @@ import {
   type CompetitorSetBrand
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -77,12 +78,13 @@ export default async function ComparePage({ searchParams }: PageProps) {
   // `getBrandPageData` calls. The picker itself searches the brand
   // directory on demand via `/api/brands/list`, so we no longer
   // prefetch the catalogue here.
-  const [sets, collections, comparison] = await Promise.all([
+  const [sets, collections, comparison, sectionPrefs] = await Promise.all([
     listCompetitorSetSummaries(supabase, userId),
     listCollectionSummaries(supabase, userId),
     requestedBrandIds.length > 0
       ? getCompetitorComparison(supabase, requestedBrandIds)
-      : Promise.resolve({ brands: [], missing: [] })
+      : Promise.resolve({ brands: [], missing: [] }),
+    getCompareSectionPrefs(supabase, userId)
   ]);
 
   // Preview brands for each saved set — used by the grid card to show
@@ -197,6 +199,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
             <CompareDashboard
               brands={dashboardBrands}
               missingIds={comparison.missing}
+              sectionPrefs={sectionPrefs}
             />
           </section>
         ) : null}

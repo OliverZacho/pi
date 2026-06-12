@@ -789,6 +789,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_prefs: {
+        Row: {
+          key: string
+          updated_at: string
+          user_id: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          user_id: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          user_id?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
           attempt_count: number
