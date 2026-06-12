@@ -27,7 +27,6 @@ import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
 import CompareSectionRail from "./CompareSectionRail";
-import FingerprintSubject from "./FingerprintSubject";
 import InboxForecast from "./InboxForecast";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
@@ -999,42 +998,13 @@ function OccasionMatrix({
 }
 
 /* -----------------------------------------------------------------
-   Creative fingerprint (palette, fonts, latest subject)
+   Creative fingerprint (palette + fonts)
    ----------------------------------------------------------------- */
 
 /**
- * The brand's newest sampled email as a full ExploreEmailCard so the
- * "Latest subject" row can open it in the shared email modal. The
- * sample is newest-first; skip rows without a subject.
- */
-function latestEmailCard(b: BrandPageData): ExploreEmailCard | null {
-  const row = b.seasonalSample.find(
-    (email) => (email.subject ?? "").trim().length > 0
-  );
-  if (!row) return null;
-  return {
-    id: row.id,
-    subject: row.subject,
-    preheader: row.preheader,
-    companyId: b.brand.id,
-    companyName: b.brand.name,
-    companyDomain: b.brand.domain,
-    companyMarkets: b.brand.markets,
-    companyLogoUrl: b.brand.logoUrl,
-    receivedAt: row.receivedAt,
-    category: row.category,
-    hasGif: row.hasGif,
-    hasDarkMode: row.hasDarkMode,
-    discountPercent: row.discountPercent,
-    promoCode: row.promoCode
-  };
-}
-
-/**
- * Pure identity cards — palette, fonts, and the latest subject line
- * (clickable, opens the email) — several per row so a large comparison
- * stays skimmable. The comparative copy metrics (subject length,
- * emoji, urgency, resends) live as KPI tiles with dot-strip
+ * Pure identity cards — palette and fonts, several per row so a large
+ * comparison stays skimmable. The comparative copy metrics (subject
+ * length, emoji, urgency, resends) live as KPI tiles with dot-strip
  * drill-downs, not here.
  */
 function FingerprintGrid({
@@ -1060,7 +1030,6 @@ function FingerprintGrid({
           const accentStyle = {
             ["--accent" as string]: color
           } as CSSProperties;
-          const latest = latestEmailCard(b);
           return (
             <article
               key={b.brand.id}
@@ -1104,12 +1073,6 @@ function FingerprintGrid({
                   </div>
                 ) : null}
 
-                {latest ? (
-                  <div className={styles.fpLatest}>
-                    <span className={styles.fpRowLabel}>Latest</span>
-                    <FingerprintSubject email={latest} />
-                  </div>
-                ) : null}
               </div>
             </article>
           );
