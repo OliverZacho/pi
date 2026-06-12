@@ -152,6 +152,7 @@ export default async function FollowingPage() {
           emailFacets={emailFacets}
           initialSavedIds={savedIds}
           initialCollections={sidebarCollections}
+          comparisons={sidebarSets}
         />
       </main>
     </div>

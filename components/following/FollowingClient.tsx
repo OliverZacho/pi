@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedBrandCard } from "@/lib/follows-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
 import type { CollectionSummary } from "@/lib/collections-db";
+import {
+  MAX_BRANDS_PER_COMPARISON,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
+import BrandBatchBar from "@/components/brand/BrandBatchBar";
 import ExploreClient from "@/components/explore/ExploreClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
@@ -38,6 +44,8 @@ type Props = {
   emailFacets: ExploreFacets;
   initialSavedIds: string[];
   initialCollections: CollectionSummary[];
+  /** The user's saved comparisons, for the selection bar's "Add to…". */
+  comparisons: CompetitorSetSummary[];
 };
 
 export default function FollowingClient({
@@ -47,9 +55,21 @@ export default function FollowingClient({
   emailPageSize,
   emailFacets,
   initialSavedIds,
-  initialCollections
+  initialCollections,
+  comparisons
 }: Props) {
+  const router = useRouter();
   const [view, setView] = useState<ViewMode>("brands");
+
+  // Multi-select for batch actions (compare / save / add-to / unfollow),
+  // shared with the Brands explorer via <BrandBatchBar>. Selection
+  // starts from a card's hover checkbox; everything followed here is, by
+  // definition, already followed — so the bar offers "Unfollow". With no
+  // toolbar toggle on this page, select mode is simply "anything picked"
+  // — clearing the last brand returns the cards to plain links.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectMode = selectedIds.length > 0;
 
   // Brand-view filter state.
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
@@ -203,6 +223,36 @@ export default function FollowingClient({
   function togglePopover(name: PopoverName) {
     setOpenPopover((current) => (current === name ? null : name));
   }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((x) => x !== id);
+      if (current.length >= MAX_BRANDS_PER_COMPARISON) return current;
+      return [...current, id];
+    });
+  }
+
+  // After a batch unfollow, refresh so the unfollowed brands fall out of
+  // the (server-rendered) followed list, and drop them from the selection.
+  function handleAfterFollowChange(ids: string[], nowFollowing: boolean) {
+    if (!nowFollowing) {
+      const removed = new Set(ids);
+      setSelectedIds((current) => current.filter((id) => !removed.has(id)));
+      router.refresh();
+    }
+  }
+
+  // Escape clears the selection (unless a filter popover owns it first).
+  useEffect(() => {
+    if (!selectMode) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && openPopover === null) {
+        setSelectedIds([]);
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [selectMode, openPopover]);
 
   return (
     <>
@@ -517,11 +567,32 @@ export default function FollowingClient({
               </div>
               <div className={styles.grid}>
                 {visibleBrands.map((brand) => (
-                  <FollowingCard key={brand.id} brand={brand} />
+                  <FollowingCard
+                    key={brand.id}
+                    brand={brand}
+                    selectMode={selectMode}
+                    selected={selectedSet.has(brand.id)}
+                    disabled={
+                      selectMode &&
+                      !selectedSet.has(brand.id) &&
+                      selectedIds.length >= MAX_BRANDS_PER_COMPARISON
+                    }
+                    onToggle={toggleSelect}
+                  />
                 ))}
               </div>
             </>
           )}
+
+          {selectMode ? (
+            <BrandBatchBar
+              selectedIds={selectedIds}
+              comparisons={comparisons}
+              initialFollowedIds={brands.map((b) => b.id)}
+              onAfterFollowChange={handleAfterFollowChange}
+              onClear={() => setSelectedIds([])}
+            />
+          ) : null}
         </>
       ) : (
         <ExploreClient
@@ -538,13 +609,34 @@ export default function FollowingClient({
   );
 }
 
-function FollowingCard({ brand }: { brand: FollowedBrandCard }) {
-  return (
-    <Link
-      href={`/brands/${brand.id}`}
-      className={styles.card}
-      aria-label={`Open ${brand.name} dashboard`}
-    >
+type FollowingCardProps = {
+  brand: FollowedBrandCard;
+  selectMode: boolean;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: (id: string) => void;
+};
+
+function FollowingCard({
+  brand,
+  selectMode,
+  selected,
+  disabled,
+  onToggle
+}: FollowingCardProps) {
+  const cardBody = (
+    <>
+      {selectMode ? (
+        <span
+          className={`${styles.cardCheck}${
+            selected ? ` ${styles.cardCheck_on}` : ""
+          }`}
+          aria-hidden="true"
+        >
+          {selected ? <CheckIcon /> : null}
+        </span>
+      ) : null}
+
       <span className={styles.cardAvatar} aria-hidden="true">
         {brand.logoUrl ? (
           <img
@@ -584,7 +676,47 @@ function FollowingCard({ brand }: { brand: FollowedBrandCard }) {
           </span>
         ) : null}
       </div>
-    </Link>
+    </>
+  );
+
+  if (selectMode) {
+    return (
+      <button
+        type="button"
+        className={`${styles.card} ${styles.cardSelectable} ${styles.cardSelectableButton}${
+          selected ? ` ${styles.cardSelected}` : ""
+        }`}
+        onClick={() => onToggle(brand.id)}
+        disabled={disabled}
+        aria-pressed={selected}
+        aria-label={`${selected ? "Unselect" : "Select"} ${brand.name}`}
+      >
+        {cardBody}
+      </button>
+    );
+  }
+
+  // Default: a link to the dashboard, with a hover checkbox as the entry
+  // point into selection (same pattern as the Brands explorer).
+  return (
+    <div className={styles.cardWrap}>
+      <Link
+        href={`/brands/${brand.id}`}
+        className={styles.card}
+        aria-label={`Open ${brand.name} dashboard`}
+      >
+        {cardBody}
+      </Link>
+      <button
+        type="button"
+        className={styles.cardHoverCheck}
+        onClick={() => onToggle(brand.id)}
+        aria-label={`Select ${brand.name}`}
+        title={`Select ${brand.name}`}
+      >
+        <PlusIcon />
+      </button>
+    </div>
   );
 }
 
@@ -672,6 +804,25 @@ function CheckIcon() {
       aria-hidden="true"
     >
       <polyline points="4 12 10 18 20 6" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

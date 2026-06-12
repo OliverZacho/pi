@@ -1022,7 +1022,7 @@
 .cardHoverCheck {
   position: absolute;
   top: 0.6rem;
-  left: 0.6rem;
+  right: 0.6rem;
   z-index: 2;
   width: 1.6rem;
   height: 1.6rem;
@@ -1068,7 +1068,7 @@
 .cardCheck {
   position: absolute;
   top: 0.7rem;
-  left: 0.7rem;
+  right: 0.7rem;
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 6px;
