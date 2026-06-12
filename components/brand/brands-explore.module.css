@@ -1095,10 +1095,15 @@
 }
 
 .compareBar {
-  position: sticky;
-  bottom: 1.2rem;
-  margin: 1.5rem auto 0;
-  max-width: 720px;
+  /* Floating overlay pinned to the viewport — the grid behind it can be
+     thousands of cards tall (infinite scroll), so the bar must never
+     live in the document flow. */
+  position: fixed;
+  bottom: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(760px, calc(100vw - 2rem));
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -1106,8 +1111,8 @@
   background: #0f172a;
   color: #ffffff;
   border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
-  z-index: 10;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+  z-index: 40;
   flex-wrap: wrap;
 }
 
