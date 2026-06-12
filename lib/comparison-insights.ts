@@ -785,7 +785,15 @@ export function reminderShare(brand: BrandPageData): {
 /* Discount trend — how depth moves month to month                     */
 /* ------------------------------------------------------------------ */
 
-const TREND_MONTHS = 6;
+/**
+ * How many months the discount-depth strip spans. Data-driven and
+ * rolling: the axis is the most recent N months that actually appear
+ * in the sample, so it fills in on its own as tracking accumulates and
+ * then slides forward. 12 captures a full seasonal cycle (summer
+ * sales, Black Friday, January clearance) once the data reaches back
+ * that far; younger brands just show however many months exist.
+ */
+const TREND_MONTHS = 12;
 
 function monthKey(receivedAt: string): string | null {
   try {
