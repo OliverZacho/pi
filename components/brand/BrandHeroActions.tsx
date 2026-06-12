@@ -33,7 +33,7 @@ type Props = {
 
 /**
  * Hero-strip actions for the brand page: a Follow toggle (writes to
- * `brand_follows`) plus an "Add to group" popover that lets the user
+ * `brand_follows`) plus an "Add to comparison" popover that lets the user
  * file the brand into any of their `competitor_sets` or spin up a new
  * one. The two actions are independent — following never implicitly
  * touches groups and vice versa, mirroring the schema.
@@ -334,8 +334,8 @@ function AddToGroupButton({
   }
 
   const triggerLabel = inAnyGroup
-    ? `In ${membershipIds.size} group${membershipIds.size === 1 ? "" : "s"}`
-    : "Add to group";
+    ? `In ${membershipIds.size} comparison${membershipIds.size === 1 ? "" : "s"}`
+    : "Add to comparison";
 
   return (
     <div ref={wrapRef} className={styles.heroActionWrap}>
@@ -366,7 +366,7 @@ function AddToGroupButton({
               }}
               data-placement={coords.placement}
               role="dialog"
-              aria-label={`Add ${brandName} to group`}
+              aria-label={`Add ${brandName} to comparison`}
             >
               {creating ? (
                 <form
@@ -378,10 +378,10 @@ function AddToGroupButton({
                     type="text"
                     value={createName}
                     onChange={(e) => setCreateName(e.target.value)}
-                    placeholder="Group name"
+                    placeholder="Comparison name"
                     maxLength={MAX_NAME_LENGTH}
                     className={styles.popoverInput}
-                    aria-label="New group name"
+                    aria-label="New comparison name"
                   />
                   <div className={styles.popoverCreateRow}>
                     <button
@@ -414,16 +414,16 @@ function AddToGroupButton({
                       type="search"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search groups"
+                      placeholder="Search comparisons"
                       className={styles.popoverSearchInput}
-                      aria-label="Search competitor groups"
+                      aria-label="Search comparisons"
                     />
                   </div>
                   <div className={styles.popoverScroll}>
                     {filtered.length === 0 ? (
                       <div className={styles.popoverEmpty}>
                         {groups.length === 0
-                          ? "No groups yet"
+                          ? "No comparisons yet"
                           : "No matches"}
                       </div>
                     ) : (
@@ -465,7 +465,7 @@ function AddToGroupButton({
                       onClick={() => setCreating(true)}
                     >
                       <PlusIcon />
-                      <span>New group</span>
+                      <span>New comparison</span>
                     </button>
                   </div>
                 </>

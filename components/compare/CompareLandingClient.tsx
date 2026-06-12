@@ -34,9 +34,10 @@ type Props = {
 
 /**
  * Landing page for `/compare`. Houses:
- *  - The grid of saved competitor sets the user owns.
+ *  - The grid of saved comparisons the user owns.
  *  - The ad-hoc brand picker that powers `/compare?brands=...` and
- *    "Save as set" creation.
+ *    "Save as comparison" creation (secondary to the Brands-page
+ *    multi-select flow).
  *
  * The picker no longer renders the full brand directory inline — the
  * catalogue is large enough that an always-on grid is just visual
@@ -172,15 +173,16 @@ export default function CompareLandingClient({
       <section>
         <div className={styles.sectionHead}>
           <div>
-            <h2>Your competitor sets</h2>
-            <p>Saved groups you can reopen any time.</p>
+            <h2>Your comparisons</h2>
+            <p>Saved brand groups you can reopen any time.</p>
           </div>
         </div>
 
         {sets.length === 0 ? (
           <div className={styles.setsEmpty}>
-            You haven't saved any competitor sets yet. Pick a few brands below
-            and choose <em>Save as set</em> to keep the group for next time.
+            You haven't saved any comparisons yet.{" "}
+            <Link href="/brands">Select a few brands on the Brands page</Link>{" "}
+            — or pick them below — and save the group for next time.
           </div>
         ) : (
           <div className={styles.setsGrid}>
@@ -235,8 +237,9 @@ export default function CompareLandingClient({
           <div>
             <h2>Build a comparison</h2>
             <p>
-              Search for brands by name or category and add up to{" "}
-              {MAX_BRANDS_PER_COMPARISON} to a comparison.
+              The easiest way is selecting brands on the{" "}
+              <Link href="/brands">Brands page</Link> — or search below and
+              add up to {MAX_BRANDS_PER_COMPARISON}.
             </p>
           </div>
           {selectedIds.length > 0 ? (
@@ -314,7 +317,7 @@ export default function CompareLandingClient({
             onClick={() => setSaveOpen((v) => !v)}
             disabled={selectedIds.length === 0 || pending}
           >
-            {saveOpen ? "Cancel save" : "Save as set…"}
+            {saveOpen ? "Cancel save" : "Save as comparison…"}
           </button>
           <span className={styles.pickerHint}>
             {remainingSlots <= 0
@@ -326,14 +329,14 @@ export default function CompareLandingClient({
         {saveOpen ? (
           <form onSubmit={handleSave} className={styles.saveModal}>
             <label
-              htmlFor="competitor-set-name"
+              htmlFor="comparison-name"
               className={styles.saveModalLabel}
             >
-              Name this competitor set
+              Name this comparison
             </label>
             <div className={styles.saveForm}>
               <input
-                id="competitor-set-name"
+                id="comparison-name"
                 type="text"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}

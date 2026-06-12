@@ -23,10 +23,10 @@ const COPY: Record<LockedVariant, Copy> = {
       "Send cadence, promo intensity, design DNA, subject-line and CTA analysis — the complete picture of how this brand runs its email program. Available on every paid plan."
   },
   compare: {
-    eyebrow: "Compare",
+    eyebrow: "Comparisons",
     title: "Compare brands side by side",
     description:
-      "Stack any brands against each other — cadence, promotions, send times and campaign mix in one dashboard. Subscribe to build and save your own competitor sets."
+      "Stack any brands against each other — cadence, promotions, send times and campaign mix in one dashboard. Subscribe to build and save your own comparisons."
   },
   collections: {
     eyebrow: "Collections",

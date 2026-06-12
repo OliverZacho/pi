@@ -1005,6 +1005,57 @@
   position: relative;
 }
 
+/* Wrapper that lets the hover checkbox sit on top of the Link card
+   without nesting interactive elements inside the anchor. */
+.cardWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.cardWrap .card {
+  width: 100%;
+}
+
+/* Checkbox revealed on hover (always visible on touch) — the entry
+   point into selection without first hunting for a toolbar toggle. */
+.cardHoverCheck {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 2;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 120ms ease, border-color 120ms ease,
+    color 120ms ease;
+}
+
+.cardWrap:hover .cardHoverCheck,
+.cardHoverCheck:focus-visible {
+  opacity: 1;
+}
+
+.cardHoverCheck:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+}
+
+@media (hover: none) {
+  .cardHoverCheck {
+    opacity: 1;
+  }
+}
+
 .cardSelectableButton {
   /* The card's normal `cursor: pointer` already covers this, but in
    * select mode we replace the Link wrapper with a button — keep the
@@ -1145,4 +1196,67 @@
   width: 100%;
   font-size: 0.78rem;
   color: #fecaca;
+}
+
+/* "Add to…" dropdown anchored above the batch bar. */
+.compareBarMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.compareBarMenu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 230px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 12px;
+  box-shadow: var(--popover-shadow);
+  padding: 0.35rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.compareBarMenuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compareBarMenuItem:hover {
+  background: #f8fafc;
+}
+
+.compareBarMenuItem:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.compareBarMenuMeta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.compareBarMenuEmpty {
+  padding: 0.6rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  text-align: center;
 }

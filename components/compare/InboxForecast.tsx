@@ -24,7 +24,7 @@ const HORIZONS: { id: ForecastHorizon; label: string }[] = [
 
 const BAND_COPY: Record<ForecastDayBand, { label: string; tone: string }> = {
   quiet: { label: "Quiet", tone: "Good day to send" },
-  normal: { label: "Normal", tone: "Average competitor noise" },
+  normal: { label: "Normal", tone: "Average noise from this group" },
   busy: { label: "Busy", tone: "Cluttered inbox risk" }
 };
 

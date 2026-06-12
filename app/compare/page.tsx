@@ -18,7 +18,7 @@ import styles from "@/components/compare/compare.module.css";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 
 export const metadata = {
-  title: "Compare — Pirol"
+  title: "Comparisons — Pirol"
 };
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,12 @@ type PageProps = {
 };
 
 /**
- * `/compare` — landing for the Competitor Analysis tab.
+ * `/compare` — landing for the Comparisons tab.
  *
  * Renders three stacked panels:
- *   1. Saved competitor sets the user owns (clickable into `/compare/[id]`).
- *   2. Ad-hoc brand picker.
+ *   1. Saved comparisons the user owns (clickable into `/compare/[id]`).
+ *   2. Ad-hoc brand picker (secondary — the primary creation path is
+ *      selecting brands on the Brands page).
  *   3. If `?brands=...` is set, the live comparison dashboard below.
  *
  * The picker is a client island; everything else is server-rendered so
@@ -167,11 +168,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
       <main className={styles.main}>
         <header className={styles.heading}>
           <div>
-            <h1>Compare</h1>
+            <h1>Comparisons</h1>
             <p>
-              Spot patterns across a cohort of competitors — cadence, promo
-              intensity, category mix, design tells, and the voice of their
-              CTAs. Save groups you benchmark often.
+              Put a group of brands side by side — cadence, promo intensity,
+              category mix, design tells, and the voice of their CTAs. Select
+              brands on the Brands page and save the groups you revisit.
             </p>
           </div>
         </header>
@@ -191,7 +192,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
               setName={`Comparing ${dashboardBrands.length} brand${
                 dashboardBrands.length === 1 ? "" : "s"
               }`}
-              subtitle="Ad-hoc comparison — save it as a set above to keep this group."
+              subtitle="Ad-hoc comparison — save it above to keep this group."
             />
             <CompareDashboard
               brands={dashboardBrands}

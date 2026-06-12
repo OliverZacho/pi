@@ -17,7 +17,10 @@ import type {
   BrandsFacets,
   BrandsSortKey
 } from "@/lib/brands-explore-db";
-import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import {
+  MAX_BRANDS_PER_COMPARISON,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
 import {
   endOfDayInZone,
@@ -66,9 +69,20 @@ type Props = {
   searchEndpoint?: string;
   /**
    * Public directory (logged-out / unpaid): hides the authenticated-only
-   * "select to compare" affordance. Browsing + search still work.
+   * selection affordances. Browsing + search still work.
    */
   isPublic?: boolean;
+  /**
+   * The user's saved comparisons, powering the batch bar's "Add to…"
+   * menu. Empty for public viewers.
+   */
+  comparisons?: CompetitorSetSummary[];
+  /**
+   * Ids of brands the user follows — lets the batch bar offer
+   * follow/unfollow for the current selection. Kept as local state
+   * after mount so batch actions update it optimistically.
+   */
+  initialFollowedBrandIds?: string[];
 };
 
 type PopoverName =
@@ -95,7 +109,9 @@ export default function BrandsExploreClient({
   pageSize,
   facets,
   searchEndpoint = "/api/brands/list",
-  isPublic = false
+  isPublic = false,
+  comparisons = [],
+  initialFollowedBrandIds = []
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -144,10 +160,12 @@ export default function BrandsExploreClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Select mode lets the user pick a handful of brands and jump
-  // straight into a side-by-side compare. State is kept local — when
-  // the user wants to persist the group they hit "Save as set", which
-  // round-trips to the API and navigates to the set's page.
+  // Selection lets the user pick a handful of brands and act on the
+  // batch: compare side-by-side, save / extend a comparison, or
+  // follow / unfollow them all. State is kept local — persisting a
+  // comparison round-trips to the API and navigates to its page.
+  // Selection starts either from the hover checkbox on any card or
+  // from the toolbar toggle; both converge on the same mode.
   const router = useRouter();
   const [selectMode, setSelectMode] = useState(false);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
@@ -155,6 +173,13 @@ export default function BrandsExploreClient({
   const [saveName, setSaveName] = useState("");
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [followedIds, setFollowedIds] = useState<Set<string>>(
+    () => new Set(initialFollowedBrandIds)
+  );
+  const [followPending, setFollowPending] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [addPendingId, setAddPendingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filterRowRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -528,6 +553,10 @@ export default function BrandsExploreClient({
   );
 
   function toggleBrand(id: string) {
+    // Selecting from a hover checkbox implicitly enters select mode so
+    // subsequent clicks on whole cards keep toggling instead of
+    // navigating away mid-selection.
+    setSelectMode(true);
     setSelectedBrandIds((current) => {
       if (current.includes(id)) {
         return current.filter((x) => x !== id);
@@ -544,6 +573,8 @@ export default function BrandsExploreClient({
     setSaveOpen(false);
     setSaveName("");
     setSaveError(null);
+    setActionError(null);
+    setAddMenuOpen(false);
   }
 
   function exitSelectMode() {
@@ -595,6 +626,102 @@ export default function BrandsExploreClient({
       setSavePending(false);
     }
   }
+
+  // Append the selection to an existing comparison, then open it.
+  async function handleAddToComparison(setId: string) {
+    if (addPendingId || selectedBrandIds.length === 0) return;
+    setAddPendingId(setId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `/api/competitor-sets/${encodeURIComponent(setId)}/brands`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brandIds: selectedBrandIds })
+        }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(body?.error ?? `Failed (${res.status})`);
+      }
+      router.push(`/compare/${setId}`);
+      router.refresh();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to add to comparison"
+      );
+      setAddPendingId(null);
+    }
+  }
+
+  // Follow or unfollow every selected brand. Only touches the ids that
+  // actually need to change so re-running is idempotent; updates the
+  // local follow set per id as each request lands.
+  const allSelectedFollowed =
+    selectedBrandIds.length > 0 &&
+    selectedBrandIds.every((id) => followedIds.has(id));
+
+  async function handleFollowSelected(follow: boolean) {
+    if (followPending || selectedBrandIds.length === 0) return;
+    const targets = selectedBrandIds.filter((id) =>
+      follow ? !followedIds.has(id) : followedIds.has(id)
+    );
+    if (targets.length === 0) return;
+    setFollowPending(true);
+    setActionError(null);
+    const results = await Promise.allSettled(
+      targets.map(async (id) => {
+        const res = await fetch(
+          `/api/brand-follows/${encodeURIComponent(id)}`,
+          { method: follow ? "PUT" : "DELETE", credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        return id;
+      })
+    );
+    const okIds = results
+      .filter(
+        (r): r is PromiseFulfilledResult<string> => r.status === "fulfilled"
+      )
+      .map((r) => r.value);
+    if (okIds.length > 0) {
+      setFollowedIds((current) => {
+        const next = new Set(current);
+        for (const id of okIds) {
+          if (follow) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    }
+    if (okIds.length < targets.length) {
+      setActionError(
+        `${follow ? "Followed" : "Unfollowed"} ${okIds.length} of ${
+          targets.length
+        } brands — the rest failed, try again.`
+      );
+    }
+    setFollowPending(false);
+  }
+
+  // Escape backs out of selection (unless a filter popover is open —
+  // its own handler consumes Escape first).
+  useEffect(() => {
+    if (!selectMode) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && openPopover === null) {
+        exitSelectMode();
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+    // exitSelectMode is stable in behavior; re-binding on these two is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectMode, openPopover]);
 
   const hasAnyFilter =
     selectedMarkets.size > 0 ||
@@ -1089,14 +1216,14 @@ export default function BrandsExploreClient({
               selectMode ? exitSelectMode() : setSelectMode(true)
             }
             aria-pressed={selectMode}
-            title="Toggle compare-select mode"
+            title="Select brands to compare, group or follow"
           >
             <span>
               {selectMode
                 ? selectedBrandIds.length > 0
                   ? `${selectedBrandIds.length} selected`
                   : "Select…"
-                : "Select to compare"}
+                : "Select brands"}
             </span>
           </button>
         )}
@@ -1189,6 +1316,7 @@ export default function BrandsExploreClient({
               <BrandGridCard
                 key={brand.id}
                 brand={brand}
+                selectable={!isPublic}
                 selectMode={selectMode}
                 selected={selectedSet.has(brand.id)}
                 disabled={
@@ -1212,7 +1340,11 @@ export default function BrandsExploreClient({
       )}
 
       {selectMode && selectedBrandIds.length > 0 ? (
-        <div className={styles.compareBar} role="region" aria-label="Compare selected brands">
+        <div
+          className={styles.compareBar}
+          role="region"
+          aria-label="Actions for selected brands"
+        >
           <span className={styles.compareBarCount}>
             {selectedBrandIds.length} brand
             {selectedBrandIds.length === 1 ? "" : "s"} selected
@@ -1227,11 +1359,11 @@ export default function BrandsExploreClient({
                 value={saveName}
                 onChange={(event) => setSaveName(event.target.value)}
                 maxLength={120}
-                placeholder="Name this set…"
+                placeholder="Name this comparison…"
                 className={styles.compareSaveInput}
                 disabled={savePending}
                 autoFocus
-                aria-label="Name for new competitor set"
+                aria-label="Name for new comparison"
               />
               <button
                 type="submit"
@@ -1271,7 +1403,70 @@ export default function BrandsExploreClient({
                 className={styles.compareBarSecondary}
                 onClick={() => setSaveOpen(true)}
               >
-                Save as set…
+                Save as comparison…
+              </button>
+              {comparisons.length > 0 ? (
+                <span className={styles.compareBarMenuWrap}>
+                  <button
+                    type="button"
+                    className={styles.compareBarSecondary}
+                    onClick={() => setAddMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={addMenuOpen}
+                  >
+                    Add to…
+                  </button>
+                  {addMenuOpen ? (
+                    <div className={styles.compareBarMenu} role="menu">
+                      {comparisons.map((comparison) => {
+                        const wouldOverflow =
+                          comparison.brandCount + selectedBrandIds.length >
+                          MAX_BRANDS_PER_COMPARISON;
+                        return (
+                          <button
+                            key={comparison.id}
+                            type="button"
+                            role="menuitem"
+                            className={styles.compareBarMenuItem}
+                            onClick={() =>
+                              void handleAddToComparison(comparison.id)
+                            }
+                            disabled={
+                              addPendingId !== null || wouldOverflow
+                            }
+                            title={
+                              wouldOverflow
+                                ? `Adding ${selectedBrandIds.length} would exceed the ${MAX_BRANDS_PER_COMPARISON}-brand limit`
+                                : undefined
+                            }
+                          >
+                            <span>
+                              {addPendingId === comparison.id
+                                ? "Adding…"
+                                : comparison.name}
+                            </span>
+                            <span className={styles.compareBarMenuMeta}>
+                              {comparison.brandCount} brand
+                              {comparison.brandCount === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className={styles.compareBarSecondary}
+                onClick={() => void handleFollowSelected(!allSelectedFollowed)}
+                disabled={followPending}
+              >
+                {followPending
+                  ? "Working…"
+                  : allSelectedFollowed
+                    ? "Unfollow"
+                    : "Follow all"}
               </button>
               <button
                 type="button"
@@ -1282,9 +1477,9 @@ export default function BrandsExploreClient({
               </button>
             </>
           )}
-          {saveError ? (
+          {saveError || actionError ? (
             <span className={styles.compareBarError} role="alert">
-              {saveError}
+              {saveError ?? actionError}
             </span>
           ) : null}
         </div>
@@ -1299,6 +1494,8 @@ export default function BrandsExploreClient({
 
 type BrandGridCardProps = {
   brand: BrandsExploreCard;
+  /** False on the public directory — hides all selection affordances. */
+  selectable?: boolean;
   selectMode?: boolean;
   selected?: boolean;
   disabled?: boolean;
@@ -1307,6 +1504,7 @@ type BrandGridCardProps = {
 
 function BrandGridCard({
   brand,
+  selectable = false,
   selectMode = false,
   selected = false,
   disabled = false,
@@ -1402,7 +1600,7 @@ function BrandGridCard({
     );
   }
 
-  return (
+  const link = (
     <Link
       href={`/brands/${brand.id}`}
       className={styles.card}
@@ -1410,6 +1608,28 @@ function BrandGridCard({
     >
       {cardBody}
     </Link>
+  );
+
+  if (!selectable) {
+    return link;
+  }
+
+  // Outside select mode the card stays a plain link, with a checkbox
+  // revealed on hover (always visible on touch) as the entry point
+  // into selection — no need to find the toolbar toggle first.
+  return (
+    <div className={styles.cardWrap}>
+      {link}
+      <button
+        type="button"
+        className={styles.cardHoverCheck}
+        onClick={() => onToggle?.(brand.id)}
+        aria-label={`Select ${brand.name}`}
+        title={`Select ${brand.name}`}
+      >
+        <PlusIcon />
+      </button>
+    </div>
   );
 }
 
@@ -1628,6 +1848,25 @@ function CheckIcon() {
       aria-hidden="true"
     >
       <polyline points="4 12 10 18 20 6" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

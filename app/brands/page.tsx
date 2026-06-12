@@ -13,6 +13,7 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { listFollowedBrandIds } from "@/lib/follows-db";
 import { getViewer } from "@/lib/access";
 import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -64,7 +65,7 @@ export default async function BrandsPage() {
               <div>
                 <h1>Brands</h1>
                 <p>
-                  Search every tracked competitor and filter by what we know.
+                  Search every tracked brand and filter by what we know.
                 </p>
               </div>
             </div>
@@ -105,7 +106,17 @@ export default async function BrandsPage() {
   try {
     sidebarSets = await listCompetitorSetSummaries(supabase, userId);
   } catch (err) {
-    console.error("Failed to load competitor sets", err);
+    console.error("Failed to load comparisons", err);
+  }
+
+  // Followed brand ids power the batch bar's follow/unfollow action.
+  let followedBrandIds: string[] = [];
+  try {
+    followedBrandIds = Array.from(
+      await listFollowedBrandIds(supabase, userId)
+    );
+  } catch (err) {
+    console.error("Failed to load followed brands", err);
   }
 
   return (
@@ -122,7 +133,7 @@ export default async function BrandsPage() {
           <div className={styles.headingRow}>
             <div>
               <h1>Brands</h1>
-              <p>Search every tracked competitor and filter by what we know.</p>
+              <p>Search every tracked brand and filter by what we know.</p>
             </div>
           </div>
         </header>
@@ -133,6 +144,8 @@ export default async function BrandsPage() {
           initialTotal={initialResult.total}
           pageSize={BRANDS_PAGE_SIZE}
           facets={facets}
+          comparisons={sidebarSets}
+          initialFollowedBrandIds={followedBrandIds}
         />
       </main>
     </div>

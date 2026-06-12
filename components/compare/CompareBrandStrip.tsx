@@ -146,7 +146,7 @@ export default function CompareBrandStrip({
 
   async function handleRemoveBrand(companyId: string, brandName: string) {
     if (!setId || pending) return;
-    const confirmed = window.confirm(`Remove ${brandName} from this set?`);
+    const confirmed = window.confirm(`Remove ${brandName} from this comparison?`);
     if (!confirmed) return;
     setPending(true);
     try {
@@ -212,7 +212,7 @@ export default function CompareBrandStrip({
                 maxLength={120}
                 onChange={(e) => setName_(e.target.value)}
                 className={styles.pickerSearch}
-                aria-label="Set name"
+                aria-label="Comparison name"
                 disabled={pending}
                 autoFocus
               />
@@ -260,8 +260,8 @@ export default function CompareBrandStrip({
               disabled={pending || remainingSlots <= 0}
               title={
                 remainingSlots <= 0
-                  ? `Sets are limited to ${MAX_BRANDS_PER_COMPARISON} brands`
-                  : "Add more brands to this set"
+                  ? `Comparisons are limited to ${MAX_BRANDS_PER_COMPARISON} brands`
+                  : "Add more brands to this comparison"
               }
             >
               + Add brands
@@ -332,7 +332,7 @@ export default function CompareBrandStrip({
           className={v2.modalBackdrop}
           role="dialog"
           aria-modal="true"
-          aria-label="Add brands to set"
+          aria-label="Add brands to comparison"
           onClick={closeAdd}
         >
           <div
@@ -341,11 +341,11 @@ export default function CompareBrandStrip({
           >
             <header className={v2.modalHead}>
               <div>
-                <span className={v2.modalEyebrow}>Expand the set</span>
+                <span className={v2.modalEyebrow}>Expand the comparison</span>
                 <h3 className={v2.modalTitle}>Add brands</h3>
                 <p className={v2.modalSub}>
                   Search by name or category. Up to {remainingSlots} more brand
-                  {remainingSlots === 1 ? "" : "s"} can be added to this set.
+                  {remainingSlots === 1 ? "" : "s"} can be added to this comparison.
                 </p>
               </div>
               <button
