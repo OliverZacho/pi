@@ -515,24 +515,50 @@ describe("content mix takeaway", () => {
     expect(mix.takeaway).toContain("Every brand's mix leads with sale emails");
   });
 
-  it("collapses small categories into Other", () => {
+  it("folds categories past the top six into Other", () => {
     const { mix } = buildComparisonInsights([
       makeBrand("A", {
         categories: [
           { id: "sale", label: "Sale", count: 40 },
           { id: "content", label: "Content", count: 30 },
-          { id: "event", label: "Event", count: 10 },
-          { id: "loyalty", label: "Loyalty", count: 8 },
-          { id: "welcome", label: "Welcome", count: 7 },
-          { id: "survey", label: "Survey", count: 5 }
+          { id: "event", label: "Event", count: 20 },
+          { id: "products", label: "Products", count: 15 },
+          { id: "loyalty", label: "Loyalty", count: 10 },
+          { id: "welcome", label: "Welcome", count: 8 },
+          { id: "survey", label: "Survey", count: 5 },
+          { id: "education", label: "Education", count: 2 }
         ]
       })
     ]);
     const segments = mix.rows[0].segments;
-    expect(segments.length).toBe(5);
+    // 6 named categories + Other (survey + education folded in).
+    expect(segments.length).toBe(7);
     expect(segments[segments.length - 1].id).toBe("other");
-    expect(
-      segments.reduce((sum, s) => sum + s.share, 0)
-    ).toBeCloseTo(1, 5);
+    expect(segments.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1, 5);
+  });
+
+  it("orders categories the same way in every bar (group volume)", () => {
+    const { mix } = buildComparisonInsights([
+      makeBrand("A", {
+        categories: [
+          { id: "sale", label: "Sale", count: 50 },
+          { id: "products", label: "Products", count: 30 },
+          { id: "event", label: "Event", count: 20 }
+        ]
+      }),
+      makeBrand("B", {
+        categories: [
+          { id: "products", label: "Products", count: 60 },
+          { id: "sale", label: "Sale", count: 20 },
+          { id: "event", label: "Event", count: 20 }
+        ]
+      })
+    ]);
+    // Group totals: products 90 > sale 70 > event 40.
+    const expected = ["products", "sale", "event"];
+    expect(mix.legend.map((l) => l.id)).toEqual(expected);
+    // Both bars follow the shared order, not their own dominant.
+    expect(mix.rows[0].segments.map((s) => s.id)).toEqual(expected);
+    expect(mix.rows[1].segments.map((s) => s.id)).toEqual(expected);
   });
 });

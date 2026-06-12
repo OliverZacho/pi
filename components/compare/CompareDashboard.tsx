@@ -1152,18 +1152,8 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
   const hasAnyData = insight.rows.some((row) => row.segments.length > 0);
   if (!hasAnyData) return null;
 
-  // Build the legend from the union of segments actually shown, in
-  // first-appearance order so it roughly matches the bars.
-  const legend: { id: string; label: string }[] = [];
-  const seen = new Set<string>();
-  for (const row of insight.rows) {
-    for (const segment of row.segments) {
-      if (!seen.has(segment.id)) {
-        seen.add(segment.id);
-        legend.push({ id: segment.id, label: segment.label });
-      }
-    }
-  }
+  // Shared, volume-ranked order from the builder — every bar follows it.
+  const legend = insight.legend;
 
   return (
     <section className={styles.section}>
@@ -1171,7 +1161,9 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
       <h2 className={styles.sectionTitle}>What they talk about</h2>
       <p className={styles.sectionSub}>
         Each brand's campaign mix by category, as a share of everything
-        we've captured from them.
+        we've captured from them. Categories run in the same order in
+        every bar — the group's biggest first — so you can scan down a
+        colour to compare.
       </p>
       <Takeaway text={insight.takeaway} />
 

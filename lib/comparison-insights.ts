@@ -84,6 +84,9 @@ export type ContentMixRow = {
 export type ContentMixInsight = {
   takeaway: string | null;
   rows: ContentMixRow[];
+  /** Shared category order (volume-ranked across the group) for the
+   *  legend and for the order segments appear in every bar. */
+  legend: { id: string; label: string }[];
 };
 
 export type QuietZoneSlot = {
@@ -519,55 +522,107 @@ function buildVoice(
 
 /** Segments smaller than this collapse into "Other" so the bars stay
  *  readable. */
-const MIX_MAX_SEGMENTS = 4;
+/** How many categories get their own colour before the rest fold into
+ *  "Other". A fixed, group-wide set (not per-brand) so every bar shows
+ *  the same categories in the same order. */
+const MIX_TOP_CATEGORIES = 6;
 
 function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
-  const rows: ContentMixRow[] = brands.map((b, index) => {
+  // Per-brand totals + a full categoryId → share map (every category,
+  // not just the rendered ones) plus the brand's own dominant category,
+  // which the takeaway reasons about independent of render order.
+  const brandData = brands.map((b, index) => {
     const total = b.categories.reduce((sum, c) => sum + c.count, 0);
-    const sorted = [...b.categories].sort((a, c) => c.count - a.count);
-    const top = sorted.slice(0, MIX_MAX_SEGMENTS);
-    const restCount = sorted
-      .slice(MIX_MAX_SEGMENTS)
-      .reduce((sum, c) => sum + c.count, 0);
-
-    const segments: MixSegment[] =
-      total > 0
-        ? top.map((c) => ({
-            id: c.id,
-            label: c.label,
-            share: c.count / total
-          }))
-        : [];
-    if (total > 0 && restCount > 0) {
-      segments.push({ id: "other", label: "Other", share: restCount / total });
+    const shareById = new Map<string, { label: string; share: number }>();
+    if (total > 0) {
+      for (const c of b.categories) {
+        shareById.set(c.id, { label: c.label, share: c.count / total });
+      }
     }
-    return { id: b.brand.id, name: b.brand.name, index, segments };
+    const top = [...b.categories].sort((a, c) => c.count - a.count)[0];
+    const topCat =
+      total > 0 && top
+        ? { id: top.id, label: top.label, share: top.count / total }
+        : null;
+    return { brand: b, index, total, shareById, topCat };
   });
+
+  // One category order for the whole group, by total volume — so the
+  // same colour sits in the same place in every bar and the cohort's
+  // biggest category always leads. Everything past the top N → "Other".
+  const groupTotals = new Map<string, { label: string; count: number }>();
+  for (const b of brands) {
+    for (const c of b.categories) {
+      const cur = groupTotals.get(c.id);
+      if (cur) cur.count += c.count;
+      else groupTotals.set(c.id, { label: c.label, count: c.count });
+    }
+  }
+  const ordered = [...groupTotals.entries()].sort(
+    (a, c) => c[1].count - a[1].count
+  );
+  const topIds = ordered.slice(0, MIX_TOP_CATEGORIES).map(([id]) => id);
+  const topIdSet = new Set(topIds);
+
+  const rows: ContentMixRow[] = brandData.map(
+    ({ brand, index, total, shareById }) => {
+      const segments: MixSegment[] = [];
+      // Walk the shared order; include only categories the brand uses
+      // (a zero sliver of a category they never send would mislead).
+      for (const id of topIds) {
+        const entry = shareById.get(id);
+        if (entry && entry.share > 0) {
+          segments.push({ id, label: entry.label, share: entry.share });
+        }
+      }
+      let otherShare = 0;
+      if (total > 0) {
+        for (const c of brand.categories) {
+          if (!topIdSet.has(c.id)) otherShare += c.count / total;
+        }
+      }
+      if (otherShare > 0) {
+        segments.push({ id: "other", label: "Other", share: otherShare });
+      }
+      return { id: brand.brand.id, name: brand.brand.name, index, segments };
+    }
+  );
+
+  // Fixed legend in the shared order; append Other only if any bar uses it.
+  const legend = topIds.map((id) => ({
+    id,
+    label: groupTotals.get(id)?.label ?? id
+  }));
+  if (rows.some((row) => row.segments.some((s) => s.id === "other"))) {
+    legend.push({ id: "other", label: "Other" });
+  }
 
   let takeaway: string | null = null;
   if (brands.length >= 2) {
-    const dominant = rows
-      .map((row) => ({ row, top: row.segments[0] }))
+    const dominant = brandData
       .filter(
-        (entry): entry is { row: ContentMixRow; top: MixSegment } =>
-          entry.top !== undefined && entry.top.id !== "other"
-      );
+        (d): d is typeof d & { topCat: NonNullable<typeof d.topCat> } =>
+          d.topCat !== null && d.topCat.id !== "other"
+      )
+      .map((d) => ({ d, top: d.topCat }));
 
     if (dominant.length >= 2) {
       const skewed = [...dominant].sort((a, b) => b.top.share - a.top.share)[0];
+      const shareOf = (entry: (typeof dominant)[number], id: string) =>
+        entry.d.shareById.get(id)?.share ?? 0;
       const contrast = dominant.find(
         (entry) =>
-          entry.row.id !== skewed.row.id &&
+          entry.d.index !== skewed.d.index &&
           (entry.top.id !== skewed.top.id ||
-            (skewed.top.share - getShare(entry.row, skewed.top.id) >= 0.3))
+            skewed.top.share - shareOf(entry, skewed.top.id) >= 0.3)
       );
 
       if (skewed.top.share >= 0.6 && contrast) {
         const contrastClause =
           contrast.top.id === skewed.top.id
-            ? `${contrast.row.name} keeps it to ${pct(getShare(contrast.row, skewed.top.id))}`
-            : `${contrast.row.name} leads with ${lower(contrast.top.label)} (${pct(contrast.top.share)})`;
-        takeaway = `${skewed.row.name} is ${pct(skewed.top.share)} ${lower(skewed.top.label)} emails; ${contrastClause}.`;
+            ? `${contrast.d.brand.brand.name} keeps it to ${pct(shareOf(contrast, skewed.top.id))}`
+            : `${contrast.d.brand.brand.name} leads with ${lower(contrast.top.label)} (${pct(contrast.top.share)})`;
+        takeaway = `${skewed.d.brand.brand.name} is ${pct(skewed.top.share)} ${lower(skewed.top.label)} emails; ${contrastClause}.`;
       } else if (
         dominant.length === rows.length &&
         dominant.every((entry) => entry.top.id === dominant[0].top.id)
@@ -577,11 +632,7 @@ function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
     }
   }
 
-  return { takeaway, rows };
-}
-
-function getShare(row: ContentMixRow, categoryId: string): number {
-  return row.segments.find((s) => s.id === categoryId)?.share ?? 0;
+  return { takeaway, rows, legend };
 }
 
 /* ------------------------------------------------------------------ */
