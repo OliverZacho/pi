@@ -101,7 +101,16 @@ export default function CompareDashboard({
           }
         ]
       : []),
-    { id: "kpis", content: <KpiTiles brands={brands} /> },
+    {
+      id: "kpis",
+      content: (
+        <KpiTiles
+          brands={brands}
+          urgencyShares={insights.urgencyShares}
+          reminderShares={insights.reminderShares}
+        />
+      )
+    },
     {
       id: "rhythm",
       content: <RhythmLeague brands={brands} insight={insights.rhythm} />
@@ -145,13 +154,7 @@ export default function CompareDashboard({
     {
       id: "fingerprint",
       content: (
-        <FingerprintGrid
-          brands={brands}
-          takeaway={insights.voiceTakeaway}
-          subjectLengthRange={insights.subjectLengthRange}
-          urgencyShares={insights.urgencyShares}
-          reminderShares={insights.reminderShares}
-        />
+        <FingerprintGrid brands={brands} takeaway={insights.voiceTakeaway} />
       )
     },
     ...(insights.mix.rows.some((row) => row.segments.length > 0)
@@ -1000,43 +1003,27 @@ function OccasionMatrix({
    ----------------------------------------------------------------- */
 
 /**
- * Metric-first layout so the section's height barely grows with the
- * brand count: five shared strips up top carry every comparative
- * number (one dot per brand per strip — outliers pop instantly), and
- * the per-brand cards below shrink to pure identity (palette, fonts,
- * CTAs, a sample subject) flowing several to a row.
+ * Pure identity cards — palette, fonts, favourite CTAs, a sample
+ * subject — several per row so a large comparison stays skimmable. The
+ * comparative copy metrics (subject length, emoji, urgency, resends)
+ * live as KPI tiles with dot-strip drill-downs, not here.
  */
 function FingerprintGrid({
   brands,
-  takeaway,
-  subjectLengthRange,
-  urgencyShares,
-  reminderShares
+  takeaway
 }: {
   brands: BrandPageData[];
   takeaway: string | null;
-  subjectLengthRange: { min: number; max: number } | null;
-  /** Aligned with `brands` — share of subjects with urgency language. */
-  urgencyShares: number[];
-  /** Aligned with `brands` — share of campaigns that get a follow-up. */
-  reminderShares: number[];
 }) {
   return (
     <section className={styles.section}>
       <span className={styles.sectionEyebrow}>Voice &amp; creative</span>
       <h2 className={styles.sectionTitle}>Creative fingerprint</h2>
       <p className={styles.sectionSub}>
-        Every dot is a brand — hover for the value. The cards below hold
-        each brand's look: palette, typography and favourite CTAs.
+        Each brand's look at a glance: palette, typography and the CTAs
+        they reach for. Copy metrics live in the KPI matrix above.
       </p>
       <Takeaway text={takeaway} />
-
-      <FingerprintStrips
-        brands={brands}
-        subjectLengthRange={subjectLengthRange}
-        urgencyShares={urgencyShares}
-        reminderShares={reminderShares}
-      />
 
       <div className={styles.dnaGrid}>
         {brands.map((b, idx) => {
@@ -1159,134 +1146,6 @@ function CtaDestinationsLine({
         )
         .join(" · ")}
     </p>
-  );
-}
-
-type StripDot = {
-  brandId: string;
-  brandName: string;
-  brandIndex: number;
-  /** 0–1 position along the track. */
-  position: number;
-  /** Tooltip, e.g. "Ferm Living: 20% of subjects". */
-  tooltip: string;
-};
-
-type Strip = {
-  id: string;
-  label: string;
-  /** Scale annotation on the right, e.g. "0–35%" or "≈25–42 chars". */
-  scale: string;
-  dots: StripDot[];
-};
-
-/** Dots get one of three vertical lanes by brand index so same-valued
- *  brands stay distinguishable instead of stacking into one blob. */
-const STRIP_LANES = [50, 30, 70];
-
-function FingerprintStrips({
-  brands,
-  subjectLengthRange,
-  urgencyShares,
-  reminderShares
-}: {
-  brands: BrandPageData[];
-  subjectLengthRange: { min: number; max: number } | null;
-  urgencyShares: number[];
-  reminderShares: number[];
-}) {
-  // Share-based strips run 0 → the group's max (10% floor so a flat
-  // group doesn't explode tiny differences across the full track).
-  const shareStrip = (
-    id: string,
-    label: string,
-    unit: string,
-    values: (number | undefined)[]
-  ): Strip => {
-    const shares = brands.map((_, i) => values[i] ?? 0);
-    const hi = Math.max(0.1, ...shares);
-    return {
-      id,
-      label,
-      scale: `0–${Math.round(hi * 100)}%`,
-      dots: brands.map((b, i) => ({
-        brandId: b.brand.id,
-        brandName: b.brand.name,
-        brandIndex: i,
-        position: shares[i] / hi,
-        tooltip: `${b.brand.name}: ${Math.round(shares[i] * 100)}% ${unit}`
-      }))
-    };
-  };
-
-  const strips: Strip[] = [];
-
-  if (subjectLengthRange) {
-    const { min, max } = subjectLengthRange;
-    const span = Math.max(1, max - min);
-    strips.push({
-      id: "subject-length",
-      label: "Subject length",
-      scale:
-        Math.round(min) === Math.round(max)
-          ? `≈${Math.round(min)} chars`
-          : `≈${Math.round(min)}–${Math.round(max)} chars`,
-      dots: brands
-        .map((b, i) => ({ brand: b, index: i }))
-        .filter(({ brand }) => brand.subjects.avgLength !== null)
-        .map(({ brand, index }) => ({
-          brandId: brand.brand.id,
-          brandName: brand.brand.name,
-          brandIndex: index,
-          position:
-            ((brand.subjects.avgLength as number) - min) / span,
-          tooltip: `${brand.brand.name}: ≈${Math.round(
-            brand.subjects.avgLength as number
-          )} characters`
-        }))
-    });
-  }
-
-  strips.push(
-    shareStrip(
-      "emoji",
-      "Emoji use",
-      "of subjects",
-      brands.map((b) => b.emojis.share)
-    ),
-    shareStrip(
-      "gifs",
-      "GIFs",
-      "of emails",
-      brands.map((b) => b.design.gifShare)
-    ),
-    shareStrip("urgency", "Urgency", "of subjects", urgencyShares),
-    shareStrip("resends", "Resends", "of campaigns", reminderShares)
-  );
-
-  return (
-    <div className={styles.fpStrips}>
-      {strips.map((strip) => (
-        <div key={strip.id} className={styles.fpStrip}>
-          <span className={styles.fpStripLabel}>{strip.label}</span>
-          <span className={styles.fpStripTrack}>
-            {strip.dots.map((dot) => (
-              <span
-                key={dot.brandId}
-                className={styles.fpStripDot}
-                style={{
-                  ["--accent" as string]: getCompareColor(dot.brandIndex),
-                  left: `${Math.min(100, Math.max(0, dot.position * 100)).toFixed(2)}%`,
-                  top: `${STRIP_LANES[dot.brandIndex % STRIP_LANES.length]}%`
-                }}
-                title={dot.tooltip}
-              />
-            ))}
-          </span>
-          <span className={styles.fpStripScale}>{strip.scale}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
