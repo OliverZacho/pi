@@ -608,6 +608,16 @@ export const QUIET_ZONE_DAYS = [
  *  finding — the takeaway stays silent. */
 const QUIET_ZONE_MIN_SENDS = 40;
 
+/**
+ * Only the most recent ~3 months of sends count toward quiet zones, so
+ * the grid reflects how the group sends *now* rather than averaging in
+ * send-day habits a brand may have since abandoned. The window is
+ * anchored on the group's latest send (not wall-clock `now`) so the
+ * result is a pure function of the payload — deterministic across
+ * server render and client hydration.
+ */
+const QUIET_ZONE_WINDOW_DAYS = 90;
+
 function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
   const grid: number[][] = QUIET_ZONE_DAYPARTS.map(() =>
     new Array(QUIET_ZONE_DAYS.length).fill(0)
@@ -618,8 +628,23 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
   );
   let totalSends = 0;
 
+  // Anchor the freshness window on the latest send across the group.
+  let latestTs = Number.NEGATIVE_INFINITY;
+  for (const brand of brands) {
+    for (const email of brand.seasonalSample) {
+      const ts = new Date(email.receivedAt).getTime();
+      if (!Number.isNaN(ts) && ts > latestTs) latestTs = ts;
+    }
+  }
+  const cutoff =
+    latestTs === Number.NEGATIVE_INFINITY
+      ? Number.NEGATIVE_INFINITY
+      : latestTs - QUIET_ZONE_WINDOW_DAYS * 86_400_000;
+
   brands.forEach((brand, brandIndex) => {
     for (const email of brand.seasonalSample) {
+      const ts = new Date(email.receivedAt).getTime();
+      if (Number.isNaN(ts) || ts < cutoff) continue;
       let parts;
       try {
         parts = getZonedParts(email.receivedAt);

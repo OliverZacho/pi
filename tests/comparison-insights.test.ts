@@ -347,6 +347,25 @@ describe("quiet zones", () => {
     ]);
     expect(quietZones.openings[0].senders).toEqual([]);
   });
+
+  it("only counts sends within ~3 months of the latest send", () => {
+    // 50 recent Monday-morning sends plus 30 Wednesday-morning sends
+    // from >3 months earlier; the stale ones must not reach the grid.
+    const recent = mondayMorningSends(25);
+    const stale = Array.from({ length: 15 }, (_, i) => ({
+      subject: `Old ${i}`,
+      // 2026-01-07 is a Wednesday, ~5 months before the recent batch.
+      receivedAt: "2026-01-07T07:00:00Z"
+    }));
+    const { quietZones } = buildComparisonInsights([
+      makeBrand("A", { seasonalSubjects: [...recent, ...stale] }),
+      makeBrand("B", { seasonalSubjects: [...recent, ...stale] })
+    ]);
+    // Only the 50 recent sends counted; the 30 stale ones dropped.
+    expect(quietZones.totalSends).toBe(50);
+    expect(quietZones.grid[0][0]).toBe(50); // Monday morning
+    expect(quietZones.grid[0][2]).toBe(0); // Wednesday morning — stale, excluded
+  });
 });
 
 describe("urgency", () => {

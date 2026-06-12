@@ -668,8 +668,9 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
       <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>Quiet zones</h2>
       <p className={styles.sectionSub}>
-        Where this group's recent sends land across the week (Copenhagen
-        time). Dashed cells are slots nobody here is using.
+        Where this group's sends have landed across the week over the
+        last 3 months (Copenhagen time). Dashed cells are slots nobody
+        here is using.
       </p>
       <Takeaway text={insight.takeaway} />
 
