@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { computeBrandAggregates } from "./brands-explore-db";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -31,14 +32,12 @@ export type FollowedBrandSummary = {
 };
 
 /**
- * Richer shape used by the `/following` grid: same minimum set of
- * fields the brand explorer card consumes (logo, markets) plus the
- * moment the user followed the brand so the page can sort by
- * "Recently followed". We keep the analytical fields (`primaryEsp`,
- * `avgDaysBetween`) out of this payload because computing them
- * requires the full captured-emails sweep that `searchBrands` does —
- * not worth the cost on a page that's already tightly scoped to the
- * user's follow list.
+ * Richer shape used by the `/following` grid: the same fields the brand
+ * explorer card renders (logo, markets, send cadence, last send,
+ * tracked-since) plus the moment the user followed the brand so the
+ * page can sort by "Recently followed". The cadence sweep is scoped to
+ * the user's follow list (see `computeBrandAggregates`), so the extra
+ * stats stay cheap on this already-narrow page.
  */
 export type FollowedBrandCard = {
   id: string;
@@ -51,6 +50,16 @@ export type FollowedBrandCard = {
   isGlobal: boolean;
   logoUrl: string | null;
   followedAt: string;
+  /**
+   * Mean days between sends, `null` with fewer than two captured emails.
+   * Computed from the same email sweep the explorer uses, scoped to the
+   * user's follow list so the cost stays tiny.
+   */
+  avgDaysBetween: number | null;
+  /** ISO timestamp of the most recent captured send, or `null`. */
+  lastEmailAt: string | null;
+  /** ISO timestamp of when we first started tracking the brand. */
+  subscribedSince: string;
 };
 
 /**
@@ -180,7 +189,7 @@ export async function listFollowedBrandCards(
     .select(
       `created_at,
        company_id,
-       companies!inner(id, name, domain, markets, primary_market_country, is_global, logo_storage_path, deleted_at)`
+       companies!inner(id, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, deleted_at, company_email_stats(last_received_at))`
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -190,24 +199,33 @@ export async function listFollowedBrandCards(
   const rows = data ?? [];
 
   const logoPaths = new Set<string>();
+  const companyIds: string[] = [];
   for (const row of rows) {
     const company = pickCompany(row.companies);
-    if (company && !company.deleted_at && company.logo_storage_path) {
+    if (!company || company.deleted_at) continue;
+    companyIds.push(company.id);
+    if (company.logo_storage_path) {
       logoPaths.add(company.logo_storage_path);
     }
   }
-  const signed =
+
+  const [signed, aggregates] = await Promise.all([
     logoPaths.size > 0
-      ? await getSignedAssets(Array.from(logoPaths), {
+      ? getSignedAssets(Array.from(logoPaths), {
           transform: BRAND_LOGO_TRANSFORM
         })
-      : {};
+      : Promise.resolve({} as Record<string, string>),
+    companyIds.length > 0
+      ? computeBrandAggregates(supabase, companyIds)
+      : null
+  ]);
 
   const cards: FollowedBrandCard[] = [];
   for (const row of rows) {
     const company = pickCompany(row.companies);
     if (!company || company.deleted_at) continue;
     const logoPath = company.logo_storage_path ?? null;
+    const stats = relationFirst(company.company_email_stats);
     cards.push({
       id: company.id,
       name: company.name,
@@ -221,7 +239,13 @@ export async function listFollowedBrandCards(
       primaryMarketCountry: company.primary_market_country ?? null,
       isGlobal: company.is_global ?? false,
       logoUrl: logoPath ? signed[logoPath] ?? null : null,
-      followedAt: row.created_at
+      followedAt: row.created_at,
+      avgDaysBetween:
+        aggregates?.perBrand.get(company.id)?.avgDaysBetween ?? null,
+      lastEmailAt: stats?.last_received_at ?? null,
+      // `subscribed_since` is NOT NULL and always selected here; fall
+      // back to the follow date only to keep the type a clean string.
+      subscribedSince: company.subscribed_since ?? row.created_at
     });
   }
   return cards;
@@ -231,6 +255,8 @@ export function isValidCompanyId(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
 
+type EmailStatsRow = { last_received_at: string | null };
+
 type CompanyRow = {
   id: string;
   name: string;
@@ -238,8 +264,10 @@ type CompanyRow = {
   markets?: string[] | null;
   primary_market_country?: string | null;
   is_global?: boolean | null;
+  subscribed_since?: string;
   logo_storage_path?: string | null;
   deleted_at?: string | null;
+  company_email_stats?: EmailStatsRow | EmailStatsRow[] | null;
 };
 
 type CompanyField = CompanyRow | CompanyRow[] | null | undefined;
@@ -248,4 +276,10 @@ function pickCompany(value: CompanyField) {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] ?? null;
   return value;
+}
+
+/** First row of a PostgREST embedded relation (object or array shape). */
+function relationFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
 }

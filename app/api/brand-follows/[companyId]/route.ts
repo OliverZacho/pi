@@ -2,11 +2,44 @@ import { NextResponse } from "next/server";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   followBrand,
+  isBrandFollowed,
   isValidCompanyId,
   unfollowBrand
 } from "@/lib/follows-db";
 
 type RouteContext = { params: Promise<{ companyId: string }> };
+
+/**
+ * `GET /api/brand-follows/[companyId]` — point-check whether the current
+ * user follows this brand. The email modal's Follow toggle calls this on
+ * open to seed its state (the brand page already knows server-side).
+ */
+export async function GET(_request: Request, context: RouteContext) {
+  const session = await requireArchiveAccess();
+  if ("response" in session) {
+    return session.response;
+  }
+
+  const { companyId } = await context.params;
+  if (!isValidCompanyId(companyId)) {
+    return NextResponse.json({ error: "Invalid brand id" }, { status: 400 });
+  }
+
+  try {
+    const following = await isBrandFollowed(
+      session.supabase,
+      session.user.id,
+      companyId
+    );
+    return NextResponse.json({ following });
+  } catch (error) {
+    console.error("Failed to check brand follow", error);
+    return NextResponse.json(
+      { error: "Failed to check brand follow" },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * `PUT /api/brand-follows/[companyId]` — idempotent follow. The brand

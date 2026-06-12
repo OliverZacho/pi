@@ -26,6 +26,7 @@ import {
   parseDayKey,
   startOfDayInZone
 } from "@/lib/datetime";
+import { BrandCardBody } from "./BrandCardBody";
 import BrandBatchBar from "./BrandBatchBar";
 import BrandRequestForm from "./BrandRequestForm";
 import requestStyles from "./BrandRequest.module.css";
@@ -1245,67 +1246,12 @@ function BrandGridCard({
         </span>
       ) : null}
 
-      <span className={styles.cardAvatar} aria-hidden="true">
-        {brand.logoUrl ? (
-          <img
-            src={brand.logoUrl}
-            alt=""
-            className={styles.cardAvatarLogo}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span className={styles.cardAvatarMonogram}>
-            {brand.name.charAt(0).toUpperCase()}
-          </span>
-        )}
-      </span>
-
-      <div className={styles.cardBody}>
-        <span className={styles.cardName}>
-          {brand.name}
-          {brand.primaryMarketCountry ? (
-            <span
-              aria-hidden="true"
-              title={countryName(brand.primaryMarketCountry)}
-              style={{ marginLeft: "0.4rem" }}
-            >
-              {countryFlag(brand.primaryMarketCountry)}
-            </span>
-          ) : null}
-          {brand.isGlobal ? (
-            <span title="Global brand" style={{ marginLeft: "0.3rem" }}>
-              🌍
-            </span>
-          ) : null}
-        </span>
-        {brand.markets.length > 0 ? (
-          <span className={styles.cardMarket}>
-            {brand.markets.map(formatMarketLabel).join(" · ")}
-          </span>
-        ) : null}
-      </div>
-
-      {brand.primaryEsp || brand.avgDaysBetween !== null ? (
-        <div className={styles.cardTagRow}>
-          {brand.primaryEsp ? (
-            <span className={styles.cardTag} title="Primary ESP">
-              <StackIcon />
-              {brand.primaryEsp.label}
-            </span>
-          ) : null}
-          {brand.avgDaysBetween !== null ? (
-            <span className={styles.cardTag} title="Average days between sends">
-              <ClockIcon />
-              {formatDaysShort(brand.avgDaysBetween)}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      <BrandCardBody brand={brand} />
     </>
   );
 
   if (selectMode) {
-    const className = `${styles.card} ${styles.cardSelectable} ${styles.cardSelectableButton}${
+    const className = `${styles.card} ${styles.cardRich} ${styles.cardSelectable} ${styles.cardSelectableButton}${
       selected ? ` ${styles.cardSelected}` : ""
     }`;
     return (
@@ -1325,7 +1271,7 @@ function BrandGridCard({
   const link = (
     <Link
       href={`/brands/${brand.id}`}
-      className={styles.card}
+      className={`${styles.card} ${styles.cardRich}`}
       aria-label={`Open ${brand.name} dashboard`}
     >
       {cardBody}
@@ -1612,22 +1558,3 @@ function ClockIcon() {
   );
 }
 
-function StackIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="13"
-      height="13"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  );
-}

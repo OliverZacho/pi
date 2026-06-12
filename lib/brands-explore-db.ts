@@ -41,6 +41,14 @@ export type BrandsExploreCard = {
    * to derive a delta from.
    */
   avgDaysBetween: number | null;
+  /**
+   * ISO timestamp of the most recent captured send, or `null` when we
+   * have no emails for the brand yet. Drives the card's "last send" /
+   * active-recency signal.
+   */
+  lastEmailAt: string | null;
+  /** ISO timestamp of when we first started tracking this brand. */
+  subscribedSince: string;
 };
 
 export type BrandsSortKey =
@@ -378,7 +386,12 @@ export async function searchBrands(
             label: ESP_LABELS[row.primaryEsp] ?? row.primaryEsp
           }
         : null,
-      avgDaysBetween: row.avgDaysBetween
+      avgDaysBetween: row.avgDaysBetween,
+      lastEmailAt:
+        row.lastReceivedMs !== null
+          ? new Date(row.lastReceivedMs).toISOString()
+          : null,
+      subscribedSince: row.subscribed_since
     };
   });
 
@@ -398,13 +411,23 @@ export async function searchBrands(
  * once and the largest observed cadence — both used by the facets
  * endpoint to seed the filter UI.
  */
-async function computeBrandAggregates(
-  supabase: SupabaseClient<Database>
+export async function computeBrandAggregates(
+  supabase: SupabaseClient<Database>,
+  companyIds?: string[]
 ): Promise<AggregateResult> {
-  const { data, error } = await supabase
+  let emailQuery = supabase
     .from("captured_emails")
     .select("company_id, received_at, esp_provider")
-    .not("company_id", "is", null)
+    .not("company_id", "is", null);
+
+  // When the caller only needs a known set of brands (e.g. the user's
+  // follow list), scope the sweep to those companies so we read a tiny
+  // slice instead of the full capped window.
+  if (companyIds && companyIds.length > 0) {
+    emailQuery = emailQuery.in("company_id", companyIds);
+  }
+
+  const { data, error } = await emailQuery
     .order("received_at", { ascending: false })
     .limit(BRAND_AGG_ROW_CAP);
 

@@ -7,7 +7,9 @@ import { listSidebarNotices } from "@/lib/sidebar-notices";
  * GET `/api/notices` — prioritized sidebar-footer notices for the
  * signed-in viewer (save-cap usage, fulfilled brand requests, team
  * joins, followed-brand activity). The sidebar fetches this once per
- * mount; dismissals are client-side, so the route stays read-only.
+ * mount; dismissals are client-side. The one write is a visit-window
+ * heartbeat (`touch_user_visit`) that powers the "since you last logged
+ * in" follow-activity count.
  *
  * Reads go through the service-role client because several sources
  * (teams, brand requests, free-tier saves) are RLS-locked to

@@ -653,7 +653,7 @@
 /* Scope picker — which emails the rule applies to. */
 .scopeRow {
   display: grid;
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: 7rem auto 1fr;
   align-items: center;
   gap: 0.7rem;
   padding: 0.6rem 0.75rem;
@@ -714,6 +714,14 @@
 .scopeHint {
   font-size: 0.78rem;
   color: #64748b;
+  min-width: 0;
+}
+
+.windowControls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
   min-width: 0;
 }
 

@@ -770,6 +770,8 @@ export type Database = {
           created_at: string
           email: string
           full_name: string | null
+          last_active_at: string | null
+          last_visit_at: string | null
           updated_at: string
           user_id: string
         }
@@ -777,6 +779,8 @@ export type Database = {
           created_at?: string
           email: string
           full_name?: string | null
+          last_active_at?: string | null
+          last_visit_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -784,6 +788,8 @@ export type Database = {
           created_at?: string
           email?: string
           full_name?: string | null
+          last_active_at?: string | null
+          last_visit_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -906,6 +912,10 @@ export type Database = {
       pirol_admin_growth_series: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      touch_user_visit: {
+        Args: { p_user_id: string; p_gap?: string }
+        Returns: string | null
+      }
       user_has_password: { Args: never; Returns: boolean }
     }
     Enums: {

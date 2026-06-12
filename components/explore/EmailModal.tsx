@@ -392,6 +392,52 @@ function InfoPanel({
   onCreateCollection,
   onRequestMemberships
 }: InfoPanelProps) {
+  // Follow toggle for the email's brand. Seeded from the server on open
+  // (the modal carries no follow info up front) and written through the
+  // shared `brand_follows` endpoints, so it stays in sync with the brand
+  // page's own Follow button. Skipped on the read-only teaser and for
+  // legacy emails with no matched company.
+  const followCompanyId = email.companyId;
+  const [following, setFollowing] = useState(false);
+  const [followPending, setFollowPending] = useState(false);
+
+  useEffect(() => {
+    if (readOnly || !followCompanyId) return;
+    let cancelled = false;
+    fetch(`/api/brand-follows/${encodeURIComponent(followCompanyId)}`, {
+      credentials: "include"
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = (await res.json()) as { following?: boolean };
+        if (!cancelled) setFollowing(Boolean(body.following));
+      })
+      .catch(() => {
+        // Leave the default ("Follow") on failure — the toggle still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [readOnly, followCompanyId]);
+
+  async function handleToggleFollow() {
+    if (followPending || !followCompanyId) return;
+    const next = !following;
+    setFollowPending(true);
+    setFollowing(next);
+    try {
+      const res = await fetch(
+        `/api/brand-follows/${encodeURIComponent(followCompanyId)}`,
+        { method: next ? "PUT" : "DELETE", credentials: "include" }
+      );
+      if (!res.ok) setFollowing(!next);
+    } catch {
+      setFollowing(!next);
+    } finally {
+      setFollowPending(false);
+    }
+  }
+
   const categoryLabel =
     EMAIL_CATEGORY_LABELS[email.category as EmailCategory] ?? email.category;
   const espLabel = detail?.espProvider ? ESP_LABELS[detail.espProvider] : null;
@@ -445,8 +491,16 @@ function InfoPanel({
     <>
       {readOnly ? null : (
         <div className={styles.infoActions}>
-          <button type="button" className={styles.infoActionPrimary}>
-            Follow
+          <button
+            type="button"
+            className={`${styles.infoActionPrimary}${
+              following ? ` ${styles.infoActionPrimaryActive}` : ""
+            }`}
+            aria-pressed={following}
+            disabled={followPending || !followCompanyId}
+            onClick={() => void handleToggleFollow()}
+          >
+            {following ? "Following" : "Follow"}
           </button>
           <button
             type="button"
@@ -472,13 +526,6 @@ function InfoPanel({
               align="right"
             />
           ) : null}
-          <button
-            type="button"
-            className={styles.infoActionIcon}
-            aria-label="Download email"
-          >
-            <DownloadIcon />
-          </button>
         </div>
       )}
 
@@ -1203,26 +1250,6 @@ function BookmarkFilledIcon() {
       aria-hidden="true"
     >
       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   );
 }

@@ -11,6 +11,8 @@ import type {
   CollectionRuleCondition,
   CollectionRuleField,
   CollectionRuleScope,
+  CollectionRuleTimeWindow,
+  CollectionRuleWindowUnit,
   CollectionRules
 } from "@/lib/collections-db";
 import type {
@@ -45,7 +47,23 @@ type Draft = {
   combinator: CollectionRuleCombinator;
   conditions: CollectionRuleCondition[];
   scope: CollectionRuleScope;
+  timeWindow: CollectionRuleTimeWindow | null;
 };
+
+type WindowMode = "none" | "rolling" | "range";
+
+const WINDOW_MODES: { value: WindowMode; label: string }[] = [
+  { value: "none", label: "Any time" },
+  { value: "rolling", label: "Rolling" },
+  { value: "range", label: "Date range" }
+];
+
+const WINDOW_UNIT_OPTIONS: { value: CollectionRuleWindowUnit; label: string }[] =
+  [
+    { value: "days", label: "days" },
+    { value: "weeks", label: "weeks" },
+    { value: "months", label: "months" }
+  ];
 
 const SCOPE_OPTIONS: {
   value: CollectionRuleScope;
@@ -98,12 +116,16 @@ export default function CollectionRulesEditor({
       ? {
           combinator: initialRules.combinator,
           conditions: initialRules.conditions.map((c) => ({ ...c })),
-          scope: initialRules.scope
+          scope: initialRules.scope,
+          timeWindow: initialRules.timeWindow
+            ? { ...initialRules.timeWindow }
+            : null
         }
       : {
           combinator: "AND",
           conditions: [makeBlankCondition("search")],
-          scope: "all"
+          scope: "all",
+          timeWindow: null
         }
   );
   const [saving, setSaving] = useState(false);
@@ -118,8 +140,11 @@ export default function CollectionRulesEditor({
   );
 
   const isValid = useMemo(
-    () => draft.conditions.length > 0 && draft.conditions.every(isComplete),
-    [draft.conditions]
+    () =>
+      draft.conditions.length > 0 &&
+      draft.conditions.every(isComplete) &&
+      isWindowComplete(draft.timeWindow),
+    [draft.conditions, draft.timeWindow]
   );
 
   function updateCondition(
@@ -166,6 +191,34 @@ export default function CollectionRulesEditor({
     setDraft((current) => ({ ...current, scope }));
   }
 
+  function setWindowMode(mode: WindowMode) {
+    setDraft((current) => {
+      if (mode === "none") return { ...current, timeWindow: null };
+      if (mode === "rolling") {
+        return {
+          ...current,
+          timeWindow:
+            current.timeWindow?.type === "rolling"
+              ? current.timeWindow
+              : { type: "rolling", amount: 30, unit: "days" }
+        };
+      }
+      return {
+        ...current,
+        timeWindow:
+          current.timeWindow?.type === "range"
+            ? current.timeWindow
+            : { type: "range", from: null, to: null }
+      };
+    });
+  }
+
+  function updateTimeWindow(timeWindow: CollectionRuleTimeWindow) {
+    setDraft((current) => ({ ...current, timeWindow }));
+  }
+
+  const windowMode: WindowMode = draft.timeWindow?.type ?? "none";
+
   const activeScope =
     SCOPE_OPTIONS.find((option) => option.value === draft.scope) ??
     SCOPE_OPTIONS[0];
@@ -184,7 +237,8 @@ export default function CollectionRulesEditor({
         // `appliedAt` is server-managed; the API will fill / preserve
         // it. Passing `null` here keeps the request payload small and
         // avoids the client second-guessing the cutoff timestamp.
-        appliedAt: null
+        appliedAt: null,
+        timeWindow: draft.timeWindow
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save rules");
@@ -245,6 +299,124 @@ export default function CollectionRulesEditor({
           ))}
         </div>
         <span className={styles.scopeHint}>{activeScope.hint}</span>
+      </div>
+
+      <div className={styles.scopeRow}>
+        <span className={styles.scopeLabel}>Time window</span>
+        <div
+          className={styles.scopeOptions}
+          role="radiogroup"
+          aria-label="Time window applied to matching emails"
+        >
+          {WINDOW_MODES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={windowMode === option.value}
+              onClick={() => setWindowMode(option.value)}
+              className={`${styles.scopeOption} ${
+                windowMode === option.value ? styles.scopeOptionActive : ""
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.windowControls}>
+          {draft.timeWindow?.type === "rolling" ? (
+            <>
+              <span className={styles.scopeHint}>Last</span>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                step={1}
+                value={
+                  Number.isFinite(draft.timeWindow.amount)
+                    ? draft.timeWindow.amount
+                    : ""
+                }
+                onChange={(event) => {
+                  const next = event.target.value;
+                  updateTimeWindow({
+                    type: "rolling",
+                    amount: next === "" ? Number.NaN : Number(next),
+                    unit:
+                      draft.timeWindow?.type === "rolling"
+                        ? draft.timeWindow.unit
+                        : "days"
+                  });
+                }}
+                className={styles.ruleNumberInput}
+                aria-label="Window length"
+              />
+              <select
+                className={styles.ruleOperator}
+                value={draft.timeWindow.unit}
+                onChange={(event) =>
+                  updateTimeWindow({
+                    type: "rolling",
+                    amount:
+                      draft.timeWindow?.type === "rolling"
+                        ? draft.timeWindow.amount
+                        : 30,
+                    unit: event.target.value as CollectionRuleWindowUnit
+                  })
+                }
+                aria-label="Window unit"
+              >
+                {WINDOW_UNIT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : draft.timeWindow?.type === "range" ? (
+            <>
+              <input
+                type="date"
+                value={draft.timeWindow.from ?? ""}
+                max={draft.timeWindow.to ?? undefined}
+                onChange={(event) =>
+                  updateTimeWindow({
+                    type: "range",
+                    from: event.target.value || null,
+                    to:
+                      draft.timeWindow?.type === "range"
+                        ? draft.timeWindow.to
+                        : null
+                  })
+                }
+                className={styles.ruleInput}
+                aria-label="From date"
+              />
+              <span className={styles.scopeHint}>to</span>
+              <input
+                type="date"
+                value={draft.timeWindow.to ?? ""}
+                min={draft.timeWindow.from ?? undefined}
+                onChange={(event) =>
+                  updateTimeWindow({
+                    type: "range",
+                    from:
+                      draft.timeWindow?.type === "range"
+                        ? draft.timeWindow.from
+                        : null,
+                    to: event.target.value || null
+                  })
+                }
+                className={styles.ruleInput}
+                aria-label="To date"
+              />
+            </>
+          ) : (
+            <span className={styles.scopeHint}>
+              Match emails received at any time.
+            </span>
+          )}
+        </div>
       </div>
 
       <ul className={styles.rulesList}>
@@ -505,6 +677,21 @@ function makeBlankCondition(
         value: 30
       };
   }
+}
+
+function isWindowComplete(window: CollectionRuleTimeWindow | null): boolean {
+  if (!window) return true;
+  if (window.type === "rolling") {
+    return (
+      Number.isInteger(window.amount) &&
+      window.amount >= 1 &&
+      window.amount <= 3650
+    );
+  }
+  // A range needs at least one bound, and a non-inverted span if both.
+  if (!window.from && !window.to) return false;
+  if (window.from && window.to && window.from > window.to) return false;
+  return true;
 }
 
 function isComplete(condition: CollectionRuleCondition): boolean {

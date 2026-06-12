@@ -783,15 +783,11 @@
   gap: 1.1rem;
 }
 
+/* Cap at four across — the richer stat card needs the extra width to
+   breathe; a fifth column on wide screens left it feeling crammed. */
 @media (min-width: 1100px) {
   .grid {
     grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-@media (min-width: 1480px) {
-  .grid {
-    grid-template-columns: repeat(5, 1fr);
   }
 }
 
@@ -896,15 +892,6 @@
   line-height: 1;
 }
 
-.cardBody {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-  width: 100%;
-}
-
 .cardName {
   font-size: 0.95rem;
   font-weight: 600;
@@ -918,53 +905,114 @@
   overflow: hidden;
 }
 
-.cardMarket {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ---------- Rich brand card ----------
+   A left-aligned identity header + a stat strip. Layered on top of the
+   shared `.card` base via the `.cardRich` modifier; used by both the
+   Brands explorer and the Following grid. */
+.cardRich {
+  align-items: stretch;
+  text-align: left;
+  gap: 0.9rem;
+  padding: 1.1rem 1.1rem 0.95rem;
 }
 
-.cardTagRow {
+.cardHead {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.3rem;
-  margin-top: 0.25rem;
-  padding-top: 0.85rem;
-  width: 100%;
-  border-top: 1px solid #f1f5f9;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
 }
 
-.cardTag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  background: #fafafa;
-  border: 1px solid #f1f5f9;
-  color: #475569;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+.cardRich .cardAvatar {
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 11px;
+}
+
+.cardRich .cardAvatarMonogram {
+  font-size: 1.1rem;
+}
+
+.cardHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.cardRich .cardName {
+  display: block;
+  font-size: 0.95rem;
   white-space: nowrap;
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.cardTag svg {
+.cardSub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cardStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.cardStat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  min-width: 0;
+}
+
+.cardStatLabel {
+  font-size: 0.68rem;
+  font-weight: 500;
   color: #94a3b8;
+}
+
+.cardStatValue {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #1d9e75;
+  flex-shrink: 0;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.cardFoot svg {
+  color: #cbd5e1;
   flex-shrink: 0;
 }
 

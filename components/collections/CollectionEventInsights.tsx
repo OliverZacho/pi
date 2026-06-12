@@ -10,7 +10,7 @@ import {
   type CampaignPhase,
   type CollectionEventDetection
 } from "@/lib/collection-event-shared";
-import { formatShortDate, parseDayKey } from "@/lib/datetime";
+import { formatMonthShort, formatShortDate, parseDayKey } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import styles from "./collections.module.css";
 
@@ -492,6 +492,11 @@ function shortDayLabel(windowStart: string, dayIdx: number): string {
   return instant ? formatShortDate(instant) : "";
 }
 
+/** Day-of-month only ("13"), for the dense day row of the axis. */
+function dayNumberLabel(windowStart: string, dayIdx: number): string {
+  return String(Number(addDays(windowStart, dayIdx).slice(8, 10)));
+}
+
 /** Exported for tests — pure view-model math, no React. */
 export function buildTimelineModel(
   detection: CollectionEventDetection,
@@ -640,13 +645,34 @@ function makeScale(model: TimelineModel, width: number, padLeft: number, padRigh
   };
 }
 
-function dateTicks(model: TimelineModel): number[] {
-  const stepDays = 7 * Math.max(1, Math.ceil(model.totalDays / (7 * 8)));
+/**
+ * Day-number ticks at the densest spacing that keeps two-digit labels from
+ * colliding — every day when there's room, every 2nd/3rd day when tighter.
+ */
+function dayTicks(model: TimelineModel, cellW: number): number[] {
+  const stepDays = Math.max(1, Math.ceil(22 / Math.max(1, cellW)));
   const ticks: number[] = [];
   for (let idx = 0; idx < model.totalDays; idx += stepDays) {
     ticks.push(idx);
   }
   return ticks;
+}
+
+/** Contiguous calendar-month spans within the window, for the month row. */
+function monthSegments(
+  model: TimelineModel
+): { startIdx: number; endIdx: number; key: string }[] {
+  const segments: { startIdx: number; endIdx: number; key: string }[] = [];
+  for (let idx = 0; idx < model.totalDays; idx += 1) {
+    const key = addDays(model.windowStart, idx);
+    const last = segments[segments.length - 1];
+    if (last && key.slice(0, 7) === last.key.slice(0, 7)) {
+      last.endIdx = idx;
+    } else {
+      segments.push({ startIdx: idx, endIdx: idx, key });
+    }
+  }
+  return segments;
 }
 
 function EventBand({
@@ -705,9 +731,10 @@ function DateAxis({
   scale: Scale;
   y: number;
 }) {
+  const cellW = scale.plotW / model.totalDays;
   return (
     <g aria-hidden="true">
-      {dateTicks(model).map((idx) => (
+      {dayTicks(model, cellW).map((idx) => (
         <g key={idx}>
           <line
             x1={scale.x(idx)}
@@ -718,14 +745,31 @@ function DateAxis({
           />
           <text
             x={scale.x(idx)}
-            y={y + 13}
+            y={y + 12}
             textAnchor="middle"
             className={styles.insightsAxisLabel}
           >
-            {shortDayLabel(model.windowStart, idx)}
+            {dayNumberLabel(model.windowStart, idx)}
           </text>
         </g>
       ))}
+      {monthSegments(model).map((seg) => {
+        const left = scale.bandX(seg.startIdx);
+        const right = scale.bandX(seg.endIdx + 1);
+        // Skip months too narrow to label without crowding their neighbour.
+        if (right - left < 26) return null;
+        return (
+          <text
+            key={seg.startIdx}
+            x={(left + right) / 2}
+            y={y + 26}
+            textAnchor="middle"
+            className={styles.insightsAxisMonthLabel}
+          >
+            {formatMonthShort(parseDayKey(seg.key))}
+          </text>
+        );
+      })}
     </g>
   );
 }
@@ -792,7 +836,7 @@ function SwimlaneFigure({
   const topPad = 16;
   const lanesBottom = topPad + lanes.length * LANE_HEIGHT;
   const extraRow = collapsible ? 18 : 0;
-  const height = lanesBottom + extraRow + 26;
+  const height = lanesBottom + extraRow + 40;
 
   return (
     <svg
@@ -881,7 +925,7 @@ function CrescendoFigure({ model, width }: { model: TimelineModel; width: number
   const scale = makeScale(model, width, 30, 12);
   const chartTop = 22;
   const chartBottom = 118;
-  const height = chartBottom + 26;
+  const height = chartBottom + 40;
   const barGap = 2;
   const cellW = scale.plotW / model.totalDays;
   const barW = Math.max(2, cellW - barGap);
@@ -969,7 +1013,7 @@ function PhaseStripFigure({
   const topPad = 16;
   const laneH = 26;
   const lanesBottom = topPad + model.phaseLanes.length * laneH;
-  const height = lanesBottom + 26;
+  const height = lanesBottom + 40;
 
   return (
     <svg

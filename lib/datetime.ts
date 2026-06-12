@@ -446,6 +446,18 @@ export function formatShortDate(
   }).format(date);
 }
 
+/** "May" — short month name on its own, for layered axis labels. */
+export function formatMonthShort(
+  input: Date | string | number | null | undefined,
+  opts: FormatOpts = {}
+): string {
+  const date = toDate(input);
+  if (!date) return opts.fallback ?? "-";
+  return getFormatter(opts.locale, opts.zone ?? getActiveTimeZone(), {
+    month: "short"
+  }).format(date);
+}
+
 /** "May 2026" — month + year. */
 export function formatMonthYear(
   input: Date | string | number | null | undefined,

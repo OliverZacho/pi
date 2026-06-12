@@ -106,6 +106,28 @@ export type CollectionRuleCombinator = "AND" | "OR";
 export const COLLECTION_RULE_SCOPES = ["all", "future", "past"] as const;
 export type CollectionRuleScope = (typeof COLLECTION_RULE_SCOPES)[number];
 
+/**
+ * Optional time window that constrains which emails the rule matches by
+ * `received_at` — independent of, and AND'd with, both the `scope`
+ * anchor and the per-condition combinator. Two shapes:
+ *
+ *  - `rolling` → a window that always trails "now", e.g. "the last 30
+ *    days". Re-evaluated on every query, so emails age out of the
+ *    collection as they fall past the window.
+ *  - `range`   → a fixed window between two calendar dates (inclusive).
+ *    `from` / `to` are `YYYY-MM-DD` strings; at least one is set and a
+ *    `null` end means "open-ended" on that side.
+ *
+ * `null` (the default) means "any time".
+ */
+export const COLLECTION_RULE_WINDOW_UNITS = ["days", "weeks", "months"] as const;
+export type CollectionRuleWindowUnit =
+  (typeof COLLECTION_RULE_WINDOW_UNITS)[number];
+
+export type CollectionRuleTimeWindow =
+  | { type: "rolling"; amount: number; unit: CollectionRuleWindowUnit }
+  | { type: "range"; from: string | null; to: string | null };
+
 export type CollectionRules = {
   version: 1;
   combinator: CollectionRuleCombinator;
@@ -113,7 +135,11 @@ export type CollectionRules = {
   scope: CollectionRuleScope;
   /** ISO timestamp; required when `scope !== "all"`, otherwise `null`. */
   appliedAt: string | null;
+  /** Optional `received_at` window; `null` means "any time". */
+  timeWindow: CollectionRuleTimeWindow | null;
 };
+
+const MAX_ROLLING_WINDOW_AMOUNT = 3650;
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -229,13 +255,125 @@ export function parseCollectionRules(input: unknown): CollectionRules | null {
     appliedAt = null;
   }
 
+  const timeWindow = parseTimeWindow(raw.timeWindow);
+
   return {
     version: 1,
     combinator,
     conditions,
     scope,
-    appliedAt
+    appliedAt,
+    timeWindow
   };
+}
+
+/**
+ * Coerce the optional `received_at` window. Returns `null` for
+ * missing / explicit-null input so rule rows that predate this field
+ * keep parsing as "any time".
+ */
+function parseTimeWindow(input: unknown): CollectionRuleTimeWindow | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw new CollectionRulesValidationError(
+      "rules.timeWindow must be an object"
+    );
+  }
+  const raw = input as Record<string, unknown>;
+
+  if (raw.type === "rolling") {
+    const amount = raw.amount;
+    if (
+      typeof amount !== "number" ||
+      !Number.isInteger(amount) ||
+      amount < 1 ||
+      amount > MAX_ROLLING_WINDOW_AMOUNT
+    ) {
+      throw new CollectionRulesValidationError(
+        `rules.timeWindow.amount must be a whole number between 1 and ${MAX_ROLLING_WINDOW_AMOUNT}`
+      );
+    }
+    const unit = raw.unit;
+    if (
+      typeof unit !== "string" ||
+      !(COLLECTION_RULE_WINDOW_UNITS as readonly string[]).includes(unit)
+    ) {
+      throw new CollectionRulesValidationError(
+        'rules.timeWindow.unit must be "days", "weeks" or "months"'
+      );
+    }
+    return { type: "rolling", amount, unit: unit as CollectionRuleWindowUnit };
+  }
+
+  if (raw.type === "range") {
+    const from = parseWindowDate(raw.from, "from");
+    const to = parseWindowDate(raw.to, "to");
+    if (!from && !to) {
+      throw new CollectionRulesValidationError(
+        "rules.timeWindow needs at least a from or to date"
+      );
+    }
+    // Both are normalised to `YYYY-MM-DD`, so a lexical compare is a
+    // chronological one.
+    if (from && to && from > to) {
+      throw new CollectionRulesValidationError(
+        "rules.timeWindow.from must be on or before rules.timeWindow.to"
+      );
+    }
+    return { type: "range", from, to };
+  }
+
+  throw new CollectionRulesValidationError(
+    'rules.timeWindow.type must be "rolling" or "range"'
+  );
+}
+
+function parseWindowDate(value: unknown, label: string): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") {
+    throw new CollectionRulesValidationError(
+      `rules.timeWindow.${label} must be a YYYY-MM-DD date string`
+    );
+  }
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new CollectionRulesValidationError(
+      `rules.timeWindow.${label} must be a YYYY-MM-DD date`
+    );
+  }
+  if (!Number.isFinite(Date.parse(`${trimmed}T00:00:00.000Z`))) {
+    throw new CollectionRulesValidationError(
+      `rules.timeWindow.${label} is not a valid date`
+    );
+  }
+  return trimmed;
+}
+
+/**
+ * Resolve a time window into concrete `received_at` bounds. For
+ * `rolling` the lower bound is computed against "now" at call time, so
+ * the window genuinely trails the present on every evaluation.
+ */
+function timeWindowBounds(
+  window: CollectionRuleTimeWindow | null
+): { gte?: string; lte?: string } {
+  if (!window) return {};
+  if (window.type === "rolling") {
+    const cutoff = new Date();
+    if (window.unit === "months") {
+      cutoff.setMonth(cutoff.getMonth() - window.amount);
+    } else if (window.unit === "weeks") {
+      cutoff.setDate(cutoff.getDate() - window.amount * 7);
+    } else {
+      cutoff.setDate(cutoff.getDate() - window.amount);
+    }
+    return { gte: cutoff.toISOString() };
+  }
+  const bounds: { gte?: string; lte?: string } = {};
+  if (window.from) bounds.gte = `${window.from}T00:00:00.000Z`;
+  // `to` is inclusive of the whole calendar day.
+  if (window.to) bounds.lte = `${window.to}T23:59:59.999Z`;
+  return bounds;
 }
 
 /**
@@ -1022,6 +1160,11 @@ export async function evaluateCollectionRules(
     query = query.lt("received_at", rules.appliedAt);
   }
 
+  // The optional time window is likewise an outer AND on `received_at`.
+  const window = timeWindowBounds(rules.timeWindow);
+  if (window.gte) query = query.gte("received_at", window.gte);
+  if (window.lte) query = query.lte("received_at", window.lte);
+
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {
       switch (filter.type) {
@@ -1141,6 +1284,10 @@ export async function evaluateCollectionRuleIds(
   } else if (rules.scope === "past" && rules.appliedAt) {
     query = query.lt("received_at", rules.appliedAt);
   }
+
+  const window = timeWindowBounds(rules.timeWindow);
+  if (window.gte) query = query.gte("received_at", window.gte);
+  if (window.lte) query = query.lte("received_at", window.lte);
 
   if (compiled.combinator === "AND") {
     for (const filter of compiled.filters) {
