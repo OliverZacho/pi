@@ -1,6 +1,8 @@
 import type { BrandPageData } from "./brand-db";
+import { getZonedParts } from "./datetime";
 import {
   analyzeSeasonalRunup,
+  buildEventMatcher,
   SEASONAL_EVENTS
 } from "./seasonal-events";
 
@@ -78,6 +80,28 @@ export type ContentMixInsight = {
   rows: ContentMixRow[];
 };
 
+export type QuietZonesInsight = {
+  takeaway: string | null;
+  /**
+   * grid[daypartIndex][weekdayIndex] = sends across the whole group,
+   * weekdays Monday-first. Dayparts per {@link QUIET_ZONE_DAYPARTS};
+   * night (23–06) is excluded — an empty night is trivia, not an
+   * opportunity.
+   */
+  grid: number[][];
+  totalSends: number;
+};
+
+export type DiscountTrendInsight = {
+  /** Month keys (YYYY-MM), ascending — the shared x-axis. */
+  months: string[];
+  /**
+   * One row per brand (aligned with the `brands` array): average
+   * discount per month, or null for months without discount emails.
+   */
+  rows: { index: number; name: string; points: (number | null)[] }[];
+};
+
 export type ComparisonInsights = {
   rhythm: RhythmInsight;
   timingTakeaway: string | null;
@@ -87,6 +111,12 @@ export type ComparisonInsights = {
   /** Group-wide subject-length range for the fingerprint sliders. */
   subjectLengthRange: { min: number; max: number } | null;
   mix: ContentMixInsight;
+  quietZones: QuietZonesInsight;
+  /** Per-brand share of subjects using urgency language (brands order). */
+  urgencyShares: number[];
+  /** Per-brand share of campaigns that get a follow-up send (brands order). */
+  reminderShares: number[];
+  discountTrend: DiscountTrendInsight;
 };
 
 /* ------------------------------------------------------------------ */
@@ -358,7 +388,10 @@ function buildOccasions(brands: BrandPageData[]): OccasionInsight {
 /* Voice — copy habits                                                 */
 /* ------------------------------------------------------------------ */
 
-function buildVoice(brands: BrandPageData[]): {
+function buildVoice(
+  brands: BrandPageData[],
+  urgencyShares: number[]
+): {
   takeaway: string | null;
   range: { min: number; max: number } | null;
 } {
@@ -371,6 +404,8 @@ function buildVoice(brands: BrandPageData[]): {
 
   if (brands.length < 2) return { takeaway: null, range };
 
+  // Candidate clauses in priority order; at most two make the sentence
+  // so the takeaway stays a takeaway and not a paragraph.
   const clauses: string[] = [];
 
   if (withLength.length >= 2 && range && range.max - range.min >= 15) {
@@ -387,6 +422,17 @@ function buildVoice(brands: BrandPageData[]): {
     }
   }
 
+  const byUrgency = brands
+    .map((b, i) => ({ name: b.brand.name, share: urgencyShares[i] ?? 0 }))
+    .sort((a, b) => b.share - a.share);
+  const urgencyTop = byUrgency[0];
+  const urgencyBottom = byUrgency[byUrgency.length - 1];
+  if (urgencyTop.share >= 0.2 && urgencyBottom.share <= 0.05) {
+    clauses.push(
+      `${urgencyTop.name} pushes urgency ("last chance", "ends tonight") in ${pct(urgencyTop.share)} of subjects; ${urgencyBottom.name} ${urgencyBottom.share === 0 ? "never does" : "almost never does"}.`
+    );
+  }
+
   const byEmoji = [...brands].sort((a, b) => b.emojis.share - a.emojis.share);
   const emojiTop = byEmoji[0];
   const emojiBottom = byEmoji[byEmoji.length - 1];
@@ -396,7 +442,8 @@ function buildVoice(brands: BrandPageData[]): {
     );
   }
 
-  return { takeaway: clauses.length > 0 ? clauses.join(" ") : null, range };
+  const picked = clauses.slice(0, 2);
+  return { takeaway: picked.length > 0 ? picked.join(" ") : null, range };
 }
 
 /* ------------------------------------------------------------------ */
@@ -471,20 +518,386 @@ function getShare(row: ContentMixRow, categoryId: string): number {
 }
 
 /* ------------------------------------------------------------------ */
+/* Quiet zones — where nobody in the group sends                       */
+/* ------------------------------------------------------------------ */
+
+export const QUIET_ZONE_DAYPARTS = [
+  { id: "morning", label: "Morning", fromHour: 6, toHour: 12 },
+  { id: "afternoon", label: "Afternoon", fromHour: 12, toHour: 17 },
+  { id: "evening", label: "Evening", fromHour: 17, toHour: 23 }
+] as const;
+
+export const QUIET_ZONE_DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday"
+] as const;
+
+/** Below this many total sends an empty cell is sampling noise, not a
+ *  finding — the takeaway stays silent. */
+const QUIET_ZONE_MIN_SENDS = 40;
+
+function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
+  const grid: number[][] = QUIET_ZONE_DAYPARTS.map(() =>
+    new Array(QUIET_ZONE_DAYS.length).fill(0)
+  );
+  let totalSends = 0;
+
+  for (const brand of brands) {
+    for (const email of brand.seasonalSample) {
+      let parts;
+      try {
+        parts = getZonedParts(email.receivedAt);
+      } catch {
+        continue;
+      }
+      // 0 = Sunday in ZonedParts; shift to Monday-first columns.
+      const dayIdx = (parts.weekday + 6) % 7;
+      const daypartIdx = QUIET_ZONE_DAYPARTS.findIndex(
+        (dp) => parts.hour >= dp.fromHour && parts.hour < dp.toHour
+      );
+      if (daypartIdx === -1) continue;
+      grid[daypartIdx][dayIdx] += 1;
+      totalSends += 1;
+    }
+  }
+
+  let takeaway: string | null = null;
+  if (brands.length >= 2 && totalSends >= QUIET_ZONE_MIN_SENDS) {
+    // A fully empty day beats a single empty slot; weekdays beat the
+    // weekend because an untouched Tuesday is the bigger surprise.
+    const dayScanOrder = [0, 1, 2, 3, 4, 5, 6];
+    const emptyDay = dayScanOrder.find((dayIdx) =>
+      grid.every((row) => row[dayIdx] === 0)
+    );
+    if (emptyDay !== undefined) {
+      takeaway = `Nobody in this group sends on ${QUIET_ZONE_DAYS[emptyDay]}s — the inbox is wide open all day.`;
+    } else {
+      let best: { dayIdx: number; daypartIdx: number; score: number } | null =
+        null;
+      for (let dp = 0; dp < grid.length; dp++) {
+        for (let day = 0; day < QUIET_ZONE_DAYS.length; day++) {
+          if (grid[dp][day] !== 0) continue;
+          const score = (day < 5 ? 2 : 0) + (dp < 2 ? 1 : 0);
+          if (!best || score > best.score) {
+            best = { dayIdx: day, daypartIdx: dp, score };
+          }
+        }
+      }
+      if (best) {
+        takeaway = `No one here competes for ${QUIET_ZONE_DAYS[best.dayIdx]} ${QUIET_ZONE_DAYPARTS[best.daypartIdx].label.toLowerCase()} attention — an open slot.`;
+      } else {
+        takeaway = `Every slot is contested — this group covers the whole week, morning to evening.`;
+      }
+    }
+  }
+
+  return { takeaway, grid, totalSends };
+}
+
+/* ------------------------------------------------------------------ */
+/* Urgency — scarcity language in subjects                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Curated, deliberately conservative phrase list (English + Danish,
+ * matching the platform's market — same convention as the seasonal
+ * event keywords). A false "urgent" reading is a wrong number on a
+ * stats page; a missed paraphrase is invisible.
+ */
+const URGENCY_PHRASES = [
+  "last chance",
+  "last day",
+  "last days",
+  "last call",
+  "final hours",
+  "final call",
+  "final sale hours",
+  "ends tonight",
+  "ends today",
+  "ends tomorrow",
+  "ends sunday",
+  "ends midnight",
+  "ends soon",
+  "hurry",
+  "don't miss",
+  "dont miss",
+  "today only",
+  "tonight only",
+  "selling fast",
+  "almost gone",
+  "while stocks last",
+  "while supplies last",
+  "sidste chance",
+  "sidste dag",
+  "slutter i dag",
+  "slutter i aften",
+  "slutter ved midnat",
+  "kun i dag",
+  "kun i aften",
+  "skynd dig",
+  "gå ikke glip",
+  "udløber"
+];
+
+const matchesUrgency = buildEventMatcher(URGENCY_PHRASES);
+
+/** Share of a brand's sampled emails using urgency language in the
+ *  subject or preheader. */
+export function urgencyShare(brand: BrandPageData): number {
+  const sample = brand.seasonalSample;
+  if (sample.length === 0) return 0;
+  let matched = 0;
+  for (const email of sample) {
+    if (matchesUrgency(`${email.subject ?? ""} ${email.preheader ?? ""}`)) {
+      matched += 1;
+    }
+  }
+  return matched / sample.length;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reminders — does a campaign get a follow-up send?                   */
+/* ------------------------------------------------------------------ */
+
+/** Two sends this many days apart (or closer) with near-identical
+ *  subjects count as one campaign thread. */
+const REMINDER_WINDOW_DAYS = 5;
+const REMINDER_SIMILARITY = 0.6;
+/** Below this many detected campaigns the share is too noisy to claim. */
+const REMINDER_MIN_THREADS = 8;
+
+function subjectTokens(subject: string): Set<string> {
+  const tokens = subject
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .split(" ")
+    .filter((token) => token.length >= 3);
+  return new Set(tokens);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection += 1;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+/**
+ * Detects campaign threads via subject similarity: a send whose
+ * subject heavily overlaps a send from the previous few days is a
+ * reminder/resend of that campaign ("Last chance: 30% off" following
+ * "30% off everything"). Returns the share of threads that received at
+ * least one follow-up. Transactional and welcome emails are excluded —
+ * receipts legitimately repeat phrasing without being campaigns.
+ */
+export function reminderShare(brand: BrandPageData): {
+  share: number;
+  threads: number;
+} {
+  const emails = brand.seasonalSample
+    .filter(
+      (email) =>
+        email.category !== "transactional" && email.category !== "welcome"
+    )
+    .map((email) => ({
+      tokens: subjectTokens(email.subject ?? ""),
+      at: new Date(email.receivedAt).getTime()
+    }))
+    .filter((email) => !Number.isNaN(email.at) && email.tokens.size > 0)
+    .sort((a, b) => a.at - b.at);
+
+  type Thread = { tokens: Set<string>; lastAt: number; size: number };
+  const threads: Thread[] = [];
+  const windowMs = REMINDER_WINDOW_DAYS * 86_400_000;
+
+  for (const email of emails) {
+    let attached = false;
+    // Scan newest-first so a reminder chains onto the most recent
+    // matching thread rather than an older campaign reusing words.
+    for (let i = threads.length - 1; i >= 0; i--) {
+      const thread = threads[i];
+      if (email.at - thread.lastAt > windowMs) break;
+      if (jaccard(email.tokens, thread.tokens) >= REMINDER_SIMILARITY) {
+        thread.lastAt = email.at;
+        thread.size += 1;
+        attached = true;
+        break;
+      }
+    }
+    if (!attached) {
+      threads.push({ tokens: email.tokens, lastAt: email.at, size: 1 });
+    }
+  }
+
+  if (threads.length === 0) return { share: 0, threads: 0 };
+  const withFollowUp = threads.filter((t) => t.size >= 2).length;
+  return { share: withFollowUp / threads.length, threads: threads.length };
+}
+
+/* ------------------------------------------------------------------ */
+/* Discount trend — how depth moves month to month                     */
+/* ------------------------------------------------------------------ */
+
+const TREND_MONTHS = 6;
+
+function monthKey(receivedAt: string): string | null {
+  try {
+    const parts = getZonedParts(receivedAt);
+    return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
+  } catch {
+    return null;
+  }
+}
+
+function buildDiscountTrend(brands: BrandPageData[]): DiscountTrendInsight {
+  // Shared axis: the most recent TREND_MONTHS month keys seen across
+  // the whole group, so every brand's bars align.
+  const allMonths = new Set<string>();
+  for (const brand of brands) {
+    for (const email of brand.seasonalSample) {
+      const key = monthKey(email.receivedAt);
+      if (key) allMonths.add(key);
+    }
+  }
+  const months = [...allMonths].sort().slice(-TREND_MONTHS);
+  const monthIndex = new Map(months.map((key, i) => [key, i]));
+
+  const rows = brands.map((brand, index) => {
+    const sums = new Array<number>(months.length).fill(0);
+    const counts = new Array<number>(months.length).fill(0);
+    for (const email of brand.seasonalSample) {
+      if (email.discountPercent === null || email.discountPercent <= 0) {
+        continue;
+      }
+      const key = monthKey(email.receivedAt);
+      const idx = key !== null ? monthIndex.get(key) : undefined;
+      if (idx === undefined) continue;
+      sums[idx] += email.discountPercent;
+      counts[idx] += 1;
+    }
+    return {
+      index,
+      name: brand.brand.name,
+      points: months.map((_, i) =>
+        counts[i] > 0 ? sums[i] / counts[i] : null
+      )
+    };
+  });
+
+  return { months, rows };
+}
+
+/**
+ * Group-level "discount creep" claim: compares the early months of the
+ * trend window against the recent ones, weighted by email counts.
+ * Returns null without enough volume or movement.
+ */
+function discountCreepTakeaway(
+  brands: BrandPageData[],
+  trend: DiscountTrendInsight
+): string | null {
+  if (brands.length < 2 || trend.months.length < 4) return null;
+
+  const monthIndexOf = new Map(trend.months.map((key, i) => [key, i]));
+  const sums = new Array<number>(trend.months.length).fill(0);
+  const counts = new Array<number>(trend.months.length).fill(0);
+  for (const brand of brands) {
+    for (const email of brand.seasonalSample) {
+      if (email.discountPercent === null || email.discountPercent <= 0) {
+        continue;
+      }
+      const key = monthKey(email.receivedAt);
+      const idx = key !== null ? monthIndexOf.get(key) : undefined;
+      if (idx === undefined) continue;
+      sums[idx] += email.discountPercent;
+      counts[idx] += 1;
+    }
+  }
+
+  const half = Math.floor(trend.months.length / 2);
+  const earlyCount = counts.slice(0, half).reduce((a, b) => a + b, 0);
+  const lateCount = counts.slice(half).reduce((a, b) => a + b, 0);
+  if (earlyCount < 5 || lateCount < 5) return null;
+
+  const earlyAvg =
+    sums.slice(0, half).reduce((a, b) => a + b, 0) / earlyCount;
+  const lateAvg = sums.slice(half).reduce((a, b) => a + b, 0) / lateCount;
+  const delta = lateAvg - earlyAvg;
+  if (Math.abs(delta) < 5) return null;
+
+  const spanMonths = trend.months.length;
+  return `The group's typical discount ${delta > 0 ? "climbed" : "fell"} from ~${Math.round(earlyAvg)}% to ~${Math.round(lateAvg)}% over the last ${spanMonths} months.`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Entry point                                                         */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Reminder-behaviour contrast, appended to the rhythm takeaway: only
+ * speaks when both extremes have enough detected campaigns to trust
+ * the share.
+ */
+function buildReminderClause(
+  brands: BrandPageData[],
+  stats: { share: number; threads: number }[]
+): string | null {
+  if (brands.length < 2) return null;
+  const eligible = brands
+    .map((b, i) => ({
+      name: b.brand.name,
+      share: stats[i]?.share ?? 0,
+      threads: stats[i]?.threads ?? 0
+    }))
+    .filter((entry) => entry.threads >= REMINDER_MIN_THREADS);
+  if (eligible.length < 2) return null;
+
+  const sorted = [...eligible].sort((a, b) => b.share - a.share);
+  const top = sorted[0];
+  const bottom = sorted[sorted.length - 1];
+  if (top.share >= 0.4 && bottom.share <= 0.1) {
+    return `${top.name} follows up on ${pct(top.share)} of campaigns with a reminder send; ${bottom.name} is one-and-done.`;
+  }
+  return null;
+}
 
 export function buildComparisonInsights(
   brands: BrandPageData[]
 ): ComparisonInsights {
-  const voice = buildVoice(brands);
+  const urgencyShares = brands.map((b) => urgencyShare(b));
+  const reminderStats = brands.map((b) => reminderShare(b));
+  const voice = buildVoice(brands, urgencyShares);
+
+  const rhythm = buildRhythm(brands);
+  const reminderClause = buildReminderClause(brands, reminderStats);
+  const rhythmTakeaway =
+    [rhythm.takeaway, reminderClause].filter(Boolean).join(" ") || null;
+
+  const discountTrend = buildDiscountTrend(brands);
+  // A time-based movement claim beats the static contrast when both
+  // are available — change is what marketers act on.
+  const promoTakeaway =
+    discountCreepTakeaway(brands, discountTrend) ??
+    buildPromoTakeaway(brands);
+
   return {
-    rhythm: buildRhythm(brands),
+    rhythm: { ...rhythm, takeaway: rhythmTakeaway },
     timingTakeaway: buildTimingTakeaway(brands),
-    promoTakeaway: buildPromoTakeaway(brands),
+    promoTakeaway,
     occasions: buildOccasions(brands),
     voiceTakeaway: voice.takeaway,
     subjectLengthRange: voice.range,
-    mix: buildContentMix(brands)
+    mix: buildContentMix(brands),
+    quietZones: buildQuietZones(brands),
+    urgencyShares,
+    reminderShares: reminderStats.map((s) => s.share),
+    discountTrend
   };
 }

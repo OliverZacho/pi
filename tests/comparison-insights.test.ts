@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildComparisonInsights, weeklySendRate } from "@/lib/comparison-insights";
+import {
+  buildComparisonInsights,
+  reminderShare,
+  urgencyShare,
+  weeklySendRate
+} from "@/lib/comparison-insights";
 import type { BrandPageData } from "@/lib/brand-db";
 
 /**
@@ -27,7 +32,12 @@ function makeBrand(
     avgSubjectLength?: number | null;
     emojiShare?: number;
     categories?: { id: string; label: string; count: number }[];
-    seasonalSubjects?: { subject: string; receivedAt: string }[];
+    seasonalSubjects?: {
+      subject: string;
+      receivedAt: string;
+      discountPercent?: number | null;
+      category?: string;
+    }[];
   } = {}
 ): BrandPageData {
   return {
@@ -94,6 +104,7 @@ function makeBrand(
       samples: []
     },
     ctas: [],
+    ctaDestinations: [],
     calendar: { start: "2026-01-01", end: "2026-06-01", days: [] },
     recentEmails: [],
     seasonalSample: (overrides.seasonalSubjects ?? []).map((email, i) => ({
@@ -101,10 +112,10 @@ function makeBrand(
       subject: email.subject,
       preheader: null,
       receivedAt: email.receivedAt,
-      category: "seasonal",
+      category: email.category ?? "seasonal",
       hasGif: false,
       hasDarkMode: false,
-      discountPercent: null,
+      discountPercent: email.discountPercent ?? null,
       promoCode: null
     }))
   } as BrandPageData;
@@ -253,6 +264,150 @@ describe("voice takeaway", () => {
       makeBrand("B", { avgSubjectLength: 45, emojiShare: 0.35 })
     ]);
     expect(voiceTakeaway).toBeNull();
+  });
+});
+
+describe("quiet zones", () => {
+  // 2026-06-01 is a Monday; 07:00Z = 09:00 in Copenhagen (CEST) →
+  // Monday morning.
+  function mondayMorningSends(count: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      subject: `Newsletter ${i}`,
+      receivedAt: "2026-06-01T07:00:00Z"
+    }));
+  }
+
+  it("finds a fully empty day once volume is sufficient", () => {
+    const { quietZones } = buildComparisonInsights([
+      makeBrand("A", { seasonalSubjects: mondayMorningSends(25) }),
+      makeBrand("B", { seasonalSubjects: mondayMorningSends(25) })
+    ]);
+    expect(quietZones.grid[0][0]).toBe(50);
+    expect(quietZones.takeaway).toContain("Nobody in this group sends on Tuesdays");
+  });
+
+  it("stays silent below the volume threshold", () => {
+    const { quietZones } = buildComparisonInsights([
+      makeBrand("A", { seasonalSubjects: mondayMorningSends(5) }),
+      makeBrand("B", { seasonalSubjects: mondayMorningSends(5) })
+    ]);
+    expect(quietZones.takeaway).toBeNull();
+    expect(quietZones.totalSends).toBe(10);
+  });
+});
+
+describe("urgency", () => {
+  it("scores urgency phrases and contrasts the extremes in voice", () => {
+    const pushy = makeBrand("Pushy", {
+      seasonalSubjects: [
+        { subject: "Last chance: 30% off", receivedAt: "2026-05-01T10:00:00Z" },
+        { subject: "Hurry — ends tonight", receivedAt: "2026-05-08T10:00:00Z" },
+        { subject: "New arrivals", receivedAt: "2026-05-15T10:00:00Z" },
+        { subject: "Our spring picks", receivedAt: "2026-05-22T10:00:00Z" }
+      ]
+    });
+    const calm = makeBrand("Calm", {
+      seasonalSubjects: [
+        { subject: "Notes from the studio", receivedAt: "2026-05-02T10:00:00Z" },
+        { subject: "A look at the new collection", receivedAt: "2026-05-09T10:00:00Z" }
+      ]
+    });
+    expect(urgencyShare(pushy)).toBeCloseTo(0.5, 5);
+    expect(urgencyShare(calm)).toBe(0);
+
+    const { voiceTakeaway, urgencyShares } = buildComparisonInsights([
+      pushy,
+      calm
+    ]);
+    expect(urgencyShares).toEqual([0.5, 0]);
+    expect(voiceTakeaway).toContain("Pushy pushes urgency");
+    expect(voiceTakeaway).toContain("Calm never does");
+  });
+
+  it("does not match urgency words inside other words", () => {
+    const brand = makeBrand("A", {
+      seasonalSubjects: [
+        // "hurry" must not match "Hurrying" → word-boundary matcher.
+        { subject: "Hurrying through autumn", receivedAt: "2026-05-01T10:00:00Z" }
+      ]
+    });
+    expect(urgencyShare(brand)).toBe(0);
+  });
+});
+
+describe("reminder detection", () => {
+  it("chains near-identical subjects within the window into threads", () => {
+    const brand = makeBrand("A", {
+      seasonalSubjects: [
+        { subject: "Summer sale ends soon", receivedAt: "2026-06-01T10:00:00Z" },
+        { subject: "Reminder: summer sale ends soon", receivedAt: "2026-06-03T10:00:00Z" },
+        { subject: "Meet the new linen shirts", receivedAt: "2026-06-05T10:00:00Z" },
+        { subject: "Our stores are moving", receivedAt: "2026-06-08T10:00:00Z" }
+      ]
+    });
+    const result = reminderShare(brand);
+    expect(result.threads).toBe(3);
+    expect(result.share).toBeCloseTo(1 / 3, 5);
+  });
+
+  it("does not chain similar subjects sent far apart", () => {
+    const brand = makeBrand("A", {
+      seasonalSubjects: [
+        { subject: "Summer sale ends soon", receivedAt: "2026-06-01T10:00:00Z" },
+        { subject: "Summer sale ends soon again", receivedAt: "2026-06-20T10:00:00Z" }
+      ]
+    });
+    const result = reminderShare(brand);
+    expect(result.threads).toBe(2);
+    expect(result.share).toBe(0);
+  });
+
+  it("ignores transactional emails", () => {
+    const brand = makeBrand("A", {
+      seasonalSubjects: [
+        { subject: "Your order has shipped", receivedAt: "2026-06-01T10:00:00Z", category: "transactional" },
+        { subject: "Your order has shipped", receivedAt: "2026-06-02T10:00:00Z", category: "transactional" }
+      ]
+    });
+    expect(reminderShare(brand).threads).toBe(0);
+  });
+});
+
+describe("discount trend", () => {
+  // Two brands, both discounting 15% in Jan–Mar and 30% in Apr–Jun.
+  function creepingBrand(name: string) {
+    const months = ["01", "02", "03", "04", "05", "06"];
+    return makeBrand(name, {
+      seasonalSubjects: months.map((mm, i) => ({
+        subject: `Sale ${mm}`,
+        receivedAt: `2026-${mm}-15T10:00:00Z`,
+        discountPercent: i < 3 ? 15 : 30
+      }))
+    });
+  }
+
+  it("builds aligned monthly averages per brand", () => {
+    const { discountTrend } = buildComparisonInsights([
+      creepingBrand("A"),
+      creepingBrand("B")
+    ]);
+    expect(discountTrend.months).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06"
+    ]);
+    expect(discountTrend.rows[0].points).toEqual([15, 15, 15, 30, 30, 30]);
+  });
+
+  it("reports discount creep as the promo takeaway", () => {
+    const { promoTakeaway } = buildComparisonInsights([
+      creepingBrand("A"),
+      creepingBrand("B")
+    ]);
+    expect(promoTakeaway).toContain("climbed from ~15% to ~30%");
   });
 });
 

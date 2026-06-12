@@ -2053,3 +2053,90 @@
   position: static;
   margin-left: auto;
 }
+
+/* ---------- Quiet zones grid ---------- */
+
+.qzGrid {
+  display: grid;
+  grid-template-columns: 6rem repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  align-items: center;
+  max-width: 560px;
+}
+
+.qzHead {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.qzRowLabel {
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: right;
+  padding-right: 0.5rem;
+  white-space: nowrap;
+}
+
+.qzCell {
+  display: block;
+  height: 1.6rem;
+  border-radius: 6px;
+  background: #0f766e;
+}
+
+.qzCellEmpty {
+  background: transparent;
+  border: 1.5px dashed #f59e0b;
+}
+
+.qzLegend {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* ---------- Promo trend mini-bars ---------- */
+
+.promoTrend {
+  margin-top: 0.8rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.65rem;
+}
+
+.promoTrendBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 2.4rem;
+}
+
+.promoTrendBar {
+  flex: 1;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent, #0f172a);
+  opacity: 0.85;
+  min-width: 0;
+}
+
+.promoTrendBarEmpty {
+  height: 3px;
+  background: #e2e8f0;
+  opacity: 1;
+}
+
+.promoTrendLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* ---------- Fingerprint CTA destination line ---------- */
+
+.fpDestLine {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}

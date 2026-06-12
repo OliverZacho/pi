@@ -26,6 +26,7 @@ export const COMPARE_SECTIONS = [
   { id: "cadence", title: "Send frequency over time" },
   { id: "forecast", title: "Predicted inbox crowding" },
   { id: "send-times", title: "When they send" },
+  { id: "quiet-zones", title: "Quiet zones" },
   { id: "promo", title: "Discount aggressiveness" },
   { id: "occasions", title: "Seasonal moments they activate" },
   { id: "fingerprint", title: "Creative fingerprint" },

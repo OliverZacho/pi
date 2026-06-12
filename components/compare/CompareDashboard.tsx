@@ -1,12 +1,17 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import {
   buildComparisonInsights,
+  QUIET_ZONE_DAYPARTS,
+  QUIET_ZONE_DAYS,
   type ContentMixInsight,
+  type DiscountTrendInsight,
   type OccasionInsight,
+  type QuietZonesInsight,
   type RhythmInsight
 } from "@/lib/comparison-insights";
+import { CTA_DESTINATION_LABELS } from "@/lib/cta-destinations";
 import { colorForCategory } from "@/lib/category-colors";
 import {
   defaultCompareSectionPrefs,
@@ -95,10 +100,22 @@ export default function CompareDashboard({
         <SendTimeStrips brands={brands} takeaway={insights.timingTakeaway} />
       )
     },
+    ...(insights.quietZones.totalSends > 0
+      ? [
+          {
+            id: "quiet-zones" as const,
+            content: <QuietZonesSection insight={insights.quietZones} />
+          }
+        ]
+      : []),
     {
       id: "promo",
       content: (
-        <PromoBlocks brands={brands} takeaway={insights.promoTakeaway} />
+        <PromoBlocks
+          brands={brands}
+          takeaway={insights.promoTakeaway}
+          trend={insights.discountTrend}
+        />
       )
     },
     ...(insights.occasions.rows.length > 0
@@ -118,6 +135,8 @@ export default function CompareDashboard({
           brands={brands}
           takeaway={insights.voiceTakeaway}
           subjectLengthRange={insights.subjectLengthRange}
+          urgencyShares={insights.urgencyShares}
+          reminderShares={insights.reminderShares}
         />
       )
     },
@@ -482,16 +501,93 @@ function HeatmapRow({
 }
 
 /* -----------------------------------------------------------------
+   Quiet zones
+   ----------------------------------------------------------------- */
+
+/**
+ * Day × daypart grid of the whole group's recent sends. The point is
+ * the gaps: a dashed cell is a slot no brand in the comparison is
+ * using — free attention for whoever shows up. Night (23–06) is
+ * excluded; an empty night is not a finding.
+ */
+function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
+  const max = Math.max(1, ...insight.grid.flat());
+
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>Rhythm</span>
+      <h2 className={styles.sectionTitle}>Quiet zones</h2>
+      <p className={styles.sectionSub}>
+        Where this group's recent sends land across the week (Copenhagen
+        time). Dashed cells are slots nobody here is using.
+      </p>
+      <Takeaway text={insight.takeaway} />
+
+      <div className={styles.sectionBody}>
+        <div className={styles.qzGrid}>
+          <span aria-hidden="true" />
+          {QUIET_ZONE_DAYS.map((day) => (
+            <span key={day} className={styles.qzHead}>
+              {day.slice(0, 3)}
+            </span>
+          ))}
+          {QUIET_ZONE_DAYPARTS.map((daypart, dpIdx) => (
+            <Fragment key={daypart.id}>
+              <span className={styles.qzRowLabel}>{daypart.label}</span>
+              {QUIET_ZONE_DAYS.map((day, dayIdx) => {
+                const count = insight.grid[dpIdx][dayIdx];
+                if (count === 0) {
+                  return (
+                    <span
+                      key={day}
+                      className={`${styles.qzCell} ${styles.qzCellEmpty}`}
+                      title={`${day} ${daypart.label.toLowerCase()}: open slot — no sends from this group`}
+                    />
+                  );
+                }
+                return (
+                  <span
+                    key={day}
+                    className={styles.qzCell}
+                    style={{ opacity: 0.18 + (count / max) * 0.82 }}
+                    title={`${day} ${daypart.label.toLowerCase()}: ${count} send${count === 1 ? "" : "s"} across the group`}
+                  />
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+        <p className={styles.qzLegend}>
+          Based on {insight.totalSends.toLocaleString("en-US")} recent sends
+          across the group. Darker = busier.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
    Promo blocks
    ----------------------------------------------------------------- */
 
 function PromoBlocks({
   brands,
-  takeaway
+  takeaway,
+  trend
 }: {
   brands: BrandPageData[];
   takeaway: string | null;
+  trend: DiscountTrendInsight;
 }) {
+  // Shared scale so a 40%-off bar is the same height in every block.
+  const trendMax = Math.max(
+    1,
+    ...trend.rows.flatMap((row) =>
+      row.points.filter((p): p is number => p !== null)
+    )
+  );
+  const showTrend = trend.months.length >= 2;
+
   return (
     <section className={styles.section}>
       <span className={styles.sectionEyebrow}>Offers</span>
@@ -551,12 +647,89 @@ function PromoBlocks({
                   </span>
                 </div>
               </div>
+              {showTrend ? (
+                <PromoTrendStrip
+                  row={trend.rows[idx]}
+                  months={trend.months}
+                  max={trendMax}
+                />
+              ) : null}
             </article>
           );
         })}
       </div>
     </section>
   );
+}
+
+/**
+ * Mini month-by-month average-discount bars inside a promo block. All
+ * blocks share the same month axis and scale so depth is comparable
+ * across brands at a glance.
+ */
+function PromoTrendStrip({
+  row,
+  months,
+  max
+}: {
+  row: DiscountTrendInsight["rows"][number] | undefined;
+  months: string[];
+  max: number;
+}) {
+  if (!row || row.points.every((point) => point === null)) return null;
+
+  return (
+    <div className={styles.promoTrend}>
+      <div className={styles.promoTrendBars}>
+        {row.points.map((point, i) => {
+          if (point === null) {
+            return (
+              <span
+                key={months[i]}
+                className={`${styles.promoTrendBar} ${styles.promoTrendBarEmpty}`}
+                title={`${formatMonthKey(months[i])}: no discount emails`}
+              />
+            );
+          }
+          return (
+            <span
+              key={months[i]}
+              className={styles.promoTrendBar}
+              style={{ height: `${Math.max(12, (point / max) * 100).toFixed(2)}%` }}
+              title={`${formatMonthKey(months[i])}: avg ${Math.round(point)}% off`}
+            />
+          );
+        })}
+      </div>
+      <div className={styles.promoTrendLabels}>
+        <span>{formatMonthKey(months[0])}</span>
+        <span>Avg % by month</span>
+        <span>{formatMonthKey(months[months.length - 1])}</span>
+      </div>
+    </div>
+  );
+}
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+
+/** "2026-05" → "May". Years are dropped — the six-month axis never
+ *  spans far enough for the short label to be ambiguous. */
+function formatMonthKey(key: string): string {
+  const month = Number.parseInt(key.slice(5, 7), 10);
+  return MONTH_SHORT[month - 1] ?? key;
 }
 
 /* -----------------------------------------------------------------
@@ -685,11 +858,17 @@ function OccasionMatrix({
 function FingerprintGrid({
   brands,
   takeaway,
-  subjectLengthRange
+  subjectLengthRange,
+  urgencyShares,
+  reminderShares
 }: {
   brands: BrandPageData[];
   takeaway: string | null;
   subjectLengthRange: { min: number; max: number } | null;
+  /** Aligned with `brands` — share of subjects with urgency language. */
+  urgencyShares: number[];
+  /** Aligned with `brands` — share of campaigns that get a follow-up. */
+  reminderShares: number[];
 }) {
   return (
     <section className={styles.section}>
@@ -769,6 +948,16 @@ function FingerprintGrid({
                     value={`${Math.round(b.design.gifShare * 100)}% of emails`}
                     position={b.design.gifShare}
                   />
+                  <FingerprintMetric
+                    label="Urgency"
+                    value={`${Math.round((urgencyShares[idx] ?? 0) * 100)}% of subjects`}
+                    position={urgencyShares[idx] ?? 0}
+                  />
+                  <FingerprintMetric
+                    label="Resends"
+                    value={`${Math.round((reminderShares[idx] ?? 0) * 100)}% of campaigns`}
+                    position={reminderShares[idx] ?? 0}
+                  />
                 </div>
 
                 {b.ctas.length > 0 ? (
@@ -784,6 +973,8 @@ function FingerprintGrid({
                     ))}
                   </div>
                 ) : null}
+
+                <CtaDestinationsLine destinations={b.ctaDestinations} />
 
                 {b.subjects.samples.length > 0 ? (
                   <div className={styles.fpSamples}>
@@ -817,6 +1008,34 @@ function FingerprintGrid({
         })}
       </div>
     </section>
+  );
+}
+
+/**
+ * One-line summary of where the brand's CTAs point ("CTAs lead to
+ * products 62% · collections 21%"). Hidden below 5 classified links —
+ * a two-link share is a coin flip, not a strategy.
+ */
+function CtaDestinationsLine({
+  destinations
+}: {
+  destinations: BrandPageData["ctaDestinations"];
+}) {
+  const total = destinations.reduce((sum, d) => sum + d.count, 0);
+  if (total < 5) return null;
+  const top = destinations.slice(0, 2);
+  return (
+    <p className={styles.fpDestLine}>
+      CTAs lead to{" "}
+      {top
+        .map(
+          (d) =>
+            `${CTA_DESTINATION_LABELS[d.kind].toLowerCase()} ${Math.round(
+              (d.count / total) * 100
+            )}%`
+        )
+        .join(" · ")}
+    </p>
   );
 }
 

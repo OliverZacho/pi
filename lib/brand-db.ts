@@ -7,6 +7,10 @@ import {
 } from "./admin-types";
 import { defaultBrandAccent, pickBrandAccent, type BrandAccent } from "./brand-accent";
 import {
+  classifyCtaDestination,
+  type CtaDestinationKind
+} from "./cta-destinations";
+import {
   addDaysInZone,
   formatDayKey,
   formatHourOfDay,
@@ -172,6 +176,13 @@ export type BrandPageData = {
    */
   ctas: { text: string; count: number }[];
   /**
+   * Where the brand's primary CTAs point, classified by URL path
+   * (products vs collections vs editorial vs homepage). Sorted by
+   * count, unclassifiable hrefs skipped. Powers the "CTAs lead to"
+   * line on the comparison fingerprint card.
+   */
+  ctaDestinations: { kind: CtaDestinationKind; count: number }[];
+  /**
    * Per-day activity timeline used to render the GitHub-style heatmap
    * on the brand dashboard. `start` and `end` define the contiguous
    * window the grid should cover (the client fills in empty days), and
@@ -288,6 +299,7 @@ type EmailRow = {
   discount_percent: number | string | null;
   promo_code: string | null;
   primary_cta_text: string | null;
+  primary_cta_url: string | null;
   esp_provider: string | null;
   metadata: unknown;
 };
@@ -426,7 +438,7 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, esp_provider, metadata"
+      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
     )
     .eq("company_id", companyId);
   if (activeSegmentId) {
@@ -479,6 +491,7 @@ export async function getBrandPageData(
   const design = computeDesign(emailRows);
   const subjects = computeSubjects(emailRows);
   const ctas = computeCtas(emailRows);
+  const ctaDestinations = computeCtaDestinations(emailRows);
   const calendar = computeCalendar(emailRows);
   const seasonalSample = emailRows.map((row) => ({
     id: row.id,
@@ -549,10 +562,30 @@ export async function getBrandPageData(
     design,
     subjects,
     ctas,
+    ctaDestinations,
     calendar,
     recentEmails,
     seasonalSample
   };
+}
+
+/**
+ * Tallies the classified destinations of every primary CTA in the
+ * sample. Unclassifiable hrefs (missing, mailto:, malformed) are
+ * skipped entirely so the shares reflect real web destinations.
+ */
+function computeCtaDestinations(
+  rows: EmailRow[]
+): BrandPageData["ctaDestinations"] {
+  const counts = new Map<CtaDestinationKind, number>();
+  for (const row of rows) {
+    const kind = classifyCtaDestination(row.primary_cta_url);
+    if (!kind) continue;
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([kind, count]) => ({ kind, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
