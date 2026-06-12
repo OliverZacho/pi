@@ -46,6 +46,17 @@
   text-decoration: none;
 }
 
+/* Stretch the mosaic link across the whole card so clicking anywhere —
+ * mosaic or meta footer — opens the collection. Sits above the mosaic
+ * (iframes are pointer-events:none) and the meta, but below the overlay
+ * pills (z-index 3) so Share/Open stay independently clickable. */
+.cardLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 /* 2x2 mosaic of email previews. We pin a fixed aspect ratio so the
  * mosaic + meta footer always lay out the same regardless of how many
  * emails the user has stuffed into the collection. */
@@ -153,6 +164,13 @@
 .card:hover .cardOverlay,
 .card:focus-within .cardOverlay {
   opacity: 1;
+}
+
+/* Only allow the pills to take clicks once the overlay is actually
+ * revealed, so the invisible (opacity:0) pills don't intercept taps over
+ * the bottom-center of the card when it isn't hovered/focused. */
+.card:hover .overlayPill,
+.card:focus-within .overlayPill {
   pointer-events: auto;
 }
 
@@ -160,6 +178,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
   padding: 0.5rem 0.85rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1581,6 +1602,13 @@ select.ruleOperator:focus {
   fill: #94a3b8;
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
+}
+
+.insightsAxisMonthLabel {
+  fill: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .insightsAxisTick {
