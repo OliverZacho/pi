@@ -321,6 +321,24 @@ describe("quiet zones", () => {
     ]);
     expect(quietZones.takeaway).toBeNull();
     expect(quietZones.totalSends).toBe(10);
+    expect(quietZones.openings).toEqual([]);
+    expect(quietZones.busiest).toBeNull();
+  });
+
+  it("ranks openings quietest-first and names the busiest slot", () => {
+    // 50 sends all in Monday morning → that's the busiest cell, and the
+    // quietest openings are empty slots (count 0), weekday-first.
+    const { quietZones } = buildComparisonInsights([
+      makeBrand("A", { seasonalSubjects: mondayMorningSends(25) }),
+      makeBrand("B", { seasonalSubjects: mondayMorningSends(25) })
+    ]);
+    expect(quietZones.openings).toHaveLength(3);
+    expect(quietZones.openings.every((slot) => slot.count === 0)).toBe(true);
+    // Tie-break favours weekday + earlier daypart, so the very first
+    // opening is a weekday morning (never Monday — that's the busy one).
+    expect(quietZones.openings[0].label).toMatch(/morning$/);
+    expect(quietZones.busiest?.label).toBe("Monday morning");
+    expect(quietZones.busiest?.count).toBe(50);
   });
 });
 

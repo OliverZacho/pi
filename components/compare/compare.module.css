@@ -2088,12 +2088,85 @@
 
 /* ---------- Quiet zones grid ---------- */
 
+/* Grid on the left, the actionable "best windows" panel filling the
+   space on the right; stacks on narrow viewports. */
+.qzLayout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2.5rem;
+  align-items: flex-start;
+}
+
+.qzMain {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
 .qzGrid {
   display: grid;
   grid-template-columns: 6rem repeat(7, minmax(0, 1fr));
   gap: 5px;
   align-items: center;
-  max-width: 560px;
+}
+
+.qzPanel {
+  flex: 1 1 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.qzPanelLabel {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
+}
+
+.qzOpenings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.qzOpening {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+}
+
+.qzOpeningSlot {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.qzOpeningMeta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #15803d;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.qzPanelFootnote {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.qzPanelFootnote strong {
+  color: #64748b;
+  font-weight: 600;
 }
 
 .qzHead {

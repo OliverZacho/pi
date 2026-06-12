@@ -673,44 +673,70 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
       </p>
       <Takeaway text={insight.takeaway} />
 
-      <div className={styles.sectionBody}>
-        <div className={styles.qzGrid}>
-          <span aria-hidden="true" />
-          {QUIET_ZONE_DAYS.map((day) => (
-            <span key={day} className={styles.qzHead}>
-              {day.slice(0, 3)}
-            </span>
-          ))}
-          {QUIET_ZONE_DAYPARTS.map((daypart, dpIdx) => (
-            <Fragment key={daypart.id}>
-              <span className={styles.qzRowLabel}>{daypart.label}</span>
-              {QUIET_ZONE_DAYS.map((day, dayIdx) => {
-                const count = insight.grid[dpIdx][dayIdx];
-                if (count === 0) {
+      <div className={`${styles.sectionBody} ${styles.qzLayout}`}>
+        <div className={styles.qzMain}>
+          <div className={styles.qzGrid}>
+            <span aria-hidden="true" />
+            {QUIET_ZONE_DAYS.map((day) => (
+              <span key={day} className={styles.qzHead}>
+                {day.slice(0, 3)}
+              </span>
+            ))}
+            {QUIET_ZONE_DAYPARTS.map((daypart, dpIdx) => (
+              <Fragment key={daypart.id}>
+                <span className={styles.qzRowLabel}>{daypart.label}</span>
+                {QUIET_ZONE_DAYS.map((day, dayIdx) => {
+                  const count = insight.grid[dpIdx][dayIdx];
+                  if (count === 0) {
+                    return (
+                      <span
+                        key={day}
+                        className={`${styles.qzCell} ${styles.qzCellEmpty}`}
+                        title={`${day} ${daypart.label.toLowerCase()}: open slot — no sends from this group`}
+                      />
+                    );
+                  }
                   return (
                     <span
                       key={day}
-                      className={`${styles.qzCell} ${styles.qzCellEmpty}`}
-                      title={`${day} ${daypart.label.toLowerCase()}: open slot — no sends from this group`}
+                      className={styles.qzCell}
+                      style={{ opacity: 0.18 + (count / max) * 0.82 }}
+                      title={`${day} ${daypart.label.toLowerCase()}: ${count} send${count === 1 ? "" : "s"} across the group`}
                     />
                   );
-                }
-                return (
-                  <span
-                    key={day}
-                    className={styles.qzCell}
-                    style={{ opacity: 0.18 + (count / max) * 0.82 }}
-                    title={`${day} ${daypart.label.toLowerCase()}: ${count} send${count === 1 ? "" : "s"} across the group`}
-                  />
-                );
-              })}
-            </Fragment>
-          ))}
+                })}
+              </Fragment>
+            ))}
+          </div>
+          <p className={styles.qzLegend}>
+            Based on {insight.totalSends.toLocaleString("en-US")} recent sends
+            across the group. Darker = busier.
+          </p>
         </div>
-        <p className={styles.qzLegend}>
-          Based on {insight.totalSends.toLocaleString("en-US")} recent sends
-          across the group. Darker = busier.
-        </p>
+
+        {insight.openings.length > 0 ? (
+          <aside className={styles.qzPanel}>
+            <span className={styles.qzPanelLabel}>Best windows to send</span>
+            <ul className={styles.qzOpenings}>
+              {insight.openings.map((slot) => (
+                <li key={slot.label} className={styles.qzOpening}>
+                  <span className={styles.qzOpeningSlot}>{slot.label}</span>
+                  <span className={styles.qzOpeningMeta}>
+                    {slot.count === 0
+                      ? "open"
+                      : `${slot.count} send${slot.count === 1 ? "" : "s"}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {insight.busiest && insight.busiest.count > 0 ? (
+              <span className={styles.qzPanelFootnote}>
+                Most crowded: <strong>{insight.busiest.label}</strong> (
+                {insight.busiest.count} sends)
+              </span>
+            ) : null}
+          </aside>
+        ) : null}
       </div>
     </section>
   );

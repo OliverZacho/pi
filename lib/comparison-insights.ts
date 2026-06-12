@@ -86,6 +86,14 @@ export type ContentMixInsight = {
   rows: ContentMixRow[];
 };
 
+export type QuietZoneSlot = {
+  dayIndex: number;
+  daypartIndex: number;
+  /** "Friday evening" — ready to render. */
+  label: string;
+  count: number;
+};
+
 export type QuietZonesInsight = {
   takeaway: string | null;
   /**
@@ -96,6 +104,16 @@ export type QuietZonesInsight = {
    */
   grid: number[][];
   totalSends: number;
+  /**
+   * The most open send windows, quietest first — the actionable "slot
+   * your campaign here" shortlist. Weekday + earlier-daypart slots win
+   * ties, so an empty Tuesday morning ranks above an empty Saturday
+   * evening. Empty until the sample clears the volume threshold.
+   */
+  openings: QuietZoneSlot[];
+  /** The single busiest window — the one to avoid (or to validate a
+   *  time everyone already trusts). Null below the volume threshold. */
+  busiest: QuietZoneSlot | null;
 };
 
 export type DiscountTrendInsight = {
@@ -606,10 +624,45 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
     }
   }
 
+  const enough = brands.length >= 2 && totalSends >= QUIET_ZONE_MIN_SENDS;
+
+  // Desirability of an open slot: weekday beats weekend (an untouched
+  // Tuesday is the bigger opportunity than a quiet Saturday), and an
+  // earlier daypart beats a later one. Shared by the takeaway and the
+  // ranked openings so they never disagree.
+  const slotScore = (dayIdx: number, daypartIdx: number) =>
+    (dayIdx < 5 ? 2 : 0) + (daypartIdx < 2 ? 1 : 0);
+
+  const slots: QuietZoneSlot[] = [];
+  for (let dp = 0; dp < grid.length; dp++) {
+    for (let day = 0; day < QUIET_ZONE_DAYS.length; day++) {
+      slots.push({
+        dayIndex: day,
+        daypartIndex: dp,
+        label: `${QUIET_ZONE_DAYS[day]} ${QUIET_ZONE_DAYPARTS[dp].label.toLowerCase()}`,
+        count: grid[dp][day]
+      });
+    }
+  }
+
+  // Openings: quietest first, ties broken by desirability.
+  const openings = enough
+    ? [...slots]
+        .sort(
+          (a, b) =>
+            a.count - b.count ||
+            slotScore(b.dayIndex, b.daypartIndex) -
+              slotScore(a.dayIndex, a.daypartIndex)
+        )
+        .slice(0, 3)
+    : [];
+
+  const busiest = enough
+    ? slots.reduce((a, b) => (b.count > a.count ? b : a))
+    : null;
+
   let takeaway: string | null = null;
-  if (brands.length >= 2 && totalSends >= QUIET_ZONE_MIN_SENDS) {
-    // A fully empty day beats a single empty slot; weekdays beat the
-    // weekend because an untouched Tuesday is the bigger surprise.
+  if (enough) {
     const dayScanOrder = [0, 1, 2, 3, 4, 5, 6];
     const emptyDay = dayScanOrder.find((dayIdx) =>
       grid.every((row) => row[dayIdx] === 0)
@@ -617,26 +670,16 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
     if (emptyDay !== undefined) {
       takeaway = `Nobody in this group sends on ${QUIET_ZONE_DAYS[emptyDay]}s — the inbox is wide open all day.`;
     } else {
-      let best: { dayIdx: number; daypartIdx: number; score: number } | null =
-        null;
-      for (let dp = 0; dp < grid.length; dp++) {
-        for (let day = 0; day < QUIET_ZONE_DAYS.length; day++) {
-          if (grid[dp][day] !== 0) continue;
-          const score = (day < 5 ? 2 : 0) + (dp < 2 ? 1 : 0);
-          if (!best || score > best.score) {
-            best = { dayIdx: day, daypartIdx: dp, score };
-          }
-        }
-      }
-      if (best) {
-        takeaway = `No one here competes for ${QUIET_ZONE_DAYS[best.dayIdx]} ${QUIET_ZONE_DAYPARTS[best.daypartIdx].label.toLowerCase()} attention — an open slot.`;
+      const topOpening = openings[0];
+      if (topOpening && topOpening.count === 0) {
+        takeaway = `No one here competes for ${topOpening.label} attention — an open slot.`;
       } else {
         takeaway = `Every slot is contested — this group covers the whole week, morning to evening.`;
       }
     }
   }
 
-  return { takeaway, grid, totalSends };
+  return { takeaway, grid, totalSends, openings, busiest };
 }
 
 /* ------------------------------------------------------------------ */
