@@ -2184,15 +2184,82 @@
 }
 
 .qzCell {
+  position: relative;
   display: block;
   height: 1.6rem;
   border-radius: 6px;
   background: #0f766e;
+  cursor: default;
+  outline: none;
+}
+
+.qzCell:focus-visible {
+  box-shadow: 0 0 0 2px #0f172a;
 }
 
 .qzCellEmpty {
   background: transparent;
   border: 1.5px dashed #f59e0b;
+}
+
+/* Hover/focus popover naming who sends in this slot. Anchored above the
+   cell, instant (CSS-only), and lifted above neighbouring cells. */
+.qzCellPop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  min-width: 8.5rem;
+  max-width: 14rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.65rem;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: var(--popover-shadow);
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.qzCell:hover .qzCellPop,
+.qzCell:focus-visible .qzCellPop {
+  display: flex;
+}
+
+.qzCellPopTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.qzWhoEmpty {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.qzWhoBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.qzWhoDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.qzWhoCount {
+  margin-left: auto;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
 }
 
 .qzLegend {

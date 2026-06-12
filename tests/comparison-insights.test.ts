@@ -339,6 +339,13 @@ describe("quiet zones", () => {
     expect(quietZones.openings[0].label).toMatch(/morning$/);
     expect(quietZones.busiest?.label).toBe("Monday morning");
     expect(quietZones.busiest?.count).toBe(50);
+    // Hover breakdown: both brands send in the busiest slot; open slots
+    // have no senders.
+    expect(quietZones.busiest?.senders.map((s) => s.name).sort()).toEqual([
+      "A",
+      "B"
+    ]);
+    expect(quietZones.openings[0].senders).toEqual([]);
   });
 });
 

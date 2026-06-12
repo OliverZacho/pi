@@ -92,6 +92,12 @@ export type QuietZoneSlot = {
   /** "Friday evening" — ready to render. */
   label: string;
   count: number;
+  /**
+   * Which brands send in this slot, busiest first — powers the hover
+   * "who's here" breakdown. `index` aligns with the `brands` array so
+   * the UI can recover each brand's colour. Empty for an open slot.
+   */
+  senders: { index: number; name: string; count: number }[];
 };
 
 export type QuietZonesInsight = {
@@ -103,6 +109,9 @@ export type QuietZonesInsight = {
    * opportunity.
    */
   grid: number[][];
+  /** Full slot detail per cell: cells[daypartIndex][dayIndex], carrying
+   *  the per-brand senders so a grid cell can show who's there on hover. */
+  cells: QuietZoneSlot[][];
   totalSends: number;
   /**
    * The most open send windows, quietest first — the actionable "slot
@@ -603,9 +612,13 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
   const grid: number[][] = QUIET_ZONE_DAYPARTS.map(() =>
     new Array(QUIET_ZONE_DAYS.length).fill(0)
   );
+  // Per-slot brand tallies: byBrand[daypart][day] = Map(brandIndex → count).
+  const byBrand: Map<number, number>[][] = QUIET_ZONE_DAYPARTS.map(() =>
+    Array.from({ length: QUIET_ZONE_DAYS.length }, () => new Map<number, number>())
+  );
   let totalSends = 0;
 
-  for (const brand of brands) {
+  brands.forEach((brand, brandIndex) => {
     for (const email of brand.seasonalSample) {
       let parts;
       try {
@@ -620,9 +633,11 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
       );
       if (daypartIdx === -1) continue;
       grid[daypartIdx][dayIdx] += 1;
+      const cell = byBrand[daypartIdx][dayIdx];
+      cell.set(brandIndex, (cell.get(brandIndex) ?? 0) + 1);
       totalSends += 1;
     }
-  }
+  });
 
   const enough = brands.length >= 2 && totalSends >= QUIET_ZONE_MIN_SENDS;
 
@@ -633,17 +648,22 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
   const slotScore = (dayIdx: number, daypartIdx: number) =>
     (dayIdx < 5 ? 2 : 0) + (daypartIdx < 2 ? 1 : 0);
 
-  const slots: QuietZoneSlot[] = [];
-  for (let dp = 0; dp < grid.length; dp++) {
-    for (let day = 0; day < QUIET_ZONE_DAYS.length; day++) {
-      slots.push({
-        dayIndex: day,
-        daypartIndex: dp,
-        label: `${QUIET_ZONE_DAYS[day]} ${QUIET_ZONE_DAYPARTS[dp].label.toLowerCase()}`,
-        count: grid[dp][day]
-      });
-    }
-  }
+  const cells: QuietZoneSlot[][] = grid.map((row, dp) =>
+    row.map((count, day) => ({
+      dayIndex: day,
+      daypartIndex: dp,
+      label: `${QUIET_ZONE_DAYS[day]} ${QUIET_ZONE_DAYPARTS[dp].label.toLowerCase()}`,
+      count,
+      senders: [...byBrand[dp][day].entries()]
+        .map(([index, n]) => ({
+          index,
+          name: brands[index]?.brand.name ?? "",
+          count: n
+        }))
+        .sort((a, b) => b.count - a.count)
+    }))
+  );
+  const slots: QuietZoneSlot[] = cells.flat();
 
   // Openings: quietest first, ties broken by desirability.
   const openings = enough
@@ -679,7 +699,7 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
     }
   }
 
-  return { takeaway, grid, totalSends, openings, busiest };
+  return { takeaway, grid, cells, totalSends, openings, busiest };
 }
 
 /* ------------------------------------------------------------------ */

@@ -685,32 +685,20 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
             {QUIET_ZONE_DAYPARTS.map((daypart, dpIdx) => (
               <Fragment key={daypart.id}>
                 <span className={styles.qzRowLabel}>{daypart.label}</span>
-                {QUIET_ZONE_DAYS.map((day, dayIdx) => {
-                  const count = insight.grid[dpIdx][dayIdx];
-                  if (count === 0) {
-                    return (
-                      <span
-                        key={day}
-                        className={`${styles.qzCell} ${styles.qzCellEmpty}`}
-                        title={`${day} ${daypart.label.toLowerCase()}: open slot — no sends from this group`}
-                      />
-                    );
-                  }
-                  return (
-                    <span
-                      key={day}
-                      className={styles.qzCell}
-                      style={{ opacity: 0.18 + (count / max) * 0.82 }}
-                      title={`${day} ${daypart.label.toLowerCase()}: ${count} send${count === 1 ? "" : "s"} across the group`}
-                    />
-                  );
-                })}
+                {QUIET_ZONE_DAYS.map((day, dayIdx) => (
+                  <QuietZoneCell
+                    key={day}
+                    slot={insight.cells[dpIdx][dayIdx]}
+                    max={max}
+                  />
+                ))}
               </Fragment>
             ))}
           </div>
           <p className={styles.qzLegend}>
             Based on {insight.totalSends.toLocaleString("en-US")} recent sends
-            across the group. Darker = busier.
+            across the group. Hover a cell to see who&apos;s there · darker =
+            busier.
           </p>
         </div>
 
@@ -739,6 +727,52 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * One quiet-zone cell. Colour encodes the group's volume in that slot;
+ * hovering reveals a popover naming the brands that send there (busiest
+ * first, in their comparison colour) — or confirming an open slot.
+ */
+function QuietZoneCell({
+  slot,
+  max
+}: {
+  slot: QuietZonesInsight["cells"][number][number];
+  max: number;
+}) {
+  const empty = slot.count === 0;
+  return (
+    <span
+      className={`${styles.qzCell} ${empty ? styles.qzCellEmpty : ""}`}
+      style={empty ? undefined : { opacity: 0.18 + (slot.count / max) * 0.82 }}
+      tabIndex={0}
+      aria-label={
+        empty
+          ? `${slot.label}: open slot, no sends from this group`
+          : `${slot.label}: ${slot.count} send${slot.count === 1 ? "" : "s"} across the group`
+      }
+    >
+      <span className={styles.qzCellPop} role="tooltip">
+        <span className={styles.qzCellPopTitle}>{slot.label}</span>
+        {empty ? (
+          <span className={styles.qzWhoEmpty}>No sends here yet — open.</span>
+        ) : (
+          slot.senders.map((sender) => (
+            <span key={sender.index} className={styles.qzWhoBrand}>
+              <span
+                className={styles.qzWhoDot}
+                style={{ background: getCompareColor(sender.index) }}
+                aria-hidden="true"
+              />
+              {sender.name}
+              <span className={styles.qzWhoCount}>{sender.count}</span>
+            </span>
+          ))
+        )}
+      </span>
+    </span>
   );
 }
 
