@@ -1694,3 +1694,271 @@
   font-weight: 600;
   color: #0f172a;
 }
+
+/* ---------- Takeaway lines (phase-2 redesign) ---------- */
+
+/* The auto-written answer that leads each section; the chart below is
+   evidence. Soft indigo so it reads as "the product speaking". */
+.takeaway {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0.65rem 0 1rem;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #312e81;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.takeawayIcon {
+  flex-shrink: 0;
+  color: #6366f1;
+  transform: translateY(1px);
+}
+
+/* ---------- Rhythm league table ---------- */
+
+.leagueList {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr) max-content;
+  gap: 0.55rem 0.9rem;
+  align-items: center;
+}
+
+.leagueName {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.leagueNameLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leagueTrack {
+  position: relative;
+  height: 16px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.leagueFill {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent, #0f172a);
+}
+
+.leagueAvgMark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 0;
+  border-left: 2px dashed rgba(15, 23, 42, 0.35);
+}
+
+.leagueValue {
+  font-size: 0.82rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.leagueLegend {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* ---------- Occasion matrix ---------- */
+
+.occTableWrap {
+  overflow-x: auto;
+}
+
+.occTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.occTable th,
+.occTable td {
+  padding: 0.55rem 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.occTable th:first-child,
+.occTable td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+
+.occBrandHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  font-size: 0.82rem;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occEvent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.occLead {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.occLeadFaint {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.occNone {
+  color: #cbd5e1;
+}
+
+/* ---------- Creative fingerprint extras ---------- */
+
+.fpMetric {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) max-content;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.fpMetricLabel {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.fpRange {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.fpRangeDot {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--accent, #0f172a);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+  transform: translate(-50%, -50%);
+}
+
+.fpMetricValue {
+  color: #0f172a;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fpMetricStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+}
+
+.fpCtaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fpCtaPill {
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fpSamples {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.55rem;
+}
+
+.fpSample {
+  font-size: 0.8rem;
+  color: #475569;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Content mix ---------- */
+
+.mixList {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+  gap: 0.6rem 0.9rem;
+  align-items: center;
+}
+
+.mixBar {
+  display: flex;
+  height: 20px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.mixSeg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.mixLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.mixLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mixLegendSwatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
