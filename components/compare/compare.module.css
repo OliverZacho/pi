@@ -1752,9 +1752,24 @@
 }
 
 .leagueFill {
+  /* Spans don't blockify inside the track (only direct grid children
+     do), so width needs an explicit display or it renders 0-size. */
+  display: block;
   height: 100%;
   border-radius: 6px;
   background: var(--accent, #0f172a);
+  position: relative;
+  z-index: 1;
+}
+
+/* Faint scale tick at every whole email/week so bar length reads as a
+   value, not just a ranking. */
+.leagueTick {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.12);
 }
 
 .leagueAvgMark {
@@ -1763,12 +1778,35 @@
   bottom: -2px;
   width: 0;
   border-left: 2px dashed rgba(15, 23, 42, 0.35);
+  z-index: 2;
 }
 
 .leagueValue {
   font-size: 0.82rem;
   color: #64748b;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.leagueValueRate {
+  color: #0f172a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.leagueTrend {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.leagueTrendUp {
+  color: #15803d;
+}
+
+.leagueTrendDown {
+  color: #b45309;
 }
 
 .leagueLegend {

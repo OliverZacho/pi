@@ -33,6 +33,12 @@ export type LeagueRow = {
   index: number;
   /** Average emails per week over the lookback window. */
   perWeek: number;
+  /**
+   * Same rate over the 12 weeks *before* the lookback window, or null
+   * when the brand wasn't tracked long enough for a fair comparison.
+   * Powers the league table's trend indicator.
+   */
+  prevPerWeek: number | null;
 };
 
 export type RhythmInsight = {
@@ -186,13 +192,47 @@ export function weeklySendRate(brand: BrandPageData): number {
   return count / (windowDays / 7);
 }
 
+/** Minimum days of history a trend baseline needs — a one-week-old
+ *  "previous period" is noise dressed up as a trend. */
+const PREV_RATE_MIN_DAYS = 28;
+
+/**
+ * The brand's send rate over the 12 weeks preceding the current rate
+ * window, or null when the timeline / tracking period can't cover at
+ * least {@link PREV_RATE_MIN_DAYS} of it.
+ */
+export function previousWeeklySendRate(brand: BrandPageData): number | null {
+  const timeline = brand.cadence.dailyTimeline;
+  const end = timeline.length - RATE_WINDOW_DAYS;
+  if (end < PREV_RATE_MIN_DAYS) return null;
+
+  let windowDays = Math.min(RATE_WINDOW_DAYS, end);
+  const first = brand.totals.firstEmailAt;
+  if (first) {
+    const firstMs = new Date(first).getTime();
+    if (!Number.isNaN(firstMs)) {
+      const trackedDays =
+        Math.ceil((Date.now() - firstMs) / 86_400_000) - RATE_WINDOW_DAYS;
+      if (trackedDays < PREV_RATE_MIN_DAYS) return null;
+      windowDays = Math.min(windowDays, trackedDays);
+    }
+  }
+
+  let count = 0;
+  for (let i = end - windowDays; i < end; i++) {
+    count += timeline[i]?.count ?? 0;
+  }
+  return count / (windowDays / 7);
+}
+
 function buildRhythm(brands: BrandPageData[]): RhythmInsight {
   const rows: LeagueRow[] = brands
     .map((b, index) => ({
       id: b.brand.id,
       name: b.brand.name,
       index,
-      perWeek: weeklySendRate(b)
+      perWeek: weeklySendRate(b),
+      prevPerWeek: previousWeeklySendRate(b)
     }))
     .sort((a, b) => b.perWeek - a.perWeek);
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildComparisonInsights,
+  previousWeeklySendRate,
   reminderShare,
   urgencyShare,
   weeklySendRate
@@ -26,6 +27,8 @@ function makeBrand(
   name: string,
   overrides: {
     perWeek?: number;
+    /** Raw daily counts (oldest first) — overrides `perWeek`. */
+    timelineCounts?: number[];
     typicalDay?: { index: number; label: string; share: number } | null;
     discountShare?: number;
     avgDiscount?: number | null;
@@ -74,7 +77,12 @@ function makeBrand(
           : { index: 2, label: "Tuesday", share: 0.4 },
       typicalHour: null,
       hourly: new Array(24).fill(0),
-      dailyTimeline: timeline(overrides.perWeek ?? 3)
+      dailyTimeline: overrides.timelineCounts
+        ? overrides.timelineCounts.map((count, i) => ({
+            date: `2026-day-${i}`,
+            count
+          }))
+        : timeline(overrides.perWeek ?? 3)
     },
     promo: {
       discountEmails: 10,
@@ -125,6 +133,26 @@ describe("weeklySendRate", () => {
   it("computes the average over the lookback window", () => {
     const brand = makeBrand("A", { perWeek: 3 });
     expect(weeklySendRate(brand)).toBeCloseTo(3, 1);
+  });
+});
+
+describe("previousWeeklySendRate", () => {
+  it("computes the rate of the window before the current one", () => {
+    // 84 old days at 3/week, then 84 recent days at 1/week.
+    const counts = [
+      ...Array.from({ length: 84 }, (_, i) => (i % 7 < 3 ? 1 : 0)),
+      ...Array.from({ length: 84 }, (_, i) => (i % 7 < 1 ? 1 : 0))
+    ];
+    const brand = makeBrand("A", { timelineCounts: counts });
+    expect(weeklySendRate(brand)).toBeCloseTo(1, 1);
+    expect(previousWeeklySendRate(brand)).toBeCloseTo(3, 1);
+  });
+
+  it("returns null without enough history for a fair baseline", () => {
+    const counts = Array.from({ length: 90 }, (_, i) => (i % 7 === 0 ? 1 : 0));
+    const brand = makeBrand("A", { timelineCounts: counts });
+    // Only 6 days precede the 84-day window — no baseline to trend on.
+    expect(previousWeeklySendRate(brand)).toBeNull();
   });
 });
 

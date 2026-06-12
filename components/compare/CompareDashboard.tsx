@@ -388,13 +388,22 @@ function RhythmLeague({
   const maxRate = Math.max(0.01, ...insight.rows.map((r) => r.perWeek));
   const avgPct = Math.min(100, (insight.groupAvgPerWeek / maxRate) * 100);
 
+  // One faint tick per whole email/week (every 2 when the leader is a
+  // heavy sender) so bar length reads as a value, not just a ranking.
+  const tickStep = maxRate > 8 ? 2 : 1;
+  const ticks: number[] = [];
+  for (let t = tickStep; t < maxRate; t += tickStep) {
+    ticks.push((t / maxRate) * 100);
+  }
+
   return (
     <section className={styles.section}>
       <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>Who sends the most</h2>
       <p className={styles.sectionSub}>
         Average emails per week over the last 12 weeks (or since we
-        started tracking the brand, if more recent).
+        started tracking the brand, if more recent), with the trend
+        against the 12 weeks before that.
       </p>
       <Takeaway text={insight.takeaway} />
 
@@ -409,11 +418,11 @@ function RhythmLeague({
             return (
               <RhythmLeagueRow
                 key={row.id}
-                name={row.name}
+                row={row}
                 color={color}
                 widthPct={widthPct}
+                ticks={ticks}
                 avgPct={brands.length >= 2 ? avgPct : null}
-                value={`${fmtRate(row.perWeek)} / wk`}
               />
             );
           })}
@@ -421,7 +430,8 @@ function RhythmLeague({
         {brands.length >= 2 ? (
           <p className={styles.leagueLegend}>
             Dashed line marks the group average (
-            {fmtRate(insight.groupAvgPerWeek)} emails / week).
+            {fmtRate(insight.groupAvgPerWeek)} emails / week); ticks every{" "}
+            {tickStep === 1 ? "1" : "2"} / week.
           </p>
         ) : null}
       </div>
@@ -429,40 +439,87 @@ function RhythmLeague({
   );
 }
 
+/** A pace change must move at least this fraction of the previous rate
+ *  (and at least half an email/week) before the trend marker shows. */
+const TREND_MIN_RELATIVE = 0.25;
+const TREND_MIN_ABSOLUTE = 0.5;
+
 function RhythmLeagueRow({
-  name,
+  row,
   color,
   widthPct,
-  avgPct,
-  value
+  ticks,
+  avgPct
 }: {
-  name: string;
+  row: RhythmInsight["rows"][number];
   color: string;
   widthPct: number;
+  ticks: number[];
   avgPct: number | null;
-  value: string;
 }) {
   const accentStyle = { ["--accent" as string]: color } as CSSProperties;
+
+  let trend: { direction: "up" | "down"; from: string } | null = null;
+  if (row.prevPerWeek !== null) {
+    const delta = row.perWeek - row.prevPerWeek;
+    const relative =
+      row.prevPerWeek > 0 ? Math.abs(delta) / row.prevPerWeek : 1;
+    if (
+      Math.abs(delta) >= TREND_MIN_ABSOLUTE &&
+      relative >= TREND_MIN_RELATIVE
+    ) {
+      trend = {
+        direction: delta > 0 ? "up" : "down",
+        from: fmtRate(row.prevPerWeek)
+      };
+    }
+  }
+
   return (
     <>
       <span className={styles.leagueName} style={accentStyle}>
         <span className={styles.brandStripAccentDot} />
-        <span className={styles.leagueNameLabel}>{name}</span>
+        <span className={styles.leagueNameLabel}>{row.name}</span>
       </span>
       <span className={styles.leagueTrack} style={accentStyle}>
+        {ticks.map((left) => (
+          <span
+            key={left}
+            className={styles.leagueTick}
+            style={{ left: `${left.toFixed(2)}%` }}
+            aria-hidden="true"
+          />
+        ))}
         <span
           className={styles.leagueFill}
-          style={{ width: `${widthPct}%` }}
+          style={{ width: `${widthPct.toFixed(2)}%` }}
         />
         {avgPct !== null ? (
           <span
             className={styles.leagueAvgMark}
-            style={{ left: `${avgPct}%` }}
+            style={{ left: `${avgPct.toFixed(2)}%` }}
             aria-hidden="true"
           />
         ) : null}
       </span>
-      <span className={styles.leagueValue}>{value}</span>
+      <span className={styles.leagueValue}>
+        <span className={styles.leagueValueRate}>
+          {fmtRate(row.perWeek)}
+        </span>
+        / wk
+        {trend ? (
+          <span
+            className={`${styles.leagueTrend} ${
+              trend.direction === "up"
+                ? styles.leagueTrendUp
+                : styles.leagueTrendDown
+            }`}
+            title={`Previous 12 weeks: ${trend.from} emails / week`}
+          >
+            {trend.direction === "up" ? "↑" : "↓"} from {trend.from}
+          </span>
+        ) : null}
+      </span>
     </>
   );
 }
