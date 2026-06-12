@@ -1538,50 +1538,59 @@
   border-radius: 6px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: var(--swatch, #f1f5f9);
+  position: relative;
+  cursor: default;
 }
 
-.dnaFontRow {
-  display: flex;
-  flex-wrap: wrap;
+/* Instant hex tooltip — the native title attribute is too slow to
+   feel like "visible on mouseover". */
+.dnaSwatch:hover::after {
+  content: attr(data-hex);
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 0.14rem 0.45rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* Labelled card rows ("Type", "CTAs") so different kinds of content
+   stop reading as the same anonymous pill soup. */
+.fpRow {
+  display: grid;
+  grid-template-columns: 2.9rem minmax(0, 1fr);
   gap: 0.55rem;
-  font-size: 0.84rem;
-  color: #475569;
+  align-items: baseline;
 }
 
-.dnaFontPill {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+.fpRowLabel {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
 }
 
-.dnaFlags {
+.fpRowValue {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fpRowPills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.dnaFlag {
-  display: inline-flex;
-  align-items: center;
   gap: 0.35rem;
-  font-size: 0.76rem;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 0.18rem 0.55rem;
-  border-radius: 999px;
-}
-
-.dnaFlagDot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: #cbd5e1;
-}
-
-.dnaFlagDot_on {
-  background: var(--accent, #0f172a);
 }
 
 /* ---------- Subjects + CTAs grid ---------- */
@@ -1927,12 +1936,6 @@
   color: #94a3b8;
   white-space: nowrap;
   min-width: 6.5rem;
-}
-
-.fpCtaRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
 }
 
 .fpCtaPill {

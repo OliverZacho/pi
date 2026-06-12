@@ -1050,41 +1050,49 @@ function FingerprintGrid({
                         key={entry.hex}
                         className={styles.dnaSwatch}
                         style={{ background: entry.hex }}
-                        title={entry.hex}
+                        data-hex={entry.hex.toLowerCase()}
                       />
                     ))}
                   </div>
                 ) : null}
 
                 {b.design.fonts.length > 0 ? (
-                  <div className={styles.dnaFontRow}>
-                    {b.design.fonts.slice(0, 3).map((font) => (
-                      <span
-                        key={font.family}
-                        className={styles.dnaFontPill}
-                        style={{ fontFamily: `${font.family}, ui-sans-serif` }}
-                      >
-                        {font.family}
-                      </span>
-                    ))}
+                  <div className={styles.fpRow}>
+                    <span className={styles.fpRowLabel}>Type</span>
+                    {/* Names only, no font-family preview — we extract
+                        the name from the email CSS but the brand's
+                        licensed webfont isn't loaded here, so a
+                        "preview" would silently render the fallback. */}
+                    <span className={styles.fpRowValue}>
+                      {b.design.fonts
+                        .slice(0, 3)
+                        .map((font) => font.family)
+                        .join(" · ")}
+                    </span>
                   </div>
                 ) : null}
 
                 {b.ctas.length > 0 ? (
-                  <div className={styles.fpCtaRow}>
-                    {b.ctas.slice(0, 3).map((cta) => (
-                      <span
-                        key={cta.text}
-                        className={styles.fpCtaPill}
-                        title={`${cta.count} use${cta.count === 1 ? "" : "s"}`}
-                      >
-                        {cta.text}
+                  <div className={styles.fpRow}>
+                    <span className={styles.fpRowLabel}>CTAs</span>
+                    <span className={styles.fpRowValue}>
+                      <span className={styles.fpRowPills}>
+                        {b.ctas.slice(0, 3).map((cta) => (
+                          <span
+                            key={cta.text}
+                            className={styles.fpCtaPill}
+                            title={`${cta.count} use${cta.count === 1 ? "" : "s"}`}
+                          >
+                            {cta.text}
+                          </span>
+                        ))}
                       </span>
-                    ))}
+                      <CtaDestinationsLine
+                        destinations={b.ctaDestinations}
+                      />
+                    </span>
                   </div>
                 ) : null}
-
-                <CtaDestinationsLine destinations={b.ctaDestinations} />
 
                 {b.subjects.samples.length > 0 ? (
                   <div className={styles.fpSamples}>
@@ -1099,19 +1107,6 @@ function FingerprintGrid({
                     ))}
                   </div>
                 ) : null}
-              </div>
-
-              <div className={styles.dnaFlags}>
-                <span className={styles.dnaFlag}>
-                  <span
-                    className={`${styles.dnaFlagDot}${
-                      b.design.darkModeShare > 0
-                        ? ` ${styles.dnaFlagDot_on}`
-                        : ""
-                    }`}
-                  />
-                  Dark mode · {Math.round(b.design.darkModeShare * 100)}%
-                </span>
               </div>
             </article>
           );
