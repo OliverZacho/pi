@@ -1485,6 +1485,10 @@
 
 .dnaGrid {
   display: grid;
+  /* Identity cards are short (palette / fonts / CTAs) — pack several
+     per row so a 20-brand comparison doesn't become a scroll marathon.
+     The comparative metrics live in the shared strips above. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.9rem;
 }
 
@@ -1876,49 +1880,53 @@
 
 /* ---------- Creative fingerprint extras ---------- */
 
-.fpMetric {
+/* Shared metric strips: one track per copy-habit metric with every
+   brand as a dot, so the section's height is constant regardless of
+   how many brands are being compared. */
+.fpStrips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin: 1rem 0 1.4rem;
+}
+
+.fpStrip {
   display: grid;
   grid-template-columns: 7.5rem minmax(0, 1fr) max-content;
-  gap: 0.6rem;
+  gap: 0.9rem;
   align-items: center;
-  font-size: 0.8rem;
 }
 
-.fpMetricLabel {
+.fpStripLabel {
+  font-size: 0.82rem;
   color: #64748b;
   white-space: nowrap;
+  text-align: right;
 }
 
-.fpRange {
+.fpStripTrack {
   position: relative;
-  height: 4px;
+  height: 26px;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: #f1f5f9;
 }
 
-.fpRangeDot {
+.fpStripDot {
   position: absolute;
-  top: 50%;
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   background: var(--accent, #0f172a);
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
   transform: translate(-50%, -50%);
 }
 
-.fpMetricValue {
-  color: #0f172a;
-  font-weight: 500;
+.fpStripScale {
+  font-size: 0.76rem;
+  color: #94a3b8;
   white-space: nowrap;
-}
-
-.fpMetricStack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.2rem;
+  min-width: 6.5rem;
 }
 
 .fpCtaRow {

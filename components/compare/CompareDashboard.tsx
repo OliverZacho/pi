@@ -1000,10 +1000,11 @@ function OccasionMatrix({
    ----------------------------------------------------------------- */
 
 /**
- * One card per brand merging the old Design DNA, subject-line and CTA
- * sections: palette + fonts up top, copy habit metrics positioned on
- * the group's min–max range, the favourite CTA labels, and a couple of
- * recent subjects as a taste of the voice.
+ * Metric-first layout so the section's height barely grows with the
+ * brand count: five shared strips up top carry every comparative
+ * number (one dot per brand per strip — outliers pop instantly), and
+ * the per-brand cards below shrink to pure identity (palette, fonts,
+ * CTAs, a sample subject) flowing several to a row.
  */
 function FingerprintGrid({
   brands,
@@ -1025,10 +1026,17 @@ function FingerprintGrid({
       <span className={styles.sectionEyebrow}>Voice &amp; creative</span>
       <h2 className={styles.sectionTitle}>Creative fingerprint</h2>
       <p className={styles.sectionSub}>
-        Each brand's look and copy habits in one card. The dots sit on
-        the group's range, so an outlier is visible at a glance.
+        Every dot is a brand — hover for the value. The cards below hold
+        each brand's look: palette, typography and favourite CTAs.
       </p>
       <Takeaway text={takeaway} />
+
+      <FingerprintStrips
+        brands={brands}
+        subjectLengthRange={subjectLengthRange}
+        urgencyShares={urgencyShares}
+        reminderShares={reminderShares}
+      />
 
       <div className={styles.dnaGrid}>
         {brands.map((b, idx) => {
@@ -1075,41 +1083,6 @@ function FingerprintGrid({
                   </div>
                 ) : null}
 
-                <div className={styles.fpMetricStack}>
-                  <FingerprintMetric
-                    label="Subject length"
-                    value={
-                      b.subjects.avgLength !== null
-                        ? `≈${Math.round(b.subjects.avgLength)} chars`
-                        : "—"
-                    }
-                    position={rangePosition(
-                      b.subjects.avgLength,
-                      subjectLengthRange
-                    )}
-                  />
-                  <FingerprintMetric
-                    label="Emoji use"
-                    value={`${Math.round(b.emojis.share * 100)}% of subjects`}
-                    position={b.emojis.share}
-                  />
-                  <FingerprintMetric
-                    label="GIFs"
-                    value={`${Math.round(b.design.gifShare * 100)}% of emails`}
-                    position={b.design.gifShare}
-                  />
-                  <FingerprintMetric
-                    label="Urgency"
-                    value={`${Math.round((urgencyShares[idx] ?? 0) * 100)}% of subjects`}
-                    position={urgencyShares[idx] ?? 0}
-                  />
-                  <FingerprintMetric
-                    label="Resends"
-                    value={`${Math.round((reminderShares[idx] ?? 0) * 100)}% of campaigns`}
-                    position={reminderShares[idx] ?? 0}
-                  />
-                </div>
-
                 {b.ctas.length > 0 ? (
                   <div className={styles.fpCtaRow}>
                     {b.ctas.slice(0, 3).map((cta) => (
@@ -1128,7 +1101,7 @@ function FingerprintGrid({
 
                 {b.subjects.samples.length > 0 ? (
                   <div className={styles.fpSamples}>
-                    {b.subjects.samples.slice(0, 2).map((subject) => (
+                    {b.subjects.samples.slice(0, 1).map((subject) => (
                       <span
                         key={subject}
                         className={styles.fpSample}
@@ -1189,42 +1162,132 @@ function CtaDestinationsLine({
   );
 }
 
-function FingerprintMetric({
-  label,
-  value,
-  position
-}: {
+type StripDot = {
+  brandId: string;
+  brandName: string;
+  brandIndex: number;
+  /** 0–1 position along the track. */
+  position: number;
+  /** Tooltip, e.g. "Ferm Living: 20% of subjects". */
+  tooltip: string;
+};
+
+type Strip = {
+  id: string;
   label: string;
-  value: string;
-  /** 0–1 placement of the dot on the range track; null hides the track. */
-  position: number | null;
+  /** Scale annotation on the right, e.g. "0–35%" or "≈25–42 chars". */
+  scale: string;
+  dots: StripDot[];
+};
+
+/** Dots get one of three vertical lanes by brand index so same-valued
+ *  brands stay distinguishable instead of stacking into one blob. */
+const STRIP_LANES = [50, 30, 70];
+
+function FingerprintStrips({
+  brands,
+  subjectLengthRange,
+  urgencyShares,
+  reminderShares
+}: {
+  brands: BrandPageData[];
+  subjectLengthRange: { min: number; max: number } | null;
+  urgencyShares: number[];
+  reminderShares: number[];
 }) {
+  // Share-based strips run 0 → the group's max (10% floor so a flat
+  // group doesn't explode tiny differences across the full track).
+  const shareStrip = (
+    id: string,
+    label: string,
+    unit: string,
+    values: (number | undefined)[]
+  ): Strip => {
+    const shares = brands.map((_, i) => values[i] ?? 0);
+    const hi = Math.max(0.1, ...shares);
+    return {
+      id,
+      label,
+      scale: `0–${Math.round(hi * 100)}%`,
+      dots: brands.map((b, i) => ({
+        brandId: b.brand.id,
+        brandName: b.brand.name,
+        brandIndex: i,
+        position: shares[i] / hi,
+        tooltip: `${b.brand.name}: ${Math.round(shares[i] * 100)}% ${unit}`
+      }))
+    };
+  };
+
+  const strips: Strip[] = [];
+
+  if (subjectLengthRange) {
+    const { min, max } = subjectLengthRange;
+    const span = Math.max(1, max - min);
+    strips.push({
+      id: "subject-length",
+      label: "Subject length",
+      scale:
+        Math.round(min) === Math.round(max)
+          ? `≈${Math.round(min)} chars`
+          : `≈${Math.round(min)}–${Math.round(max)} chars`,
+      dots: brands
+        .map((b, i) => ({ brand: b, index: i }))
+        .filter(({ brand }) => brand.subjects.avgLength !== null)
+        .map(({ brand, index }) => ({
+          brandId: brand.brand.id,
+          brandName: brand.brand.name,
+          brandIndex: index,
+          position:
+            ((brand.subjects.avgLength as number) - min) / span,
+          tooltip: `${brand.brand.name}: ≈${Math.round(
+            brand.subjects.avgLength as number
+          )} characters`
+        }))
+    });
+  }
+
+  strips.push(
+    shareStrip(
+      "emoji",
+      "Emoji use",
+      "of subjects",
+      brands.map((b) => b.emojis.share)
+    ),
+    shareStrip(
+      "gifs",
+      "GIFs",
+      "of emails",
+      brands.map((b) => b.design.gifShare)
+    ),
+    shareStrip("urgency", "Urgency", "of subjects", urgencyShares),
+    shareStrip("resends", "Resends", "of campaigns", reminderShares)
+  );
+
   return (
-    <div className={styles.fpMetric}>
-      <span className={styles.fpMetricLabel}>{label}</span>
-      <span className={styles.fpRange}>
-        {position !== null ? (
-          <span
-            className={styles.fpRangeDot}
-            style={{ left: `${Math.min(100, Math.max(0, position * 100))}%` }}
-            aria-hidden="true"
-          />
-        ) : null}
-      </span>
-      <span className={styles.fpMetricValue}>{value}</span>
+    <div className={styles.fpStrips}>
+      {strips.map((strip) => (
+        <div key={strip.id} className={styles.fpStrip}>
+          <span className={styles.fpStripLabel}>{strip.label}</span>
+          <span className={styles.fpStripTrack}>
+            {strip.dots.map((dot) => (
+              <span
+                key={dot.brandId}
+                className={styles.fpStripDot}
+                style={{
+                  ["--accent" as string]: getCompareColor(dot.brandIndex),
+                  left: `${Math.min(100, Math.max(0, dot.position * 100)).toFixed(2)}%`,
+                  top: `${STRIP_LANES[dot.brandIndex % STRIP_LANES.length]}%`
+                }}
+                title={dot.tooltip}
+              />
+            ))}
+          </span>
+          <span className={styles.fpStripScale}>{strip.scale}</span>
+        </div>
+      ))}
     </div>
   );
-}
-
-/** Where `value` falls within the group's min–max, or null when the
- *  range collapses (single brand or identical values → centre). */
-function rangePosition(
-  value: number | null,
-  range: { min: number; max: number } | null
-): number | null {
-  if (value === null || range === null) return null;
-  if (range.max - range.min < 0.001) return 0.5;
-  return (value - range.min) / (range.max - range.min);
 }
 
 /* -----------------------------------------------------------------
