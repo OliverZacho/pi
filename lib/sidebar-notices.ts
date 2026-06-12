@@ -35,9 +35,6 @@ const BRAND_REQUEST_WINDOW_DAYS = 30;
 /** "You've joined <team>" stops showing this long after joining. */
 const TEAM_JOINED_WINDOW_DAYS = 14;
 
-/** Followed-brand activity looks back this far. */
-const FOLLOW_ACTIVITY_WINDOW_DAYS = 7;
-
 /** PostgREST `.in()` builds a URL — keep the id list bounded. */
 const MAX_FOLLOWED_IDS = 200;
 
@@ -122,7 +119,7 @@ export async function listSidebarNotices(
         console.error("Failed to load team-joined notice", err);
         return [];
       }),
-      followActivityNotice(admin, viewer.userId, now).catch((err) => {
+      followActivityNotice(admin, viewer.userId).catch((err) => {
         console.error("Failed to load follow-activity notice", err);
         return [];
       }),
@@ -229,19 +226,27 @@ async function teamJoinedNotice(
 }
 
 /**
- * "N new emails from brands you follow" over the past week. The notice
- * id carries the newest email's date, so a dismissal lasts exactly
- * until fresher mail shows up.
+ * "N new emails from brands you follow" since the viewer was last here.
+ * `touch_user_visit` advances the per-user visit window and returns the
+ * "since you were last here" timestamp — null on a first visit, when
+ * there's no prior visit to compare against. The notice id carries the
+ * newest email's date, so a dismissal lasts exactly until fresher mail
+ * shows up.
  */
 async function followActivityNotice(
   admin: PirolSupabaseClient,
-  userId: string,
-  now: Date
+  userId: string
 ): Promise<SidebarNotice[]> {
   const followedIds = await listFollowedBrandIds(admin, userId);
   if (followedIds.size === 0) return [];
 
-  const since = daysAgo(FOLLOW_ACTIVITY_WINDOW_DAYS, now).toISOString();
+  const { data: since, error: visitError } = await admin.rpc(
+    "touch_user_visit",
+    { p_user_id: userId }
+  );
+  if (visitError) throw visitError;
+  if (!since) return [];
+
   const { data, count, error } = await admin
     .from("captured_emails")
     .select("received_at", { count: "exact" })
@@ -261,7 +266,7 @@ async function followActivityNotice(
       id: followActivityNoticeId(latest),
       kind: "follow-activity",
       title: `${total} new ${total === 1 ? "email" : "emails"} from brands you follow`,
-      detail: "From the last 7 days.",
+      detail: "Since you last logged in.",
       cta: { label: "See what's new", href: "/following" },
       dismissible: true
     }

@@ -373,7 +373,7 @@ function AppTopBar() {
           alignItems: "center",
           gap: "0.4rem",
           height: 30,
-          padding: "0 0.5rem 0 0.8rem",
+          padding: "0 0.8rem",
           borderRadius: 999,
           border: 0,
           background: "#ffffff",
@@ -389,24 +389,6 @@ function AppTopBar() {
         }}
       >
         <span>Need help?</span>
-        <span
-          aria-hidden="true"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 20,
-            height: 20,
-            borderRadius: 6,
-            background: "#f1f5f9",
-            color: "#475569",
-            fontSize: "0.7rem",
-            fontWeight: 600,
-            letterSpacing: "-0.01em"
-          }}
-        >
-          H
-        </span>
       </button>
     </div>
   );

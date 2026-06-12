@@ -12,6 +12,7 @@ import {
 } from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
 import BrandBatchBar from "@/components/brand/BrandBatchBar";
+import { BrandCardBody } from "@/components/brand/BrandCardBody";
 import ExploreClient from "@/components/explore/ExploreClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
@@ -637,45 +638,7 @@ function FollowingCard({
         </span>
       ) : null}
 
-      <span className={styles.cardAvatar} aria-hidden="true">
-        {brand.logoUrl ? (
-          <img
-            src={brand.logoUrl}
-            alt=""
-            className={styles.cardAvatarLogo}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span className={styles.cardAvatarMonogram}>
-            {brand.name.charAt(0).toUpperCase()}
-          </span>
-        )}
-      </span>
-
-      <div className={styles.cardBody}>
-        <span className={styles.cardName}>
-          {brand.name}
-          {brand.primaryMarketCountry ? (
-            <span
-              aria-hidden="true"
-              title={countryName(brand.primaryMarketCountry)}
-              style={{ marginLeft: "0.4rem" }}
-            >
-              {countryFlag(brand.primaryMarketCountry)}
-            </span>
-          ) : null}
-          {brand.isGlobal ? (
-            <span title="Global brand" style={{ marginLeft: "0.3rem" }}>
-              🌍
-            </span>
-          ) : null}
-        </span>
-        {brand.markets.length > 0 ? (
-          <span className={styles.cardMarket}>
-            {brand.markets.map(formatMarketLabel).join(" · ")}
-          </span>
-        ) : null}
-      </div>
+      <BrandCardBody brand={brand} />
     </>
   );
 
@@ -683,7 +646,7 @@ function FollowingCard({
     return (
       <button
         type="button"
-        className={`${styles.card} ${styles.cardSelectable} ${styles.cardSelectableButton}${
+        className={`${styles.card} ${styles.cardRich} ${styles.cardSelectable} ${styles.cardSelectableButton}${
           selected ? ` ${styles.cardSelected}` : ""
         }`}
         onClick={() => onToggle(brand.id)}
@@ -702,7 +665,7 @@ function FollowingCard({
     <div className={styles.cardWrap}>
       <Link
         href={`/brands/${brand.id}`}
-        className={styles.card}
+        className={`${styles.card} ${styles.cardRich}`}
         aria-label={`Open ${brand.name} dashboard`}
       >
         {cardBody}

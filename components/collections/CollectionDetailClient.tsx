@@ -12,6 +12,7 @@ import type {
   CollectionRules,
   CollectionRuleCondition,
   CollectionRuleScope,
+  CollectionRuleTimeWindow,
   CollectionSummary
 } from "@/lib/collections-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
@@ -645,6 +646,17 @@ function RulesSummary({
             <span className={styles.rulesSummaryJoiner}>AND</span>
           </li>
         ) : null}
+        {rules.timeWindow ? (
+          <li style={{ display: "contents" }}>
+            <span
+              className={`${styles.rulesSummaryChip} ${styles.rulesSummaryChipScope}`}
+            >
+              <span className={styles.rulesSummaryChipLabel}>Time</span>
+              {describeTimeWindow(rules.timeWindow)}
+            </span>
+            <span className={styles.rulesSummaryJoiner}>AND</span>
+          </li>
+        ) : null}
         {rules.conditions.map((condition, index) => (
           <li key={condition.id} style={{ display: "contents" }}>
             {index > 0 ? (
@@ -742,6 +754,23 @@ function describeCondition(
       );
     }
   }
+}
+
+function describeTimeWindow(window: CollectionRuleTimeWindow): string {
+  if (window.type === "rolling") {
+    const unit =
+      window.amount === 1 ? window.unit.replace(/s$/, "") : window.unit;
+    return `Last ${window.amount} ${unit}`;
+  }
+  const fmt = (date: string) =>
+    new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
+  if (window.from && window.to) return `${fmt(window.from)} – ${fmt(window.to)}`;
+  if (window.from) return `From ${fmt(window.from)}`;
+  return `Until ${fmt(window.to as string)}`;
 }
 
 function describeScope(

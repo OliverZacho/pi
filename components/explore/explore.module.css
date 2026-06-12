@@ -102,7 +102,7 @@
 }
 
 .navItem.active {
-  background: var(--on-blue-active);
+  background: var(--glass-track-bg);
   color: #0f172a;
   font-weight: 500;
 }
@@ -1664,6 +1664,24 @@
 .infoActionPrimary:hover {
   background: #ffffff;
   box-shadow: var(--pill-shadow-hover);
+}
+
+.infoActionPrimary:disabled {
+  cursor: progress;
+}
+
+/*
+ * `Following` state — filled dark chip so an active follow reads as
+ * "on" against the white Save / Add buttons beside it.
+ */
+.infoActionPrimaryActive,
+.infoActionPrimaryActive:hover {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.infoActionPrimaryActive:disabled {
+  cursor: progress;
 }
 
 .infoActionIcon {
