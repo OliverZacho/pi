@@ -25,7 +25,6 @@ export const COMPARE_SECTIONS = [
   { id: "kpis", title: "KPI matrix" },
   { id: "rhythm", title: "Who sends the most" },
   { id: "cadence", title: "Send frequency over time" },
-  { id: "forecast", title: "Predicted inbox crowding" },
   { id: "send-times", title: "When they send" },
   { id: "quiet-zones", title: "Quiet zones" },
   { id: "promo", title: "Discount aggressiveness" },

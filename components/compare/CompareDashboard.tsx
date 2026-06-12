@@ -27,7 +27,6 @@ import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
 import CompareSectionRail from "./CompareSectionRail";
-import InboxForecast from "./InboxForecast";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -54,8 +53,8 @@ type Props = {
  * with the chart below as evidence:
  *
  *   1. KPI tiles    — aggregate snapshot; click for per-brand drill-down
- *   2. Rhythm       — send-rate league table, cadence chart, forecast,
- *                     24h send-time heatmap
+ *   2. Rhythm       — send-rate league table, cadence chart, 24h
+ *                     send-time heatmap, quiet zones
  *   3. Promo        — per-brand discount aggressiveness blocks
  *   4. Occasions    — seasonal-event matrix with per-brand lead times
  *   5. Voice        — per-brand creative fingerprint (palette, fonts,
@@ -115,7 +114,6 @@ export default function CompareDashboard({
       content: <RhythmLeague brands={brands} insight={insights.rhythm} />
     },
     { id: "cadence", content: <CadenceStack brands={brands} /> },
-    { id: "forecast", content: <InboxForecast brands={brands} /> },
     {
       id: "send-times",
       content: (
