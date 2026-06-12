@@ -27,6 +27,7 @@ import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
 import CompareSectionRail from "./CompareSectionRail";
+import FingerprintSubject from "./FingerprintSubject";
 import InboxForecast from "./InboxForecast";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
@@ -998,14 +999,43 @@ function OccasionMatrix({
 }
 
 /* -----------------------------------------------------------------
-   Creative fingerprint (palette, fonts, copy habits, CTAs)
+   Creative fingerprint (palette, fonts, latest subject)
    ----------------------------------------------------------------- */
 
 /**
- * Pure identity cards — palette, fonts, favourite CTAs, a sample
- * subject — several per row so a large comparison stays skimmable. The
- * comparative copy metrics (subject length, emoji, urgency, resends)
- * live as KPI tiles with dot-strip drill-downs, not here.
+ * The brand's newest sampled email as a full ExploreEmailCard so the
+ * "Latest subject" row can open it in the shared email modal. The
+ * sample is newest-first; skip rows without a subject.
+ */
+function latestEmailCard(b: BrandPageData): ExploreEmailCard | null {
+  const row = b.seasonalSample.find(
+    (email) => (email.subject ?? "").trim().length > 0
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    subject: row.subject,
+    preheader: row.preheader,
+    companyId: b.brand.id,
+    companyName: b.brand.name,
+    companyDomain: b.brand.domain,
+    companyMarkets: b.brand.markets,
+    companyLogoUrl: b.brand.logoUrl,
+    receivedAt: row.receivedAt,
+    category: row.category,
+    hasGif: row.hasGif,
+    hasDarkMode: row.hasDarkMode,
+    discountPercent: row.discountPercent,
+    promoCode: row.promoCode
+  };
+}
+
+/**
+ * Pure identity cards — palette, fonts, and the latest subject line
+ * (clickable, opens the email) — several per row so a large comparison
+ * stays skimmable. The comparative copy metrics (subject length,
+ * emoji, urgency, resends) live as KPI tiles with dot-strip
+ * drill-downs, not here.
  */
 function FingerprintGrid({
   brands,
@@ -1030,6 +1060,7 @@ function FingerprintGrid({
           const accentStyle = {
             ["--accent" as string]: color
           } as CSSProperties;
+          const latest = latestEmailCard(b);
           return (
             <article
               key={b.brand.id}
@@ -1073,17 +1104,10 @@ function FingerprintGrid({
                   </div>
                 ) : null}
 
-                {b.subjects.samples.length > 0 ? (
-                  <div className={styles.fpSamples}>
-                    {b.subjects.samples.slice(0, 1).map((subject) => (
-                      <span
-                        key={subject}
-                        className={styles.fpSample}
-                        title={subject}
-                      >
-                        “{subject}”
-                      </span>
-                    ))}
+                {latest ? (
+                  <div className={styles.fpLatest}>
+                    <span className={styles.fpRowLabel}>Latest</span>
+                    <FingerprintSubject email={latest} />
                   </div>
                 ) : null}
               </div>
