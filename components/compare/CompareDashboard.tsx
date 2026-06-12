@@ -11,6 +11,10 @@ import {
   type QuietZonesInsight,
   type RhythmInsight
 } from "@/lib/comparison-insights";
+import {
+  detectGroupChanges,
+  type BrandChange
+} from "@/lib/comparison-changes";
 import { CTA_DESTINATION_LABELS } from "@/lib/cta-destinations";
 import { colorForCategory } from "@/lib/category-colors";
 import {
@@ -81,12 +85,22 @@ export default function CompareDashboard({
   }
 
   const insights = buildComparisonInsights(brands);
+  const changes = detectGroupChanges(brands);
 
   // One entry per section that has something to show for this cohort —
   // data-empty sections (occasions with no events, mix with no
-  // categories) are omitted entirely so the rail never offers a
-  // collapsed bar for content that wouldn't render anyway.
+  // categories, a week with no changes) are omitted entirely so the
+  // rail never offers a collapsed bar for content that wouldn't render
+  // anyway.
   const sections: { id: CompareSectionId; content: ReactNode }[] = [
+    ...(changes.length > 0
+      ? [
+          {
+            id: "whats-new" as const,
+            content: <WhatsNewSection changes={changes} />
+          }
+        ]
+      : []),
     { id: "kpis", content: <KpiTiles brands={brands} /> },
     {
       id: "rhythm",
@@ -199,6 +213,85 @@ function Takeaway({ text }: { text: string | null }) {
       </span>
       <span>{text}</span>
     </p>
+  );
+}
+
+/* -----------------------------------------------------------------
+   What's new — per-brand baseline changes
+   ----------------------------------------------------------------- */
+
+/**
+ * The headline strip: each card is one detected change (pace spike,
+ * unusual silence, first discount in months) measured against the
+ * brand's own baseline. Rendered only when something actually changed;
+ * a quiet week means the section simply isn't there.
+ */
+function WhatsNewSection({ changes }: { changes: BrandChange[] }) {
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>This week</span>
+      <h2 className={styles.sectionTitle}>What&apos;s new in this group</h2>
+      <p className={styles.sectionSub}>
+        Changes measured against each brand&apos;s own baseline — not the
+        group&apos;s.
+      </p>
+
+      <div className={styles.changeGrid}>
+        {changes.map((change) => (
+          <article
+            key={`${change.brandId}-${change.kind}`}
+            className={styles.changeCard}
+            style={
+              {
+                ["--accent" as string]: getCompareColor(change.brandIndex)
+              } as CSSProperties
+            }
+          >
+            <span className={styles.changeIcon} aria-hidden="true">
+              <ChangeKindIcon kind={change.kind} />
+            </span>
+            <p className={styles.changeMessage}>
+              <span className={styles.brandStripAccentDot} />
+              {change.message}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ChangeKindIcon({ kind }: { kind: BrandChange["kind"] }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: 16,
+    height: 16,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const
+  };
+  if (kind === "pace_spike") {
+    return (
+      <svg {...common}>
+        <polyline points="3 17 9 11 13 15 21 7" />
+        <polyline points="15 7 21 7 21 13" />
+      </svg>
+    );
+  }
+  if (kind === "gone_quiet") {
+    return (
+      <svg {...common}>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59c0 .53.21 1.04.59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83z" />
+      <circle cx="7.5" cy="7.5" r="0.5" />
+    </svg>
   );
 }
 

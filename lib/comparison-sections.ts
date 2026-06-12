@@ -21,6 +21,7 @@ export const COMPARE_SECTIONS_PREF_KEY = "compare_sections";
  * the section headings in `CompareDashboard.tsx`.
  */
 export const COMPARE_SECTIONS = [
+  { id: "whats-new", title: "What's new" },
   { id: "kpis", title: "KPI matrix" },
   { id: "rhythm", title: "Who sends the most" },
   { id: "cadence", title: "Send frequency over time" },

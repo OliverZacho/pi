@@ -2140,3 +2140,64 @@
   font-size: 0.78rem;
   color: #64748b;
 }
+
+/* ---------- What's new (change feed) ---------- */
+
+.changeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.changeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+
+.changeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: var(--accent, #0f172a);
+  flex-shrink: 0;
+}
+
+.changeMessage {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #0f172a;
+}
+
+.changeMessage .brandStripAccentDot {
+  display: inline-block;
+  margin-right: 0.45rem;
+  transform: translateY(-1px);
+}
+
+/* ---------- Landing card activity chip ---------- */
+
+.setCardActivity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.setCardActivityQuiet {
+  color: #94a3b8;
+  font-weight: 400;
+}

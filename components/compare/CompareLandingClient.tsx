@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type {
+  ComparisonActivity,
   CompetitorSetBrand,
   CompetitorSetSummary
 } from "@/lib/competitor-db";
@@ -30,6 +31,11 @@ type Props = {
   initialBrandOptions: BrandSearchOption[];
   /** Preview row for each saved set (first ~4 brands by added_at). */
   setPreviews: Record<string, CompetitorSetBrand[]>;
+  /**
+   * 7-day freshness per set (sends + brands running sales) so a card
+   * already answers "did anything happen?" before the click.
+   */
+  setActivity: Record<string, ComparisonActivity>;
 };
 
 /**
@@ -50,7 +56,8 @@ export default function CompareLandingClient({
   sets,
   initialBrandIds,
   initialBrandOptions,
-  setPreviews
+  setPreviews,
+  setActivity
 }: Props) {
   const router = useRouter();
 
@@ -224,6 +231,7 @@ export default function CompareLandingClient({
                       {" · "}
                       Updated {formatRelativeDate(set.updatedAt)}
                     </div>
+                    <ActivityChip activity={setActivity[set.id]} />
                   </div>
                 </Link>
               );
@@ -368,6 +376,37 @@ export default function CompareLandingClient({
       </section>
     </>
   );
+}
+
+/**
+ * One-line freshness read under a comparison card's meta: how active
+ * the group was in the last 7 days and whether anyone is running a
+ * sale. Quiet weeks render muted so an active card stands out.
+ */
+function ActivityChip({ activity }: { activity?: ComparisonActivity }) {
+  if (!activity) return null;
+
+  if (activity.sends7d === 0) {
+    return (
+      <div
+        className={`${styles.setCardActivity} ${styles.setCardActivityQuiet}`}
+      >
+        Quiet week — no sends
+      </div>
+    );
+  }
+
+  const parts = [
+    `${activity.sends7d} send${activity.sends7d === 1 ? "" : "s"} this week`
+  ];
+  if (activity.saleBrands > 0) {
+    parts.push(
+      activity.saleBrands === 1
+        ? "1 brand running a sale"
+        : `${activity.saleBrands} brands running sales`
+    );
+  }
+  return <div className={styles.setCardActivity}>{parts.join(" · ")}</div>;
 }
 
 function formatRelativeDate(value: string): string {

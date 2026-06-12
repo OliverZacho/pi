@@ -355,6 +355,77 @@ export async function removeBrandFromSet(
   return "removed";
 }
 
+export type ComparisonActivity = {
+  /** Non-duplicate emails received across the set's brands, last 7 days. */
+  sends7d: number;
+  /** Distinct member brands that sent at least one discount email. */
+  saleBrands: number;
+};
+
+/**
+ * Cheap freshness signal for the landing's comparison cards: one
+ * members lookup + one 7-day email scan across the union of every
+ * set's brands. Deliberately *not* the per-brand analytics fan-out the
+ * detail page runs — the landing lists many sets and this keeps it to
+ * two indexed queries total. Sets without recent activity simply map
+ * to zeros.
+ */
+export async function getComparisonActivity(
+  supabase: SupabaseClient<Database>,
+  setIds: string[]
+): Promise<Record<string, ComparisonActivity>> {
+  const result: Record<string, ComparisonActivity> = {};
+  if (setIds.length === 0) return result;
+
+  const { data: memberRows, error: memberError } = await supabase
+    .from("competitor_set_members")
+    .select("set_id, company_id")
+    .in("set_id", setIds);
+  if (memberError) throw memberError;
+
+  const setsByCompany = new Map<string, string[]>();
+  for (const row of memberRows ?? []) {
+    const list = setsByCompany.get(row.company_id) ?? [];
+    list.push(row.set_id);
+    setsByCompany.set(row.company_id, list);
+  }
+  const companyIds = [...setsByCompany.keys()];
+  if (companyIds.length === 0) return result;
+
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data: emailRows, error: emailError } = await supabase
+    .from("captured_emails")
+    .select("company_id, discount_percent")
+    .in("company_id", companyIds)
+    .gte("received_at", since)
+    .is("duplicate_of", null);
+  if (emailError) throw emailError;
+
+  const sends = new Map<string, number>();
+  const saleBrandsBySet = new Map<string, Set<string>>();
+  for (const row of emailRows ?? []) {
+    if (!row.company_id) continue;
+    const sets = setsByCompany.get(row.company_id);
+    if (!sets) continue;
+    for (const setId of sets) {
+      sends.set(setId, (sends.get(setId) ?? 0) + 1);
+      if (row.discount_percent !== null && Number(row.discount_percent) > 0) {
+        const brands = saleBrandsBySet.get(setId) ?? new Set<string>();
+        brands.add(row.company_id);
+        saleBrandsBySet.set(setId, brands);
+      }
+    }
+  }
+
+  for (const setId of setIds) {
+    result[setId] = {
+      sends7d: sends.get(setId) ?? 0,
+      saleBrands: saleBrandsBySet.get(setId)?.size ?? 0
+    };
+  }
+  return result;
+}
+
 /**
  * Fetch the multi-brand comparison payload for the dashboard. Calls the
  * existing per-brand `getBrandPageData` in parallel so we reuse every

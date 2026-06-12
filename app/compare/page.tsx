@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import {
   dedupeBrandIds,
   getCompetitorComparison,
+  getComparisonActivity,
   listCompetitorSetSummaries,
   MAX_BRANDS_PER_COMPARISON,
+  type ComparisonActivity,
   type CompetitorSetBrand
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
@@ -89,10 +91,18 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
   // Preview brands for each saved set — used by the grid card to show
   // 4 stacked logos. Fetched as a single bulk query so we don't fan
-  // out per set; only run when the user has at least one set.
+  // out per set; only run when the user has at least one set. The
+  // 7-day activity chips ride the same guard.
   const setPreviews: Record<string, CompetitorSetBrand[]> = {};
+  let setActivity: Record<string, ComparisonActivity> = {};
   if (sets.length > 0) {
     const setIds = sets.map((s) => s.id);
+    setActivity = await getComparisonActivity(supabase, setIds).catch(
+      (err) => {
+        console.error("Failed to load comparison activity", err);
+        return {};
+      }
+    );
     const { data: previewRows } = await supabase
       .from("competitor_set_members")
       .select(
@@ -184,6 +194,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
           initialBrandIds={requestedBrandIds}
           initialBrandOptions={initialBrandOptions}
           setPreviews={setPreviews}
+          setActivity={setActivity}
         />
 
         {showDashboard ? (
