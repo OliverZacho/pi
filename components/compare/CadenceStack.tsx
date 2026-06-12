@@ -196,7 +196,10 @@ export default function CadenceStack({ brands }: Props) {
                   <div
                     className={v2.stackBar}
                     style={{
-                      height: `${heightRatio * 100}%`,
+                      // Rounded so SSR and hydration produce the same
+                      // string — browsers re-serialize long floats in
+                      // style attributes and React flags the diff.
+                      height: `${(heightRatio * 100).toFixed(2)}%`,
                       minHeight: bucket.total > 0 ? "2px" : "0"
                     }}
                   >
@@ -209,7 +212,7 @@ export default function CadenceStack({ brands }: Props) {
                           key={brands[bIdx].brand.id}
                           className={v2.stackSeg}
                           style={{
-                            flexBasis: `${share * 100}%`,
+                            flexBasis: `${(share * 100).toFixed(2)}%`,
                             background: color
                           }}
                         />

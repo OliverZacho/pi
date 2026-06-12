@@ -7,6 +7,7 @@ import {
   listCompetitorSetSummaries
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -25,7 +26,7 @@ type PageProps = {
 };
 
 /**
- * `/compare/[id]` — saved competitor set dashboard.
+ * `/compare/[id]` — saved comparison dashboard.
  *
  * Resolves the set (owner-scoped), loads each member brand's full
  * `BrandPageData` in parallel, and renders the same dashboard as the
@@ -61,14 +62,16 @@ export default async function CompareSetPage({ params }: PageProps) {
     notFound();
   }
 
-  const [collections, sidebarSets, comparison] = await Promise.all([
-    listCollectionSummaries(supabase, userId),
-    listCompetitorSetSummaries(supabase, userId),
-    getCompetitorComparison(
-      supabase,
-      set.brands.map((b) => b.id)
-    )
-  ]);
+  const [collections, sidebarSets, comparison, sectionPrefs] =
+    await Promise.all([
+      listCollectionSummaries(supabase, userId),
+      listCompetitorSetSummaries(supabase, userId),
+      getCompetitorComparison(
+        supabase,
+        set.brands.map((b) => b.id)
+      ),
+      getCompareSectionPrefs(supabase, userId)
+    ]);
 
   const subtitle = `${set.brands.length} brand${
     set.brands.length === 1 ? "" : "s"
@@ -87,7 +90,7 @@ export default async function CompareSetPage({ params }: PageProps) {
         <nav className={styles.breadcrumb} aria-label="Breadcrumb">
           <Link href="/compare" className={styles.breadcrumbLink}>
             <span aria-hidden="true">‹</span>
-            <span>Compare</span>
+            <span>Comparisons</span>
           </Link>
           <span className={styles.breadcrumbSep}>/</span>
           <span className={styles.breadcrumbCurrent}>{set.name}</span>
@@ -102,18 +105,19 @@ export default async function CompareSetPage({ params }: PageProps) {
 
         {set.brands.length === 0 ? (
           <section className={styles.section}>
-            <span className={styles.sectionEyebrow}>Empty set</span>
+            <span className={styles.sectionEyebrow}>Empty comparison</span>
             <h2 className={styles.sectionTitle}>No brands here yet</h2>
             <p className={styles.sectionSub}>
-              Add brands from the picker on the{" "}
-              <Link href="/compare">Compare landing</Link> or by visiting the
-              Brands page in select mode.
+              Select brands on the <Link href="/brands">Brands page</Link> and
+              choose <em>Add to…</em>, or use the picker on the{" "}
+              <Link href="/compare">Comparisons landing</Link>.
             </p>
           </section>
         ) : (
           <CompareDashboard
             brands={comparison.brands}
             missingIds={comparison.missing}
+            sectionPrefs={sectionPrefs}
           />
         )}
       </main>

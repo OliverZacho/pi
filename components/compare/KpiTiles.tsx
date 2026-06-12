@@ -8,6 +8,10 @@ import v2 from "./compare-v2.module.css";
 
 type Props = {
   brands: BrandPageData[];
+  /** Aligned with `brands` — share of subjects with urgency language. */
+  urgencyShares?: number[];
+  /** Aligned with `brands` — share of campaigns that get a follow-up. */
+  reminderShares?: number[];
 };
 
 type KpiDefinition = {
@@ -17,12 +21,19 @@ type KpiDefinition = {
     display: string;
     sublabel: string;
   };
-  perBrand: (brand: BrandPageData) => {
+  perBrand: (brand: BrandPageData, index: number) => {
     display: string;
     sublabel?: string;
     numeric: number | null;
   };
   rank?: "high" | "low" | "none";
+  /**
+   * Adds a compact dot-strip figure to the drill-down modal — every
+   * brand as a dot on one track. "share" scales 0 → group max;
+   * "range" scales group min → max. Omit for non-positional metrics
+   * (e.g. the ESP tile).
+   */
+  strip?: "share" | "range";
 };
 
 /**
@@ -36,7 +47,11 @@ type KpiDefinition = {
  * picks up the new class map without the stale-cache issues that
  * plagued the original CSS file.
  */
-export default function KpiTiles({ brands }: Props) {
+export default function KpiTiles({
+  brands,
+  urgencyShares = [],
+  reminderShares = []
+}: Props) {
   const [active, setActive] = useState<string | null>(null);
   const close = useCallback(() => setActive(null), []);
 
@@ -112,6 +127,7 @@ export default function KpiTiles({ brands }: Props) {
         id: "promo-share",
         label: "Promo share",
         rank: "high",
+        strip: "share",
         aggregate: (bs) => {
           let discounts = 0;
           let totals = 0;
@@ -182,6 +198,7 @@ export default function KpiTiles({ brands }: Props) {
         id: "subject-length",
         label: "Avg subject length",
         rank: "low",
+        strip: "range",
         aggregate: (bs) => {
           let weighted = 0;
           let weightSum = 0;
@@ -237,9 +254,91 @@ export default function KpiTiles({ brands }: Props) {
           sublabel: "GIF / dark-mode share",
           numeric: b.design.gifShare + b.design.darkModeShare
         })
+      },
+      {
+        id: "emoji-use",
+        label: "Emoji use",
+        rank: "high",
+        strip: "share",
+        aggregate: (bs) => {
+          let withEmoji = 0;
+          let sample = 0;
+          for (const b of bs) {
+            withEmoji += b.emojis.emailsWithEmoji;
+            sample += b.totals.sampleSize;
+          }
+          if (sample === 0) {
+            return { display: "—", sublabel: "no sample to score" };
+          }
+          return {
+            display: `${Math.round((withEmoji / sample) * 100)}%`,
+            sublabel: "of subjects across the cohort"
+          };
+        },
+        perBrand: (b) => ({
+          display: `${Math.round(b.emojis.share * 100)}%`,
+          sublabel:
+            b.emojis.top.length > 0
+              ? `Favours ${b.emojis.top
+                  .slice(0, 3)
+                  .map((e) => e.emoji)
+                  .join(" ")}`
+              : undefined,
+          numeric: b.emojis.share
+        })
+      },
+      {
+        id: "urgency",
+        label: "Urgency language",
+        rank: "high",
+        strip: "share",
+        aggregate: (bs) => {
+          let weighted = 0;
+          let sample = 0;
+          for (let i = 0; i < bs.length; i++) {
+            const w = Math.max(1, bs[i].totals.sampleSize);
+            weighted += (urgencyShares[i] ?? 0) * w;
+            sample += w;
+          }
+          if (sample === 0) {
+            return { display: "—", sublabel: "no sample to score" };
+          }
+          return {
+            display: `${Math.round((weighted / sample) * 100)}%`,
+            sublabel: `"last chance", "ends tonight", …`
+          };
+        },
+        perBrand: (b, i) => ({
+          display: `${Math.round((urgencyShares[i] ?? 0) * 100)}%`,
+          sublabel: "of subjects",
+          numeric: urgencyShares[i] ?? 0
+        })
+      },
+      {
+        id: "resends",
+        label: "Reminder sends",
+        rank: "high",
+        strip: "share",
+        aggregate: (bs) => {
+          if (bs.length === 0 || reminderShares.length === 0) {
+            return { display: "—", sublabel: "no campaigns detected" };
+          }
+          const avg =
+            bs.reduce((sum, _, i) => sum + (reminderShares[i] ?? 0), 0) /
+            bs.length;
+          return {
+            display: `${Math.round(avg * 100)}%`,
+            sublabel: "of campaigns get a follow-up"
+          };
+        },
+        perBrand: (b, i) => ({
+          display: `${Math.round((reminderShares[i] ?? 0) * 100)}%`,
+          sublabel: "of campaigns",
+          numeric: reminderShares[i] ?? 0
+        })
       }
     ],
-    []
+    [urgencyShares, reminderShares]
   );
 
   const activeDef = useMemo(
@@ -294,7 +393,7 @@ function KpiModal({
 }) {
   const rows = useMemo(() => {
     const mapped = brands.map((brand, idx) => {
-      const drill = definition.perBrand(brand);
+      const drill = definition.perBrand(brand, idx);
       return {
         brand,
         color: getCompareColor(idx),
@@ -352,6 +451,10 @@ function KpiModal({
           </button>
         </header>
 
+        {definition.strip ? (
+          <KpiStrip mode={definition.strip} rows={rows} />
+        ) : null}
+
         <div className={v2.modalBody}>
           {rows.map(({ brand, color, display, sublabel }) => (
             <div key={brand.brand.id} className={v2.modalRow}>
@@ -383,6 +486,71 @@ function KpiModal({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Dots get one of three vertical lanes so same-valued brands stay
+ *  distinguishable instead of stacking into one blob. */
+const STRIP_LANES = [50, 30, 70];
+
+/**
+ * Compact dot-strip figure at the top of a drill-down: every brand as
+ * a dot on one track, so the spread and the outlier are visible before
+ * reading the ranked rows below. "share" mode runs 0 → group max (10%
+ * floor so a flat group doesn't explode tiny differences); "range"
+ * runs group min → max.
+ */
+function KpiStrip({
+  mode,
+  rows
+}: {
+  mode: "share" | "range";
+  rows: {
+    brand: BrandPageData;
+    color: string;
+    display: string;
+    numeric: number | null;
+  }[];
+}) {
+  const withValues = rows.filter(
+    (row): row is (typeof rows)[number] & { numeric: number } =>
+      row.numeric !== null
+  );
+  if (withValues.length < 2) return null;
+
+  const values = withValues.map((row) => row.numeric);
+  const lo = mode === "share" ? 0 : Math.min(...values);
+  const hi =
+    mode === "share"
+      ? Math.max(0.1, ...values)
+      : Math.max(...values);
+  const span = Math.max(hi - lo, 0.0001);
+
+  const minRow = withValues.reduce((a, b) => (b.numeric < a.numeric ? b : a));
+  const maxRow = withValues.reduce((a, b) => (b.numeric > a.numeric ? b : a));
+
+  return (
+    <div className={styles.fpStrips} style={{ margin: "0 0 0.9rem" }}>
+      <span className={styles.fpStripTrack}>
+        {withValues.map((row, i) => (
+          <span
+            key={row.brand.brand.id}
+            className={styles.fpStripDot}
+            style={{
+              ["--accent" as string]: row.color,
+              left: `${(((row.numeric - lo) / span) * 100).toFixed(2)}%`,
+              top: `${STRIP_LANES[i % STRIP_LANES.length]}%`
+            }}
+            title={`${row.brand.brand.name}: ${row.display}`}
+          />
+        ))}
+      </span>
+      <span className={styles.fpStripScale}>
+        {mode === "share"
+          ? `0 – ${maxRow.display} (${maxRow.brand.brand.name})`
+          : `${minRow.display} (${minRow.brand.brand.name}) – ${maxRow.display} (${maxRow.brand.brand.name})`}
+      </span>
     </div>
   );
 }

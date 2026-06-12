@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type {
+  ComparisonActivity,
   CompetitorSetBrand,
   CompetitorSetSummary
 } from "@/lib/competitor-db";
@@ -30,13 +31,19 @@ type Props = {
   initialBrandOptions: BrandSearchOption[];
   /** Preview row for each saved set (first ~4 brands by added_at). */
   setPreviews: Record<string, CompetitorSetBrand[]>;
+  /**
+   * 7-day freshness per set (sends + brands running sales) so a card
+   * already answers "did anything happen?" before the click.
+   */
+  setActivity: Record<string, ComparisonActivity>;
 };
 
 /**
  * Landing page for `/compare`. Houses:
- *  - The grid of saved competitor sets the user owns.
+ *  - The grid of saved comparisons the user owns.
  *  - The ad-hoc brand picker that powers `/compare?brands=...` and
- *    "Save as set" creation.
+ *    "Save as comparison" creation (secondary to the Brands-page
+ *    multi-select flow).
  *
  * The picker no longer renders the full brand directory inline — the
  * catalogue is large enough that an always-on grid is just visual
@@ -49,7 +56,8 @@ export default function CompareLandingClient({
   sets,
   initialBrandIds,
   initialBrandOptions,
-  setPreviews
+  setPreviews,
+  setActivity
 }: Props) {
   const router = useRouter();
 
@@ -172,15 +180,16 @@ export default function CompareLandingClient({
       <section>
         <div className={styles.sectionHead}>
           <div>
-            <h2>Your competitor sets</h2>
-            <p>Saved groups you can reopen any time.</p>
+            <h2>Your comparisons</h2>
+            <p>Saved brand groups you can reopen any time.</p>
           </div>
         </div>
 
         {sets.length === 0 ? (
           <div className={styles.setsEmpty}>
-            You haven't saved any competitor sets yet. Pick a few brands below
-            and choose <em>Save as set</em> to keep the group for next time.
+            You haven't saved any comparisons yet.{" "}
+            <Link href="/brands">Select a few brands on the Brands page</Link>{" "}
+            — or pick them below — and save the group for next time.
           </div>
         ) : (
           <div className={styles.setsGrid}>
@@ -222,6 +231,7 @@ export default function CompareLandingClient({
                       {" · "}
                       Updated {formatRelativeDate(set.updatedAt)}
                     </div>
+                    <ActivityChip activity={setActivity[set.id]} />
                   </div>
                 </Link>
               );
@@ -235,8 +245,9 @@ export default function CompareLandingClient({
           <div>
             <h2>Build a comparison</h2>
             <p>
-              Search for brands by name or category and add up to{" "}
-              {MAX_BRANDS_PER_COMPARISON} to a comparison.
+              The easiest way is selecting brands on the{" "}
+              <Link href="/brands">Brands page</Link> — or search below and
+              add up to {MAX_BRANDS_PER_COMPARISON}.
             </p>
           </div>
           {selectedIds.length > 0 ? (
@@ -314,7 +325,7 @@ export default function CompareLandingClient({
             onClick={() => setSaveOpen((v) => !v)}
             disabled={selectedIds.length === 0 || pending}
           >
-            {saveOpen ? "Cancel save" : "Save as set…"}
+            {saveOpen ? "Cancel save" : "Save as comparison…"}
           </button>
           <span className={styles.pickerHint}>
             {remainingSlots <= 0
@@ -326,14 +337,14 @@ export default function CompareLandingClient({
         {saveOpen ? (
           <form onSubmit={handleSave} className={styles.saveModal}>
             <label
-              htmlFor="competitor-set-name"
+              htmlFor="comparison-name"
               className={styles.saveModalLabel}
             >
-              Name this competitor set
+              Name this comparison
             </label>
             <div className={styles.saveForm}>
               <input
-                id="competitor-set-name"
+                id="comparison-name"
                 type="text"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
@@ -365,6 +376,37 @@ export default function CompareLandingClient({
       </section>
     </>
   );
+}
+
+/**
+ * One-line freshness read under a comparison card's meta: how active
+ * the group was in the last 7 days and whether anyone is running a
+ * sale. Quiet weeks render muted so an active card stands out.
+ */
+function ActivityChip({ activity }: { activity?: ComparisonActivity }) {
+  if (!activity) return null;
+
+  if (activity.sends7d === 0) {
+    return (
+      <div
+        className={`${styles.setCardActivity} ${styles.setCardActivityQuiet}`}
+      >
+        Quiet week — no sends
+      </div>
+    );
+  }
+
+  const parts = [
+    `${activity.sends7d} send${activity.sends7d === 1 ? "" : "s"} this week`
+  ];
+  if (activity.saleBrands > 0) {
+    parts.push(
+      activity.saleBrands === 1
+        ? "1 brand running a sale"
+        : `${activity.saleBrands} brands running sales`
+    );
+  }
+  return <div className={styles.setCardActivity}>{parts.join(" · ")}</div>;
 }
 
 function formatRelativeDate(value: string): string {

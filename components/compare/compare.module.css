@@ -1485,6 +1485,10 @@
 
 .dnaGrid {
   display: grid;
+  /* Identity cards are short (palette / fonts / CTAs) — pack several
+     per row so a 20-brand comparison doesn't become a scroll marathon.
+     The comparative metrics live in the shared strips above. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.9rem;
 }
 
@@ -1534,50 +1538,59 @@
   border-radius: 6px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: var(--swatch, #f1f5f9);
+  position: relative;
+  cursor: default;
 }
 
-.dnaFontRow {
-  display: flex;
-  flex-wrap: wrap;
+/* Instant hex tooltip — the native title attribute is too slow to
+   feel like "visible on mouseover". */
+.dnaSwatch:hover::after {
+  content: attr(data-hex);
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 0.14rem 0.45rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* Labelled card rows ("Type", "CTAs") so different kinds of content
+   stop reading as the same anonymous pill soup. */
+.fpRow {
+  display: grid;
+  grid-template-columns: 2.9rem minmax(0, 1fr);
   gap: 0.55rem;
-  font-size: 0.84rem;
-  color: #475569;
+  align-items: baseline;
 }
 
-.dnaFontPill {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+.fpRowLabel {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
 }
 
-.dnaFlags {
+.fpRowValue {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fpRowPills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.dnaFlag {
-  display: inline-flex;
-  align-items: center;
   gap: 0.35rem;
-  font-size: 0.76rem;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 0.18rem 0.55rem;
-  border-radius: 999px;
-}
-
-.dnaFlagDot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: #cbd5e1;
-}
-
-.dnaFlagDot_on {
-  background: var(--accent, #0f172a);
 }
 
 /* ---------- Subjects + CTAs grid ---------- */
@@ -1693,4 +1706,653 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: #0f172a;
+}
+
+/* ---------- Takeaway lines (phase-2 redesign) ---------- */
+
+/* The auto-written answer that leads each section; the chart below is
+   evidence. Soft indigo so it reads as "the product speaking". */
+.takeaway {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0.65rem 0 1rem;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #312e81;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.takeawayIcon {
+  flex-shrink: 0;
+  color: #6366f1;
+  transform: translateY(1px);
+}
+
+/* ---------- Rhythm league table ---------- */
+
+.leagueList {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr) max-content;
+  gap: 0.55rem 0.9rem;
+  align-items: center;
+}
+
+.leagueName {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.leagueNameLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leagueTrack {
+  position: relative;
+  height: 16px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.leagueFill {
+  /* Spans don't blockify inside the track (only direct grid children
+     do), so width needs an explicit display or it renders 0-size. */
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent, #0f172a);
+  position: relative;
+  z-index: 1;
+}
+
+/* Faint scale tick at every whole email/week so bar length reads as a
+   value, not just a ranking. */
+.leagueTick {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.leagueAvgMark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 0;
+  border-left: 2px dashed rgba(15, 23, 42, 0.35);
+  z-index: 2;
+}
+
+.leagueValue {
+  font-size: 0.82rem;
+  color: #64748b;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.leagueValueRate {
+  color: #0f172a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.leagueTrend {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.leagueTrendUp {
+  color: #15803d;
+}
+
+.leagueTrendDown {
+  color: #b45309;
+}
+
+.leagueLegend {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* ---------- Occasion matrix ---------- */
+
+.occTableWrap {
+  overflow-x: auto;
+}
+
+.occTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.occTable th,
+.occTable td {
+  padding: 0.55rem 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.occTable th:first-child,
+.occTable td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+
+.occBrandHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  font-size: 0.82rem;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occEvent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.occLead {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.occLeadFaint {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.occNone {
+  color: #cbd5e1;
+}
+
+/* ---------- Creative fingerprint extras ---------- */
+
+/* Shared metric strips: one track per copy-habit metric with every
+   brand as a dot, so the section's height is constant regardless of
+   how many brands are being compared. */
+.fpStrips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin: 1rem 0 1.4rem;
+}
+
+.fpStrip {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) max-content;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.fpStripLabel {
+  font-size: 0.82rem;
+  color: #64748b;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fpStripTrack {
+  position: relative;
+  height: 26px;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+
+.fpStripDot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent, #0f172a);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
+  transform: translate(-50%, -50%);
+}
+
+.fpStripScale {
+  font-size: 0.76rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  min-width: 6.5rem;
+}
+
+.fpFontPill {
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Content mix ---------- */
+
+.mixList {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+  gap: 0.6rem 0.9rem;
+  align-items: center;
+}
+
+.mixBar {
+  display: flex;
+  height: 20px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.mixSeg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.mixLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.mixLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mixLegendSwatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ---------- Section rail (hide / reorder customization) ---------- */
+
+.railShell {
+  position: relative;
+}
+
+.railControls {
+  position: absolute;
+  top: 2.45rem;
+  right: 1.35rem;
+  z-index: 5;
+  display: inline-flex;
+  gap: 0.25rem;
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.railShell:hover .railControls,
+.railShell:focus-within .railControls,
+.railCollapsed .railControls {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .railControls {
+    opacity: 1;
+  }
+}
+
+.railButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.railButton:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.railButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Hidden section — just the title bar with a Show affordance. */
+.railCollapsed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1.4rem;
+  padding: 0.7rem 1.4rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.railCollapsedTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* In the collapsed bar the controls sit in the row, not floated. */
+.railCollapsed .railControls {
+  position: static;
+  margin-left: auto;
+}
+
+/* ---------- Quiet zones grid ---------- */
+
+/* Grid on the left, the actionable "best windows" panel filling the
+   space on the right; stacks on narrow viewports. */
+.qzLayout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 4rem;
+  align-items: flex-start;
+}
+
+.qzMain {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.qzGrid {
+  display: grid;
+  grid-template-columns: 6rem repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  align-items: center;
+}
+
+.qzPanel {
+  flex: 1 1 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.qzPanelLabel {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
+}
+
+.qzOpenings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.qzOpening {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  /* Teal tint matching the grid's fill (#0f766e) so the two halves
+     read as one section. */
+  background: rgba(15, 118, 110, 0.07);
+  border: 1px solid rgba(15, 118, 110, 0.2);
+}
+
+.qzOpeningSlot {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.qzOpeningMeta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #0f766e;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.qzPanelFootnote {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.qzPanelFootnote strong {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.qzHead {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.qzRowLabel {
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: right;
+  padding-right: 0.5rem;
+  white-space: nowrap;
+}
+
+.qzCell {
+  position: relative;
+  display: block;
+  height: 1.6rem;
+  border-radius: 6px;
+  background: #0f766e;
+  cursor: default;
+  outline: none;
+}
+
+.qzCell:focus-visible {
+  box-shadow: 0 0 0 2px #0f172a;
+}
+
+.qzCellEmpty {
+  background: transparent;
+  border: 1.5px dashed #f59e0b;
+}
+
+/* Hover/focus popover naming who sends in this slot. Anchored above the
+   cell, instant (CSS-only), and lifted above neighbouring cells. */
+.qzCellPop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  min-width: 8.5rem;
+  max-width: 14rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.65rem;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: var(--popover-shadow);
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.qzCell:hover .qzCellPop,
+.qzCell:focus-visible .qzCellPop {
+  display: flex;
+}
+
+.qzCellPopTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.qzWhoEmpty {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.qzWhoBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.qzWhoDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.qzWhoCount {
+  margin-left: auto;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.qzLegend {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* ---------- Promo trend mini-bars ---------- */
+
+.promoTrend {
+  margin-top: 0.8rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.65rem;
+}
+
+.promoTrendBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 2.4rem;
+}
+
+.promoTrendBar {
+  flex: 1;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent, #0f172a);
+  opacity: 0.85;
+  min-width: 0;
+}
+
+.promoTrendBarEmpty {
+  height: 3px;
+  background: #e2e8f0;
+  opacity: 1;
+}
+
+.promoTrendLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+
+/* ---------- What's new (change feed) ---------- */
+
+.changeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.changeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+
+.changeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: var(--accent, #0f172a);
+  flex-shrink: 0;
+}
+
+.changeMessage {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #0f172a;
+}
+
+.changeMessage .brandStripAccentDot {
+  display: inline-block;
+  margin-right: 0.45rem;
+  transform: translateY(-1px);
+}
+
+/* ---------- Landing card activity chip ---------- */
+
+.setCardActivity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.setCardActivityQuiet {
+  color: #94a3b8;
+  font-weight: 400;
 }

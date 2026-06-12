@@ -341,7 +341,7 @@ export default function BrandSearchPicker({
                 disabled={disabled && !isPending}
                 title={
                   isAlreadySelected
-                    ? `${brand.name} is already in this set`
+                    ? `${brand.name} is already in this comparison`
                     : undefined
                 }
               >
@@ -382,7 +382,7 @@ export default function BrandSearchPicker({
                   </span>
                 ) : null}
                 {isAlreadySelected ? (
-                  <span className={v2.searchAlready}>In set</span>
+                  <span className={v2.searchAlready}>In comparison</span>
                 ) : isPending ? (
                   <span className={v2.searchPicked}>Added</span>
                 ) : null}

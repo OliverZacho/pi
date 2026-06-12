@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -17,13 +16,17 @@ import type {
   BrandsFacets,
   BrandsSortKey
 } from "@/lib/brands-explore-db";
-import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import {
+  MAX_BRANDS_PER_COMPARISON,
+  type CompetitorSetSummary
+} from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
 import {
   endOfDayInZone,
   parseDayKey,
   startOfDayInZone
 } from "@/lib/datetime";
+import BrandBatchBar from "./BrandBatchBar";
 import BrandRequestForm from "./BrandRequestForm";
 import requestStyles from "./BrandRequest.module.css";
 import styles from "./brands-explore.module.css";
@@ -66,9 +69,20 @@ type Props = {
   searchEndpoint?: string;
   /**
    * Public directory (logged-out / unpaid): hides the authenticated-only
-   * "select to compare" affordance. Browsing + search still work.
+   * selection affordances. Browsing + search still work.
    */
   isPublic?: boolean;
+  /**
+   * The user's saved comparisons, powering the batch bar's "Add to…"
+   * menu. Empty for public viewers.
+   */
+  comparisons?: CompetitorSetSummary[];
+  /**
+   * Ids of brands the user follows — lets the batch bar offer
+   * follow/unfollow for the current selection. Kept as local state
+   * after mount so batch actions update it optimistically.
+   */
+  initialFollowedBrandIds?: string[];
 };
 
 type PopoverName =
@@ -95,7 +109,9 @@ export default function BrandsExploreClient({
   pageSize,
   facets,
   searchEndpoint = "/api/brands/list",
-  isPublic = false
+  isPublic = false,
+  comparisons = [],
+  initialFollowedBrandIds = []
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
@@ -144,17 +160,16 @@ export default function BrandsExploreClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Select mode lets the user pick a handful of brands and jump
-  // straight into a side-by-side compare. State is kept local — when
-  // the user wants to persist the group they hit "Save as set", which
-  // round-trips to the API and navigates to the set's page.
-  const router = useRouter();
+  // Selection lets the user pick a handful of brands and act on the
+  // batch: compare side-by-side, save / extend a comparison, or
+  // follow / unfollow them all. State is kept local — persisting a
+  // comparison round-trips to the API and navigates to its page.
+  // Selection starts either from the hover checkbox on any card or
+  // from the toolbar toggle; both converge on the same mode. The batch
+  // action bar (compare / save / add-to / follow) lives in the shared
+  // <BrandBatchBar>, so only the selection set is owned here.
   const [selectMode, setSelectMode] = useState(false);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [saveName, setSaveName] = useState("");
-  const [savePending, setSavePending] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const filterRowRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -528,6 +543,10 @@ export default function BrandsExploreClient({
   );
 
   function toggleBrand(id: string) {
+    // Selecting from a hover checkbox implicitly enters select mode so
+    // subsequent clicks on whole cards keep toggling instead of
+    // navigating away mid-selection.
+    setSelectMode(true);
     setSelectedBrandIds((current) => {
       if (current.includes(id)) {
         return current.filter((x) => x !== id);
@@ -541,9 +560,6 @@ export default function BrandsExploreClient({
 
   function clearSelection() {
     setSelectedBrandIds([]);
-    setSaveOpen(false);
-    setSaveName("");
-    setSaveError(null);
   }
 
   function exitSelectMode() {
@@ -551,50 +567,20 @@ export default function BrandsExploreClient({
     setSelectMode(false);
   }
 
-  function handleCompareSelected() {
-    if (selectedBrandIds.length === 0) return;
-    const qs = new URLSearchParams();
-    for (const id of selectedBrandIds) qs.append("brands", id);
-    router.push(`/compare?${qs.toString()}`);
-  }
-
-  async function handleSaveSelectedAsSet(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-    const trimmed = saveName.trim();
-    if (!trimmed || savePending) return;
-    if (selectedBrandIds.length === 0) {
-      setSaveError("Pick at least one brand first");
-      return;
-    }
-    setSavePending(true);
-    setSaveError(null);
-    try {
-      const res = await fetch("/api/competitor-sets", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: trimmed,
-          brandIds: selectedBrandIds
-        })
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(body?.error ?? `Failed (${res.status})`);
+  // Escape backs out of selection (unless a filter popover is open —
+  // its own handler consumes Escape first).
+  useEffect(() => {
+    if (!selectMode) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && openPopover === null) {
+        exitSelectMode();
       }
-      const body = (await res.json()) as { set: { id: string } };
-      router.push(`/compare/${body.set.id}`);
-      router.refresh();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSavePending(false);
     }
-  }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+    // exitSelectMode is stable in behavior; re-binding on these two is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectMode, openPopover]);
 
   const hasAnyFilter =
     selectedMarkets.size > 0 ||
@@ -1089,14 +1075,14 @@ export default function BrandsExploreClient({
               selectMode ? exitSelectMode() : setSelectMode(true)
             }
             aria-pressed={selectMode}
-            title="Toggle compare-select mode"
+            title="Select brands to compare, group or follow"
           >
             <span>
               {selectMode
                 ? selectedBrandIds.length > 0
                   ? `${selectedBrandIds.length} selected`
                   : "Select…"
-                : "Select to compare"}
+                : "Select brands"}
             </span>
           </button>
         )}
@@ -1189,6 +1175,7 @@ export default function BrandsExploreClient({
               <BrandGridCard
                 key={brand.id}
                 brand={brand}
+                selectable={!isPublic}
                 selectMode={selectMode}
                 selected={selectedSet.has(brand.id)}
                 disabled={
@@ -1211,83 +1198,13 @@ export default function BrandsExploreClient({
         </>
       )}
 
-      {selectMode && selectedBrandIds.length > 0 ? (
-        <div className={styles.compareBar} role="region" aria-label="Compare selected brands">
-          <span className={styles.compareBarCount}>
-            {selectedBrandIds.length} brand
-            {selectedBrandIds.length === 1 ? "" : "s"} selected
-          </span>
-          {saveOpen ? (
-            <form
-              onSubmit={handleSaveSelectedAsSet}
-              className={styles.compareSaveForm}
-            >
-              <input
-                type="text"
-                value={saveName}
-                onChange={(event) => setSaveName(event.target.value)}
-                maxLength={120}
-                placeholder="Name this set…"
-                className={styles.compareSaveInput}
-                disabled={savePending}
-                autoFocus
-                aria-label="Name for new competitor set"
-              />
-              <button
-                type="submit"
-                className={styles.compareBarPrimary}
-                disabled={
-                  savePending ||
-                  saveName.trim().length === 0 ||
-                  selectedBrandIds.length === 0
-                }
-              >
-                {savePending ? "Saving…" : "Save & open"}
-              </button>
-              <button
-                type="button"
-                className={styles.compareBarSecondary}
-                onClick={() => {
-                  setSaveOpen(false);
-                  setSaveError(null);
-                }}
-                disabled={savePending}
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <>
-              <span className={styles.compareBarSpacer} />
-              <button
-                type="button"
-                className={styles.compareBarPrimary}
-                onClick={handleCompareSelected}
-              >
-                Compare ({selectedBrandIds.length})
-              </button>
-              <button
-                type="button"
-                className={styles.compareBarSecondary}
-                onClick={() => setSaveOpen(true)}
-              >
-                Save as set…
-              </button>
-              <button
-                type="button"
-                className={styles.compareBarSecondary}
-                onClick={clearSelection}
-              >
-                Clear
-              </button>
-            </>
-          )}
-          {saveError ? (
-            <span className={styles.compareBarError} role="alert">
-              {saveError}
-            </span>
-          ) : null}
-        </div>
+      {selectMode ? (
+        <BrandBatchBar
+          selectedIds={selectedBrandIds}
+          comparisons={comparisons}
+          initialFollowedIds={initialFollowedBrandIds}
+          onClear={clearSelection}
+        />
       ) : null}
     </>
   );
@@ -1299,6 +1216,8 @@ export default function BrandsExploreClient({
 
 type BrandGridCardProps = {
   brand: BrandsExploreCard;
+  /** False on the public directory — hides all selection affordances. */
+  selectable?: boolean;
   selectMode?: boolean;
   selected?: boolean;
   disabled?: boolean;
@@ -1307,6 +1226,7 @@ type BrandGridCardProps = {
 
 function BrandGridCard({
   brand,
+  selectable = false,
   selectMode = false,
   selected = false,
   disabled = false,
@@ -1402,7 +1322,7 @@ function BrandGridCard({
     );
   }
 
-  return (
+  const link = (
     <Link
       href={`/brands/${brand.id}`}
       className={styles.card}
@@ -1410,6 +1330,28 @@ function BrandGridCard({
     >
       {cardBody}
     </Link>
+  );
+
+  if (!selectable) {
+    return link;
+  }
+
+  // Outside select mode the card stays a plain link, with a checkbox
+  // revealed on hover (always visible on touch) as the entry point
+  // into selection — no need to find the toolbar toggle first.
+  return (
+    <div className={styles.cardWrap}>
+      {link}
+      <button
+        type="button"
+        className={styles.cardHoverCheck}
+        onClick={() => onToggle?.(brand.id)}
+        aria-label={`Select ${brand.name}`}
+        title={`Select ${brand.name}`}
+      >
+        <PlusIcon />
+      </button>
+    </div>
   );
 }
 
@@ -1628,6 +1570,25 @@ function CheckIcon() {
       aria-hidden="true"
     >
       <polyline points="4 12 10 18 20 6" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

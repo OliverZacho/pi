@@ -257,7 +257,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: <CollectionIcon />,
     href: "/collections"
   },
-  { id: "compare", label: "Compare", icon: <CompareIcon />, href: "/compare" }
+  { id: "compare", label: "Comparisons", icon: <CompareIcon />, href: "/compare" }
 ];
 
 /**
@@ -774,7 +774,7 @@ export default function ExploreSidebar({
 
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
-          <span>Your competitors</span>
+          <span>Your comparisons</span>
           <Link
             href="/compare"
             className={styles.sectionAdd}
@@ -787,7 +787,8 @@ export default function ExploreSidebar({
 
         {sets.length === 0 ? (
           <div className={styles.sidebarEmpty}>
-            No saved sets yet. Open Compare to build one.
+            No comparisons yet. Select a few brands on the Brands page to
+            start one.
           </div>
         ) : null}
 

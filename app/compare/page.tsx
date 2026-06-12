@@ -2,11 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import {
   dedupeBrandIds,
   getCompetitorComparison,
+  getComparisonActivity,
   listCompetitorSetSummaries,
   MAX_BRANDS_PER_COMPARISON,
+  type ComparisonActivity,
   type CompetitorSetBrand
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
+import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -18,7 +21,7 @@ import styles from "@/components/compare/compare.module.css";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 
 export const metadata = {
-  title: "Compare — Pirol"
+  title: "Comparisons — Pirol"
 };
 
 export const dynamic = "force-dynamic";
@@ -28,11 +31,12 @@ type PageProps = {
 };
 
 /**
- * `/compare` — landing for the Competitor Analysis tab.
+ * `/compare` — landing for the Comparisons tab.
  *
  * Renders three stacked panels:
- *   1. Saved competitor sets the user owns (clickable into `/compare/[id]`).
- *   2. Ad-hoc brand picker.
+ *   1. Saved comparisons the user owns (clickable into `/compare/[id]`).
+ *   2. Ad-hoc brand picker (secondary — the primary creation path is
+ *      selecting brands on the Brands page).
  *   3. If `?brands=...` is set, the live comparison dashboard below.
  *
  * The picker is a client island; everything else is server-rendered so
@@ -76,20 +80,29 @@ export default async function ComparePage({ searchParams }: PageProps) {
   // `getBrandPageData` calls. The picker itself searches the brand
   // directory on demand via `/api/brands/list`, so we no longer
   // prefetch the catalogue here.
-  const [sets, collections, comparison] = await Promise.all([
+  const [sets, collections, comparison, sectionPrefs] = await Promise.all([
     listCompetitorSetSummaries(supabase, userId),
     listCollectionSummaries(supabase, userId),
     requestedBrandIds.length > 0
       ? getCompetitorComparison(supabase, requestedBrandIds)
-      : Promise.resolve({ brands: [], missing: [] })
+      : Promise.resolve({ brands: [], missing: [] }),
+    getCompareSectionPrefs(supabase, userId)
   ]);
 
   // Preview brands for each saved set — used by the grid card to show
   // 4 stacked logos. Fetched as a single bulk query so we don't fan
-  // out per set; only run when the user has at least one set.
+  // out per set; only run when the user has at least one set. The
+  // 7-day activity chips ride the same guard.
   const setPreviews: Record<string, CompetitorSetBrand[]> = {};
+  let setActivity: Record<string, ComparisonActivity> = {};
   if (sets.length > 0) {
     const setIds = sets.map((s) => s.id);
+    setActivity = await getComparisonActivity(supabase, setIds).catch(
+      (err) => {
+        console.error("Failed to load comparison activity", err);
+        return {};
+      }
+    );
     const { data: previewRows } = await supabase
       .from("competitor_set_members")
       .select(
@@ -167,11 +180,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
       <main className={styles.main}>
         <header className={styles.heading}>
           <div>
-            <h1>Compare</h1>
+            <h1>Comparisons</h1>
             <p>
-              Spot patterns across a cohort of competitors — cadence, promo
-              intensity, category mix, design tells, and the voice of their
-              CTAs. Save groups you benchmark often.
+              Put a group of brands side by side — cadence, promo intensity,
+              category mix, design tells, and the voice of their CTAs. Select
+              brands on the Brands page and save the groups you revisit.
             </p>
           </div>
         </header>
@@ -181,6 +194,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
           initialBrandIds={requestedBrandIds}
           initialBrandOptions={initialBrandOptions}
           setPreviews={setPreviews}
+          setActivity={setActivity}
         />
 
         {showDashboard ? (
@@ -191,11 +205,12 @@ export default async function ComparePage({ searchParams }: PageProps) {
               setName={`Comparing ${dashboardBrands.length} brand${
                 dashboardBrands.length === 1 ? "" : "s"
               }`}
-              subtitle="Ad-hoc comparison — save it as a set above to keep this group."
+              subtitle="Ad-hoc comparison — save it above to keep this group."
             />
             <CompareDashboard
               brands={dashboardBrands}
               missingIds={comparison.missing}
+              sectionPrefs={sectionPrefs}
             />
           </section>
         ) : null}

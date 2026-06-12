@@ -1,12 +1,32 @@
-import type { CSSProperties } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import {
+  buildComparisonInsights,
+  QUIET_ZONE_DAYPARTS,
+  QUIET_ZONE_DAYS,
+  type ContentMixInsight,
+  type DiscountTrendInsight,
+  type OccasionInsight,
+  type QuietZonesInsight,
+  type RhythmInsight
+} from "@/lib/comparison-insights";
+import {
+  detectGroupChanges,
+  type BrandChange
+} from "@/lib/comparison-changes";
+import { colorForCategory } from "@/lib/category-colors";
+import {
+  defaultCompareSectionPrefs,
+  type CompareSectionId,
+  type CompareSectionPrefs
+} from "@/lib/comparison-sections";
 import { countryFlag, countryName } from "@/lib/country";
 import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
-import InboxForecast from "./InboxForecast";
+import CompareSectionRail from "./CompareSectionRail";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -15,30 +35,43 @@ type Props = {
   brands: BrandPageData[];
   /** Optional list of brand ids the caller requested but couldn't load. */
   missingIds?: string[];
+  /**
+   * The viewer's saved section layout (order + hidden), resolved by the
+   * page from `user_prefs` so the dashboard renders in the saved shape
+   * on first paint. Defaults to the standard layout.
+   */
+  sectionPrefs?: CompareSectionPrefs;
 };
 
 /**
  * Multi-brand comparison dashboard.
  *
  * Receives N `BrandPageData` payloads (one per selected brand, produced
- * by `getCompetitorComparison`) and renders the analytics that matter
- * most when sizing up a competitor cohort:
- *   1. KPI tiles  — aggregate snapshot; click for per-brand drill-down
- *   2. Cadence    — stacked aggregate bar chart with lookback selector
- *   3. Forecast   — 7 / 14-day prediction of cohort inbox crowding
- *   4. Send-time  — 24h heatmap with an aggregated row + per-brand rows
- *   5. Promo      — per-brand promo aggressiveness blocks
- *   6. Design DNA — per-brand palettes / fonts / flags
- *   7. Subjects   — per-brand subject samples
- *   8. CTA voice  — per-brand mini tag-cloud
- *   9. Recent     — merged chronological feed
+ * by `getCompetitorComparison`). Organised around the questions a
+ * marketer asks about a group, and every section leads with a
+ * rule-generated takeaway sentence (see `lib/comparison-insights.ts`)
+ * with the chart below as evidence:
+ *
+ *   1. KPI tiles    — aggregate snapshot; click for per-brand drill-down
+ *   2. Rhythm       — send-rate league table, cadence chart, 24h
+ *                     send-time heatmap, quiet zones
+ *   3. Promo        — per-brand discount aggressiveness blocks
+ *   4. Occasions    — seasonal-event matrix with per-brand lead times
+ *   5. Voice        — per-brand creative fingerprint (palette, fonts,
+ *                     subject habits, emoji, CTAs)
+ *   6. Content mix  — stacked category-share bars
+ *   7. Recent       — merged chronological feed
  *
  * The KPI tile and cadence sections are client islands because they
  * own interactive UI (modal + lookback selector + hover tooltip);
  * everything else stays server-rendered so the page hits the wire
  * fully hydrated on first paint.
  */
-export default function CompareDashboard({ brands, missingIds }: Props) {
+export default function CompareDashboard({
+  brands,
+  missingIds,
+  sectionPrefs
+}: Props) {
   if (brands.length === 0) {
     return (
       <section className={styles.section}>
@@ -48,6 +81,89 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
       </section>
     );
   }
+
+  const insights = buildComparisonInsights(brands);
+  const changes = detectGroupChanges(brands);
+
+  // One entry per section that has something to show for this cohort —
+  // data-empty sections (occasions with no events, mix with no
+  // categories, a week with no changes) are omitted entirely so the
+  // rail never offers a collapsed bar for content that wouldn't render
+  // anyway.
+  const sections: { id: CompareSectionId; content: ReactNode }[] = [
+    ...(changes.length > 0
+      ? [
+          {
+            id: "whats-new" as const,
+            content: <WhatsNewSection changes={changes} />
+          }
+        ]
+      : []),
+    {
+      id: "kpis",
+      content: (
+        <KpiTiles
+          brands={brands}
+          urgencyShares={insights.urgencyShares}
+          reminderShares={insights.reminderShares}
+        />
+      )
+    },
+    {
+      id: "rhythm",
+      content: <RhythmLeague brands={brands} insight={insights.rhythm} />
+    },
+    { id: "cadence", content: <CadenceStack brands={brands} /> },
+    {
+      id: "send-times",
+      content: (
+        <SendTimeStrips brands={brands} takeaway={insights.timingTakeaway} />
+      )
+    },
+    ...(insights.quietZones.totalSends > 0
+      ? [
+          {
+            id: "quiet-zones" as const,
+            content: <QuietZonesSection insight={insights.quietZones} />
+          }
+        ]
+      : []),
+    {
+      id: "promo",
+      content: (
+        <PromoBlocks
+          brands={brands}
+          takeaway={insights.promoTakeaway}
+          trend={insights.discountTrend}
+        />
+      )
+    },
+    ...(insights.occasions.rows.length > 0
+      ? [
+          {
+            id: "occasions" as const,
+            content: (
+              <OccasionMatrix brands={brands} insight={insights.occasions} />
+            )
+          }
+        ]
+      : []),
+    {
+      id: "fingerprint",
+      content: (
+        <FingerprintGrid brands={brands} takeaway={insights.voiceTakeaway} />
+      )
+    },
+    ...(insights.mix.rows.some((row) => row.segments.length > 0)
+      ? [
+          {
+            id: "content-mix" as const,
+            content: <ContentMixSection insight={insights.mix} />
+          }
+        ]
+      : []),
+    { id: "recent", content: <RecentCampaigns brands={brands} /> }
+  ];
 
   return (
     <>
@@ -60,16 +176,122 @@ export default function CompareDashboard({ brands, missingIds }: Props) {
 
       <RegionNote brands={brands} />
 
-      <KpiTiles brands={brands} />
-      <CadenceStack brands={brands} />
-      <InboxForecast brands={brands} />
-      <SendTimeStrips brands={brands} />
-      <PromoBlocks brands={brands} />
-      <DesignDna brands={brands} />
-      <SubjectGrid brands={brands} />
-      <CtaGrid brands={brands} />
-      <RecentCampaigns brands={brands} />
+      <CompareSectionRail
+        sections={sections}
+        initialPrefs={sectionPrefs ?? defaultCompareSectionPrefs()}
+      />
     </>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Takeaway line
+   ----------------------------------------------------------------- */
+
+/**
+ * The one-sentence answer that leads a section. Rendered only when the
+ * generator found something worth claiming — sections degrade to plain
+ * chart + sub-line rather than show a hollow sentence.
+ */
+function Takeaway({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <p className={styles.takeaway}>
+      <span className={styles.takeawayIcon} aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 3v3M18.4 5.6l-2.1 2.1M21 12h-3M18.4 18.4l-2.1-2.1M12 18v3M7.8 16.3l-2.2 2.1M6 12H3M7.8 7.7 5.6 5.6" />
+        </svg>
+      </span>
+      <span>{text}</span>
+    </p>
+  );
+}
+
+/* -----------------------------------------------------------------
+   What's new — per-brand baseline changes
+   ----------------------------------------------------------------- */
+
+/**
+ * The headline strip: each card is one detected change (pace spike,
+ * unusual silence, first discount in months) measured against the
+ * brand's own baseline. Rendered only when something actually changed;
+ * a quiet week means the section simply isn't there.
+ */
+function WhatsNewSection({ changes }: { changes: BrandChange[] }) {
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>This week</span>
+      <h2 className={styles.sectionTitle}>What&apos;s new in this group</h2>
+      <p className={styles.sectionSub}>
+        Changes measured against each brand&apos;s own baseline — not the
+        group&apos;s.
+      </p>
+
+      <div className={styles.changeGrid}>
+        {changes.map((change) => (
+          <article
+            key={`${change.brandId}-${change.kind}`}
+            className={styles.changeCard}
+            style={
+              {
+                ["--accent" as string]: getCompareColor(change.brandIndex)
+              } as CSSProperties
+            }
+          >
+            <span className={styles.changeIcon} aria-hidden="true">
+              <ChangeKindIcon kind={change.kind} />
+            </span>
+            <p className={styles.changeMessage}>
+              <span className={styles.brandStripAccentDot} />
+              {change.message}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ChangeKindIcon({ kind }: { kind: BrandChange["kind"] }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: 16,
+    height: 16,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const
+  };
+  if (kind === "pace_spike") {
+    return (
+      <svg {...common}>
+        <polyline points="3 17 9 11 13 15 21 7" />
+        <polyline points="15 7 21 7 21 13" />
+      </svg>
+    );
+  }
+  if (kind === "gone_quiet") {
+    return (
+      <svg {...common}>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59c0 .53.21 1.04.59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83z" />
+      <circle cx="7.5" cy="7.5" r="0.5" />
+    </svg>
   );
 }
 
@@ -153,10 +375,171 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
 }
 
 /* -----------------------------------------------------------------
+   Rhythm — send-rate league table
+   ----------------------------------------------------------------- */
+
+function RhythmLeague({
+  brands,
+  insight
+}: {
+  brands: BrandPageData[];
+  insight: RhythmInsight;
+}) {
+  const maxRate = Math.max(0.01, ...insight.rows.map((r) => r.perWeek));
+  const avgPct = Math.min(100, (insight.groupAvgPerWeek / maxRate) * 100);
+
+  // One faint tick per whole email/week (every 2 when the leader is a
+  // heavy sender) so bar length reads as a value, not just a ranking.
+  const tickStep = maxRate > 8 ? 2 : 1;
+  const ticks: number[] = [];
+  for (let t = tickStep; t < maxRate; t += tickStep) {
+    ticks.push((t / maxRate) * 100);
+  }
+
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>Rhythm</span>
+      <h2 className={styles.sectionTitle}>Who sends the most</h2>
+      <p className={styles.sectionSub}>
+        Average emails per week over the last 12 weeks (or since we
+        started tracking the brand, if more recent), with the trend
+        against the 12 weeks before that.
+      </p>
+      <Takeaway text={insight.takeaway} />
+
+      <div className={styles.sectionBody}>
+        <div className={styles.leagueList}>
+          {insight.rows.map((row) => {
+            const color = getCompareColor(row.index);
+            const widthPct = Math.max(
+              row.perWeek > 0 ? 2 : 0,
+              (row.perWeek / maxRate) * 100
+            );
+            return (
+              <RhythmLeagueRow
+                key={row.id}
+                row={row}
+                color={color}
+                widthPct={widthPct}
+                ticks={ticks}
+                avgPct={brands.length >= 2 ? avgPct : null}
+              />
+            );
+          })}
+        </div>
+        {brands.length >= 2 ? (
+          <p className={styles.leagueLegend}>
+            Dashed line marks the group average (
+            {fmtRate(insight.groupAvgPerWeek)} emails / week); ticks every{" "}
+            {tickStep === 1 ? "1" : "2"} / week.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/** A pace change must move at least this fraction of the previous rate
+ *  (and at least half an email/week) before the trend marker shows. */
+const TREND_MIN_RELATIVE = 0.25;
+const TREND_MIN_ABSOLUTE = 0.5;
+
+function RhythmLeagueRow({
+  row,
+  color,
+  widthPct,
+  ticks,
+  avgPct
+}: {
+  row: RhythmInsight["rows"][number];
+  color: string;
+  widthPct: number;
+  ticks: number[];
+  avgPct: number | null;
+}) {
+  const accentStyle = { ["--accent" as string]: color } as CSSProperties;
+
+  let trend: { direction: "up" | "down"; from: string } | null = null;
+  if (row.prevPerWeek !== null) {
+    const delta = row.perWeek - row.prevPerWeek;
+    const relative =
+      row.prevPerWeek > 0 ? Math.abs(delta) / row.prevPerWeek : 1;
+    if (
+      Math.abs(delta) >= TREND_MIN_ABSOLUTE &&
+      relative >= TREND_MIN_RELATIVE
+    ) {
+      trend = {
+        direction: delta > 0 ? "up" : "down",
+        from: fmtRate(row.prevPerWeek)
+      };
+    }
+  }
+
+  return (
+    <>
+      <span className={styles.leagueName} style={accentStyle}>
+        <span className={styles.brandStripAccentDot} />
+        <span className={styles.leagueNameLabel}>{row.name}</span>
+      </span>
+      <span className={styles.leagueTrack} style={accentStyle}>
+        {ticks.map((left) => (
+          <span
+            key={left}
+            className={styles.leagueTick}
+            style={{ left: `${left.toFixed(2)}%` }}
+            aria-hidden="true"
+          />
+        ))}
+        <span
+          className={styles.leagueFill}
+          style={{ width: `${widthPct.toFixed(2)}%` }}
+        />
+        {avgPct !== null ? (
+          <span
+            className={styles.leagueAvgMark}
+            style={{ left: `${avgPct.toFixed(2)}%` }}
+            aria-hidden="true"
+          />
+        ) : null}
+      </span>
+      <span className={styles.leagueValue}>
+        <span className={styles.leagueValueRate}>
+          {fmtRate(row.perWeek)}
+        </span>
+        / wk
+        {trend ? (
+          <span
+            className={`${styles.leagueTrend} ${
+              trend.direction === "up"
+                ? styles.leagueTrendUp
+                : styles.leagueTrendDown
+            }`}
+            title={`Previous 12 weeks: ${trend.from} emails / week`}
+          >
+            {trend.direction === "up" ? "↑" : "↓"} from {trend.from}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+}
+
+function fmtRate(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/* -----------------------------------------------------------------
    Send-time strips
    ----------------------------------------------------------------- */
 
-function SendTimeStrips({ brands }: { brands: BrandPageData[] }) {
+function SendTimeStrips({
+  brands,
+  takeaway
+}: {
+  brands: BrandPageData[];
+  takeaway: string | null;
+}) {
   // Aggregate every brand's hourly counts into a single cohort-wide
   // row that we render on top of the per-brand strips. Lets the user
   // scan the cohort's centre of mass in one glance before drilling
@@ -171,13 +554,14 @@ function SendTimeStrips({ brands }: { brands: BrandPageData[] }) {
 
   return (
     <section className={styles.section}>
-      <span className={styles.sectionEyebrow}>Timing</span>
+      <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>When they send</h2>
       <p className={styles.sectionSub}>
         24-hour heatmap, one row per brand plus an aggregated cohort row
         on top. Each cell is normalised against the busiest hour in its
         row so light senders aren't drowned by louder peers.
       </p>
+      <Takeaway text={takeaway} />
 
       <div className={styles.sectionBody}>
         <div className={styles.clockGrid}>
@@ -267,10 +651,157 @@ function HeatmapRow({
 }
 
 /* -----------------------------------------------------------------
+   Quiet zones
+   ----------------------------------------------------------------- */
+
+/**
+ * Day × daypart grid of the whole group's recent sends. The point is
+ * the gaps: a dashed cell is a slot no brand in the comparison is
+ * using — free attention for whoever shows up. Night (23–06) is
+ * excluded; an empty night is not a finding.
+ */
+function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
+  const max = Math.max(1, ...insight.grid.flat());
+
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>Rhythm</span>
+      <h2 className={styles.sectionTitle}>Quiet zones</h2>
+      <p className={styles.sectionSub}>
+        Where this group's sends have landed across the week over the
+        last 3 months (Copenhagen time). Dashed cells are slots nobody
+        here is using.
+      </p>
+      <Takeaway text={insight.takeaway} />
+
+      <div className={`${styles.sectionBody} ${styles.qzLayout}`}>
+        <div className={styles.qzMain}>
+          <div className={styles.qzGrid}>
+            <span aria-hidden="true" />
+            {QUIET_ZONE_DAYS.map((day) => (
+              <span key={day} className={styles.qzHead}>
+                {day.slice(0, 3)}
+              </span>
+            ))}
+            {QUIET_ZONE_DAYPARTS.map((daypart, dpIdx) => (
+              <Fragment key={daypart.id}>
+                <span className={styles.qzRowLabel}>{daypart.label}</span>
+                {QUIET_ZONE_DAYS.map((day, dayIdx) => (
+                  <QuietZoneCell
+                    key={day}
+                    slot={insight.cells[dpIdx][dayIdx]}
+                    max={max}
+                  />
+                ))}
+              </Fragment>
+            ))}
+          </div>
+          <p className={styles.qzLegend}>
+            Based on {insight.totalSends.toLocaleString("en-US")}
+            {" recent sends across the group. Hover a cell to see who's there · darker = busier."}
+          </p>
+        </div>
+
+        {insight.openings.length > 0 ? (
+          <aside className={styles.qzPanel}>
+            <span className={styles.qzPanelLabel}>Best windows to send</span>
+            <ul className={styles.qzOpenings}>
+              {insight.openings.map((slot) => (
+                <li key={slot.label} className={styles.qzOpening}>
+                  <span className={styles.qzOpeningSlot}>{slot.label}</span>
+                  <span className={styles.qzOpeningMeta}>
+                    {slot.count === 0
+                      ? "open"
+                      : `${slot.count} send${slot.count === 1 ? "" : "s"}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {insight.busiest && insight.busiest.count > 0 ? (
+              <span className={styles.qzPanelFootnote}>
+                Most crowded: <strong>{insight.busiest.label}</strong> (
+                {insight.busiest.count} sends)
+              </span>
+            ) : null}
+          </aside>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One quiet-zone cell. Colour encodes the group's volume in that slot;
+ * hovering reveals a popover naming the brands that send there (busiest
+ * first, in their comparison colour) — or confirming an open slot.
+ */
+function QuietZoneCell({
+  slot,
+  max
+}: {
+  slot: QuietZonesInsight["cells"][number][number];
+  max: number;
+}) {
+  const empty = slot.count === 0;
+  // Encode volume in the fill's alpha rather than the element's
+  // `opacity` — opacity would bleed onto the popover child and wash it
+  // out in proportion to the send count. Rounded so SSR/hydration agree.
+  const alpha = (0.18 + (slot.count / max) * 0.82).toFixed(3);
+  return (
+    <span
+      className={`${styles.qzCell} ${empty ? styles.qzCellEmpty : ""}`}
+      style={empty ? undefined : { background: `rgba(15, 118, 110, ${alpha})` }}
+      tabIndex={0}
+      aria-label={
+        empty
+          ? `${slot.label}: open slot, no sends from this group`
+          : `${slot.label}: ${slot.count} send${slot.count === 1 ? "" : "s"} across the group`
+      }
+    >
+      <span className={styles.qzCellPop} role="tooltip">
+        <span className={styles.qzCellPopTitle}>{slot.label}</span>
+        {empty ? (
+          <span className={styles.qzWhoEmpty}>No sends here yet — open.</span>
+        ) : (
+          slot.senders.map((sender) => (
+            <span key={sender.index} className={styles.qzWhoBrand}>
+              <span
+                className={styles.qzWhoDot}
+                style={{ background: getCompareColor(sender.index) }}
+                aria-hidden="true"
+              />
+              {sender.name}
+              <span className={styles.qzWhoCount}>{sender.count}</span>
+            </span>
+          ))
+        )}
+      </span>
+    </span>
+  );
+}
+
+/* -----------------------------------------------------------------
    Promo blocks
    ----------------------------------------------------------------- */
 
-function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
+function PromoBlocks({
+  brands,
+  takeaway,
+  trend
+}: {
+  brands: BrandPageData[];
+  takeaway: string | null;
+  trend: DiscountTrendInsight;
+}) {
+  // Shared scale so a 40%-off bar is the same height in every block.
+  const trendMax = Math.max(
+    1,
+    ...trend.rows.flatMap((row) =>
+      row.points.filter((p): p is number => p !== null)
+    )
+  );
+  const showTrend = trend.months.length >= 2;
+
   return (
     <section className={styles.section}>
       <span className={styles.sectionEyebrow}>Offers</span>
@@ -279,6 +810,7 @@ function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
         How often each brand drops a promo and the typical depth when
         they do.
       </p>
+      <Takeaway text={takeaway} />
 
       <div className={styles.promoGrid}>
         {brands.map((b, idx) => {
@@ -329,6 +861,13 @@ function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
                   </span>
                 </div>
               </div>
+              {showTrend ? (
+                <PromoTrendStrip
+                  row={trend.rows[idx]}
+                  months={trend.months}
+                  max={trendMax}
+                />
+              ) : null}
             </article>
           );
         })}
@@ -337,24 +876,221 @@ function PromoBlocks({ brands }: { brands: BrandPageData[] }) {
   );
 }
 
+/**
+ * Mini month-by-month average-discount bars inside a promo block. All
+ * blocks share the same month axis and scale so depth is comparable
+ * across brands at a glance.
+ */
+function PromoTrendStrip({
+  row,
+  months,
+  max
+}: {
+  row: DiscountTrendInsight["rows"][number] | undefined;
+  months: string[];
+  max: number;
+}) {
+  if (!row || row.points.every((point) => point === null)) return null;
+
+  return (
+    <div className={styles.promoTrend}>
+      <div className={styles.promoTrendBars}>
+        {row.points.map((point, i) => {
+          if (point === null) {
+            return (
+              <span
+                key={months[i]}
+                className={`${styles.promoTrendBar} ${styles.promoTrendBarEmpty}`}
+                title={`${formatMonthKey(months[i])}: no discount emails`}
+              />
+            );
+          }
+          return (
+            <span
+              key={months[i]}
+              className={styles.promoTrendBar}
+              style={{ height: `${Math.max(12, (point / max) * 100).toFixed(2)}%` }}
+              title={`${formatMonthKey(months[i])}: avg ${Math.round(point)}% off`}
+            />
+          );
+        })}
+      </div>
+      <div className={styles.promoTrendLabels}>
+        <span>{formatMonthKey(months[0])}</span>
+        <span>Avg % by month</span>
+        <span>{formatMonthKey(months[months.length - 1])}</span>
+      </div>
+    </div>
+  );
+}
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+
+/** "2026-05" → "May". Years are dropped — the six-month axis never
+ *  spans far enough for the short label to be ambiguous. */
+function formatMonthKey(key: string): string {
+  const month = Number.parseInt(key.slice(5, 7), 10);
+  return MONTH_SHORT[month - 1] ?? key;
+}
+
 /* -----------------------------------------------------------------
-   Design DNA
+   Occasion matrix
    ----------------------------------------------------------------- */
 
-function DesignDna({ brands }: { brands: BrandPageData[] }) {
+/**
+ * Seasonal event × brand grid. Each cell shows the brand's typical lead
+ * time (days between first mention and the event day) for events where
+ * at least one brand in the group shows a real run-up. Cells with a
+ * single stray mention render muted — one subject line is not a
+ * campaign — and the whole section disappears when no event clears the
+ * bar, rather than rendering an empty grid.
+ */
+function OccasionMatrix({
+  brands,
+  insight
+}: {
+  brands: BrandPageData[];
+  insight: OccasionInsight;
+}) {
+  if (insight.rows.length === 0) return null;
+
   return (
     <section className={styles.section}>
-      <span className={styles.sectionEyebrow}>Brand</span>
-      <h2 className={styles.sectionTitle}>Design DNA</h2>
+      <span className={styles.sectionEyebrow}>Occasions</span>
+      <h2 className={styles.sectionTitle}>Seasonal moments they activate</h2>
       <p className={styles.sectionSub}>
-        Side-by-side palettes and typography to reveal overlaps or
-        opportunities to differentiate.
+        Lead time from each brand's first mention (in subject lines and
+        preheaders) to the day itself. Longer lead = earlier run-up.
       </p>
+      <Takeaway text={insight.takeaway} />
+
+      <div className={`${styles.sectionBody} ${styles.occTableWrap}`}>
+        <table className={styles.occTable}>
+          <thead>
+            <tr>
+              <th scope="col">
+                <span
+                  style={{
+                    position: "absolute",
+                    width: 1,
+                    height: 1,
+                    overflow: "hidden",
+                    clip: "rect(0 0 0 0)"
+                  }}
+                >
+                  Event
+                </span>
+              </th>
+              {brands.map((b, idx) => (
+                <th key={b.brand.id} scope="col">
+                  <span
+                    className={styles.occBrandHead}
+                    style={
+                      {
+                        ["--accent" as string]: getCompareColor(idx)
+                      } as CSSProperties
+                    }
+                  >
+                    <span className={styles.brandStripAccentDot} />
+                    {b.brand.name}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {insight.rows.map((row) => (
+              <tr key={row.eventId}>
+                <th scope="row">
+                  <span className={styles.occEvent}>
+                    <span aria-hidden="true">{row.emoji}</span>
+                    {row.label}
+                  </span>
+                </th>
+                {row.cells.map((cell, idx) => {
+                  const brandName = brands[idx]?.brand.name ?? "";
+                  if (cell.count === 0 || cell.leadDays === null) {
+                    return (
+                      <td
+                        key={brands[idx]?.brand.id ?? idx}
+                        className={styles.occNone}
+                        title={`${brandName}: no ${row.label} emails found`}
+                      >
+                        —
+                      </td>
+                    );
+                  }
+                  const faint = cell.count < 2;
+                  return (
+                    <td
+                      key={brands[idx]?.brand.id ?? idx}
+                      className={
+                        faint ? styles.occLeadFaint : styles.occLead
+                      }
+                      title={`${brandName}: ${cell.count} ${row.label} email${
+                        cell.count === 1 ? "" : "s"
+                      }, first mention ~${cell.leadDays} day${
+                        cell.leadDays === 1 ? "" : "s"
+                      } ahead`}
+                    >
+                      {cell.leadDays}d
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Creative fingerprint (palette + fonts)
+   ----------------------------------------------------------------- */
+
+/**
+ * Pure identity cards — palette and fonts, several per row so a large
+ * comparison stays skimmable. The comparative copy metrics (subject
+ * length, emoji, urgency, resends) live as KPI tiles with dot-strip
+ * drill-downs, not here.
+ */
+function FingerprintGrid({
+  brands,
+  takeaway
+}: {
+  brands: BrandPageData[];
+  takeaway: string | null;
+}) {
+  return (
+    <section className={styles.section}>
+      <span className={styles.sectionEyebrow}>Voice &amp; creative</span>
+      <h2 className={styles.sectionTitle}>Creative fingerprint</h2>
+      <p className={styles.sectionSub}>
+        Each brand's look at a glance: palette, typography and the CTAs
+        they reach for. Copy metrics live in the KPI matrix above.
+      </p>
+      <Takeaway text={takeaway} />
 
       <div className={styles.dnaGrid}>
         {brands.map((b, idx) => {
+          const color = getCompareColor(idx);
           const accentStyle = {
-            ["--accent" as string]: getCompareColor(idx)
+            ["--accent" as string]: color
           } as CSSProperties;
           return (
             <article
@@ -367,6 +1103,7 @@ function DesignDna({ brands }: { brands: BrandPageData[] }) {
                   <span className={styles.brandStripAccentDot} />
                   <span className={styles.dnaCardName}>{b.brand.name}</span>
                 </div>
+
                 {b.design.palette.length > 0 ? (
                   <div className={styles.dnaPalette}>
                     {b.design.palette.slice(0, 8).map((entry) => (
@@ -374,48 +1111,30 @@ function DesignDna({ brands }: { brands: BrandPageData[] }) {
                         key={entry.hex}
                         className={styles.dnaSwatch}
                         style={{ background: entry.hex }}
-                        title={entry.hex}
+                        data-hex={entry.hex.toLowerCase()}
                       />
                     ))}
                   </div>
-                ) : (
-                  <span className={styles.empty}>No palette captured.</span>
-                )}
+                ) : null}
 
                 {b.design.fonts.length > 0 ? (
-                  <div className={styles.dnaFontRow}>
-                    {b.design.fonts.map((font) => (
-                      <span
-                        key={font.family}
-                        className={styles.dnaFontPill}
-                        style={{ fontFamily: `${font.family}, ui-sans-serif` }}
-                      >
-                        {font.family}
-                      </span>
-                    ))}
+                  <div className={styles.fpRow}>
+                    <span className={styles.fpRowLabel}>Fonts</span>
+                    {/* Name chips only, no font-family preview — we
+                        extract the name from the email CSS but the
+                        brand's licensed webfont isn't loaded here, so
+                        a "preview" would silently render the
+                        fallback. */}
+                    <span className={styles.fpRowPills}>
+                      {b.design.fonts.slice(0, 3).map((font) => (
+                        <span key={font.family} className={styles.fpFontPill}>
+                          {font.family}
+                        </span>
+                      ))}
+                    </span>
                   </div>
                 ) : null}
-              </div>
 
-              <div className={styles.dnaFlags}>
-                <span className={styles.dnaFlag}>
-                  <span
-                    className={`${styles.dnaFlagDot}${
-                      b.design.gifShare > 0 ? ` ${styles.dnaFlagDot_on}` : ""
-                    }`}
-                  />
-                  GIFs · {Math.round(b.design.gifShare * 100)}%
-                </span>
-                <span className={styles.dnaFlag}>
-                  <span
-                    className={`${styles.dnaFlagDot}${
-                      b.design.darkModeShare > 0
-                        ? ` ${styles.dnaFlagDot_on}`
-                        : ""
-                    }`}
-                  />
-                  Dark mode · {Math.round(b.design.darkModeShare * 100)}%
-                </span>
               </div>
             </article>
           );
@@ -426,118 +1145,80 @@ function DesignDna({ brands }: { brands: BrandPageData[] }) {
 }
 
 /* -----------------------------------------------------------------
-   Subject lines
+   Content mix
    ----------------------------------------------------------------- */
 
-function SubjectGrid({ brands }: { brands: BrandPageData[] }) {
+function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
+  const hasAnyData = insight.rows.some((row) => row.segments.length > 0);
+  if (!hasAnyData) return null;
+
+  // Shared, volume-ranked order from the builder — every bar follows it.
+  const legend = insight.legend;
+
   return (
     <section className={styles.section}>
-      <span className={styles.sectionEyebrow}>Copy</span>
-      <h2 className={styles.sectionTitle}>Recent subject lines</h2>
+      <span className={styles.sectionEyebrow}>Content</span>
+      <h2 className={styles.sectionTitle}>What they talk about</h2>
       <p className={styles.sectionSub}>
-        A few of the latest unique subjects from each brand, side-by-side.
+        Each brand's campaign mix by category, as a share of everything
+        we've captured from them. Categories run in the same order in
+        every bar — the group's biggest first — so you can scan down a
+        colour to compare.
       </p>
+      <Takeaway text={insight.takeaway} />
 
-      <div className={styles.subjectGrid}>
-        {brands.map((b, idx) => (
-          <article key={b.brand.id} className={styles.subjectCard}>
-            <header className={styles.subjectCardHead}>
+      <div className={styles.sectionBody}>
+        <div className={styles.mixList}>
+          {insight.rows.map((row) => (
+            <MixRow key={row.id} row={row} />
+          ))}
+        </div>
+        <div className={styles.mixLegend}>
+          {legend.map((entry) => (
+            <span key={entry.id} className={styles.mixLegendItem}>
               <span
-                className={styles.brandStripAccentDot}
-                style={
-                  {
-                    ["--accent" as string]: getCompareColor(idx)
-                  } as CSSProperties
-                }
+                className={styles.mixLegendSwatch}
+                style={{ background: colorForCategory(entry.id) }}
               />
-              <span>{b.brand.name}</span>
-            </header>
-            <span className={styles.subjectCardMeta}>
-              {b.subjects.avgLength !== null
-                ? `Avg ${Math.round(b.subjects.avgLength)} chars`
-                : "No samples yet"}
+              {entry.label}
             </span>
-            {b.subjects.samples.length === 0 ? (
-              <span className={styles.empty}>No subjects captured yet.</span>
-            ) : (
-              <div className={styles.subjectList}>
-                {b.subjects.samples.slice(0, 4).map((subject) => (
-                  <span key={subject} className={styles.subjectItem}>
-                    {subject}
-                  </span>
-                ))}
-              </div>
-            )}
-          </article>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-/* -----------------------------------------------------------------
-   CTA voice
-   ----------------------------------------------------------------- */
-
-function CtaGrid({ brands }: { brands: BrandPageData[] }) {
+function MixRow({
+  row
+}: {
+  row: ContentMixInsight["rows"][number];
+}) {
+  const accentStyle = {
+    ["--accent" as string]: getCompareColor(row.index)
+  } as CSSProperties;
   return (
-    <section className={styles.section}>
-      <span className={styles.sectionEyebrow}>Voice</span>
-      <h2 className={styles.sectionTitle}>Top calls to action</h2>
-      <p className={styles.sectionSub}>
-        The button labels each brand reaches for most. Useful for spotting
-        differences in tone (urgency vs editorial vs minimalist).
-      </p>
-
-      <div className={styles.ctaGrid}>
-        {brands.map((b, idx) => {
-          const color = getCompareColor(idx);
-          const accentStyle = {
-            ["--accent" as string]: color,
-            ["--accent-soft" as string]: hexToSoft(color, 0.12)
-          } as CSSProperties;
-          const tags = b.ctas.slice(0, 12);
-          const max = tags[0]?.count ?? 1;
-          return (
-            <article
-              key={b.brand.id}
-              className={styles.ctaCard}
-              style={accentStyle}
-            >
-              <header className={styles.ctaCardHead}>
-                <span className={styles.brandStripAccentDot} />
-                <span>{b.brand.name}</span>
-              </header>
-              <span className={styles.ctaCardMeta}>
-                {tags.length === 0 ? "No CTAs captured" : `${tags.length} top labels`}
-              </span>
-              {tags.length === 0 ? (
-                <span className={styles.empty}>—</span>
-              ) : (
-                <div className={styles.ctaCloud}>
-                  {tags.map((entry) => {
-                    // Scale font size by frequency. Range: 0.75 → 1.15 rem;
-                    // matches the per-brand cloud on the single-brand page.
-                    const ratio = max > 0 ? entry.count / max : 0;
-                    const fontSize = (0.75 + ratio * 0.4).toFixed(2);
-                    return (
-                      <span
-                        key={entry.text}
-                        className={styles.ctaTag}
-                        style={{ fontSize: `${fontSize}rem` }}
-                        title={`${entry.count} use${entry.count === 1 ? "" : "s"}`}
-                      >
-                        {entry.text}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-          );
-        })}
-      </div>
-    </section>
+    <>
+      <span className={styles.leagueName} style={accentStyle}>
+        <span className={styles.brandStripAccentDot} />
+        <span className={styles.leagueNameLabel}>{row.name}</span>
+      </span>
+      <span className={styles.mixBar}>
+        {row.segments.map((segment) => (
+          <span
+            key={segment.id}
+            className={styles.mixSeg}
+            style={{
+              width: `${segment.share * 100}%`,
+              background: colorForCategory(segment.id)
+            }}
+            title={`${row.name}: ${segment.label} ${Math.round(
+              segment.share * 100
+            )}%`}
+          />
+        ))}
+      </span>
+    </>
   );
 }
 
@@ -585,8 +1266,8 @@ function RecentCampaigns({ brands }: { brands: BrandPageData[] }) {
 
 /**
  * Builds a low-alpha companion colour from a hex string. Used so the
- * promo / CTA cards still get a soft tinted background that matches
- * the categorical palette instead of the brand's natural accent.
+ * promo cards still get a soft tinted background that matches the
+ * categorical palette instead of the brand's natural accent.
  */
 function hexToSoft(hex: string, alpha: number): string {
   const match = hex.match(/^#?([0-9a-f]{6})$/i);
