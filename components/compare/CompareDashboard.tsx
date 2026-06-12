@@ -696,9 +696,8 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
             ))}
           </div>
           <p className={styles.qzLegend}>
-            Based on {insight.totalSends.toLocaleString("en-US")} recent sends
-            across the group. Hover a cell to see who&apos;s there · darker =
-            busier.
+            Based on {insight.totalSends.toLocaleString("en-US")}
+            {" recent sends across the group. Hover a cell to see who's there · darker = busier."}
           </p>
         </div>
 
@@ -743,10 +742,14 @@ function QuietZoneCell({
   max: number;
 }) {
   const empty = slot.count === 0;
+  // Encode volume in the fill's alpha rather than the element's
+  // `opacity` — opacity would bleed onto the popover child and wash it
+  // out in proportion to the send count. Rounded so SSR/hydration agree.
+  const alpha = (0.18 + (slot.count / max) * 0.82).toFixed(3);
   return (
     <span
       className={`${styles.qzCell} ${empty ? styles.qzCellEmpty : ""}`}
-      style={empty ? undefined : { opacity: 0.18 + (slot.count / max) * 0.82 }}
+      style={empty ? undefined : { background: `rgba(15, 118, 110, ${alpha})` }}
       tabIndex={0}
       aria-label={
         empty
