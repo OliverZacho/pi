@@ -267,7 +267,7 @@ async function followActivityNotice(
       kind: "follow-activity",
       title: `${total} new ${total === 1 ? "email" : "emails"} from brands you follow`,
       detail: "Since you last logged in.",
-      cta: { label: "See what's new", href: "/following" },
+      cta: { label: "See what's new", href: "/following?view=emails" },
       dismissible: true
     }
   ];

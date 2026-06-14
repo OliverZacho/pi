@@ -102,7 +102,7 @@
 }
 
 .navItem.active {
-  background: var(--glass-track-bg);
+  background: #ffffff;
   color: #0f172a;
   font-weight: 500;
 }
@@ -278,6 +278,15 @@
   border-radius: 14px;
   background: #ffffff;
   box-shadow: var(--card-shadow);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.usageCardLeaving {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  /* Hold the card for a beat after the click, then fade it out. */
+  transition-delay: 1s;
 }
 
 .noticeDismiss {

@@ -63,6 +63,7 @@ type Props = {
 export default function SidebarNotices({ signedIn }: Props) {
   const [notices, setNotices] = useState<SidebarNotice[]>([]);
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
+  const [leavingId, setLeavingId] = useState<string | null>(null);
   const [lockedViewed, setLockedViewed] = useState(false);
 
   useEffect(() => {
@@ -114,18 +115,25 @@ export default function SidebarNotices({ signedIn }: Props) {
   const notice = notices.find((n) => !dismissed.includes(n.id));
   if (!notice) return null;
 
+  // Fade the card out, then drop it from the slot. The dismissal is written
+  // to localStorage up front so a CTA click that navigates away keeps the
+  // notice gone even if the component unmounts before the fade finishes.
   function dismiss(id: string) {
-    setDismissed((current) => {
-      const next = [...current.filter((entry) => entry !== id), id].slice(
+    try {
+      const next = [...readDismissed().filter((entry) => entry !== id), id].slice(
         -DISMISSED_CAP
       );
-      try {
-        window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
-      } catch {
-        // Storage full / blocked — dismissal still applies this session.
-      }
-      return next;
-    });
+      window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+    } catch {
+      // Storage full / blocked — the fade + state update below still hide it.
+    }
+    setLeavingId(id);
+  }
+
+  function finishDismiss(id: string) {
+    setDismissed((current) =>
+      current.includes(id) ? current : [...current, id]
+    );
   }
 
   const progress = notice.progress ?? null;
@@ -148,8 +156,16 @@ export default function SidebarNotices({ signedIn }: Props) {
       ? `${styles.usageProgressFill} ${styles.usageProgressFillWarn}`
       : styles.usageProgressFill;
 
+  const leaving = leavingId === notice.id;
+
   return (
-    <div className={styles.usageCard} role="status">
+    <div
+      className={`${styles.usageCard}${leaving ? ` ${styles.usageCardLeaving}` : ""}`}
+      role="status"
+      onTransitionEnd={(e) => {
+        if (leaving && e.propertyName === "opacity") finishDismiss(notice.id);
+      }}
+    >
       {notice.dismissible ? (
         <button
           type="button"
@@ -185,7 +201,11 @@ export default function SidebarNotices({ signedIn }: Props) {
         </div>
       ) : null}
       {notice.cta ? (
-        <Link href={notice.cta.href} className={styles.upgradeButton}>
+        <Link
+          href={notice.cta.href}
+          className={styles.upgradeButton}
+          onClick={() => dismiss(notice.id)}
+        >
           {notice.cta.label}
         </Link>
       ) : null}

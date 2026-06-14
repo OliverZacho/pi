@@ -6,6 +6,7 @@ import { processEmailForCompanyLogo } from "./company-logos";
 import { extractImageUrlsFromHtml } from "./email-utils";
 import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
+import { extractImagePaletteForEmail } from "./extract-image-palette";
 import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
@@ -271,6 +272,12 @@ async function ingestEmailReceivedEvent(
     })
   );
 
+  // Pixel-based brand palette from the mirrored content images. Never throws —
+  // returns [] on any failure — so it can't break ingestion.
+  const imagePalette = await runStage("extract_image_palette", () =>
+    extractImagePaletteForEmail(mirror.storedPaths)
+  );
+
   const espResult = await runStage("detect_esp", () =>
     detectEsp({
       headers,
@@ -307,6 +314,7 @@ async function ingestEmailReceivedEvent(
     esp_candidates: espResult.candidates,
     image_mirror_map: imageMirrorMap,
     palette_colors: metadata.palette_colors,
+    image_palette: imagePalette,
     font_families: metadata.font_families
   };
 

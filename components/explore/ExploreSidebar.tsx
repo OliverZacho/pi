@@ -261,7 +261,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Quiet utility controls ("Docs", "Need help?") rendered as a small
+ * Quiet utility controls ("Learn", "Need help?") rendered as a small
  * white panel that hangs down from the top-right of the viewport on
  * every app surface that mounts `ExploreSidebar`. Replaces the
  * earlier full-width Resend-style top bar — the panel is just wide
@@ -356,7 +356,7 @@ function AppTopBar() {
           transition: "background 100ms ease, color 100ms ease"
         }}
       >
-        Docs
+        Learn
       </Link>
       <button
         type="button"
@@ -498,7 +498,7 @@ function AccountRow({
             role="menuitem"
             onClick={() => setOpen(false)}
           >
-            Docs
+            Learn
           </Link>
           <a
             href="mailto:help@pirol.app"

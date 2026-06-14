@@ -2,7 +2,7 @@ import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
-  title: "Learn — Pirol",
+  title: "Tutorials — Pirol",
   description:
     "Video tutorials for everything you can do in Pirol — exploring competitor email, building collections, comparing brands, and more."
 };
@@ -111,7 +111,7 @@ export default function LearnPage() {
       <DocsSiteHeader />
       <div className={styles.simpleLayout}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>Learn Pirol</h1>
+          <h1 className={styles.pageTitle}>Tutorials</h1>
           <p className={styles.pageLead}>
             Short video tutorials for everything you can do in Pirol. Watch end to
             end, or jump to the feature you are working on.
