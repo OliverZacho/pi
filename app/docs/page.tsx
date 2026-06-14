@@ -3,7 +3,7 @@ import { DOC_CATEGORIES } from "@/lib/docs/content";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
-  title: "Documentation — Pirol",
+  title: "Learn — Pirol",
   description:
     "Everything you need to choose an email platform, plan your sending strategy, stay out of spam, and measure what works."
 };
@@ -12,13 +12,13 @@ export default function DocsHome() {
   return (
     <main className={styles.content}>
       <div className={styles.landing}>
-        <p className={styles.landingEyebrow}>Get Started</p>
-        <h1 className={styles.landingTitle}>Pirol Documentation</h1>
+        <p className={styles.landingEyebrow}>Learn</p>
+        <h1 className={styles.landingTitle}>Email marketing, by the numbers</h1>
         <p className={styles.landingLead}>
-          Practical guides on email marketing — from choosing an ESP and planning
-          your sending cadence to deliverability and the metrics that actually
-          predict revenue. Start with the fundamentals or jump to whatever you
-          are working on.
+          Practical guides on email marketing — backed by live benchmarks from the
+          brands Pirol tracks. See which platforms brands actually use, when they
+          send, how often, and how deep they discount, then turn it into your own
+          edge. Start with a benchmark or jump to whatever you are working on.
         </p>
 
         {DOC_CATEGORIES.map((category) => (

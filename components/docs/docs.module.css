@@ -30,7 +30,7 @@
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 1.25rem;
-  padding: 0.85rem 1.5rem;
+  padding: 1.1rem 1.5rem;
   background: rgba(236, 248, 255, 0.85);
   backdrop-filter: saturate(1.2) blur(12px);
 }
@@ -38,7 +38,7 @@
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .logo {
@@ -149,33 +149,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-}
-
-.askAi {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.9rem;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 0;
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: var(--pill-shadow);
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
-
-.askAi:hover {
-  box-shadow: var(--pill-shadow-hover);
-  transform: translateY(-1px);
-}
-
-.askAi svg {
-  width: 15px;
-  height: 15px;
 }
 
 .primaryBtn {
@@ -353,6 +326,354 @@
   line-height: 1.7;
   color: #2a2a2e;
   margin: 0 0 0.9rem;
+}
+
+.section p strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---------- Embedded archive figures ---------- */
+
+.statStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.4rem 0 1.4rem;
+}
+
+.statCard {
+  flex: 1 1 130px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  box-shadow: var(--card-shadow);
+}
+
+.statBig {
+  display: block;
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.statLabel {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.rankFigure {
+  margin: 0.4rem 0 1.4rem;
+}
+
+.rankCaption {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+
+.rankRow {
+  display: grid;
+  grid-template-columns: 9rem 1fr 3rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.rankLabel {
+  font-size: 0.85rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rankTrack {
+  height: 0.55rem;
+  background: rgba(11, 11, 12, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rankFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.rankVal {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionCta {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.3rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sectionCta:hover {
+  text-decoration: underline;
+}
+
+.inlineLink {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.inlineLink:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Share bar — the whole field as one proportional, fading bar */
+.shareFigure {
+  margin: 0.6rem 0 1.6rem;
+}
+
+.shareBar {
+  display: flex;
+  width: 100%;
+  height: 2.2rem;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+.shareSeg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.shareLegend {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.15rem;
+}
+
+.shareLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.shareDot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex: none;
+}
+
+.shareLegendLabel {
+  color: var(--ink);
+}
+
+.shareLegendVal {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hour-of-day heatmap */
+.heatFigure {
+  margin: 0.6rem 0 1.6rem;
+}
+
+.heatRow {
+  display: flex;
+  gap: 2px;
+}
+
+.heatCell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 2.5rem;
+  border-radius: 3px;
+  background: rgba(11, 11, 12, 0.05);
+}
+
+.heatCellPeak {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.heatAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+/* Range bars with an average reference line */
+.rangeTrack {
+  position: relative;
+  height: 0.62rem;
+  background: rgba(11, 11, 12, 0.06);
+  border-radius: 999px;
+  overflow: visible;
+}
+
+.rangeTrack .rankFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.rangeRef {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ink);
+  opacity: 0.5;
+  border-radius: 1px;
+}
+
+.rangeRefNote {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.rangeRefSwatch {
+  display: inline-block;
+  width: 2px;
+  height: 0.85rem;
+  background: var(--ink);
+  opacity: 0.5;
+}
+
+/* Paired bars — two metrics per row */
+.pairLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.15rem;
+  margin: 0 0 0.8rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.pairKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pairDot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+}
+
+.pairDotA {
+  background: var(--accent);
+}
+
+.pairDotB {
+  background: #475569;
+}
+
+.pairRow {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.pairBars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.pairTrack {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pairFill {
+  height: 0.55rem;
+  border-radius: 999px;
+  min-width: 2px;
+}
+
+.pairFillA {
+  background: var(--accent);
+}
+
+.pairFillB {
+  background: #475569;
+}
+
+.pairVal {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* FAQ block */
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.faqItem {
+  border-top: 1px solid var(--line);
+  padding: 1rem 0 0.4rem;
+}
+
+.faqQ {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.faqA {
+  margin: 0;
+  font-size: 0.97rem;
+  line-height: 1.65;
+  color: #2a2a2e;
+}
+
+@media (max-width: 640px) {
+  .rankRow,
+  .pairRow {
+    grid-template-columns: 6.5rem 1fr;
+  }
+
+  .rankRow {
+    grid-template-columns: 6.5rem 1fr 2.6rem;
+  }
+
+  .heatCell {
+    height: 2rem;
+  }
 }
 
 .metaRow {

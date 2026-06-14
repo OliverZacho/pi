@@ -4,7 +4,7 @@ import DocsSidebar from "@/components/docs/DocsSidebar";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
-  title: "Documentation — Pirol",
+  title: "Learn — Pirol",
   description:
     "Guides on choosing an ESP, email strategy, deliverability, and measuring performance."
 };
