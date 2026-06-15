@@ -1,0 +1,152 @@
+/* =========================================================
+   Legal / policy pages (/privacy, /terms, /takedown)
+   A clean, readable single-column document on the marketing shell.
+   ========================================================= */
+
+.page {
+  --ink: #0b0b0c;
+  --ink-soft: #5f5f66;
+  --line: rgba(11, 11, 12, 0.08);
+  --surface: #ffffff;
+  --accent: #0f766e;
+
+  position: relative;
+  min-height: 100dvh;
+  background: var(--page-bg, #ecf8ff);
+  color: var(--ink);
+  font-feature-settings: "ss01", "cv11";
+}
+
+.wrap {
+  position: relative;
+  z-index: 20;
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 4rem;
+}
+
+/* ---------- Document header ---------- */
+
+.head {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0 0 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+}
+
+.updated {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.intro {
+  margin: 1.4rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* ---------- Prose ---------- */
+
+.prose {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #26262b;
+}
+
+.prose h2 {
+  margin: 2.6rem 0 0.9rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  scroll-margin-top: 1.5rem;
+}
+
+.prose h3 {
+  margin: 1.8rem 0 0.6rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.prose p {
+  margin: 0 0 1rem;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0 0 1.1rem;
+  padding-left: 1.3rem;
+}
+
+.prose li {
+  margin: 0 0 0.5rem;
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose a:hover {
+  color: #0c655e;
+}
+
+.prose strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.prose hr {
+  margin: 2.5rem 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+/* A placeholder token the founder still needs to fill in. */
+.fill {
+  background: rgba(234, 179, 8, 0.16);
+  border-bottom: 1px dashed rgba(120, 90, 0, 0.5);
+  padding: 0 0.2em;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+/* Small print / contact callout card */
+.callout {
+  margin: 1.4rem 0;
+  padding: 1.2rem 1.4rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 24px 50px -42px rgba(0, 0, 0, 0.28);
+}
+
+.callout p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 2.5rem 1.25rem 3rem;
+  }
+}

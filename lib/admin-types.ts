@@ -555,3 +555,80 @@ export type DashboardStats = {
     daily14d: { day: string; usd: number }[];
   };
 };
+
+/**
+ * One day in the cumulative user-growth series: running total of signed-up
+ * users and of paid conversions as of that UTC day. Served (inside
+ * {@link UserMetrics}) by `/api/admin/user-metrics`.
+ */
+export type UserGrowthPoint = {
+  day: string;
+  users: number;
+  paid: number;
+};
+
+/**
+ * One stage of the activation funnel. `count` is the number of (non-team) users
+ * who reached that stage; stages are ordered widest → narrowest for display.
+ */
+export type FunnelStage = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+/**
+ * Audience health for the admin "Users" tab, computed in a single Postgres call
+ * (`pirol_admin_user_metrics`). Four lenses:
+ *
+ *  - **growth**   — signups over time and across tiers (free / paid / team).
+ *  - **retention**— churn proxy from last-seen recency buckets.
+ *  - **pmf**      — product-market-fit proxies (activation, stickiness, power users).
+ *  - **funnel**   — the signup → paid activation funnel.
+ *
+ * Team accounts (admins) are excluded from `retention`, `pmf` and `funnel`
+ * denominators so internal usage doesn't flatter the numbers; `totals` still
+ * counts them separately. Rates are fractions in `[0, 1]` (or `null` when the
+ * denominator is zero). Activity is measured off `user_profiles.last_active_at`,
+ * the last app load — so recency buckets are "time since last seen".
+ */
+export type UserMetrics = {
+  generatedAt: string;
+  totals: { total: number; free: number; paid: number; admins: number };
+  growth: {
+    new30d: number;
+    newPrev30d: number;
+    /** (new30d − newPrev30d) / newPrev30d, or null when there's no prior base. */
+    growthRate30d: number | null;
+    series: UserGrowthPoint[];
+  };
+  retention: {
+    realTotal: number;
+    active7d: number;
+    /** Last seen 8–30 days ago. */
+    recent: number;
+    /** Last seen 31–60 days ago. */
+    atRisk: number;
+    /** Last seen 60+ days ago, or never returned after signup. */
+    dormant: number;
+    /** Share of users not seen in 30 days — the engagement-churn proxy. */
+    inactiveRate30d: number | null;
+  };
+  subscription: {
+    active: number;
+    canceled: number;
+    churnRate: number | null;
+  };
+  pmf: {
+    activated: number;
+    activationRate: number | null;
+    powerUsers: number;
+    powerUserRate: number | null;
+    dau: number;
+    wau: number;
+    mau: number;
+    /** DAU / MAU — the canonical stickiness ratio. */
+    stickiness: number | null;
+  };
+  funnel: FunnelStage[];
+};

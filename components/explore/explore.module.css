@@ -102,7 +102,7 @@
 }
 
 .navItem.active {
-  background: var(--glass-track-bg);
+  background: #ffffff;
   color: #0f172a;
   font-weight: 500;
 }
@@ -155,13 +155,22 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Both triggers share this class but render as different elements
+   * (a <button> for collections, an <a> for comparisons). Pin the box
+   * model so the UA defaults — button is border-box, anchor is
+   * content-box — don't make one "+" larger than the other. */
+  box-sizing: border-box;
+  flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
+  padding: 0;
+  line-height: 0;
   border-radius: 4px;
   border: 1px solid transparent;
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
+  appearance: none;
 }
 
 .sectionAdd:hover {
@@ -278,6 +287,15 @@
   border-radius: 14px;
   background: #ffffff;
   box-shadow: var(--card-shadow);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.usageCardLeaving {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  /* Hold the card for a beat after the click, then fade it out. */
+  transition-delay: 1s;
 }
 
 .noticeDismiss {

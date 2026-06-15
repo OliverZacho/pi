@@ -240,7 +240,7 @@ export default function CompareLandingClient({
         )}
       </section>
 
-      <section className={styles.pickerCard}>
+      <section id="build" className={styles.pickerCard}>
         <div className={styles.pickerHead}>
           <div>
             <h2>Build a comparison</h2>

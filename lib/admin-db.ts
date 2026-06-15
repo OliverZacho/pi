@@ -353,7 +353,13 @@ function parsePaletteColors(value: unknown): PaletteColor[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return [];
   }
-  const candidate = (value as Record<string, unknown>).palette_colors;
+  // Prefer the pixel-extracted brand palette; fall back to the HTML-token palette.
+  const record = value as Record<string, unknown>;
+  const imagePalette = record.image_palette;
+  const candidate =
+    Array.isArray(imagePalette) && imagePalette.length > 0
+      ? imagePalette
+      : record.palette_colors;
   if (!Array.isArray(candidate)) {
     return [];
   }

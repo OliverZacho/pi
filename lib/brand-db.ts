@@ -949,7 +949,11 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
         : null;
 
     if (meta) {
-      const colors = meta.palette_colors;
+      // Prefer the pixel-extracted brand palette when present; fall back to the
+      // HTML-token palette for emails that haven't been (re)processed.
+      const imgPalette = meta.image_palette;
+      const colors =
+        Array.isArray(imgPalette) && imgPalette.length > 0 ? imgPalette : meta.palette_colors;
       if (Array.isArray(colors)) {
         for (const item of colors) {
           if (item && typeof item === "object" && !Array.isArray(item)) {

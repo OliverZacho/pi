@@ -33,6 +33,10 @@ const PREVIEW_EMAIL_COUNT = 4;
 const MAX_RULE_CONDITIONS = 12;
 const MAX_RULE_VALUE_LENGTH = 200;
 const RULE_EVAL_LIMIT = 200;
+// Discount rows pulled for the 12-month per-brand benchmark. Only emails
+// with a parsed discount from the collection's brands count, so this is a
+// generous ceiling rather than an expected volume.
+const BENCHMARK_ROW_LIMIT = 5000;
 
 // ---------- Rule schema ----------
 //
@@ -825,6 +829,44 @@ export async function getCollectionForOwner(
     rules,
     eventDetection: safeParseEventDetection(data.event_detection)
   };
+}
+
+/**
+ * Deepest discount each brand has run in the trailing window, across the
+ * WHOLE archive — not just within a collection. The collection's own
+ * emails may span only a few weeks, so this benchmarks a campaign's
+ * discounts against how deep each brand goes in a typical year. Keyed by
+ * company name to match the per-brand grouping in the insights figure.
+ */
+export async function getBrandDiscountBenchmarks(
+  supabase: SupabaseClient<Database>,
+  companyIds: string[],
+  sinceIso: string
+): Promise<Record<string, number>> {
+  const ids = Array.from(new Set(companyIds.filter(Boolean)));
+  if (ids.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("captured_emails")
+    .select("discount_percent, companies(id, name)")
+    .in("company_id", ids)
+    .not("discount_percent", "is", null)
+    .gte("received_at", sinceIso)
+    .limit(BENCHMARK_ROW_LIMIT);
+  if (error) throw error;
+
+  const benchmarks: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const name = pickCompany(row.companies)?.name;
+    if (!name) continue;
+    const pct =
+      row.discount_percent === null || row.discount_percent === undefined
+        ? null
+        : Number(row.discount_percent);
+    if (pct === null || !Number.isFinite(pct) || pct <= 0) continue;
+    benchmarks[name] = Math.max(benchmarks[name] ?? 0, pct);
+  }
+  return benchmarks;
 }
 
 /**

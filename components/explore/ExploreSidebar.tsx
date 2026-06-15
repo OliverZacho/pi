@@ -261,7 +261,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Quiet utility controls ("Docs", "Need help?") rendered as a small
+ * Quiet utility controls ("Learn", "Need help?") rendered as a small
  * white panel that hangs down from the top-right of the viewport on
  * every app surface that mounts `ExploreSidebar`. Replaces the
  * earlier full-width Resend-style top bar — the panel is just wide
@@ -356,7 +356,7 @@ function AppTopBar() {
           transition: "background 100ms ease, color 100ms ease"
         }}
       >
-        Docs
+        Learn
       </Link>
       <button
         type="button"
@@ -498,7 +498,7 @@ function AccountRow({
             role="menuitem"
             onClick={() => setOpen(false)}
           >
-            Docs
+            Learn
           </Link>
           <a
             href="mailto:help@pirol.app"
@@ -591,9 +591,10 @@ export default function ExploreSidebar({
       setItems((current) => [body.collection, ...current]);
       setCreateName("");
       setCreating(false);
-      // Refresh the server-rendered shell so the Collections grid (if
-      // the user is on it) and any other consumer see the new row.
-      router.refresh();
+      // Drop the user straight into the new collection so they can name
+      // it, add emails, etc. The navigation re-renders the server shell,
+      // so the sidebar + Collections grid pick up the new row too.
+      router.push(`/collections/${body.collection.id}`);
     } catch (err) {
       setCreateError(
         err instanceof Error ? err.message : "Failed to create collection"
@@ -758,7 +759,7 @@ export default function ExploreSidebar({
         <div className={styles.sectionLabel}>
           <span>Your comparisons</span>
           <Link
-            href="/compare"
+            href="/compare#build"
             className={styles.sectionAdd}
             aria-label="Build a new comparison"
             title="Build a new comparison"

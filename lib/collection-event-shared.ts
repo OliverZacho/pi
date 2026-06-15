@@ -118,6 +118,41 @@ export function isEligibleForEventDetection(
   return eventish / emails.length >= EVENT_CATEGORY_SHARE;
 }
 
+// ---------- Discount figure eligibility ----------
+
+/**
+ * The "how much each brand discounts" figure only earns its place when
+ * discounting is the collection's throughline: a vast majority of emails
+ * carry a parsed % off, and at least two brands discount so there's
+ * something to compare. Shared so the server can decide whether the
+ * (whole-archive) 12-month benchmark lookup is even worth running before
+ * the client renders the figure.
+ */
+export const DISCOUNT_FIGURE_MIN_SHARE = 0.7;
+export const DISCOUNT_FIGURE_MIN_BRANDS = 2;
+
+export type DiscountEligibilityInput = {
+  discountPercent: number | null;
+  companyName: string;
+};
+
+export function isDiscountFigureEligible(
+  emails: DiscountEligibilityInput[]
+): boolean {
+  if (emails.length === 0) return false;
+  let withDiscount = 0;
+  const brands = new Set<string>();
+  for (const email of emails) {
+    const pct = email.discountPercent;
+    if (pct !== null && Number.isFinite(pct) && pct > 0) {
+      withDiscount += 1;
+      brands.add(email.companyName);
+    }
+  }
+  if (brands.size < DISCOUNT_FIGURE_MIN_BRANDS) return false;
+  return withDiscount / emails.length >= DISCOUNT_FIGURE_MIN_SHARE;
+}
+
 /**
  * True when a cached detection should be re-run because the collection
  * has grown well past the snapshot the model saw.

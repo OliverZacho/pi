@@ -19,8 +19,8 @@ export default function NewsletterFanHero() {
           searchable in one place.
         </p>
         <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.primaryBtn}>
-            Sign up
+          <Link href="/explore" className={styles.primaryBtn}>
+            Browse the archive
           </Link>
           <Link href="/login" className={styles.secondaryBtn}>
             Log in

@@ -795,6 +795,92 @@ export type Database = {
         }
         Relationships: []
       }
+      support_email_replies: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          resend_message_id: string | null
+          sent_by: string | null
+          sent_by_email: string | null
+          support_email_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          resend_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          support_email_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          resend_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          support_email_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_email_replies_support_email_id_fkey"
+            columns: ["support_email_id"]
+            isOneToOne: false
+            referencedRelation: "support_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_emails: {
+        Row: {
+          created_at: string
+          from_address: string
+          from_name: string | null
+          html: string | null
+          id: string
+          plain_text: string | null
+          raw_payload: Json | null
+          received_at: string
+          replied_at: string | null
+          resend_message_id: string
+          status: string
+          subject: string
+          to_address: string
+        }
+        Insert: {
+          created_at?: string
+          from_address: string
+          from_name?: string | null
+          html?: string | null
+          id?: string
+          plain_text?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          replied_at?: string | null
+          resend_message_id: string
+          status?: string
+          subject?: string
+          to_address: string
+        }
+        Update: {
+          created_at?: string
+          from_address?: string
+          from_name?: string | null
+          html?: string | null
+          id?: string
+          plain_text?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          replied_at?: string | null
+          resend_message_id?: string
+          status?: string
+          subject?: string
+          to_address?: string
+        }
+        Relationships: []
+      }
       user_prefs: {
         Row: {
           key: string
@@ -910,6 +996,7 @@ export type Database = {
       pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }
       pirol_admin_growth_series: { Args: never; Returns: Json }
+      pirol_admin_user_metrics: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       touch_user_visit: {

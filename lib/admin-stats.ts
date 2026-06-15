@@ -5,8 +5,11 @@ import {
   type CategoryFrequencyPoint,
   type DashboardStats,
   type EmailCategory,
+  type FunnelStage,
   type GrowthPoint,
-  type UsageFeature
+  type UsageFeature,
+  type UserGrowthPoint,
+  type UserMetrics
 } from "./admin-types";
 import type { Database } from "@/types/supabase";
 
@@ -94,6 +97,79 @@ export async function getCategoryCountryFrequency(
       };
     })
     .filter((point) => point.category.length > 0 && point.country.length > 0);
+}
+
+/**
+ * Fetches the audience-health rollup for the admin "Users" tab via the
+ * `pirol_admin_user_metrics` Postgres function, then coerces the untyped JSON
+ * into {@link UserMetrics}. Numbers can arrive as strings from Postgres, so
+ * everything runs through {@link num}; rates stay nullable via {@link numOrNull}.
+ */
+export async function getUserMetrics(supabase: PirolDb): Promise<UserMetrics> {
+  const { data, error } = await supabase.rpc("pirol_admin_user_metrics");
+  if (error) {
+    throw error;
+  }
+  return shapeUserMetrics(data);
+}
+
+function shapeUserMetrics(raw: unknown): UserMetrics {
+  const root = obj(raw);
+  const totals = obj(root.totals);
+  const growth = obj(root.growth);
+  const retention = obj(root.retention);
+  const subscription = obj(root.subscription);
+  const pmf = obj(root.pmf);
+
+  return {
+    generatedAt: str(root.generated_at),
+    totals: {
+      total: num(totals.total),
+      free: num(totals.free),
+      paid: num(totals.paid),
+      admins: num(totals.admins)
+    },
+    growth: {
+      new30d: num(growth.new_30d),
+      newPrev30d: num(growth.new_prev_30d),
+      growthRate30d: numOrNull(growth.growth_rate_30d),
+      series: arr(growth.series)
+        .map((item): UserGrowthPoint => {
+          const o = obj(item);
+          return { day: str(o.day), users: num(o.users), paid: num(o.paid) };
+        })
+        .filter((point) => point.day.length > 0)
+    },
+    retention: {
+      realTotal: num(retention.real_total),
+      active7d: num(retention.active_7d),
+      recent: num(retention.recent),
+      atRisk: num(retention.at_risk),
+      dormant: num(retention.dormant),
+      inactiveRate30d: numOrNull(retention.inactive_rate_30d)
+    },
+    subscription: {
+      active: num(subscription.active),
+      canceled: num(subscription.canceled),
+      churnRate: numOrNull(subscription.churn_rate)
+    },
+    pmf: {
+      activated: num(pmf.activated),
+      activationRate: numOrNull(pmf.activation_rate),
+      powerUsers: num(pmf.power_users),
+      powerUserRate: numOrNull(pmf.power_user_rate),
+      dau: num(pmf.dau),
+      wau: num(pmf.wau),
+      mau: num(pmf.mau),
+      stickiness: numOrNull(pmf.stickiness)
+    },
+    funnel: arr(root.funnel)
+      .map((item): FunnelStage => {
+        const o = obj(item);
+        return { key: str(o.key), label: str(o.label), count: num(o.count) };
+      })
+      .filter((stage) => stage.key.length > 0)
+  };
 }
 
 function shapeStats(raw: unknown): DashboardStats {
@@ -194,6 +270,17 @@ function num(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+/** Like {@link num} but preserves a genuine null (used for nullable rates). */
+function numOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function str(value: unknown): string {

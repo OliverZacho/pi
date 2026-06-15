@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
+  getBrandDiscountBenchmarks,
   getCollectionForOwner,
   listCollectionSummaries,
   markCollectionViewed,
@@ -10,6 +11,7 @@ import {
   listCompetitorSetSummaries,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { isDiscountFigureEligible } from "@/lib/collection-event-shared";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import { getViewer } from "@/lib/access";
@@ -69,6 +71,38 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     console.error("Failed to mark collection viewed", err);
   }
 
+  // Deepest discount each brand in this collection has run over the past
+  // 12 months — benchmarks the campaign's cuts in the insights figure.
+  // The figure only renders for a confirmed-event, discount-heavy
+  // collection, so skip this whole-archive lookup otherwise rather than
+  // run it on every page load and bin the result.
+  // "Detected and not dismissed" rather than strictly confirmed: a user
+  // confirms client-side without a reload, so this keeps the benchmark
+  // ready for that first view too. Still skips non-event, dismissed, and
+  // non-discount-heavy collections — i.e. almost all of them.
+  let brandDiscountBenchmarks: Record<string, number> = {};
+  const detection = collection.eventDetection;
+  const discountFigureMayRender =
+    detection?.status === "detected" &&
+    detection.confirmed !== false &&
+    isDiscountFigureEligible(collection.emails);
+  if (discountFigureMayRender) {
+    try {
+      const companyIds = collection.emails
+        .map((email) => email.companyId)
+        .filter((value): value is string => Boolean(value));
+      const since = new Date();
+      since.setFullYear(since.getFullYear() - 1);
+      brandDiscountBenchmarks = await getBrandDiscountBenchmarks(
+        supabase,
+        companyIds,
+        since.toISOString()
+      );
+    } catch (err) {
+      console.error("Failed to load brand discount benchmarks", err);
+    }
+  }
+
   // We still want the Save/Unsave bookmark state on every card so the
   // user's existing Saved list lights up here, same as on Explore.
   let savedIds: string[] = [];
@@ -124,6 +158,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           initialSavedIds={savedIds}
           initialCollections={collections}
           facets={facets}
+          brandDiscountBenchmarks={brandDiscountBenchmarks}
         />
       </main>
     </div>
