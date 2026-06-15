@@ -624,6 +624,7 @@ export type Database = {
         Row: {
           created_at: string
           current_period_end: string | null
+          grace_until: string | null
           plan: string | null
           status: string
           stripe_customer_id: string | null
@@ -634,6 +635,7 @@ export type Database = {
         Insert: {
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null
@@ -644,6 +646,7 @@ export type Database = {
         Update: {
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null

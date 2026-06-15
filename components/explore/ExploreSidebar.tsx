@@ -7,6 +7,7 @@ import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import type { ViewerDisplay } from "@/lib/viewer-display";
 import Logo from "@/components/Logo";
+import BillingGraceCard from "@/components/billing/BillingGraceCard";
 import SidebarNotices from "./SidebarNotices";
 import styles from "./explore.module.css";
 
@@ -607,6 +608,9 @@ export default function ExploreSidebar({
   return (
     <>
     <AppTopBar />
+    {/* Failed-renewal nudge — self-fetches, only renders during a grace
+        window. Gated on `user` so it never shows to logged-out previews. */}
+    {user ? <BillingGraceCard /> : null}
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
         <Logo className={styles.brandLogo} />

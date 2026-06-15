@@ -82,6 +82,38 @@ export default function Pricing() {
   // Annual is the default — it's the better deal (two months free) and
   // the price shown first anchors the decision.
   const [billing, setBilling] = useState<Billing>("annual");
+  // Which paid plan is mid-checkout, so we can disable its button and show a
+  // pending label without blocking the other card.
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function startCheckout(planId: string) {
+    setPending(planId);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: planId,
+          billing: billing === "annual" ? "annual" : "monthly",
+        }),
+      });
+      // Not signed in — send them to sign up, then back to pricing.
+      if (res.status === 401) {
+        window.location.assign("/login?next=/pricing");
+        return;
+      }
+      const data: { url?: string; error?: string } = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? "Could not start checkout");
+      }
+      window.location.assign(data.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start checkout");
+      setPending(null);
+    }
+  }
 
   return (
     <section className={styles.section} aria-labelledby="pricing-heading">
@@ -190,14 +222,27 @@ export default function Pricing() {
                   : "billed monthly"}
             </p>
 
-            <Link
-              href="/login"
-              className={`${styles.cta} ${
-                plan.featured ? styles.ctaPrimary : styles.ctaGhost
-              }`}
-            >
-              {plan.cta}
-            </Link>
+            {plan.id === "free" ? (
+              <Link
+                href="/login"
+                className={`${styles.cta} ${
+                  plan.featured ? styles.ctaPrimary : styles.ctaGhost
+                }`}
+              >
+                {plan.cta}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startCheckout(plan.id)}
+                disabled={pending !== null}
+                className={`${styles.cta} ${
+                  plan.featured ? styles.ctaPrimary : styles.ctaGhost
+                }`}
+              >
+                {pending === plan.id ? "Redirecting…" : plan.cta}
+              </button>
+            )}
 
             <ul className={styles.features}>
               {plan.features.map((feature) => (
@@ -223,6 +268,12 @@ export default function Pricing() {
           </div>
         ))}
       </div>
+
+      {error ? (
+        <p className={styles.guarantee} role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <p className={styles.guarantee}>
         Not for you? Email us within 7 days for a full refund — no questions asked.

@@ -22,6 +22,23 @@ const TABS: Tab[] = [
 
 const MIN_PASSWORD_LENGTH = 8;
 
+/**
+ * The viewer's current subscription state, resolved on the server from their
+ * own `subscriptions` row. Drives the Billing tab: what plan to show and
+ * whether to offer the Stripe billing portal ("Manage billing") or an upgrade
+ * link.
+ */
+export type BillingInfo = {
+  /** Stripe subscription status: active, trialing, canceled, inactive, … */
+  status: string;
+  /** "solo" | "team", or null for free / never-subscribed. */
+  plan: string | null;
+  /** ISO timestamp the current period ends (renewal or access-until). */
+  currentPeriodEnd: string | null;
+  /** Whether a Stripe customer exists — i.e. they've been through checkout. */
+  hasBillingAccount: boolean;
+};
+
 type Props = {
   /** Signed-in user's email — prefilled into the User tab. */
   email: string;
@@ -54,6 +71,8 @@ type Props = {
    * the restriction would be meaningless.
    */
   inviteDomainRestricted: boolean;
+  /** Current subscription state, for the Billing tab. */
+  billing: BillingInfo;
 };
 
 export default function SettingsClient({
@@ -64,7 +83,8 @@ export default function SettingsClient({
   hasPassword,
   initialTeam,
   canInviteTeam,
-  inviteDomainRestricted
+  inviteDomainRestricted,
+  billing
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("user");
 
@@ -106,7 +126,7 @@ export default function SettingsClient({
             domainRestricted={inviteDomainRestricted}
           />
         ) : (
-          <BillingTab />
+          <BillingTab billing={billing} />
         )}
       </div>
     </div>
@@ -911,26 +931,98 @@ function TeamTab({
 }
 
 /* =========================================================
-   Billing tab — billing emails, overview, tax details.
-   Skeleton only: Stripe isn't integrated yet.
+   Billing tab — current plan + Stripe billing portal.
+   Tax details / billing emails below are still skeleton.
    ========================================================= */
 
-function BillingTab() {
+const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team" };
+
+/** Human date for a period-end ISO string, e.g. "15 Jun 2027". */
+function formatPeriodEnd(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+/** One line describing the subscription's standing, by status. */
+function billingStatusLine(billing: BillingInfo): string {
+  const when = formatPeriodEnd(billing.currentPeriodEnd);
+  switch (billing.status) {
+    case "active":
+      return when ? `Renews ${when}` : "Active subscription";
+    case "trialing":
+      return when ? `Trial ends ${when}` : "Free trial";
+    case "past_due":
+      return "Payment past due — update your card to keep access";
+    case "canceled":
+      return when ? `Access until ${when}` : "Subscription ended";
+    default:
+      return "No active subscription";
+  }
+}
+
+function BillingTab({ billing }: { billing: BillingInfo }) {
+  const planLabel = billing.plan ? PLAN_LABELS[billing.plan] ?? "Free" : "Free";
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState("");
+
+  async function openPortal() {
+    setPortalError("");
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing-portal", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? "Couldn't open the billing portal.");
+      }
+      window.location.assign(data.url);
+    } catch (err) {
+      setPortalError(
+        err instanceof Error ? err.message : "Couldn't open the billing portal."
+      );
+      setPortalLoading(false);
+    }
+  }
+
   return (
     <div className={styles.sections}>
       <Section
-        title="Plan & usage"
-        description="Your current plan and this period's usage."
+        title="Plan & billing"
+        description="Your current plan. Manage payment, invoices and cancellation in the billing portal."
       >
         <div className={styles.planRow}>
           <div>
-            <div className={styles.planName}>Free</div>
-            <div className={styles.planMeta}>18 emails saved this month</div>
+            <div className={styles.planName}>{planLabel}</div>
+            <div className={styles.planMeta}>{billingStatusLine(billing)}</div>
           </div>
-          <button type="button" className={styles.primaryBtn} disabled>
-            Upgrade plan
-          </button>
+          {billing.hasBillingAccount ? (
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={openPortal}
+              disabled={portalLoading}
+            >
+              {portalLoading ? "Opening…" : "Manage billing"}
+            </button>
+          ) : (
+            <Link href="/pricing" className={styles.primaryBtn}>
+              Upgrade plan
+            </Link>
+          )}
         </div>
+        {portalError ? (
+          <p className={styles.error} role="alert">
+            {portalError}
+          </p>
+        ) : null}
       </Section>
 
       <Section
