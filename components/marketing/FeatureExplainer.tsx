@@ -1,7 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import styles from "./feature.module.css";
 
-export type FeatureItem = { mark: string; title: string; body: string };
+export type FeatureItem = { mark: ReactNode; title: string; body: string };
 
 type Props = {
   eyebrow: string;

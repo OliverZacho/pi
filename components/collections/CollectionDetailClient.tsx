@@ -37,6 +37,11 @@ type Props = {
    * arrays if loading failed upstream.
    */
   facets: ExploreFacets;
+  /**
+   * Deepest discount per brand (by company name) over the trailing 12
+   * months — benchmarks the discount figure in the event insights.
+   */
+  brandDiscountBenchmarks: Record<string, number>;
 };
 
 /**
@@ -50,7 +55,8 @@ export default function CollectionDetailClient({
   initialCollection,
   initialSavedIds,
   initialCollections,
-  facets
+  facets,
+  brandDiscountBenchmarks
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -535,6 +541,7 @@ export default function CollectionDetailClient({
           collectionId={collection.id}
           initialDetection={collection.eventDetection}
           emails={emails}
+          brandDiscountBenchmarks={brandDiscountBenchmarks}
           onOpenEmail={handleOpenEmail}
           emailModalOpen={openEmail !== null}
         />

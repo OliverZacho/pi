@@ -1672,6 +1672,15 @@
   color: #8a8a90;
 }
 
+.footerLegal {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.footerLegal .footerLink {
+  font-size: 0.82rem;
+}
+
 /* =========================================================
    Responsive
    ========================================================= */

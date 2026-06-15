@@ -1578,12 +1578,14 @@ select.ruleOperator:focus {
 }
 
 .insightsMarker .insightsDot {
-  transition: r 100ms ease;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 120ms ease;
 }
 
 .insightsMarker:hover .insightsDot,
 .insightsMarker:focus-visible .insightsDot {
-  r: 6;
+  transform: scale(1.45);
 }
 
 .insightsMarker:focus-visible .insightsDot {
@@ -1594,6 +1596,23 @@ select.ruleOperator:focus {
 .insightsDot {
   stroke: #ffffff;
   stroke-width: 1.5;
+}
+
+/* Instant tooltip that follows the cursor — left/top are set inline from the
+   pointer position, so it appears the moment a dot is hovered. */
+.insightsTooltip {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 12px));
+  max-width: 320px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
 }
 
 .insightsLaneLabel {
@@ -1651,6 +1670,21 @@ select.ruleOperator:focus {
 .insightsBarValue {
   fill: #64748b;
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.insightsDiscountBar {
+  fill: #10b981;
+}
+
+.insightsDiscountMax {
+  fill: #047857;
+}
+
+.insightsDiscountValue {
+  fill: #047857;
+  font-size: 10.5px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

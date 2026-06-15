@@ -171,7 +171,7 @@ function buildLiveExample(e: LiveEmail): Example {
   };
 }
 
-const MAX_LIVE = 10;
+const MAX_LIVE = 5;
 
 export default function BrandTeardown() {
   const [live, setLive] = useState<Example[]>([]);

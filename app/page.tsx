@@ -4,6 +4,7 @@ import OutcomeBlocks from "@/components/marketing/OutcomeBlocks";
 import BrandTeardown from "@/components/marketing/BrandTeardown";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
+import { siteStructuredData } from "@/lib/structured-data";
 import styles from "@/components/marketing/landing.module.css";
 
 export const metadata = {
@@ -15,6 +16,10 @@ export const metadata = {
 export default function Home() {
   return (
     <main className={styles.page}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData()) }}
+      />
       <SiteHeader />
       <NewsletterFanHero />
       <OutcomeBlocks />

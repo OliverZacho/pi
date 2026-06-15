@@ -4,7 +4,7 @@ import styles from "./home-sections.module.css";
 /**
  * Site footer: a final "Browse the archive" prompt plus navigation. Links point
  * only at routes that exist (explore, brands, compare, collections, docs, help,
- * pricing, login).
+ * pricing, login, and the legal pages in the bottom bar).
  */
 export default function SiteFooter() {
   return (
@@ -45,7 +45,11 @@ export default function SiteFooter() {
 
       <div className={styles.footerBottom}>
         <span>&copy; 2026 Pirol</span>
-        <span>Made for email marketers.</span>
+        <nav className={styles.footerLegal} aria-label="Legal">
+          <Link href="/privacy" className={styles.footerLink}>Privacy</Link>
+          <Link href="/terms" className={styles.footerLink}>Terms</Link>
+          <Link href="/takedown" className={styles.footerLink}>Takedown</Link>
+        </nav>
       </div>
     </footer>
   );

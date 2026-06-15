@@ -25,15 +25,18 @@ import {
   type EmailCategory,
   type EspProvider,
   type GrowthPoint,
-  type UsageFeature
+  type UsageFeature,
+  type UserMetrics
 } from "@/lib/admin-types";
 import { countryFlag, countryName } from "@/lib/country";
 import { formatDateTime as formatDateTimeZoned } from "@/lib/datetime";
 import GrowthChart from "@/components/admin/GrowthChart";
+import UserMetricsPanels from "@/components/admin/UserMetricsPanels";
 import CategoryBrandChart from "@/components/admin/CategoryBrandChart";
 import CategoryFrequencyChart from "@/components/admin/CategoryFrequencyChart";
 import CategoryCountryFrequencyChart from "@/components/admin/CategoryCountryFrequencyChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
+import SupportInbox from "@/components/admin/SupportInbox";
 import QualityDetailModal, {
   type LowConfidenceEmail,
   type QualityKind,
@@ -199,13 +202,15 @@ const COMPANIES_COLLAPSED_STORAGE_KEY = "pirol.admin.companiesCollapsed";
 
 const ACTIVE_TAB_STORAGE_KEY = "pirol.admin.activeTab";
 
-type AdminTab = "dashboard" | "companies" | "mails" | "create";
+type AdminTab = "dashboard" | "users" | "companies" | "mails" | "create" | "support";
 
 const ADMIN_TABS: readonly AdminTab[] = [
   "dashboard",
+  "users",
   "create",
   "companies",
-  "mails"
+  "mails",
+  "support"
 ];
 
 const TAB_META: Record<
@@ -217,6 +222,12 @@ const TAB_META: Record<
     title: "Dashboard",
     description:
       "At-a-glance counts across every subscribed competitor and captured newsletter."
+  },
+  users: {
+    label: "Users",
+    title: "User Metrics",
+    description:
+      "Audience health — growth across tiers, retention & churn, product-market-fit signals, and the activation funnel."
   },
   create: {
     label: "Create Subscription",
@@ -235,6 +246,12 @@ const TAB_META: Record<
     title: "Recent Emails + Classification",
     description:
       "Browse, search, and filter every captured newsletter with its ESP and content signals."
+  },
+  support: {
+    label: "Support",
+    title: "Support Inbox",
+    description:
+      "Mail sent to support@pirol.app — read incoming messages and reply without leaving the dashboard."
   }
 };
 
@@ -643,6 +660,8 @@ export default function AdminHomePage() {
     null
   );
   const [statsLoading, setStatsLoading] = useState(true);
+  const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
+  const [userMetricsLoading, setUserMetricsLoading] = useState(true);
   // Which "Data cleanliness" card the operator drilled into, plus the
   // server-fetched low-confidence email list backing that one kind (the brand
   // kinds filter the already-loaded company list, so they need no fetch).
@@ -852,6 +871,25 @@ export default function AdminHomePage() {
       void loadDashboardStats();
     }
   }, [activeTab, loadDashboardStats]);
+
+  const loadUserMetrics = useCallback(async () => {
+    try {
+      setUserMetricsLoading(true);
+      const res = await fetch("/api/admin/user-metrics", { cache: "no-store" });
+      setUserMetrics(res.ok ? ((await res.json()) as UserMetrics) : null);
+    } catch {
+      setUserMetrics(null);
+    } finally {
+      setUserMetricsLoading(false);
+    }
+  }, []);
+
+  // Recompute audience health on each visit to the Users tab.
+  useEffect(() => {
+    if (activeTab === "users") {
+      void loadUserMetrics();
+    }
+  }, [activeTab, loadUserMetrics]);
 
   const openQualityDetail = useCallback((kind: QualityKind) => {
     setQualityDetail(kind);
@@ -2160,6 +2198,10 @@ export default function AdminHomePage() {
         </div>
       </section>
       </>
+      ) : null}
+
+      {activeTab === "users" ? (
+        <UserMetricsPanels metrics={userMetrics} loading={userMetricsLoading} />
       ) : null}
 
       {activeTab === "create" ? (
@@ -3490,6 +3532,8 @@ export default function AdminHomePage() {
         )}
       </section>
       ) : null}
+
+      {activeTab === "support" ? <SupportInbox /> : null}
 
       {activeTab === "dashboard" ? (
       <section className="card">

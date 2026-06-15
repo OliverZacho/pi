@@ -20,7 +20,39 @@ export const PUBLIC_MARKETING_PATHS = [
   "/help",
   "/docs",
   "/features/collections",
-  "/features/comparisons"
+  "/features/comparisons",
+  "/privacy",
+  "/terms",
+  "/takedown"
+] as const;
+
+/**
+ * AI *training* crawlers — bots that harvest text to train models with no
+ * referral upside. Blocked from the whole site in robots.txt.
+ *
+ * Deliberately NOT listed (so they fall under the permissive `*` rule and
+ * keep driving referral traffic): search + AI *retrieval/citation* bots such
+ * as Googlebot, Bingbot, Applebot, OAI-SearchBot, ChatGPT-User, PerplexityBot,
+ * Perplexity-User, Claude-User and Claude-SearchBot. These fetch a page live
+ * to answer a user and link back to us.
+ *
+ * Note: robots.txt is honour-system — only polite bots obey it. Hard blocking
+ * against spoofers happens at the edge (Cloudflare WAF / "Block AI bots").
+ */
+export const AI_TRAINING_BOTS = [
+  "GPTBot", // OpenAI model training
+  "CCBot", // Common Crawl — feeds many training datasets
+  "anthropic-ai", // legacy Anthropic training crawler
+  "ClaudeBot", // Anthropic training crawler (Claude-User / Claude-SearchBot stay allowed)
+  "Applebot-Extended", // Apple AI training (plain Applebot stays allowed for search/Siri)
+  "Google-Extended", // Gemini/Vertex training — does NOT affect Google Search or AI Overviews
+  "Bytespider", // ByteDance/TikTok — aggressive scraper
+  "Meta-ExternalAgent", // Meta AI training
+  "Amazonbot", // Amazon AI/Alexa harvesting
+  "Omgilibot", // Webz.io — data reselling
+  "Diffbot", // data-extraction reseller
+  "PetalBot", // Huawei crawler
+  "Timpibot" // Timpi crawler
 ] as const;
 
 /**

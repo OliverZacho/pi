@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isDiscountFigureEligible,
   isEligibleForEventDetection,
   isEventDetectionStale,
   safeParseEventDetection,
@@ -104,10 +105,70 @@ describe("explicitPhaseFromSubject", () => {
     expect(explicitPhaseFromSubject("The doors are open")).toBe("day_of");
   });
 
+  it("pins unambiguous post-event wrap-up subjects", () => {
+    expect(explicitPhaseFromSubject("Thank you for visiting our stand")).toBe(
+      "wrap_up"
+    );
+    expect(explicitPhaseFromSubject("Thanks for joining us at the show")).toBe(
+      "wrap_up"
+    );
+    expect(explicitPhaseFromSubject("See you next year!")).toBe("wrap_up");
+  });
+
   it("leaves interpretive subjects to the model", () => {
     expect(explicitPhaseFromSubject("Join us at 3daysofdesign")).toBeNull();
     expect(explicitPhaseFromSubject("Programme for 3daysofdesign")).toBeNull();
     expect(explicitPhaseFromSubject("The exhibition is open")).toBeNull();
+    // Run-up nudges must not be mistaken for the look-back wording.
+    expect(explicitPhaseFromSubject("See you tomorrow!")).toBeNull();
+    expect(explicitPhaseFromSubject("See you there")).toBeNull();
+  });
+});
+
+describe("isDiscountFigureEligible", () => {
+  it("accepts a discount-heavy collection across multiple brands", () => {
+    const emails = [
+      card({ companyName: "A", discountPercent: 30 }),
+      card({ companyName: "A", discountPercent: 20 }),
+      card({ companyName: "B", discountPercent: 25 }),
+      card({ companyName: "C", discountPercent: null })
+    ];
+    // 3 of 4 carry a discount (0.75 ≥ 0.7) across 2 brands.
+    expect(isDiscountFigureEligible(emails)).toBe(true);
+  });
+
+  it("rejects when too few emails carry a discount", () => {
+    const emails = [
+      card({ companyName: "A", discountPercent: 30 }),
+      card({ companyName: "B", discountPercent: null }),
+      card({ companyName: "C", discountPercent: null }),
+      card({ companyName: "D", discountPercent: null })
+    ];
+    expect(isDiscountFigureEligible(emails)).toBe(false);
+  });
+
+  it("rejects when only one brand discounts", () => {
+    const emails = [
+      card({ companyName: "Solo", discountPercent: 40 }),
+      card({ companyName: "Solo", discountPercent: 30 }),
+      card({ companyName: "Solo", discountPercent: 20 })
+    ];
+    expect(isDiscountFigureEligible(emails)).toBe(false);
+  });
+
+  it("matches buildTimelineModel's own gate", () => {
+    // Same fixture the model test uses: 5/6 discounted across 2 brands.
+    const emails = [
+      card({ companyName: "Deep Cuts", discountPercent: 60 }),
+      card({ companyName: "Deep Cuts", discountPercent: 40 }),
+      card({ companyName: "Modest Co", discountPercent: 30 }),
+      card({ companyName: "Modest Co", discountPercent: 20 }),
+      card({ companyName: "Modest Co", discountPercent: 10 }),
+      card({ companyName: "Full Price", discountPercent: null })
+    ];
+    const det = detection();
+    const modelShows = buildTimelineModel(det, emails)!.discount !== null;
+    expect(isDiscountFigureEligible(emails)).toBe(modelShows);
   });
 });
 
@@ -257,5 +318,66 @@ describe("buildTimelineModel", () => {
     expect(
       buildTimelineModel(detection({ status: "no_event", event: null }), emails)
     ).toBeNull();
+  });
+
+  it("leaves discount null when few emails carry a price cut", () => {
+    // The base fixture has no parsed discounts at all.
+    expect(buildTimelineModel(det, emails)!.discount).toBeNull();
+  });
+
+  it("aggregates per-brand discount when the majority carry a price cut", () => {
+    const discounted = [
+      card({ companyName: "Deep Cuts", discountPercent: 60, receivedAt: "2026-06-02T08:00:00+00:00" }),
+      card({ companyName: "Deep Cuts", discountPercent: 40, receivedAt: "2026-06-03T08:00:00+00:00" }),
+      card({ companyName: "Modest Co", discountPercent: 30, receivedAt: "2026-06-04T08:00:00+00:00" }),
+      card({ companyName: "Modest Co", discountPercent: 20, receivedAt: "2026-06-05T08:00:00+00:00" }),
+      card({ companyName: "Modest Co", discountPercent: 10, receivedAt: "2026-06-06T08:00:00+00:00" }),
+      card({ companyName: "Full Price", discountPercent: null, receivedAt: "2026-06-07T08:00:00+00:00" })
+    ];
+    const model = buildTimelineModel(det, discounted)!;
+    expect(model.discount).not.toBeNull();
+    const d = model.discount!;
+    // 5 of 6 emails carry a discount.
+    expect(d.emailsWithDiscount).toBe(5);
+    expect(d.share).toBeCloseTo(5 / 6);
+    expect(d.maxObserved).toBe(60);
+    // Sorted deepest average first; the no-discount brand is absent.
+    expect(d.brands.map((b) => b.name)).toEqual(["Deep Cuts", "Modest Co"]);
+    expect(d.brands[0]).toMatchObject({ avg: 50, max: 60, count: 2 });
+    expect(d.brands[1]).toMatchObject({ avg: 20, max: 30, count: 3 });
+    // No benchmark passed → the diamond falls back to the in-collection max.
+    expect(d.brands[0].benchmarkMax).toBe(60);
+    expect(d.brands[1].benchmarkMax).toBe(30);
+  });
+
+  it("uses the 12-month benchmark for the deepest-deal diamond", () => {
+    const discounted = [
+      card({ companyName: "Deep Cuts", discountPercent: 20, receivedAt: "2026-06-02T08:00:00+00:00" }),
+      card({ companyName: "Deep Cuts", discountPercent: 30, receivedAt: "2026-06-03T08:00:00+00:00" }),
+      card({ companyName: "Modest Co", discountPercent: 15, receivedAt: "2026-06-04T08:00:00+00:00" }),
+      card({ companyName: "Modest Co", discountPercent: 25, receivedAt: "2026-06-05T08:00:00+00:00" })
+    ];
+    const model = buildTimelineModel(det, discounted, {
+      "Deep Cuts": 70,
+      // Modest Co's benchmark reads shallower than this campaign — floor it
+      // at the in-collection max so the diamond never sits behind the bar.
+      "Modest Co": 10
+    })!;
+    const d = model.discount!;
+    const deep = d.brands.find((b) => b.name === "Deep Cuts")!;
+    const modest = d.brands.find((b) => b.name === "Modest Co")!;
+    expect(deep.benchmarkMax).toBe(70);
+    expect(modest.benchmarkMax).toBe(25);
+    // Axis must reach the deepest diamond, not just the deepest bar.
+    expect(d.maxObserved).toBe(70);
+  });
+
+  it("ignores discounts when only one brand cuts price", () => {
+    const oneBrand = [
+      card({ companyName: "Solo", discountPercent: 50, receivedAt: "2026-06-02T08:00:00+00:00" }),
+      card({ companyName: "Solo", discountPercent: 40, receivedAt: "2026-06-03T08:00:00+00:00" }),
+      card({ companyName: "Solo", discountPercent: 30, receivedAt: "2026-06-04T08:00:00+00:00" })
+    ];
+    expect(buildTimelineModel(det, oneBrand)!.discount).toBeNull();
   });
 });

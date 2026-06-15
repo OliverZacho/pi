@@ -94,13 +94,13 @@ export async function detectCollectionEvent(
       "A collection qualifies only when a clear majority of emails reference the same occasion; a loose theme (e.g. 'lighting brands') is NOT an event. " +
       "Event dates: prefer dates stated in the emails themselves (subjects/preheaders like '10–12 June') over prior knowledge, and resolve them to the year the emails were sent. Use null when the emails don't reveal a date and you are not confident. " +
       "user_message: one friendly sentence for the collection owner, e.g. \"It looks like you're collecting emails about 3daysofdesign, a design festival happening June 10–12, 2026 in Copenhagen.\" " +
-      "Campaign phases — label EVERY email with the phase it plays in the run-up to the event: " +
+      "Campaign phases — label EVERY email with the phase it plays in the campaign arc around the event, which runs before, during AND after it: " +
       "save_the_date: announcements and invitations whose point is 'this is happening, mark your calendar' ('you're invited', 'save the date', 'join us at …'). Often weeks ahead, but an explicit save-the-date/invitation subject belongs here no matter how late it was sent. " +
       "programme: agenda/programme/line-up reveals and content details ('full program unveiled', 'designtalks', 'what to expect', exhibition previews announced ahead of the event). " +
       "reminder: short-notice nudges in the final days before it starts ('see you tomorrow', 'book your spot', 'don't miss', 'ses vi?'). " +
       "day_of: sent while the event is running ('now open', 'the exhibition is open', 'we're open', 'visit us today'). " +
-      "wrap_up: post-event thanks, recaps, highlights. " +
-      "other: emails in the collection that don't play a run-up role. Use it sparingly — you only see subjects and preheaders, so an email that doesn't mention the event may still be about it (e.g. a product announcement timed to the event); give such emails the phase their timing and content suggest. " +
+      "wrap_up: anything sent AFTER the event ends that looks back on it — thank-yous ('thanks for visiting', 'thanks for joining us'), recaps, highlights, photo/press roundups, 'see you next year', replays and on-demand recordings, post-show follow-ups. Many brands send these, so expect a wrap_up tail: an email dated after the event that refers back to it belongs here, NOT in other. " +
+      "other: emails in the collection that don't play a before/during/after role at all. Use it sparingly — you only see subjects and preheaders, so an email that doesn't mention the event may still be about it (e.g. a product announcement timed to the event, or a post-event recap); give such emails the phase their timing and content suggest, and prefer wrap_up over other for anything sent after the event. " +
       "IMPORTANT: when a subject explicitly names its phase ('save the date' → save_the_date, 'programme'/'agenda' → programme, 'now open'/'we're open' → day_of), that wording wins over send timing. " +
       "If no single event emerges, return is_event_collection=false with event fields null and every phase 'other'.",
     tools: [
@@ -301,6 +301,17 @@ export function explicitPhaseFromSubject(subject: string): CampaignPhase | null 
   if (/\bsave the dates?\b/i.test(subject)) return "save_the_date";
   if (/\b(?:now open|we'?re open|doors (?:are )?open)\b/i.test(subject)) {
     return "day_of";
+  }
+  // Unambiguous post-event phrasing. Anchored tightly so run-up nudges
+  // ("see you tomorrow", "see you there") never match — only the
+  // look-back wording does.
+  if (
+    /\bsee you next (?:year|time)\b/i.test(subject) ||
+    /\bthank(?:s| you)\b[^.!?]*\bfor (?:visiting|joining|coming|stopping by)\b/i.test(
+      subject
+    )
+  ) {
+    return "wrap_up";
   }
   return null;
 }

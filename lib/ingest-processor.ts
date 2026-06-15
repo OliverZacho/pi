@@ -12,6 +12,11 @@ import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
 import {
+  ingestSupportEmail,
+  isSupportRecipient,
+  recipientsFromEvent
+} from "./support-inbox";
+import {
   extractProductsFromHeroImage,
   persistExtractedProducts
 } from "./vision-classify";
@@ -129,6 +134,35 @@ async function runClaimedEvent(row: WebhookEventRow): Promise<ProcessEventOutcom
       status: "skipped",
       error: `unsupported event type: ${event?.type ?? "unknown"}`
     };
+  }
+
+  // Mail to support@pirol.app rides the same inbound webhook as newsletters.
+  // Route it to the support inbox before the captured_emails pipeline, which
+  // would have no matching brand inbox and would otherwise fail.
+  if (isSupportRecipient(recipientsFromEvent(event))) {
+    try {
+      const resend = getResend();
+      const result = await ingestSupportEmail(resend, event);
+      await markEventStatus(row.id, "processed");
+      return {
+        eventId: row.id,
+        status: "processed",
+        emailId: result.id,
+        deduplicated: result.deduplicated
+      };
+    } catch (error) {
+      const message = serializeProcessingError(error);
+      console.error("Support email processing failed", {
+        eventId: row.id,
+        svixId: row.svix_id,
+        resendEmailId: event.data.email_id,
+        from: event.data.from,
+        subject: event.data.subject,
+        error
+      });
+      await markEventStatus(row.id, "failed", message);
+      return { eventId: row.id, status: "failed", error: message };
+    }
   }
 
   try {

@@ -5,6 +5,8 @@ import { EMAIL_CATEGORY_LABELS, type EmailCategory } from "@/lib/admin-types";
 import {
   CAMPAIGN_PHASES,
   CAMPAIGN_PHASE_LABELS,
+  DISCOUNT_FIGURE_MIN_BRANDS,
+  DISCOUNT_FIGURE_MIN_SHARE,
   isEligibleForEventDetection,
   isEventDetectionStale,
   type CampaignPhase,
@@ -20,20 +22,29 @@ import styles from "./collections.module.css";
  * Lifecycle: when the collection looks event-shaped and no fresh cached
  * detection exists, this component silently POSTs to
  * `/api/collections/[id]/event-detection`. A successful "detected"
- * result shows a confirm banner; confirming unlocks four figures, all
- * computed client-side from the emails the page already has:
+ * result shows a confirm banner; confirming unlocks the figures below,
+ * all computed client-side from the emails the page already has:
  *
  *  1. Brand run-up swimlane — who moves first, who waits for the doors.
  *  2. Volume crescendo — emails per day across the run-up.
  *  3. Campaign phase strip — the announce → remind → open arc, as
  *     labelled by the model during detection.
  *  4. Category mix per week — how invitations give way to launches.
+ *  5. Discount per brand — how deep each brand cuts price. Only shown
+ *     when the vast majority of emails carry a parsed % off.
  */
 
 type Props = {
   collectionId: string;
   initialDetection: CollectionEventDetection | null;
   emails: ExploreEmailCard[];
+  /**
+   * Deepest discount per brand (by company name) over the trailing 12
+   * months, across the whole archive. Powers the "deepest deal" diamond
+   * in the discount figure. Optional — falls back to the in-collection
+   * deepest when a brand has no benchmark.
+   */
+  brandDiscountBenchmarks?: Record<string, number>;
   onOpenEmail: (email: ExploreEmailCard) => void;
   /**
    * True while the parent's EmailModal is open on top of us. The
@@ -65,6 +76,11 @@ const CATEGORY_FALLBACK_COLOR = "#cbd5e1";
 const MAX_SWIMLANE_BRANDS = 16;
 const TOP_CATEGORY_COUNT = 4;
 
+// Discount figure gating (DISCOUNT_FIGURE_MIN_SHARE / _MIN_BRANDS) lives in
+// collection-event-shared so the server can run the same check before
+// fetching the 12-month benchmark. This is purely a render cap.
+const MAX_DISCOUNT_BRANDS = 16;
+
 /**
  * Should this page view trigger a detection POST? Yes when the
  * collection qualifies and there's either no cached result or a stale
@@ -86,6 +102,7 @@ export default function CollectionEventInsights({
   collectionId,
   initialDetection,
   emails,
+  brandDiscountBenchmarks,
   onOpenEmail,
   emailModalOpen
 }: Props) {
@@ -236,6 +253,7 @@ export default function CollectionEventInsights({
           <EventInsightsCard
             detection={detection}
             emails={emails}
+            brandDiscountBenchmarks={brandDiscountBenchmarks}
             onOpenEmail={onOpenEmail}
             inModal
           />
@@ -329,6 +347,28 @@ type TimelineModel = {
   phaseLanes: Array<{ phase: CampaignPhase; items: TimelineEmail[] }>;
   weeks: Array<{ startIdx: number; counts: Map<string, number>; total: number }>;
   topCategories: string[];
+  /**
+   * Per-brand discount depth, or null when discounting isn't the
+   * collection's throughline (see DISCOUNT_FIGURE_MIN_SHARE). Brands are
+   * sorted deepest average first.
+   */
+  discount: {
+    /**
+     * Per brand: `avg`/`max` are this collection's emails; `benchmarkMax`
+     * is the brand's deepest discount over the trailing 12 months across
+     * the whole archive (falls back to `max` when no benchmark exists).
+     */
+    brands: Array<{
+      name: string;
+      avg: number;
+      max: number;
+      count: number;
+      benchmarkMax: number;
+    }>;
+    share: number;
+    emailsWithDiscount: number;
+    maxObserved: number;
+  } | null;
   stats: {
     brandCount: number;
     emailCount: number;
@@ -341,23 +381,33 @@ type TimelineModel = {
 function EventInsightsCard({
   detection,
   emails,
+  brandDiscountBenchmarks,
   onOpenEmail,
   inModal = false
 }: {
   detection: CollectionEventDetection;
   emails: ExploreEmailCard[];
+  brandDiscountBenchmarks?: Record<string, number>;
   onOpenEmail: (email: ExploreEmailCard) => void;
   /** Drops the glass-card chrome when rendered inside the pop-up. */
   inModal?: boolean;
 }) {
   const event = detection.event!;
   const model = useMemo(
-    () => buildTimelineModel(detection, emails),
-    [detection, emails]
+    () => buildTimelineModel(detection, emails, brandDiscountBenchmarks),
+    [detection, emails, brandDiscountBenchmarks]
   );
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
+  // Instant cursor-following tooltip — far snappier than the native <title>,
+  // which the browser delays ~1s before showing.
+  const [tip, setTip] = useState<{ x: number; y: number; label: string } | null>(
+    null
+  );
+  const showTip = (label: string, x: number, y: number) =>
+    setTip({ x, y, label });
+  const hideTip = () => setTip(null);
   useEffect(() => {
     const node = wrapRef.current;
     if (!node) return undefined;
@@ -429,7 +479,13 @@ function EventInsightsCard({
             One lane per brand, earliest sender on top — each dot is one
             email.
           </p>
-          <SwimlaneFigure model={model} width={width} onOpenEmail={onOpenEmail} />
+          <SwimlaneFigure
+            model={model}
+            width={width}
+            onOpenEmail={onOpenEmail}
+            onHover={showTip}
+            onLeave={hideTip}
+          />
         </figure>
 
         <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
@@ -447,7 +503,13 @@ function EventInsightsCard({
             Each email labelled by the role it plays: announce, reveal the
             programme, remind, open the doors, wrap up.
           </p>
-          <PhaseStripFigure model={model} width={width} onOpenEmail={onOpenEmail} />
+          <PhaseStripFigure
+            model={model}
+            width={width}
+            onOpenEmail={onOpenEmail}
+            onHover={showTip}
+            onLeave={hideTip}
+          />
         </figure>
 
         <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
@@ -458,8 +520,30 @@ function EventInsightsCard({
           </p>
           <CategoryMixFigure model={model} width={width} />
         </figure>
+
+        {model.discount ? (
+          <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
+            <h3 className={styles.insightsFigureTitle}>How much each brand discounts</h3>
+            <p className={styles.insightsFigureCaption}>
+              {Math.round(model.discount.share * 100)}% of these emails carry a
+              price cut. Bars show each brand&apos;s average discount in this
+              collection; the diamond marks its deepest deal anywhere in the
+              past 12 months.
+            </p>
+            <DiscountFigure model={model} width={width} />
+          </figure>
+        ) : null}
       </div>
 
+      {tip ? (
+        <div
+          className={styles.insightsTooltip}
+          style={{ left: tip.x, top: tip.y }}
+          role="presentation"
+        >
+          {tip.label}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -500,7 +584,8 @@ function dayNumberLabel(windowStart: string, dayIdx: number): string {
 /** Exported for tests — pure view-model math, no React. */
 export function buildTimelineModel(
   detection: CollectionEventDetection,
-  emails: ExploreEmailCard[]
+  emails: ExploreEmailCard[],
+  brandDiscountBenchmarks: Record<string, number> = {}
 ): TimelineModel | null {
   const event = detection.event;
   if (!event || emails.length === 0) return null;
@@ -598,6 +683,48 @@ export function buildTimelineModel(
     if (dailyCounts[i] > dailyCounts[busiestIdx]) busiestIdx = i;
   }
 
+  // Per-brand discount depth. We look at the parsed `discountPercent` on
+  // every email regardless of category — a "% off" in a launch or
+  // seasonal email counts just as much as one in a "sale" email.
+  let emailsWithDiscount = 0;
+  const brandDiscountMap = new Map<string, number[]>();
+  for (const item of items) {
+    const pct = item.card.discountPercent;
+    if (pct !== null && Number.isFinite(pct) && pct > 0) {
+      emailsWithDiscount += 1;
+      const list = brandDiscountMap.get(item.card.companyName);
+      if (list) list.push(pct);
+      else brandDiscountMap.set(item.card.companyName, [pct]);
+    }
+  }
+  const discountShare = items.length > 0 ? emailsWithDiscount / items.length : 0;
+  const discountBrands = Array.from(brandDiscountMap.entries())
+    .map(([name, vals]) => {
+      const max = Math.max(...vals);
+      // The 12-month benchmark should never read shallower than what this
+      // collection already shows, so floor it at the in-collection max.
+      const benchmarkMax = Math.max(brandDiscountBenchmarks[name] ?? 0, max);
+      return {
+        name,
+        avg: vals.reduce((sum, v) => sum + v, 0) / vals.length,
+        max,
+        count: vals.length,
+        benchmarkMax
+      };
+    })
+    .sort((a, b) => b.avg - a.avg || b.benchmarkMax - a.benchmarkMax);
+  const discount =
+    discountShare >= DISCOUNT_FIGURE_MIN_SHARE &&
+    discountBrands.length >= DISCOUNT_FIGURE_MIN_BRANDS
+      ? {
+          brands: discountBrands,
+          share: discountShare,
+          emailsWithDiscount,
+          // Axis must reach the deepest diamond, not just the deepest bar.
+          maxObserved: Math.max(...discountBrands.map((b) => b.benchmarkMax))
+        }
+      : null;
+
   return {
     windowStart,
     totalDays,
@@ -609,6 +736,7 @@ export function buildTimelineModel(
     phaseLanes,
     weeks,
     topCategories,
+    discount,
     stats: {
       brandCount: brandMap.size,
       emailCount: items.length,
@@ -779,13 +907,17 @@ function EmailMarker({
   cx,
   cy,
   color,
-  onOpenEmail
+  onOpenEmail,
+  onHover,
+  onLeave
 }: {
   item: TimelineEmail;
   cx: number;
   cy: number;
   color: string;
   onOpenEmail: (email: ExploreEmailCard) => void;
+  onHover?: (label: string, x: number, y: number) => void;
+  onLeave?: () => void;
 }) {
   const label = `${formatShortDate(item.card.receivedAt)} · ${item.card.companyName} — ${item.card.subject || "(no subject)"}`;
   return (
@@ -795,6 +927,14 @@ function EmailMarker({
       tabIndex={0}
       aria-label={`Open email: ${label}`}
       onClick={() => onOpenEmail(item.card)}
+      onMouseEnter={(e) => onHover?.(label, e.clientX, e.clientY)}
+      onMouseMove={(e) => onHover?.(label, e.clientX, e.clientY)}
+      onMouseLeave={() => onLeave?.()}
+      onFocus={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        onHover?.(label, r.left + r.width / 2, r.top + r.height / 2);
+      }}
+      onBlur={() => onLeave?.()}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -802,7 +942,6 @@ function EmailMarker({
         }
       }}
     >
-      <title>{label}</title>
       <circle cx={cx} cy={cy} r={11} fill="transparent" />
       <circle cx={cx} cy={cy} r={4.5} fill={color} className={styles.insightsDot} />
     </g>
@@ -819,11 +958,15 @@ const LABEL_GUTTER = 118;
 function SwimlaneFigure({
   model,
   width,
-  onOpenEmail
+  onOpenEmail,
+  onHover,
+  onLeave
 }: {
   model: TimelineModel;
   width: number;
   onOpenEmail: (email: ExploreEmailCard) => void;
+  onHover?: (label: string, x: number, y: number) => void;
+  onLeave?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const scale = makeScale(model, width, LABEL_GUTTER, 12);
@@ -881,6 +1024,8 @@ function SwimlaneFigure({
                   cy={cy}
                   color="#0f172a"
                   onOpenEmail={onOpenEmail}
+                  onHover={onHover}
+                  onLeave={onLeave}
                 />
               );
             })}
@@ -1003,11 +1148,15 @@ function CrescendoFigure({ model, width }: { model: TimelineModel; width: number
 function PhaseStripFigure({
   model,
   width,
-  onOpenEmail
+  onOpenEmail,
+  onHover,
+  onLeave
 }: {
   model: TimelineModel;
   width: number;
   onOpenEmail: (email: ExploreEmailCard) => void;
+  onHover?: (label: string, x: number, y: number) => void;
+  onLeave?: () => void;
 }) {
   const scale = makeScale(model, width, LABEL_GUTTER + 26, 12);
   const topPad = 16;
@@ -1057,6 +1206,8 @@ function PhaseStripFigure({
                   cy={cy}
                   color={color}
                   onOpenEmail={onOpenEmail}
+                  onHover={onHover}
+                  onLeave={onLeave}
                 />
               );
             })}
@@ -1188,6 +1339,144 @@ function CategoryMixFigure({ model, width }: { model: TimelineModel; width: numb
         </span>
       </div>
     </>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Figure 5 — how much each brand discounts
+   ----------------------------------------------------------------- */
+
+function DiscountFigure({ model, width }: { model: TimelineModel; width: number }) {
+  const discount = model.discount!;
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = discount.brands.length > MAX_DISCOUNT_BRANDS;
+  const rows =
+    collapsible && !expanded
+      ? discount.brands.slice(0, MAX_DISCOUNT_BRANDS)
+      : discount.brands;
+  const hiddenCount = discount.brands.length - rows.length;
+
+  const padLeft = LABEL_GUTTER;
+  const padRight = 46;
+  const plotW = Math.max(10, width - padLeft - padRight);
+  // Round the axis up to a tidy 10% step, floored at 20% so a collection
+  // of small discounts still reads sensibly.
+  const axisMax = Math.min(100, Math.max(20, Math.ceil(discount.maxObserved / 10) * 10));
+  const xFor = (pct: number) => padLeft + (plotW * Math.min(pct, axisMax)) / axisMax;
+
+  const topPad = 14;
+  const rowH = 22;
+  const barH = 10;
+  const rowsBottom = topPad + rows.length * rowH;
+  const extraRow = collapsible ? 18 : 0;
+  const height = rowsBottom + extraRow + 28;
+
+  const gridStep = axisMax <= 40 ? 10 : 25;
+  const gridValues: number[] = [];
+  for (let v = 0; v <= axisMax; v += gridStep) gridValues.push(v);
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={styles.insightsChart}
+      role="img"
+      aria-label={`Average discount per brand across ${discount.brands.length} brands, deepest ${Math.round(discount.maxObserved)} percent`}
+    >
+      {gridValues.map((v) => (
+        <g key={v}>
+          <line
+            x1={xFor(v)}
+            x2={xFor(v)}
+            y1={topPad - 6}
+            y2={rowsBottom}
+            className={styles.insightsAxisTick}
+          />
+          <text
+            x={xFor(v)}
+            y={rowsBottom + extraRow + 16}
+            textAnchor="middle"
+            className={styles.insightsAxisLabel}
+          >
+            {v}%
+          </text>
+        </g>
+      ))}
+      {rows.map((brand, rowIdx) => {
+        const cy = topPad + rowIdx * rowH + rowH / 2;
+        const avgX = xFor(brand.avg);
+        const benchX = xFor(brand.benchmarkMax);
+        const countLabel = `${brand.count} ${brand.count === 1 ? "email" : "emails"}`;
+        return (
+          <g key={brand.name}>
+            <title>{`${brand.name} — avg ${Math.round(brand.avg)}% here (${countLabel}); deepest ${Math.round(brand.benchmarkMax)}% in the past 12 months`}</title>
+            <text
+              x={padLeft - 10}
+              y={cy + 3.5}
+              textAnchor="end"
+              className={styles.insightsLaneLabel}
+            >
+              {truncateLabel(brand.name, 18)}
+            </text>
+            <line
+              x1={padLeft}
+              x2={padLeft + plotW}
+              y1={cy}
+              y2={cy}
+              className={styles.insightsLaneTrack}
+            />
+            <rect
+              x={padLeft}
+              y={cy - barH / 2}
+              width={Math.max(2, avgX - padLeft)}
+              height={barH}
+              rx={3}
+              className={styles.insightsDiscountBar}
+            />
+            {/* Diamond at the brand's deepest 12-month deal, when it sits
+                clear of the average bar's end. */}
+            {benchX > avgX + 3 ? (
+              <path
+                d={`M ${benchX} ${cy - 4} L ${benchX + 4} ${cy} L ${benchX} ${cy + 4} L ${benchX - 4} ${cy} Z`}
+                className={styles.insightsDiscountMax}
+              />
+            ) : null}
+            <text
+              x={Math.max(benchX, avgX) + 8}
+              y={cy + 3.5}
+              textAnchor="start"
+              className={styles.insightsDiscountValue}
+            >
+              {Math.round(brand.avg)}%
+            </text>
+          </g>
+        );
+      })}
+      {collapsible ? (
+        <text
+          x={padLeft - 10}
+          y={rowsBottom + 13}
+          textAnchor="end"
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          aria-label={
+            expanded ? "Show fewer brands" : `Show ${hiddenCount} more brands`
+          }
+          className={styles.insightsMoreToggle}
+          onClick={() => setExpanded((current) => !current)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded((current) => !current);
+            }
+          }}
+        >
+          {expanded ? "Show fewer" : `+${hiddenCount} more`}
+        </text>
+      ) : null}
+    </svg>
   );
 }
 
