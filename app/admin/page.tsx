@@ -202,7 +202,14 @@ const COMPANIES_COLLAPSED_STORAGE_KEY = "pirol.admin.companiesCollapsed";
 
 const ACTIVE_TAB_STORAGE_KEY = "pirol.admin.activeTab";
 
-type AdminTab = "dashboard" | "users" | "companies" | "mails" | "create" | "support";
+type AdminTab =
+  | "dashboard"
+  | "users"
+  | "companies"
+  | "mails"
+  | "create"
+  | "support"
+  | "feedback";
 
 const ADMIN_TABS: readonly AdminTab[] = [
   "dashboard",
@@ -210,7 +217,8 @@ const ADMIN_TABS: readonly AdminTab[] = [
   "create",
   "companies",
   "mails",
-  "support"
+  "support",
+  "feedback"
 ];
 
 const TAB_META: Record<
@@ -252,6 +260,12 @@ const TAB_META: Record<
     title: "Support Inbox",
     description:
       "Mail sent to support@pirol.app — read incoming messages and reply without leaving the dashboard."
+  },
+  feedback: {
+    label: "Feedback",
+    title: "Feature Requests",
+    description:
+      "Product ideas users sent from the account menu. Triage each one, then mark it Done to clear it from the queue."
   }
 };
 
@@ -263,6 +277,16 @@ type BrandRequest = {
   id: string;
   companyName: string;
   website: string;
+  status: string;
+  createdAt: string;
+  handledAt: string | null;
+};
+
+/** A user-submitted "please build this" feature request awaiting triage. */
+type FeatureRequest = {
+  id: string;
+  message: string;
+  requesterEmail: string | null;
   status: string;
   createdAt: string;
   handledAt: string | null;
@@ -587,6 +611,12 @@ export default function AdminHomePage() {
   // tag list at the page level so the create handler can submit it.
   const [markets, setMarkets] = useState<string[]>([]);
   const [companySearch, setCompanySearch] = useState("");
+  const [showRecommendedOnly, setShowRecommendedOnly] = useState(false);
+  // Companies whose recommended star is mid-flight, so we can disable the
+  // toggle and avoid double submits while the PATCH is in progress.
+  const [curatingCompanyIds, setCuratingCompanyIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [companySort, setCompanySort] = useState<CompanySort>(DEFAULT_COMPANY_SORT);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -657,6 +687,11 @@ export default function AdminHomePage() {
   const [brandRequests, setBrandRequests] = useState<BrandRequest[]>([]);
   const [brandRequestsLoading, setBrandRequestsLoading] = useState(true);
   const [handlingRequestId, setHandlingRequestId] = useState<string | null>(
+    null
+  );
+  const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([]);
+  const [featureRequestsLoading, setFeatureRequestsLoading] = useState(true);
+  const [handlingFeatureId, setHandlingFeatureId] = useState<string | null>(
     null
   );
   const [statsLoading, setStatsLoading] = useState(true);
@@ -815,6 +850,32 @@ export default function AdminHomePage() {
       void loadBrandRequests();
     }
   }, [activeTab, loadBrandRequests]);
+
+  const loadFeatureRequests = useCallback(async () => {
+    try {
+      setFeatureRequestsLoading(true);
+      const response = await fetch("/api/admin/feature-requests", {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        setFeatureRequests([]);
+        return;
+      }
+      const data = (await response.json()) as { requests?: FeatureRequest[] };
+      setFeatureRequests(Array.isArray(data.requests) ? data.requests : []);
+    } catch {
+      setFeatureRequests([]);
+    } finally {
+      setFeatureRequestsLoading(false);
+    }
+  }, []);
+
+  // Pull the pending feature-request queue whenever the Feedback tab opens.
+  useEffect(() => {
+    if (activeTab === "feedback") {
+      void loadFeatureRequests();
+    }
+  }, [activeTab, loadFeatureRequests]);
 
   const loadDashboardStats = useCallback(async () => {
     try {
@@ -1288,6 +1349,49 @@ export default function AdminHomePage() {
     }
   }
 
+  // One-click recommend/unrecommend straight from the row, without entering
+  // the full edit mode. Optimistically flips the star, then PATCHes is_curated
+  // and reconciles with the server's copy (rolling back on failure).
+  async function toggleCompanyCurated(company: CompanySubscription) {
+    if (curatingCompanyIds.has(company.id)) {
+      return;
+    }
+    const nextCurated = !company.isCurated;
+    setCuratingCompanyIds((current) => {
+      const next = new Set(current);
+      next.add(company.id);
+      return next;
+    });
+    replaceCompanyInOverview({ ...company, isCurated: nextCurated });
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCurated: nextCurated })
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        company?: CompanySubscription;
+        error?: string;
+      };
+      if (!response.ok || !body.company) {
+        // Roll back to the server-known state on failure.
+        replaceCompanyInOverview(company);
+        setLoadError(body.error ?? "Could not update recommended status.");
+        return;
+      }
+      replaceCompanyInOverview(body.company);
+    } catch {
+      replaceCompanyInOverview(company);
+      setLoadError("Could not update recommended status.");
+    } finally {
+      setCuratingCompanyIds((current) => {
+        const next = new Set(current);
+        next.delete(company.id);
+        return next;
+      });
+    }
+  }
+
   useEffect(() => {
     if (editingCompanyId && editNameInputRef.current) {
       editNameInputRef.current.focus();
@@ -1593,6 +1697,27 @@ export default function AdminHomePage() {
     }
   }
 
+  async function markFeatureRequestHandled(id: string) {
+    setHandlingFeatureId(id);
+    // Drop it from the queue immediately; restore on failure.
+    const previous = featureRequests;
+    setFeatureRequests((current) => current.filter((req) => req.id !== id));
+    try {
+      const response = await fetch("/api/admin/feature-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!response.ok) {
+        setFeatureRequests(previous);
+      }
+    } catch {
+      setFeatureRequests(previous);
+    } finally {
+      setHandlingFeatureId(null);
+    }
+  }
+
   async function skipCandidate(candidate: SuggestedCandidate) {
     setSkippingDomain(candidate.domain);
     try {
@@ -1707,10 +1832,16 @@ export default function AdminHomePage() {
 
   const filteredCompanies = useMemo(() => {
     const query = companySearch.trim().toLowerCase();
-    if (!query) {
+    if (!query && !showRecommendedOnly) {
       return sortedCompanies;
     }
     return sortedCompanies.filter((company) => {
+      if (showRecommendedOnly && !company.isCurated) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
       const haystack = [
         company.name,
         company.domain,
@@ -1722,7 +1853,12 @@ export default function AdminHomePage() {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [sortedCompanies, companySearch]);
+  }, [sortedCompanies, companySearch, showRecommendedOnly]);
+
+  const recommendedCount = useMemo(
+    () => sortedCompanies.filter((company) => company.isCurated).length,
+    [sortedCompanies]
+  );
 
   const companiesNeedingLogoReview = useMemo(
     // Only surface brands that actually have a logo to review (low-confidence
@@ -2680,6 +2816,20 @@ export default function AdminHomePage() {
                 placeholder="Search by name, domain, market, or email"
                 aria-label="Search companies"
               />
+              <button
+                type="button"
+                className={`recommended-filter-toggle${
+                  showRecommendedOnly ? " is-active" : ""
+                }`}
+                onClick={() => setShowRecommendedOnly((value) => !value)}
+                aria-pressed={showRecommendedOnly}
+                title="Show only recommended brands"
+              >
+                ★ Recommended only
+                <span className="recommended-filter-count">
+                  {recommendedCount}
+                </span>
+              </button>
               <span className="muted">
                 {filteredCompanies.length} of {sortedCompanies.length} shown
               </span>
@@ -2701,6 +2851,12 @@ export default function AdminHomePage() {
           <table>
             <thead>
               <tr>
+                <th scope="col" className="recommended-col-header">
+                  <span className="sr-only">Recommended</span>
+                  <span aria-hidden="true" title="Recommended">
+                    ★
+                  </span>
+                </th>
                 <SortableHeader
                   label="Company"
                   sortKey="name"
@@ -2765,6 +2921,31 @@ export default function AdminHomePage() {
                 return (
                 <Fragment key={company.id}>
                 <tr className={isEditing ? "is-editing" : undefined}>
+                  <td className="recommended-cell">
+                    <button
+                      type="button"
+                      className={`recommended-star${
+                        company.isCurated ? " is-on" : ""
+                      }`}
+                      onClick={() => toggleCompanyCurated(company)}
+                      disabled={curatingCompanyIds.has(company.id)}
+                      aria-pressed={company.isCurated}
+                      title={
+                        company.isCurated
+                          ? "Recommended — click to remove"
+                          : "Mark as recommended"
+                      }
+                    >
+                      <span aria-hidden="true">
+                        {company.isCurated ? "★" : "☆"}
+                      </span>
+                      <span className="sr-only">
+                        {company.isCurated
+                          ? `${company.name} is recommended`
+                          : `Mark ${company.name} as recommended`}
+                      </span>
+                    </button>
+                  </td>
                   <td>
                     {isEditing && editingDraft ? (
                       <span className="company-cell">
@@ -3072,7 +3253,7 @@ export default function AdminHomePage() {
                 </tr>
                 {isInboxExpanded ? (
                   <tr className="inbox-detail-row">
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div className="inbox-panel">
                         <div className="inbox-panel-head">
                           <h4>Inboxes &amp; segments</h4>
@@ -3534,6 +3715,73 @@ export default function AdminHomePage() {
       ) : null}
 
       {activeTab === "support" ? <SupportInbox /> : null}
+
+      {activeTab === "feedback" ? (
+        <section className="card">
+          <div className="recent-mail-header">
+            <div>
+              <h2>Feature requests</h2>
+              <p className="muted">
+                Ideas users sent from the account menu&apos;s{" "}
+                <em>Request a feature</em>. Mark each <em>Done</em> once
+                you&apos;ve logged or actioned it.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="recent-mail-refresh"
+              onClick={() => {
+                void loadFeatureRequests();
+              }}
+              disabled={featureRequestsLoading}
+            >
+              {featureRequestsLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+          {featureRequestsLoading && featureRequests.length === 0 ? (
+            <p className="muted">Loading requests…</p>
+          ) : featureRequests.length === 0 ? (
+            <p className="muted">No pending feature requests right now.</p>
+          ) : (
+            <ul className="brand-requests-list">
+              {featureRequests.map((req) => (
+                <li key={req.id} className="brand-request-item feature-request-item">
+                  <div className="brand-request-main">
+                    <span className="feature-request-message">
+                      {req.message}
+                    </span>
+                    {req.requesterEmail ? (
+                      <a
+                        className="brand-request-site"
+                        href={`mailto:${req.requesterEmail}`}
+                      >
+                        {req.requesterEmail}
+                      </a>
+                    ) : (
+                      <span className="brand-request-site">Anonymous</span>
+                    )}
+                  </div>
+                  <span className="brand-request-time">
+                    {formatDateTime(req.createdAt)}
+                  </span>
+                  <div className="brand-request-actions">
+                    <button
+                      type="button"
+                      className="brand-request-done"
+                      onClick={() => {
+                        void markFeatureRequestHandled(req.id);
+                      }}
+                      disabled={handlingFeatureId === req.id}
+                    >
+                      {handlingFeatureId === req.id ? "…" : "Done"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {activeTab === "dashboard" ? (
       <section className="card">

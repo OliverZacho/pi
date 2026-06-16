@@ -130,6 +130,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_requests: {
+        Row: {
+          created_at: string
+          handled_at: string | null
+          id: string
+          message: string
+          requested_by: string | null
+          requester_email: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message?: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       captured_emails: {
         Row: {
           auth_results: Json | null
@@ -624,6 +654,7 @@ export type Database = {
         Row: {
           created_at: string
           current_period_end: string | null
+          grace_until: string | null
           plan: string | null
           status: string
           stripe_customer_id: string | null
@@ -634,6 +665,7 @@ export type Database = {
         Insert: {
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null
@@ -644,6 +676,7 @@ export type Database = {
         Update: {
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null

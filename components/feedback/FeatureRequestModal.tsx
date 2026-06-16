@@ -2,27 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import BrandRequestForm from "./BrandRequestForm";
-import styles from "./BrandRequest.module.css";
+import FeatureRequestForm from "./FeatureRequestForm";
+import styles from "@/components/brand/BrandRequest.module.css";
 
-type BrandRequestModalProps = {
-  defaultCompanyName?: string;
+type FeatureRequestModalProps = {
   onClose: () => void;
 };
 
 /**
- * Popup wrapper around {@link BrandRequestForm}, opened from the "Request a
- * brand?" link in the Explore brand filter. Closes on Escape or backdrop
+ * Popup wrapper around {@link FeatureRequestForm}, opened from the "Request a
+ * feature" entry in the sidebar account menu. Closes on Escape or backdrop
  * click; the form's success state stays visible until the visitor closes it.
  */
-export default function BrandRequestModal({
-  defaultCompanyName,
+export default function FeatureRequestModal({
   onClose
-}: BrandRequestModalProps) {
-  // Portal the modal to <body> so it escapes any stacking context created
-  // by an ancestor (e.g. the sticky sidebar's `z-index: 1`). Without this,
-  // the overlay's `z-index: 1000` is confined to the sidebar's context and
-  // page content like the comparison chart bars paints on top of it.
+}: FeatureRequestModalProps) {
+  // Portal to <body> so the overlay escapes any stacking context created by an
+  // ancestor (e.g. the sticky sidebar's `z-index: 1`); see BrandRequestModal.
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -44,7 +40,7 @@ export default function BrandRequestModal({
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
-      aria-label="Request a brand"
+      aria-label="Request a feature"
       onClick={onClose}
     >
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
@@ -56,11 +52,11 @@ export default function BrandRequestModal({
         >
           ×
         </button>
-        <h2 className={styles.modalTitle}>Request a brand</h2>
+        <h2 className={styles.modalTitle}>Request a feature</h2>
         <p className={styles.modalLead}>
-          Can&apos;t find a brand? Tell us who to add and we&apos;ll get them in.
+          Got an idea for Pirol? Tell us what would make it more useful.
         </p>
-        <BrandRequestForm defaultCompanyName={defaultCompanyName} />
+        <FeatureRequestForm />
       </div>
     </div>,
     document.body

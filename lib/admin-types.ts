@@ -604,14 +604,22 @@ export type UserMetrics = {
   };
   retention: {
     realTotal: number;
+    /** Users who recorded at least one app load (last_active_at not null). */
+    onboarded: number;
     active7d: number;
     /** Last seen 8–30 days ago. */
     recent: number;
     /** Last seen 31–60 days ago. */
     atRisk: number;
-    /** Last seen 60+ days ago, or never returned after signup. */
+    /** Onboarded but last seen 60+ days ago. */
     dormant: number;
-    /** Share of users not seen in 30 days — the engagement-churn proxy. */
+    /** Signed up but never recorded an app load — a failed activation, not churn. */
+    neverOnboarded: number;
+    /**
+     * Share of *onboarded* users not seen in 30 days — the engagement-churn
+     * proxy. Never-onboarded users are excluded so failed activation doesn't
+     * masquerade as churn. Null when nobody has onboarded yet.
+     */
     inactiveRate30d: number | null;
   };
   subscription: {

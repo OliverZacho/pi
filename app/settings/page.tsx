@@ -19,7 +19,9 @@ import {
 } from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
-import SettingsClient from "@/components/settings/SettingsClient";
+import SettingsClient, {
+  type BillingInfo
+} from "@/components/settings/SettingsClient";
 import styles from "@/components/explore/explore.module.css";
 
 export const metadata = {
@@ -101,6 +103,31 @@ export default async function SettingsPage() {
   const inviteDomainRestricted =
     Boolean(emailDomain) && !isConsumerEmailDomain(emailDomain);
 
+  // Billing tab state — the viewer's own subscription row (RLS self-select).
+  let billing: BillingInfo = {
+    status: "inactive",
+    plan: null,
+    currentPeriodEnd: null,
+    hasBillingAccount: false
+  };
+  try {
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("status, plan, current_period_end, stripe_customer_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (data) {
+      billing = {
+        status: data.status,
+        plan: data.plan,
+        currentPeriodEnd: data.current_period_end,
+        hasBillingAccount: Boolean(data.stripe_customer_id)
+      };
+    }
+  } catch (err) {
+    console.error("Failed to load subscription", err);
+  }
+
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -126,6 +153,7 @@ export default async function SettingsPage() {
           initialTeam={initialTeam}
           canInviteTeam={canInviteTeam}
           inviteDomainRestricted={inviteDomainRestricted}
+          billing={billing}
         />
       </main>
     </div>

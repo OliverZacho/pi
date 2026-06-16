@@ -22,12 +22,17 @@ function signedPct(value: number | null): string {
   return `${p > 0 ? "+" : ""}${p}%`;
 }
 
-/** Recency buckets for the retention bar — order = widest cohort first. */
-const RECENCY: { key: "active7d" | "recent" | "atRisk" | "dormant"; label: string; color: string }[] = [
+/** Lifecycle buckets for the retention bar — active → lapsed → never onboarded. */
+const RECENCY: {
+  key: "active7d" | "recent" | "atRisk" | "dormant" | "neverOnboarded";
+  label: string;
+  color: string;
+}[] = [
   { key: "active7d", label: "Active · ≤7d", color: "#059669" },
   { key: "recent", label: "Recent · 8–30d", color: "#2563eb" },
   { key: "atRisk", label: "At risk · 31–60d", color: "#d97706" },
-  { key: "dormant", label: "Dormant · 60d+", color: "#dc2626" }
+  { key: "dormant", label: "Dormant · 60d+", color: "#dc2626" },
+  { key: "neverOnboarded", label: "Never onboarded", color: "#94a3b8" }
 ];
 
 const ENGAGEMENT: { key: "dau" | "wau" | "mau"; label: string }[] = [
@@ -134,7 +139,7 @@ export default function UserMetricsPanels({
         <div className="dashboard-panel-header">
           <h2>Retention &amp; churn</h2>
           <span className="muted">
-            non-team users by time since last seen · {int(retention.realTotal)} tracked
+            non-team users by lifecycle stage · {int(retention.realTotal)} tracked
           </span>
         </div>
 
@@ -143,14 +148,16 @@ export default function UserMetricsPanels({
             <h2>30-day churn</h2>
             <p>
               {pct(retention.inactiveRate30d)}
-              <span className="card-sub">not seen in 30 days</span>
+              <span className="card-sub">
+                of {int(retention.onboarded)} onboarded, not seen in 30d
+              </span>
             </p>
           </article>
           <article className="card card-inset">
-            <h2>Dormant</h2>
+            <h2>Never onboarded</h2>
             <p>
-              {int(retention.dormant)}
-              <span className="card-sub">60d+ or never returned</span>
+              {int(retention.neverOnboarded)}
+              <span className="card-sub">signed up, never loaded the app</span>
             </p>
           </article>
           <article className="card card-inset">

@@ -38,6 +38,14 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
+/* Multi-line variant of `.input`, used by the feature-request message box. */
+.textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
 .submit {
   align-self: flex-start;
   margin-top: 0.1rem;

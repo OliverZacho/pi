@@ -53,11 +53,12 @@ const ESP_LABELS: Record<EspProvider, string> = {
   dynamics_365: "Dynamics 365"
 };
 
-type ViewMode = "desktop" | "phone" | "html";
+type ViewMode = "desktop" | "phone" | "text" | "html";
 
 const VIEW_OPTIONS: { id: ViewMode; label: string }[] = [
   { id: "desktop", label: "Desktop" },
   { id: "phone", label: "Phone" },
+  { id: "text", label: "Text" },
   { id: "html", label: "HTML" }
 ];
 
@@ -295,6 +296,12 @@ export default function EmailModal({
           <div className={styles.modalStage}>
             {view === "html" ? (
               <HtmlCodeView
+                html={detail?.htmlContent ?? ""}
+                loading={detailLoading}
+                error={detailError}
+              />
+            ) : view === "text" ? (
+              <PlainTextView
                 html={detail?.htmlContent ?? ""}
                 loading={detailLoading}
                 error={detailError}
@@ -858,6 +865,71 @@ function HtmlCodeView({
   );
 }
 
+function PlainTextView({
+  html,
+  loading,
+  error
+}: {
+  html: string;
+  loading: boolean;
+  error: string | null;
+}) {
+  const text = useMemo(() => (html ? htmlToPlainText(html) : ""), [html]);
+
+  if (loading) {
+    return <div className={styles.codeMessage}>Loading text…</div>;
+  }
+  if (error) {
+    return <div className={styles.codeMessage}>Failed to load text: {error}</div>;
+  }
+  if (!text) {
+    return <div className={styles.codeMessage}>No text content available.</div>;
+  }
+  return (
+    <div className={styles.codeViewWrap}>
+      <pre className={styles.textView}>{text}</pre>
+    </div>
+  );
+}
+
+/**
+ * Render the readable copy of an email as plain text. Unlike the
+ * one-line {@link stripHtml} used for indexing, this preserves the
+ * vertical rhythm a reader expects: block elements and `<br>` become
+ * line breaks, list items get a bullet, and links keep their visible
+ * text. Style/script/head noise is dropped entirely.
+ */
+function htmlToPlainText(html: string): string {
+  let text = html
+    .replace(/<head[\s\S]*?<\/head>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|table|h[1-6]|ul|ol|section|header|footer|article)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n• ")
+    .replace(/<[^>]+>/g, " ");
+
+  // Decode the handful of entities common in marketing copy.
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&ndash;/gi, "–");
+
+  return text
+    // Collapse runs of spaces/tabs but keep newlines intact.
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    // Cap consecutive blank lines at one.
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 type HtmlTokenType =
   | "comment"
   | "doctype"
@@ -1178,6 +1250,25 @@ function ViewIcon({ id }: { id: ViewMode }) {
       >
         <rect x="7" y="3" width="10" height="18" rx="2" />
         <line x1="11" y1="18" x2="13" y2="18" />
+      </svg>
+    );
+  }
+  if (id === "text") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="5" y1="7" x2="19" y2="7" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+        <line x1="5" y1="17" x2="13" y2="17" />
       </svg>
     );
   }

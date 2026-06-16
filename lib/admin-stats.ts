@@ -142,10 +142,12 @@ function shapeUserMetrics(raw: unknown): UserMetrics {
     },
     retention: {
       realTotal: num(retention.real_total),
+      onboarded: num(retention.onboarded),
       active7d: num(retention.active_7d),
       recent: num(retention.recent),
       atRisk: num(retention.at_risk),
       dormant: num(retention.dormant),
+      neverOnboarded: num(retention.never_onboarded),
       inactiveRate30d: numOrNull(retention.inactive_rate_30d)
     },
     subscription: {

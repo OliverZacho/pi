@@ -68,6 +68,16 @@ export default function CollectionDetailClient({
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Distinct brands represented in the collection — identify by companyId
+  // when present, otherwise fall back to the (always-present) company name.
+  const brandCount = useMemo(() => {
+    const seen = new Set<string>();
+    for (const email of emails) {
+      seen.add(email.companyId ?? email.companyName);
+    }
+    return seen.size;
+  }, [emails]);
+
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const isRuleBased = collection.rules !== null;
   const openEmailRef = useRef<ExploreEmailCard | null>(null);
@@ -475,7 +485,9 @@ export default function CollectionDetailClient({
           <span className={styles.detailMeta}>
             {emails.length === 0
               ? "Empty collection"
-              : `${emails.length} ${emails.length === 1 ? "email" : "emails"}`}
+              : `${emails.length} ${emails.length === 1 ? "email" : "emails"} across ${brandCount} ${
+                  brandCount === 1 ? "brand" : "brands"
+                }`}
           </span>
         </div>
 

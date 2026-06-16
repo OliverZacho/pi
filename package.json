@@ -13,11 +13,13 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
+    "@vercel/analytics": "^2.0.1",
     "next": "16.2.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "resend": "^6.12.3",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "stripe": "^22.2.1"
   },
   "devDependencies": {
     "@types/node": "24.9.1",
