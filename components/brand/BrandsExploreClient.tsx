@@ -1159,18 +1159,6 @@ export default function BrandsExploreClient({
         )
       ) : (
         <>
-          <div className={styles.resultCount} aria-live="polite">
-            {loading ? (
-              <span className={styles.resultCountMuted}>Loading…</span>
-            ) : (
-              <>
-                <strong>{formatNumber(total)}</strong>{" "}
-                {total === 1 ? "brand" : "brands"}
-                {hasAnyFilter ? " match these filters" : ""}
-              </>
-            )}
-          </div>
-
           <div className={styles.grid}>
             {brands.map((brand) => (
               <BrandGridCard

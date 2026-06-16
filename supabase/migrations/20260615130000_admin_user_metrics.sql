@@ -72,11 +72,15 @@ begin
         where last_active_at < now() - interval '30 days'
           and last_active_at >= now() - interval '60 days'
       ) as r_at_risk,
+      -- Dormant = onboarded then went quiet (60d+). The `<` comparison drops
+      -- nulls, which are counted separately as never-onboarded below.
+      count(*) filter (where last_active_at < now() - interval '60 days') as r_dormant,
+      -- Never recorded a single app load — a failed activation, not churn.
+      count(*) filter (where last_active_at is null) as r_never,
+      count(*) filter (where last_active_at is not null) as onboarded,
+      -- Churn denominator is onboarded users only; never-onboarded are excluded.
       count(*) filter (
-        where last_active_at is null or last_active_at < now() - interval '60 days'
-      ) as r_dormant,
-      count(*) filter (
-        where last_active_at is null or last_active_at < now() - interval '30 days'
+        where last_active_at is not null and last_active_at < now() - interval '30 days'
       ) as inactive_30d,
       count(*) filter (where saves > 0 or collections > 0) as activated,
       count(*) filter (where saves >= 5) as power_users,
@@ -175,12 +179,14 @@ begin
     ),
     'retention', jsonb_build_object(
       'real_total', (select total from rs),
+      'onboarded', (select onboarded from rs),
       'active_7d', (select r_active from rs),
       'recent', (select r_recent from rs),
       'at_risk', (select r_at_risk from rs),
       'dormant', (select r_dormant from rs),
+      'never_onboarded', (select r_never from rs),
       'inactive_rate_30d', (
-        select case when total > 0 then inactive_30d::numeric / total else null end from rs
+        select case when onboarded > 0 then inactive_30d::numeric / onboarded else null end from rs
       )
     ),
     'subscription', jsonb_build_object(

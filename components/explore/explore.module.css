@@ -1602,6 +1602,21 @@
   border-radius: 0;
 }
 
+.textView {
+  flex: 1;
+  margin: 0;
+  padding: 1.5rem 1.75rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  color: #24292f;
+  background: #ffffff;
+}
+
 .codeMessage {
   width: 100%;
   align-self: center;

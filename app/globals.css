@@ -412,6 +412,20 @@ code {
   cursor: default;
 }
 
+/* Feature requests reuse the brand-request list, but the message is free-form
+   prose so the item aligns to the top and the text is allowed to wrap. */
+.feature-request-item {
+  align-items: flex-start;
+}
+
+.feature-request-message {
+  font-size: 0.9rem;
+  color: #0f172a;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 720px) {
   .admin-shell {
     flex-direction: column;
@@ -2588,6 +2602,86 @@ tr.is-editing > td {
   line-height: 1.5;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+.recommended-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.recommended-filter-toggle:hover {
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.recommended-filter-toggle.is-active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.recommended-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.recommended-filter-toggle.is-active .recommended-filter-count {
+  background: rgba(146, 64, 14, 0.16);
+}
+
+.recommended-col-header {
+  width: 2.5rem;
+  text-align: center;
+  color: #f59e0b;
+}
+
+.recommended-cell {
+  text-align: center;
+  vertical-align: top;
+  padding-top: 0.65rem;
+}
+
+.recommended-star {
+  border: none;
+  background: none;
+  padding: 0.1rem 0.25rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: color 0.12s ease, transform 0.08s ease;
+}
+
+.recommended-star:hover:not(:disabled) {
+  color: #f59e0b;
+  transform: scale(1.15);
+}
+
+.recommended-star.is-on {
+  color: #f59e0b;
+}
+
+.recommended-star:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 .sr-only {

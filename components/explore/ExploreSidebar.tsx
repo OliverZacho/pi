@@ -7,6 +7,8 @@ import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import type { ViewerDisplay } from "@/lib/viewer-display";
 import Logo from "@/components/Logo";
+import BrandRequestModal from "@/components/brand/BrandRequestModal";
+import FeatureRequestModal from "@/components/feedback/FeatureRequestModal";
 import BillingGraceCard from "@/components/billing/BillingGraceCard";
 import SidebarNotices from "./SidebarNotices";
 import styles from "./explore.module.css";
@@ -68,10 +70,13 @@ type Props = {
   user?: ViewerDisplay | null;
 };
 
-// Number of collection rows surfaced in the section before falling back
-// to the "View all" link.
-const COLLECTION_PREVIEW_COUNT = 5;
-const COMPETITOR_SET_PREVIEW_COUNT = 5;
+// Number of collection/comparison rows surfaced in the collapsed section
+// before the "View all" control. When a section holds fewer than
+// SECTION_FOLD_OUT_LIMIT items, "View all" folds the rest open in place;
+// at or above that count it falls back to linking to the full page.
+const COLLECTION_PREVIEW_COUNT = 4;
+const COMPETITOR_SET_PREVIEW_COUNT = 4;
+const SECTION_FOLD_OUT_LIMIT = 10;
 
 // Stable empty default for `collections`. Using a module-level constant
 // (rather than an inline `= []` default) keeps the reference identical
@@ -424,6 +429,8 @@ function AccountRow({
   settingsActive: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -501,6 +508,28 @@ function AccountRow({
           >
             Learn
           </Link>
+          <button
+            type="button"
+            className={styles.accountMenuItem}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setRequestOpen(true);
+            }}
+          >
+            Request a brand
+          </button>
+          <button
+            type="button"
+            className={styles.accountMenuItem}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setFeatureRequestOpen(true);
+            }}
+          >
+            Request a feature
+          </button>
           <a
             href="mailto:help@pirol.app"
             className={styles.accountMenuItem}
@@ -524,6 +553,14 @@ function AccountRow({
           </form>
         </div>
       )}
+
+      {requestOpen && (
+        <BrandRequestModal onClose={() => setRequestOpen(false)} />
+      )}
+
+      {featureRequestOpen && (
+        <FeatureRequestModal onClose={() => setFeatureRequestOpen(false)} />
+      )}
     </div>
   );
 }
@@ -538,6 +575,8 @@ export default function ExploreSidebar({
   const router = useRouter();
   const [items, setItems] = useState<CollectionSummary[]>(collections);
   const [sets, setSets] = useState<CompetitorSetSummary[]>(competitorSets);
+  const [collectionsExpanded, setCollectionsExpanded] = useState(false);
+  const [comparisonsExpanded, setComparisonsExpanded] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createPending, setCreatePending] = useState(false);
@@ -605,6 +644,23 @@ export default function ExploreSidebar({
     }
   }
 
+  // A section with fewer than SECTION_FOLD_OUT_LIMIT items folds open in
+  // place via the "View all" toggle; at or above that count it keeps the
+  // existing behaviour of linking out to the full page.
+  const collectionsCanFoldOut = items.length < SECTION_FOLD_OUT_LIMIT;
+  const collectionsAreExpanded = collectionsCanFoldOut && collectionsExpanded;
+  const visibleCollections = collectionsAreExpanded
+    ? items
+    : items.slice(0, COLLECTION_PREVIEW_COUNT);
+  const showCollectionsViewAll = items.length > COLLECTION_PREVIEW_COUNT;
+
+  const comparisonsCanFoldOut = sets.length < SECTION_FOLD_OUT_LIMIT;
+  const comparisonsAreExpanded = comparisonsCanFoldOut && comparisonsExpanded;
+  const visibleSets = comparisonsAreExpanded
+    ? sets
+    : sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT);
+  const showComparisonsViewAll = sets.length > COMPETITOR_SET_PREVIEW_COUNT;
+
   return (
     <>
     <AppTopBar />
@@ -613,7 +669,9 @@ export default function ExploreSidebar({
     {user ? <BillingGraceCard /> : null}
     <aside className={styles.sidebar} aria-label="Explore navigation">
       <div className={styles.brandRow}>
-        <Logo className={styles.brandLogo} />
+        <Link href="/explore" aria-label="Pirol — go to Explore">
+          <Logo className={styles.brandLogo} />
+        </Link>
       </div>
 
       <div className={styles.navGroup}>
@@ -718,7 +776,7 @@ export default function ExploreSidebar({
           </div>
         ) : null}
 
-        {items.slice(0, COLLECTION_PREVIEW_COUNT).map((collection) => {
+        {visibleCollections.map((collection) => {
           const isActive = activeCollectionId === collection.id;
           const className = `${styles.navItem}${
             isActive ? ` ${styles.active}` : ""
@@ -751,12 +809,28 @@ export default function ExploreSidebar({
           );
         })}
 
-        <Link href="/collections" className={styles.navItem}>
-          <span className={styles.navIcon}>
-            <MoreIcon />
-          </span>
-          <span>View all</span>
-        </Link>
+        {showCollectionsViewAll ? (
+          collectionsCanFoldOut ? (
+            <button
+              type="button"
+              className={styles.navItem}
+              onClick={() => setCollectionsExpanded((current) => !current)}
+              aria-expanded={collectionsAreExpanded}
+            >
+              <span className={styles.navIcon}>
+                <MoreIcon />
+              </span>
+              <span>{collectionsAreExpanded ? "Show less" : "View all"}</span>
+            </button>
+          ) : (
+            <Link href="/collections" className={styles.navItem}>
+              <span className={styles.navIcon}>
+                <MoreIcon />
+              </span>
+              <span>View all</span>
+            </Link>
+          )
+        ) : null}
       </div>
 
       <div className={styles.navGroup}>
@@ -779,7 +853,7 @@ export default function ExploreSidebar({
           </div>
         ) : null}
 
-        {sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT).map((set) => {
+        {visibleSets.map((set) => {
           const isActive = activeCompetitorSetId === set.id;
           const className = `${styles.navItem}${
             isActive ? ` ${styles.active}` : ""
@@ -800,13 +874,27 @@ export default function ExploreSidebar({
           );
         })}
 
-        {sets.length > 0 ? (
-          <Link href="/compare" className={styles.navItem}>
-            <span className={styles.navIcon}>
-              <MoreIcon />
-            </span>
-            <span>View all</span>
-          </Link>
+        {showComparisonsViewAll ? (
+          comparisonsCanFoldOut ? (
+            <button
+              type="button"
+              className={styles.navItem}
+              onClick={() => setComparisonsExpanded((current) => !current)}
+              aria-expanded={comparisonsAreExpanded}
+            >
+              <span className={styles.navIcon}>
+                <MoreIcon />
+              </span>
+              <span>{comparisonsAreExpanded ? "Show less" : "View all"}</span>
+            </button>
+          ) : (
+            <Link href="/compare" className={styles.navItem}>
+              <span className={styles.navIcon}>
+                <MoreIcon />
+              </span>
+              <span>View all</span>
+            </Link>
+          )
         ) : null}
       </div>
         </>

@@ -130,6 +130,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_requests: {
+        Row: {
+          created_at: string
+          handled_at: string | null
+          id: string
+          message: string
+          requested_by: string | null
+          requester_email: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message?: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       captured_emails: {
         Row: {
           auth_results: Json | null
