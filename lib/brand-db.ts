@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   EMAIL_CATEGORY_LABELS,
   ESP_LABELS,
+  NON_CAMPAIGN_CATEGORIES,
   type EmailCategory,
   type EspProvider
 } from "./admin-types";
@@ -653,9 +654,18 @@ function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
 }
 
 function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
+  // Cadence describes a brand's *broadcast* rhythm, so triggered/lifecycle
+  // mail is left out: the welcome series our own subscription fires lands as a
+  // burst on the day we joined, which would otherwise inflate send frequency
+  // and skew the typical day/hour. Same exclusion the campaign-mix and
+  // quiet-zones views use.
+  const campaignRows = rows.filter(
+    (row) => !NON_CAMPAIGN_CATEGORIES.has(row.category as EmailCategory)
+  );
+
   // Walk the rows in chronological order so consecutive-send deltas and
   // weekly bucketing are both straightforward.
-  const dates = rows
+  const dates = campaignRows
     .map((row) => new Date(row.received_at))
     .filter((d) => !Number.isNaN(d.getTime()))
     .sort((a, b) => a.getTime() - b.getTime());

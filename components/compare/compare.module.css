@@ -1973,6 +1973,15 @@
   min-width: 2px;
 }
 
+.mixEmpty {
+  display: flex;
+  align-items: center;
+  padding: 0 0.55rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
 .mixLegend {
   display: flex;
   flex-wrap: wrap;

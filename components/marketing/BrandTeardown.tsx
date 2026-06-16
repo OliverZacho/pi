@@ -477,7 +477,7 @@ export default function BrandTeardown() {
       <div className={styles.teardownControls}>
         {exhausted ? (
           <div className={styles.fetchLimit} role="status">
-            <p className={styles.fetchLimitTitle}>That&rsquo;s the preview — 10 emails.</p>
+            <p className={styles.fetchLimitTitle}>That&rsquo;s the preview — {MAX_LIVE} emails.</p>
             <p className={styles.fetchLimitBody}>
               The archive holds thousands more, from every brand we track —
               broken down exactly like this.

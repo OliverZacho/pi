@@ -1160,10 +1160,11 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
       <span className={styles.sectionEyebrow}>Content</span>
       <h2 className={styles.sectionTitle}>What they talk about</h2>
       <p className={styles.sectionSub}>
-        Each brand's campaign mix by category, as a share of everything
-        we've captured from them. Categories run in the same order in
-        every bar — the group's biggest first — so you can scan down a
-        colour to compare.
+        Each brand's campaign mix by category, as a share of the broadcast
+        campaigns we've captured from them. Triggered emails (welcome,
+        transactional) are left out so the mix reflects what a brand chooses
+        to send. Categories run in the same order in every bar — the group's
+        biggest first — so you can scan down a colour to compare.
       </p>
       <Takeaway text={insight.takeaway} />
 
@@ -1204,19 +1205,23 @@ function MixRow({
         <span className={styles.leagueNameLabel}>{row.name}</span>
       </span>
       <span className={styles.mixBar}>
-        {row.segments.map((segment) => (
-          <span
-            key={segment.id}
-            className={styles.mixSeg}
-            style={{
-              width: `${segment.share * 100}%`,
-              background: colorForCategory(segment.id)
-            }}
-            title={`${row.name}: ${segment.label} ${Math.round(
-              segment.share * 100
-            )}%`}
-          />
-        ))}
+        {row.segments.length === 0 ? (
+          <span className={styles.mixEmpty}>No campaign emails captured yet</span>
+        ) : (
+          row.segments.map((segment) => (
+            <span
+              key={segment.id}
+              className={styles.mixSeg}
+              style={{
+                width: `${segment.share * 100}%`,
+                background: colorForCategory(segment.id)
+              }}
+              title={`${row.name}: ${segment.label} ${Math.round(
+                segment.share * 100
+              )}%`}
+            />
+          ))
+        )}
       </span>
     </>
   );
