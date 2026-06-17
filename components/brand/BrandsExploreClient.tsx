@@ -16,10 +16,8 @@ import type {
   BrandsFacets,
   BrandsSortKey
 } from "@/lib/brands-explore-db";
-import {
-  MAX_BRANDS_PER_COMPARISON,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
 import {
   endOfDayInZone,

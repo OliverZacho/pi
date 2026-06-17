@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { BrandPageData } from "@/lib/brand-db";
-import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
 import BrandSearchPicker from "./BrandSearchPicker";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";

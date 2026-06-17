@@ -6,10 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedBrandCard } from "@/lib/follows-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
 import type { CollectionSummary } from "@/lib/collections-db";
-import {
-  MAX_BRANDS_PER_COMPARISON,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
 import BrandBatchBar from "@/components/brand/BrandBatchBar";
 import { BrandCardBody } from "@/components/brand/BrandCardBody";

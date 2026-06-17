@@ -8,7 +8,7 @@ import type {
   CompetitorSetBrand,
   CompetitorSetSummary
 } from "@/lib/competitor-db";
-import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
 import BrandSearchPicker, {
   type BrandSearchOption
 } from "./BrandSearchPicker";
