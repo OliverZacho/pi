@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TeamView } from "@/lib/teams-db";
@@ -763,9 +763,9 @@ function TeamTab({
             <span className={styles.planNoticeText}>
               Inviting teammates requires the <strong>Team plan</strong>.
             </span>
-            <Link href="/pricing" className={styles.planNoticeCta}>
+            <TrackedUpgradeLink source="settings_team_plan" className={styles.planNoticeCta}>
               View plans
-            </Link>
+            </TrackedUpgradeLink>
           </div>
         ) : null}
         <form onSubmit={handleInvite}>
@@ -1013,9 +1013,9 @@ function BillingTab({ billing }: { billing: BillingInfo }) {
               {portalLoading ? "Opening…" : "Manage billing"}
             </button>
           ) : (
-            <Link href="/pricing" className={styles.primaryBtn}>
+            <TrackedUpgradeLink source="settings_upgrade_plan" className={styles.primaryBtn}>
               Upgrade plan
-            </Link>
+            </TrackedUpgradeLink>
           )}
         </div>
         {portalError ? (

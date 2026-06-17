@@ -130,6 +130,30 @@ export type Database = {
         }
         Relationships: []
       }
+      upgrade_clicks: {
+        Row: {
+          created_at: string
+          id: string
+          path: string | null
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          path?: string | null
+          source: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          path?: string | null
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       feature_requests: {
         Row: {
           created_at: string
@@ -423,6 +447,7 @@ export type Database = {
           markets: string[]
           name: string
           primary_market_country: string | null
+          slug: string
           subscribed_since: string
           updated_at: string
         }
@@ -447,6 +472,7 @@ export type Database = {
           markets?: string[]
           name: string
           primary_market_country?: string | null
+          slug?: string
           subscribed_since?: string
           updated_at?: string
         }
@@ -471,6 +497,7 @@ export type Database = {
           markets?: string[]
           name?: string
           primary_market_country?: string | null
+          slug?: string
           subscribed_since?: string
           updated_at?: string
         }
@@ -994,6 +1021,10 @@ export type Database = {
       }
     }
     Functions: {
+      record_upgrade_click: {
+        Args: { p_source: string; p_path?: string }
+        Returns: undefined
+      }
       captured_email_content_hash: {
         Args: { p_plain_text: string; p_subject: string }
         Returns: string

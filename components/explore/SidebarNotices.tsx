@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import type { SidebarNotice } from "@/lib/sidebar-notices";
 import styles from "./explore.module.css";
 
@@ -105,9 +106,9 @@ export default function SidebarNotices({ signedIn }: Props) {
             </span>
           </div>
         </div>
-        <Link href="/pricing" className={styles.upgradeButton}>
+        <TrackedUpgradeLink source="sidebar_notice" className={styles.upgradeButton}>
           View plans
-        </Link>
+        </TrackedUpgradeLink>
       </div>
     );
   }

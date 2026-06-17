@@ -6,7 +6,7 @@
   gap: 0.5rem;
   padding: 0.6rem 1.1rem;
   border-radius: 999px;
-  background: #0b0b0c;
+  background: #2563eb;
   color: #fff;
   font-size: 0.9rem;
   font-weight: 500;
@@ -21,78 +21,131 @@
   box-shadow: var(--primary-shadow-hover);
 }
 
-/* Locked value inside a KPI tile (replaces the number). */
-.kpiLocked {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin-top: 0.35rem;
-  border-radius: 10px;
-  background: #f1f3f5;
-  color: #9aa0a6;
+/* ---------------------------------------------------------------------------
+   The whole analytics area for an unpaid viewer: the *real* dashboard charts,
+   rendered from a shared sample dataset, blurred, with a single unlock card
+   floating over the lot. One paywall — not one per panel.
+   --------------------------------------------------------------------------- */
+.lockedRegion {
+  /* Tints both the unlock CTA and the sample charts a consistent accent. */
+  --brand-accent: #2563eb;
+  position: relative;
+  margin-top: 0.5rem;
+  isolation: isolate;
 }
 
-/* Body that replaces a section's chart/viz. */
-.lockedBody {
-  position: relative;
+/* Non-blurred clip wrapper. Capped to roughly one screenful so the floating
+   card sits over it. This (not `.preview`) owns the overflow clip: a blur
+   filter paints ~5px beyond its own box, so clipping must happen on a parent
+   that isn't itself blurred — otherwise the chart bleeds past the bottom edge. */
+.previewClip {
+  max-height: 1080px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The genuine dashboard, fed sample data and blurred behind the paywall. */
+.preview {
+  /* Reads clearly as a rich dashboard, but heavy enough that exact figures
+     can't be lifted — and the numbers are sample data anyway. */
+  filter: blur(5px) saturate(1.02);
+  opacity: 0.92;
+}
+
+/* Restore the spacing the real dashboard gets between its stacked sections. */
+.preview > section {
+  margin-top: 1.4rem;
+}
+
+/* Scrim + centred unlock card layered over the blurred dashboard. */
+.paywall {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* Sit the card high over the dashboard (just below the KPI row) rather than
+     dead-centre, so more of the charts stay visible beneath it. */
+  padding: 200px 1.5rem 1.5rem;
+  /* Clear at the very top, fading to the page background at the bottom — the
+     dashboard dissolves into the paywall rather than ending on a hard edge. */
+  background: linear-gradient(
+    180deg,
+    rgba(236, 248, 255, 0.1) 0%,
+    rgba(236, 248, 255, 0.6) 45%,
+    var(--page-bg) 100%
+  );
+}
+
+.paywallCard {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  min-height: 168px;
-  margin-top: 0.5rem;
-  padding: 1.5rem;
-  border-radius: 14px;
-  /* Faint striped "there's data here" texture under the lock. */
-  background:
-    repeating-linear-gradient(
-      135deg,
-      #f6f8fa,
-      #f6f8fa 10px,
-      #f1f3f5 10px,
-      #f1f3f5 20px
-    );
-  color: #6b6b70;
+  gap: 0.6rem;
+  max-width: 420px;
+  padding: 2rem 2.25rem;
+  border-radius: 20px;
+  background: #ffffff;
   text-align: center;
+  box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.28),
+    0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
-.lockedBadge {
+.paywallBadge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #0b0b0c;
-  box-shadow: var(--card-shadow);
+  width: 52px;
+  height: 52px;
+  margin-bottom: 0.2rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fef0e6 0%, #fde0cf 100%);
+  color: #d8631f;
 }
 
-.lockedText {
+.paywallTitle {
+  margin: 0;
+  font-size: 1.32rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.paywallText {
   margin: 0;
   font-size: 0.92rem;
-  font-weight: 500;
-  color: #2a2a2e;
+  line-height: 1.55;
+  color: #64748b;
 }
 
-.lockedCta {
+.paywallCta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 1.1rem;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  padding: 0.65rem 1.5rem;
   border-radius: 999px;
-  background: #ffffff;
-  color: #0b0b0c;
-  font-size: 0.85rem;
-  font-weight: 500;
+  background: var(--brand-accent);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 600;
   text-decoration: none;
-  box-shadow: var(--pill-shadow);
-  transition: box-shadow 0.15s ease;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
 }
 
-.lockedCta:hover {
-  box-shadow: var(--pill-shadow-hover);
+.paywallCta:hover {
+  transform: translateY(-1px);
+  background: #1d4fd8;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.38);
+}
+
+.paywallNote {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }

@@ -34,11 +34,12 @@ function marketTooltip(brand: BrandPageData["brand"]): string {
  * without client JS — the brand page is server-rendered per `?segment=` value.
  */
 function SegmentSwitcher({
-  brandId,
+  brandHandle,
   listTabs,
   activeSegmentId
 }: {
-  brandId: string;
+  /** Slug (or legacy id) used to build the `/brands/<handle>` tab hrefs. */
+  brandHandle: string;
   listTabs: BrandPageData["brand"]["listTabs"];
   activeSegmentId: string | null;
 }) {
@@ -58,7 +59,7 @@ function SegmentSwitcher({
         </span>
       </span>
       <Link
-        href={`/brands/${brandId}`}
+        href={`/brands/${brandHandle}`}
         className={`${styles.segmentTab} ${
           activeSegmentId === null ? styles.segmentTabActive : ""
         }`}
@@ -69,7 +70,7 @@ function SegmentSwitcher({
       {listTabs.map((tab) => (
         <Link
           key={tab.key}
-          href={`/brands/${brandId}?segment=${encodeURIComponent(tab.inboxId)}`}
+          href={`/brands/${brandHandle}?segment=${encodeURIComponent(tab.inboxId)}`}
           className={`${styles.segmentTab} ${
             activeSegmentId === tab.inboxId ? styles.segmentTabActive : ""
           }`}
@@ -173,7 +174,7 @@ export default function BrandDashboard({
 
       {brand.listTabs.length > 0 ? (
         <SegmentSwitcher
-          brandId={brand.id}
+          brandHandle={brand.slug}
           listTabs={brand.listTabs}
           activeSegmentId={brand.activeSegmentId}
         />
@@ -213,6 +214,7 @@ export default function BrandDashboard({
             <BrandSeasonalRunup
               brand={{
                 id: brand.id,
+                slug: brand.slug,
                 name: brand.name,
                 domain: brand.domain,
                 markets: brand.markets,
@@ -373,7 +375,7 @@ function BrandAvatar({
    KPI tiles
    ----------------------------------------------------------------- */
 
-function KpiGrid({
+export function KpiGrid({
   totals,
   cadence,
   promo,
@@ -475,7 +477,7 @@ function KpiTile({
    Cadence chart
    ----------------------------------------------------------------- */
 
-function CadenceCard({
+export function CadenceCard({
   cadence,
   totals
 }: {
@@ -623,7 +625,7 @@ function CadenceChart({
    Categories chart
    ----------------------------------------------------------------- */
 
-function CategoryCard({
+export function CategoryCard({
   categories,
   sample
 }: {
@@ -685,7 +687,7 @@ function CategoryCard({
    Promo / discount card
    ----------------------------------------------------------------- */
 
-function PromoCard({
+export function PromoCard({
   promo,
   sample
 }: {
@@ -760,7 +762,7 @@ function PromoCard({
  * promo-codes list it replaces, but with content that doesn't go
  * stale the moment a campaign expires.
  */
-function EmojiCard({
+export function EmojiCard({
   emojis,
   sample
 }: {
@@ -840,7 +842,7 @@ function EmojiCard({
    Design DNA card
    ----------------------------------------------------------------- */
 
-function DesignCard({
+export function DesignCard({
   design,
   subjects
 }: {
@@ -976,7 +978,7 @@ function DesignCard({
  * voice", not a generic widget. Hover surfaces the exact count for
  * folks who want the number behind the visual.
  */
-function CtaCloudCard({
+export function CtaCloudCard({
   ctas,
   sample
 }: {

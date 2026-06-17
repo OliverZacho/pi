@@ -1,4 +1,4 @@
-import Link from "next/link";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import { createClient } from "@/lib/supabase/server";
 import { FREE_SAVE_LIMIT, getViewer } from "@/lib/access";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -79,9 +79,9 @@ export default async function SavedPage() {
                 : `Free accounts can save up to ${FREE_SAVE_LIMIT} emails.`}{" "}
               Upgrade for unlimited saving, collections, and the full archive.
             </span>
-            <Link href="/pricing" className={styles.saveQuotaCta}>
+            <TrackedUpgradeLink source="saved_quota" className={styles.saveQuotaCta}>
               View plans
-            </Link>
+            </TrackedUpgradeLink>
           </div>
 
           <SavedGalleryClient

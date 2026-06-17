@@ -9,7 +9,7 @@ import type {
 import type { CollectionSummary } from "@/lib/collections-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
 import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
-import Link from "next/link";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
 import BrandRequestModal from "@/components/brand/BrandRequestModal";
@@ -1377,9 +1377,9 @@ export default function ExploreClient({
               : `Saved ${savedCount} of ${saveLimit} free emails.`}{" "}
             Upgrade to save more and unlock the full archive.
           </span>
-          <Link href="/pricing" className={styles.saveQuotaCta}>
+          <TrackedUpgradeLink source="explore_save_quota" className={styles.saveQuotaCta}>
             View plans
-          </Link>
+          </TrackedUpgradeLink>
         </div>
       ) : null}
 
@@ -1445,9 +1445,9 @@ export default function ExploreClient({
                     ? `Free accounts see the first ${pageSize} results of every search. Upgrade to scroll the entire archive, save without limits, and unlock collections & compare.`
                     : `You're seeing the first ${pageSize} results of every search. Create a free account to start saving emails, or subscribe to scroll the entire archive.`}
                 </p>
-                <Link href="/pricing" className={publicStyles.unlockCta}>
+                <TrackedUpgradeLink source="explore_paywall" className={publicStyles.unlockCta}>
                   View plans
-                </Link>
+                </TrackedUpgradeLink>
               </div>
             </div>
           ) : hasMore ? (

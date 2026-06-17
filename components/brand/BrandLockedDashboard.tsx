@@ -1,5 +1,21 @@
 import Link from "next/link";
 import { countryFlag, countryName } from "@/lib/country";
+import {
+  BRAND_PREVIEW_SAMPLE,
+  BRAND_PREVIEW_CALENDAR
+} from "@/lib/brand-preview-sample";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
+import BrandActivityCalendar from "./BrandActivityCalendar";
+import BrandClockHeatmap from "./BrandClockHeatmap";
+import {
+  KpiGrid,
+  CadenceCard,
+  CategoryCard,
+  PromoCard,
+  EmojiCard,
+  DesignCard,
+  CtaCloudCard
+} from "./BrandDashboard";
 import styles from "./brand.module.css";
 import locked from "./brand-locked.module.css";
 
@@ -13,27 +29,6 @@ export type LockedBrand = {
   subscribedSince: string | null;
 };
 
-/** KPI tiles + analytics sections, in the same order as the real dashboard. */
-const KPIS = [
-  "Captured emails",
-  "Send cadence",
-  "Promo activity",
-  "Primary ESP"
-];
-
-const SECTIONS: { eyebrow: string; title: string; sub: string }[] = [
-  { eyebrow: "Activity", title: "Send calendar", sub: "Every send, day by day." },
-  { eyebrow: "Timing", title: "When they hit the inbox", sub: "Send hours across the week." },
-  { eyebrow: "Seasonal", title: "Run-up to key dates", sub: "How they ramp before big moments." },
-  { eyebrow: "Cadence", title: "How often they send", sub: "Frequency and rhythm over time." },
-  { eyebrow: "Mix", title: "What they send", sub: "The category split of their program." },
-  { eyebrow: "Design DNA", title: "How their emails look", sub: "Palette, type, GIFs and dark mode." },
-  { eyebrow: "Promotions", title: "Discounting behaviour", sub: "How hard and how often they promote." },
-  { eyebrow: "Voice", title: "Emoji & subject lines", sub: "Tone signals in their copy." },
-  { eyebrow: "CTAs", title: "What their buttons say", sub: "The language that drives the click." },
-  { eyebrow: "Campaigns", title: "Recent emails", sub: "Their latest captured sends." }
-];
-
 function formatMonthYear(value: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
@@ -41,13 +36,31 @@ function formatMonthYear(value: string | null): string {
   return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
+const sample = BRAND_PREVIEW_SAMPLE;
+
 /**
- * The brand detail page as a logged-out / unpaid visitor sees it: the full
- * structure — hero, KPI tiles, every analytics section heading — is visible,
- * but each data surface is replaced by a lock placeholder with an upgrade
- * CTA. Renders from light brand identity only; no heavy analytics fetched.
+ * The brand detail page as a logged-out / unpaid visitor sees it.
+ *
+ * It renders the *real* dashboard chart components — the same cadence chart,
+ * category mix, design DNA, send calendar, etc. a paying user gets — but fed a
+ * single shared sample dataset ({@link BRAND_PREVIEW_SAMPLE}) rather than the
+ * brand's real numbers, which we never ship to an unpaid client. The whole
+ * preview is blurred and a single unlock card floats over it, so the page looks
+ * exactly like the paid product instead of an obvious placeholder.
+ *
+ * `summary` is the one exception: a short, data-driven paragraph rendered
+ * *visibly* in the hero. It's the page's real crawlable content — what makes it
+ * rank for "<brand> email frequency / newsletter strategy" — and the hook that
+ * turns a researching marketer into a signup. Omitted when there isn't enough
+ * signal.
  */
-export default function BrandLockedDashboard({ brand }: { brand: LockedBrand }) {
+export default function BrandLockedDashboard({
+  brand,
+  summary
+}: {
+  brand: LockedBrand;
+  summary?: string | null;
+}) {
   return (
     <main className={styles.main}>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
@@ -106,49 +119,109 @@ export default function BrandLockedDashboard({ brand }: { brand: LockedBrand }) 
               <span className={styles.heroDot} aria-hidden="true" />
               <span>Tracked since {formatMonthYear(brand.subscribedSince)}</span>
             </div>
+            {summary ? <p className={styles.heroSummary}>{summary}</p> : null}
           </div>
         </div>
 
-        <Link href="/pricing" className={locked.upgradeBtn}>
+        <TrackedUpgradeLink source="brand_hero" className={locked.upgradeBtn}>
           <LockIcon />
           <span>Upgrade to unlock analytics</span>
-        </Link>
+        </TrackedUpgradeLink>
       </header>
 
-      <div className={styles.kpiGrid}>
-        {KPIS.map((label) => (
-          <div key={label} className={styles.kpiTile}>
-            <span className={styles.kpiLabel}>{label}</span>
-            <span className={locked.kpiLocked} aria-label="Locked">
-              <LockIcon />
-            </span>
-          </div>
-        ))}
-      </div>
+      {/*
+        One paywall, not ten. The real dashboard charts render underneath with a
+        shared sample dataset, blurred, and a single unlock card floats over the
+        whole region — so the page reads as the genuine product, not a stack of
+        empty "subscribe to see this" tiles.
+      */}
+      <div className={locked.lockedRegion}>
+        <div className={locked.previewClip} aria-hidden="true">
+          <div className={locked.preview}>
+          <KpiGrid
+            totals={sample.totals}
+            cadence={sample.cadence}
+            promo={sample.promo}
+            esp={sample.esp}
+          />
 
-      {SECTIONS.map((section) => (
-        <section key={section.title} className={styles.recentSection}>
-          <article className={styles.card}>
-            <div className={styles.cardHead}>
-              <div>
-                <span className={styles.cardEyebrow}>{section.eyebrow}</span>
-                <h2 className={styles.cardTitle}>{section.title}</h2>
-                <p className={styles.cardSub}>{section.sub}</p>
-              </div>
-            </div>
-            <div className={locked.lockedBody}>
-              <span className={locked.lockedBadge} aria-hidden="true">
-                <LockIcon />
-              </span>
-              <p className={locked.lockedText}>Subscribe to see this</p>
-              <Link href="/pricing" className={locked.lockedCta}>
-                View plans
-              </Link>
-            </div>
-          </article>
-        </section>
-      ))}
+          <section className={styles.recentSection}>
+            <BrandActivityCalendar
+              brandName={brand.name}
+              calendar={BRAND_PREVIEW_CALENDAR}
+            />
+          </section>
+
+          <section className={styles.recentSection}>
+            <BrandClockHeatmap
+              brandName={brand.name}
+              hourly={sample.cadence.hourly}
+            />
+          </section>
+
+          <section className={styles.sectionGrid}>
+            <CadenceCard cadence={sample.cadence} totals={sample.totals} />
+            <CategoryCard
+              categories={sample.categories}
+              sample={sample.totals.sampleSize}
+            />
+          </section>
+
+          <section className={styles.recentSection}>
+            <DesignCard design={sample.design} subjects={sample.subjects} />
+          </section>
+
+          <section className={styles.sectionGrid}>
+            <PromoCard promo={sample.promo} sample={sample.totals.sampleSize} />
+            <EmojiCard emojis={sample.emojis} sample={sample.totals.sampleSize} />
+          </section>
+
+          <section className={styles.recentSection}>
+            <CtaCloudCard ctas={sample.ctas} sample={sample.totals.sampleSize} />
+          </section>
+          </div>
+        </div>
+
+        <div className={locked.paywall}>
+          <div className={locked.paywallCard}>
+            <span className={locked.paywallBadge} aria-hidden="true">
+              <SparkIcon />
+            </span>
+            <h2 className={locked.paywallTitle}>
+              Unlock {brand.name}&rsquo;s full playbook
+            </h2>
+            <p className={locked.paywallText}>
+              Send calendar, inbox timing, cadence, campaign mix, design DNA and
+              discounting — updated every time {brand.name} sends. Plus every
+              other brand in Pirol.
+            </p>
+            <TrackedUpgradeLink source="brand_paywall" className={locked.paywallCta}>
+              <LockIcon />
+              <span>Subscribe to unlock</span>
+            </TrackedUpgradeLink>
+            <span className={locked.paywallNote}>Full access · cancel anytime</span>
+          </div>
+        </div>
+      </div>
     </main>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3l2.2 4.9L19 10l-4.8 2.1L12 17l-2.2-4.9L5 10l4.8-2.1z" />
+    </svg>
   );
 }
 

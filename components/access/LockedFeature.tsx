@@ -1,4 +1,4 @@
-import Link from "next/link";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import styles from "./locked-feature.module.css";
 
 export type LockedVariant =
@@ -82,9 +82,9 @@ export default function LockedFeature({
         <span className={styles.eyebrow}>{copy.eyebrow}</span>
         <h2 className={styles.title}>{title ?? copy.title}</h2>
         <p className={styles.description}>{description ?? copy.description}</p>
-        <Link href="/pricing" className={styles.cta}>
+        <TrackedUpgradeLink source={`locked_${variant.replace("-", "_")}`} className={styles.cta}>
           View plans
-        </Link>
+        </TrackedUpgradeLink>
         <span className={styles.footnote}>
           7-day money-back guarantee on every plan.
         </span>
