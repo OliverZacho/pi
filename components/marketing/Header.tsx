@@ -142,7 +142,7 @@ export default function Header({ user = null }: { user?: HeaderUser | null }) {
   return (
     <header className={styles.header}>
       <div className={styles.headerLeft}>
-        <Link href="#" className={styles.logo} aria-label="Pirol home">
+        <Link href="/" className={styles.logo} aria-label="Pirol home">
           <Logo className={styles.logoMark} />
         </Link>
 
