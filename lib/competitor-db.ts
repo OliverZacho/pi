@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrandPageData, type BrandPageData } from "./brand-db";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { MAX_BRANDS_PER_COMPARISON } from "./competitor-constants";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -24,8 +25,13 @@ const MAX_NAME_LENGTH = 120;
  * even when the cohort is sizable, so 20 strikes a good balance: large
  * enough to model a category-wide benchmark, small enough that the
  * per-brand heatmap rows + drill-down legend stay readable.
+ *
+ * Defined in `./competitor-constants` (dependency-free) and re-exported here
+ * so server-side callers keep importing it from competitor-db, while client
+ * components import it from competitor-constants without dragging in this
+ * module's server-only deps.
  */
-export const MAX_BRANDS_PER_COMPARISON = 20;
+export { MAX_BRANDS_PER_COMPARISON };
 
 /**
  * Sidebar / picker shape — just enough metadata to render the row.

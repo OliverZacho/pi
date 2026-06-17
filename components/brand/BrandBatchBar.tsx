@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MAX_BRANDS_PER_COMPARISON,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
+import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
+import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import styles from "./brands-explore.module.css";
 
 type Props = {
