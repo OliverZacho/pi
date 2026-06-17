@@ -130,60 +130,6 @@ export type Database = {
         }
         Relationships: []
       }
-      upgrade_clicks: {
-        Row: {
-          created_at: string
-          id: string
-          path: string | null
-          source: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          path?: string | null
-          source: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          path?: string | null
-          source?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      feature_requests: {
-        Row: {
-          created_at: string
-          handled_at: string | null
-          id: string
-          message: string
-          requested_by: string | null
-          requester_email: string | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          handled_at?: string | null
-          id?: string
-          message: string
-          requested_by?: string | null
-          requester_email?: string | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          handled_at?: string | null
-          id?: string
-          message?: string
-          requested_by?: string | null
-          requester_email?: string | null
-          status?: string
-        }
-        Relationships: []
-      }
       captured_emails: {
         Row: {
           auth_results: Json | null
@@ -472,7 +418,7 @@ export type Database = {
           markets?: string[]
           name: string
           primary_market_country?: string | null
-          slug?: string
+          slug: string
           subscribed_since?: string
           updated_at?: string
         }
@@ -648,6 +594,54 @@ export type Database = {
           },
         ]
       }
+      feature_requests: {
+        Row: {
+          created_at: string
+          handled_at: string | null
+          id: string
+          message: string
+          requested_by: string | null
+          requester_email: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          handled_at?: string | null
+          id?: string
+          message?: string
+          requested_by?: string | null
+          requester_email?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      rate_limit_counters: {
+        Row: {
+          bucket: string
+          count: number
+          expires_at: string
+        }
+        Insert: {
+          bucket: string
+          count?: number
+          expires_at: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          expires_at?: string
+        }
+        Relationships: []
+      }
       saved_emails: {
         Row: {
           email_id: string
@@ -734,6 +728,92 @@ export type Database = {
           id?: string
           market?: string | null
           reason?: string | null
+        }
+        Relationships: []
+      }
+      support_email_replies: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          resend_message_id: string | null
+          sent_by: string | null
+          sent_by_email: string | null
+          support_email_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          resend_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          support_email_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          resend_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          support_email_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_email_replies_support_email_id_fkey"
+            columns: ["support_email_id"]
+            isOneToOne: false
+            referencedRelation: "support_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_emails: {
+        Row: {
+          created_at: string
+          from_address: string
+          from_name: string | null
+          html: string | null
+          id: string
+          plain_text: string | null
+          raw_payload: Json | null
+          received_at: string
+          replied_at: string | null
+          resend_message_id: string
+          status: string
+          subject: string
+          to_address: string
+        }
+        Insert: {
+          created_at?: string
+          from_address: string
+          from_name?: string | null
+          html?: string | null
+          id?: string
+          plain_text?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          replied_at?: string | null
+          resend_message_id: string
+          status?: string
+          subject?: string
+          to_address: string
+        }
+        Update: {
+          created_at?: string
+          from_address?: string
+          from_name?: string | null
+          html?: string | null
+          id?: string
+          plain_text?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          replied_at?: string | null
+          resend_message_id?: string
+          status?: string
+          subject?: string
+          to_address?: string
         }
         Relationships: []
       }
@@ -825,6 +905,51 @@ export type Database = {
         }
         Relationships: []
       }
+      upgrade_clicks: {
+        Row: {
+          created_at: string
+          id: string
+          path: string | null
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          path?: string | null
+          source: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          path?: string | null
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_prefs: {
+        Row: {
+          key: string
+          updated_at: string
+          user_id: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          user_id: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          user_id?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string
@@ -852,113 +977,6 @@ export type Database = {
           last_visit_at?: string | null
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      support_email_replies: {
-        Row: {
-          body: string
-          created_at: string
-          id: string
-          resend_message_id: string | null
-          sent_by: string | null
-          sent_by_email: string | null
-          support_email_id: string
-        }
-        Insert: {
-          body: string
-          created_at?: string
-          id?: string
-          resend_message_id?: string | null
-          sent_by?: string | null
-          sent_by_email?: string | null
-          support_email_id: string
-        }
-        Update: {
-          body?: string
-          created_at?: string
-          id?: string
-          resend_message_id?: string | null
-          sent_by?: string | null
-          sent_by_email?: string | null
-          support_email_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "support_email_replies_support_email_id_fkey"
-            columns: ["support_email_id"]
-            isOneToOne: false
-            referencedRelation: "support_emails"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      support_emails: {
-        Row: {
-          created_at: string
-          from_address: string
-          from_name: string | null
-          html: string | null
-          id: string
-          plain_text: string | null
-          raw_payload: Json | null
-          received_at: string
-          replied_at: string | null
-          resend_message_id: string
-          status: string
-          subject: string
-          to_address: string
-        }
-        Insert: {
-          created_at?: string
-          from_address: string
-          from_name?: string | null
-          html?: string | null
-          id?: string
-          plain_text?: string | null
-          raw_payload?: Json | null
-          received_at?: string
-          replied_at?: string | null
-          resend_message_id: string
-          status?: string
-          subject?: string
-          to_address: string
-        }
-        Update: {
-          created_at?: string
-          from_address?: string
-          from_name?: string | null
-          html?: string | null
-          id?: string
-          plain_text?: string | null
-          raw_payload?: Json | null
-          received_at?: string
-          replied_at?: string | null
-          resend_message_id?: string
-          status?: string
-          subject?: string
-          to_address?: string
-        }
-        Relationships: []
-      }
-      user_prefs: {
-        Row: {
-          key: string
-          updated_at: string
-          user_id: string
-          value: Json
-        }
-        Insert: {
-          key: string
-          updated_at?: string
-          user_id: string
-          value: Json
-        }
-        Update: {
-          key?: string
-          updated_at?: string
-          user_id?: string
-          value?: Json
         }
         Relationships: []
       }
@@ -1021,9 +1039,9 @@ export type Database = {
       }
     }
     Functions: {
-      record_upgrade_click: {
-        Args: { p_source: string; p_path?: string }
-        Returns: undefined
+      bump_rate_limit: {
+        Args: { p_bucket: string; p_limit: number; p_window: string }
+        Returns: boolean
       }
       captured_email_content_hash: {
         Args: { p_plain_text: string; p_subject: string }
@@ -1061,11 +1079,28 @@ export type Database = {
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }
       pirol_admin_growth_series: { Args: never; Returns: Json }
       pirol_admin_user_metrics: { Args: never; Returns: Json }
+      record_brand_request: {
+        Args: {
+          p_client_key?: string
+          p_company_name: string
+          p_website: string
+        }
+        Returns: string
+      }
+      record_feature_request: {
+        Args: { p_client_key?: string; p_message: string }
+        Returns: string
+      }
+      record_upgrade_click: {
+        Args: { p_path?: string; p_source: string }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      slugify: { Args: { value: string }; Returns: string }
       touch_user_visit: {
-        Args: { p_user_id: string; p_gap?: string }
-        Returns: string | null
+        Args: { p_gap?: string; p_user_id: string }
+        Returns: string
       }
       user_has_password: { Args: never; Returns: boolean }
     }

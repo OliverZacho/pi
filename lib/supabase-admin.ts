@@ -1,3 +1,7 @@
+// Hard guard: importing the service-role key into a client bundle would leak
+// it to the browser. `server-only` throws at build time if this module is
+// ever pulled into a Client Component, so the key can never escape the server.
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 

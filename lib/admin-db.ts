@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TablesInsert } from "@/types/supabase";
 import {
   EMAIL_CATEGORIES,
   type AdminOverview,
@@ -1014,7 +1015,14 @@ export async function createCompanySubscriptionInDb(
 
   const { data: company, error: companyError } = await supabase
     .from("companies")
-    .insert({ name: normalizedName, domain: normalizedDomain, markets: marketsValue })
+    // `slug` is omitted on purpose: the companies_set_slug BEFORE INSERT
+    // trigger derives a unique slug from the name. The generated Insert type
+    // can't see the trigger, so it lists slug as required — hence the cast.
+    .insert({
+      name: normalizedName,
+      domain: normalizedDomain,
+      markets: marketsValue
+    } as TablesInsert<"companies">)
     .select("id, name, domain, markets, subscribed_since")
     .single();
 
