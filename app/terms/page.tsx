@@ -65,6 +65,12 @@ export default function TermsPage() {
         during that period, you acknowledge that your right of withdrawal ends once the
         service has been fully performed.
       </p>
+      <p>
+        In addition to any statutory rights, we offer a 7-day, no-questions-asked
+        cancellation policy: if you cancel a paid plan within 7 days of the start of a
+        billing period, you can request a full refund for that period, no reason needed.
+        This goodwill policy applies notwithstanding the non-refundable terms above.
+      </p>
 
       <h2>5. Acceptable use</h2>
       <p>You agree not to:</p>
@@ -88,12 +94,15 @@ export default function TermsPage() {
         <li>use the service for any unlawful purpose or to infringe the rights of others.</li>
       </ul>
 
-      <h2>6. Your content</h2>
+      <h2>6. Collections, comparisons, and notes</h2>
       <p>
-        Collections, comparisons, notes, and other materials you create (“your content”)
-        remain yours. You grant us the limited licence needed to host and display your
-        content so we can provide the service to you. If you create a public share link,
-        you authorise us to make that content accessible to anyone who has the link.
+        The collections, comparisons, and notes you create are ways of organising and
+        annotating emails held in our archive. The underlying emails are not yours — they
+        remain the property of their respective senders (see section 7). Any original
+        notes or annotations you add stay yours, and you grant us only the limited licence
+        needed to store and display them so we can provide the service. If you create a
+        public share link, you authorise us to make that shared view accessible to anyone
+        who has the link.
       </p>
 
       <h2>7. Intellectual property</h2>
@@ -109,9 +118,14 @@ export default function TermsPage() {
 
       <h2>8. The archive and removal requests</h2>
       <p>
-        If you are a brand or rights holder and wish to have content removed from the
-        archive, please follow our <a href="/takedown">Takedown Policy</a>. We review
-        such requests promptly and in good faith.
+        Brands, rights holders, and their authorised representatives who wish to request
+        the removal of content from the archive must submit such requests in accordance
+        with our <a href="/takedown">Takedown Policy</a>, which forms part of these terms.
+        We will review and respond to properly submitted requests within a reasonable
+        period and act in good faith to resolve valid claims. Submission of a request does
+        not constitute an admission of liability on our part, and we reserve the right to
+        decline requests that are incomplete, unfounded, or unsupported by adequate
+        evidence of rights.
       </p>
 
       <h2>9. Availability and changes</h2>
@@ -125,11 +139,10 @@ export default function TermsPage() {
 
       <h2>10. Disclaimers</h2>
       <p>
-        The service and the archive are provided “as is” and “as available”. Pirol is a
-        research aid: while we work to keep the archive and analytics accurate, we do not
-        warrant that they are complete, error-free, or fit for any particular purpose,
-        and you should not rely on them as professional advice. To the fullest extent
-        permitted by law, we disclaim all implied warranties.
+        The service and the archive are provided “as is” and “as available”. We work
+        hard to keep the archive and analytics accurate and useful, but we do not warrant
+        that they are complete, error-free, or fit for any particular purpose. To the
+        fullest extent permitted by law, we disclaim all implied warranties.
       </p>
 
       <h2>11. Limitation of liability</h2>
