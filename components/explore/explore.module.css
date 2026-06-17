@@ -377,8 +377,8 @@
   width: 100%;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
-  border: 1px solid #0f172a;
-  background: #0f172a;
+  border: 1px solid #2563eb;
+  background: #2563eb;
   color: #ffffff;
   font: inherit;
   font-size: 0.85rem;
@@ -412,7 +412,17 @@
 /* ---------- Sidebar account row + menu ---------- */
 
 .accountWrap {
-  position: relative;
+  /* Pin the account row to the bottom of the sidebar so it stays visible
+     even when the nav content overflows and the sidebar scrolls. Sticky
+     still anchors the absolutely-positioned account menu. The background +
+     negative margin cover the sidebar's bottom padding so scrolled content
+     never shows through beneath the row. */
+  position: sticky;
+  bottom: 0;
+  margin-bottom: -1rem;
+  padding-bottom: 1rem;
+  padding-top: 0.4rem;
+  background: var(--page-bg);
 }
 
 .accountRow {
@@ -1056,7 +1066,7 @@
   height: 32px;
   padding: 0 0.8rem;
   border-radius: 8px;
-  background: #0f172a;
+  background: #2563eb;
   color: #ffffff;
   font-size: 0.82rem;
   font-weight: 500;
@@ -1064,7 +1074,7 @@
 }
 
 .saveQuotaCta:hover {
-  background: #1e293b;
+  background: #1d4fd8;
 }
 
 /* ---------- Infinite scroll sentinel ---------- */

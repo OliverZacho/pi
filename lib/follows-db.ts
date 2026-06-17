@@ -41,6 +41,8 @@ export type FollowedBrandSummary = {
  */
 export type FollowedBrandCard = {
   id: string;
+  /** Stable public handle for the brand's `/brands/<slug>` URL. */
+  slug: string;
   name: string;
   domain: string | null;
   markets: string[];
@@ -189,7 +191,7 @@ export async function listFollowedBrandCards(
     .select(
       `created_at,
        company_id,
-       companies!inner(id, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, deleted_at, company_email_stats(last_received_at))`
+       companies!inner(id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, deleted_at, company_email_stats(last_received_at))`
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -228,6 +230,9 @@ export async function listFollowedBrandCards(
     const stats = relationFirst(company.company_email_stats);
     cards.push({
       id: company.id,
+      // `slug` is NOT NULL and selected in this query; fall back to the
+      // id only to keep the type a clean string.
+      slug: company.slug ?? company.id,
       name: company.name,
       domain: company.domain ?? null,
       markets: Array.isArray(company.markets)
@@ -259,6 +264,7 @@ type EmailStatsRow = { last_received_at: string | null };
 
 type CompanyRow = {
   id: string;
+  slug?: string | null;
   name: string;
   domain?: string | null;
   markets?: string[] | null;

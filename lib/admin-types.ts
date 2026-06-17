@@ -31,6 +31,21 @@ export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
   "other"
 ] as const;
 
+/**
+ * Triggered / lifecycle categories that are excluded from any "campaign mix"
+ * statistic (what a brand *chooses* to broadcast). They stay first-class
+ * categories everywhere else — on the brand page, in admin, in the raw
+ * {@link EMAIL_CATEGORIES} list — but the welcome mail our own subscription
+ * reliably triggers (and one-off transactional receipts) would otherwise
+ * dominate a per-brand share and say more about when we subscribed than about
+ * the brand's content. Shared so every campaign-mix surface excludes the same
+ * set and they can't drift apart.
+ */
+export const NON_CAMPAIGN_CATEGORIES: ReadonlySet<EmailCategory> = new Set([
+  "welcome",
+  "transactional"
+]);
+
 export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
   sale: "Sale",
   product_launch: "Product launch",

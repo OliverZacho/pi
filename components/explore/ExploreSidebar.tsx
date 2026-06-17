@@ -9,6 +9,7 @@ import type { ViewerDisplay } from "@/lib/viewer-display";
 import Logo from "@/components/Logo";
 import BrandRequestModal from "@/components/brand/BrandRequestModal";
 import FeatureRequestModal from "@/components/feedback/FeatureRequestModal";
+import HelpPane from "@/components/help/HelpPane";
 import BillingGraceCard from "@/components/billing/BillingGraceCard";
 import SidebarNotices from "./SidebarNotices";
 import styles from "./explore.module.css";
@@ -283,7 +284,6 @@ const APP_TOPBAR_COLLAPSE_DISTANCE = 120;
 
 function AppTopBar() {
   const [hoverDocs, setHoverDocs] = useState(false);
-  const [hoverHelp, setHoverHelp] = useState(false);
   // Tracks how far down the page the user has scrolled so the panel
   // can slide up (and eventually disable pointer events) without any
   // opacity change. We clamp to [0, 1] and apply the offset via an
@@ -364,38 +364,7 @@ function AppTopBar() {
       >
         Learn
       </Link>
-      <button
-        type="button"
-        aria-label="Get help"
-        onMouseEnter={() => setHoverHelp(true)}
-        onMouseLeave={() => setHoverHelp(false)}
-        onClick={() => {
-          if (typeof window !== "undefined") {
-            window.location.href = "mailto:help@pirol.app";
-          }
-        }}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          height: 30,
-          padding: "0 0.8rem",
-          borderRadius: 999,
-          border: 0,
-          background: "#ffffff",
-          color: hoverHelp ? "#0f172a" : "#475569",
-          font: "inherit",
-          fontSize: "0.83rem",
-          fontWeight: 500,
-          cursor: "pointer",
-          boxShadow: hoverHelp
-            ? "var(--pill-shadow-hover)"
-            : "var(--pill-shadow)",
-          transition: "color 100ms ease, box-shadow 0.15s ease"
-        }}
-      >
-        <span>Need help?</span>
-      </button>
+      <HelpPane variant="app" />
     </div>
   );
 }

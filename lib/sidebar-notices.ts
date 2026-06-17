@@ -167,7 +167,7 @@ async function brandRequestNotices(
 
   const { data: companies, error } = await admin
     .from("companies")
-    .select("id, name, domain, deleted_at")
+    .select("id, slug, name, domain, deleted_at")
     .in("domain", hosts.length > 0 ? hosts : ["-"]);
   if (error) throw error;
 
@@ -187,7 +187,7 @@ async function brandRequestNotices(
       kind: "brand-request",
       title: `${company.name} is now in the archive`,
       detail: "The brand you requested was added.",
-      cta: { label: "View brand", href: `/brands/${company.id}` },
+      cta: { label: "View brand", href: `/brands/${company.slug ?? company.id}` },
       dismissible: true
     });
   }

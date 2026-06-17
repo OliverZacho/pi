@@ -29,31 +29,9 @@ function mapRow(row: Omit<BrandRequestRow, "requested_by">): BrandRequest {
   };
 }
 
-/**
- * Persists a visitor's "add this brand" request. Called from the public
- * route with a service-role client so logged-out visitors can submit.
- * `requestedBy` is the signed-in requester (when there is one) so the
- * sidebar can notify them once the request is fulfilled.
- */
-export async function createBrandRequestInDb(
-  supabase: PirolDb,
-  input: { companyName: string; website: string; requestedBy?: string | null }
-): Promise<BrandRequest> {
-  const { data, error } = await supabase
-    .from("brand_requests")
-    .insert({
-      company_name: input.companyName,
-      website: input.website,
-      requested_by: input.requestedBy ?? null
-    })
-    .select("id, company_name, website, status, created_at, handled_at")
-    .single();
-
-  if (error || !data) {
-    throw error ?? new Error("Failed to insert brand request");
-  }
-  return mapRow(data);
-}
+// Inserts are written by the `record_brand_request` SECURITY DEFINER function
+// (see the public /api/brand-requests route), not from here — so no
+// service-role insert helper lives in this module.
 
 /**
  * Handled requests the user submitted, newest first — feeds the sidebar

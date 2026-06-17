@@ -16,6 +16,7 @@ import type {
   CollectionSummary
 } from "@/lib/collections-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
+import { countryLabel } from "@/lib/country";
 import type { CollectionIcon } from "@/lib/collection-icons";
 import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
@@ -726,9 +727,7 @@ function describeCondition(
     case "category":
       return (
         <>
-          <span className={styles.rulesSummaryChipLabel}>
-            {condition.values.length === 1 ? "Category" : "Categories"}
-          </span>
+          <span className={styles.rulesSummaryChipLabel}>Content type</span>
           {formatList(
             condition.values.map(
               (v) => EMAIL_CATEGORY_LABELS[v as EmailCategory] ?? v
@@ -753,9 +752,18 @@ function describeCondition(
       return (
         <>
           <span className={styles.rulesSummaryChipLabel}>
-            {condition.values.length === 1 ? "Market" : "Markets"}
+            {condition.values.length === 1 ? "Category" : "Categories"}
           </span>
           {formatList(condition.values)}
+        </>
+      );
+    case "country":
+      return (
+        <>
+          <span className={styles.rulesSummaryChipLabel}>
+            {condition.values.length === 1 ? "Country" : "Countries"}
+          </span>
+          {formatList(condition.values.map((v) => countryLabel(v) || v))}
         </>
       );
     case "discount_percent": {

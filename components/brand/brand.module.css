@@ -230,6 +230,14 @@
   color: #64748b;
 }
 
+.heroSummary {
+  margin: 0.75rem 0 0;
+  max-width: 60ch;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
 .heroDomain {
   color: #2563eb;
   text-decoration: none;

@@ -6,6 +6,7 @@ import {
   EMAIL_CATEGORY_LABELS,
   type EmailCategory
 } from "@/lib/admin-types";
+import { countryLabel } from "@/lib/country";
 import type {
   CollectionRuleCombinator,
   CollectionRuleCondition,
@@ -87,11 +88,16 @@ const SCOPE_OPTIONS: {
   }
 ];
 
+// Labels mirror the /explore filters: the `market` field (brand category
+// tags) shows as "Categories" and the `category` field (per-email content
+// type) shows as "Content type". The stored field keys stay unchanged so
+// existing saved rules keep working without a migration.
 const FIELD_OPTIONS: { value: CollectionRuleField; label: string }[] = [
   { value: "search", label: "Search term" },
-  { value: "category", label: "Category" },
   { value: "brand", label: "Brand" },
-  { value: "market", label: "Market" },
+  { value: "market", label: "Categories" },
+  { value: "category", label: "Content type" },
+  { value: "country", label: "Country" },
   { value: "discount_percent", label: "Discount %" }
 ];
 
@@ -448,6 +454,7 @@ export default function CollectionRulesEditor({
                 condition={condition}
                 brands={sortedBrands}
                 markets={facets.markets}
+                countries={facets.countries}
                 onChange={(next) => updateCondition(index, next)}
               />
             </div>
@@ -507,11 +514,13 @@ function ConditionValueInputs({
   condition,
   brands,
   markets,
+  countries,
   onChange
 }: {
   condition: CollectionRuleCondition;
   brands: ExploreBrandFacet[];
   markets: string[];
+  countries: string[];
   onChange: (next: CollectionRuleCondition) => void;
 }) {
   switch (condition.field) {
@@ -537,8 +546,8 @@ function ConditionValueInputs({
         <>
           <span className={styles.ruleOperator}>is any of</span>
           <MultiSelect
-            ariaLabel="Categories"
-            placeholder="Choose categories…"
+            ariaLabel="Content type"
+            placeholder="Choose content types…"
             options={EMAIL_CATEGORIES.map((category) => ({
               value: category,
               label: EMAIL_CATEGORY_LABELS[category]
@@ -575,12 +584,36 @@ function ConditionValueInputs({
         <>
           <span className={styles.ruleOperator}>is any of</span>
           <MultiSelect
-            ariaLabel="Markets"
-            placeholder="Choose markets…"
+            ariaLabel="Categories"
+            placeholder="Choose categories…"
+            searchable
             options={markets.map((market) => ({
               value: market,
               label: market
             }))}
+            values={condition.values}
+            onChange={(values) => onChange({ ...condition, values })}
+          />
+        </>
+      );
+    case "country":
+      return (
+        <>
+          <span className={styles.ruleOperator}>is any of</span>
+          <MultiSelect
+            ariaLabel="Countries"
+            placeholder="Choose countries…"
+            searchable
+            options={[...countries]
+              .map((code) => ({
+                value: code,
+                label: countryLabel(code) || code
+              }))
+              .sort((a, b) =>
+                a.label.localeCompare(b.label, undefined, {
+                  sensitivity: "base"
+                })
+              )}
             values={condition.values}
             onChange={(values) => onChange({ ...condition, values })}
           />
@@ -669,6 +702,8 @@ function makeBlankCondition(
       return { id, field: "brand", operator: "in", values: [] };
     case "market":
       return { id, field: "market", operator: "in", values: [] };
+    case "country":
+      return { id, field: "country", operator: "in", values: [] };
     case "discount_percent":
       return {
         id,
@@ -701,6 +736,7 @@ function isComplete(condition: CollectionRuleCondition): boolean {
     case "brand":
     case "category":
     case "market":
+    case "country":
       return condition.values.length > 0;
     case "discount_percent":
       return (

@@ -323,7 +323,7 @@
   height: 32px;
   padding: 0 0.8rem;
   border-radius: 8px;
-  background: #0f172a;
+  background: #2563eb;
   color: #ffffff;
   font-size: 0.82rem;
   font-weight: 500;
@@ -331,7 +331,7 @@
 }
 
 .planNoticeCta:hover {
-  background: #1e293b;
+  background: #1d4fd8;
 }
 
 /* ---------- Member / invite rows (Team tab) ---------- */

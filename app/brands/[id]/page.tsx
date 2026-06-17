@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -5,7 +6,12 @@ import { getViewer } from "@/lib/access";
 import { normalizeCompanyMarkets } from "@/lib/explore-db";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
-import { getBrandPageData } from "@/lib/brand-db";
+import {
+  getBrandPageData,
+  getBrandSummary,
+  resolveBrandHandle
+} from "@/lib/brand-db";
+import { SITE_URL } from "@/lib/site";
 import {
   listCollectionSummaries,
   type CollectionSummary
@@ -29,6 +35,19 @@ type RouteParams = {
 };
 
 /**
+ * Request-memoised handle→identity resolve and summary build, so
+ * `generateMetadata` and the page body each run once per request rather than
+ * twice. `getSupabaseAdmin` is a singleton, so keying on the string args is
+ * stable.
+ */
+const resolveHandle = cache((handle: string) =>
+  resolveBrandHandle(getSupabaseAdmin(), handle)
+);
+const loadBrandSummary = cache((id: string, name: string) =>
+  getBrandSummary(getSupabaseAdmin(), id, { name })
+);
+
+/**
  * Per-brand SaaS-style dashboard. The companion to `/explore`: where
  * Explore answers "show me what's hitting inboxes", this page answers
  * "tell me everything you know about this one brand's email program".
@@ -39,23 +58,41 @@ type RouteParams = {
  */
 export async function generateMetadata({ params }: RouteParams) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("companies")
-    .select("name")
-    .eq("id", id)
-    .maybeSingle();
+  // Resolve via the service-role client: companies aren't readable under RLS
+  // for logged-out visitors / crawlers, which is exactly who reads <head>.
+  const resolved = await resolveHandle(id);
+  if (!resolved) {
+    return { title: "Brand — Pirol" };
+  }
+
+  // Canonical always points at the slug URL, so Google consolidates any
+  // legacy /brands/<uuid> links onto the keyword-bearing slug without us
+  // having to 301 (and slow down) internal navigation.
+  const canonical = `${SITE_URL}/brands/${resolved.slug}`;
+  const title = `${resolved.name} — Pirol`;
+  const summary = await loadBrandSummary(resolved.id, resolved.name);
 
   return {
-    title: data?.name ? `${data.name} — Pirol` : "Brand — Pirol"
+    title,
+    description: summary?.metaDescription ?? undefined,
+    alternates: { canonical },
+    openGraph: { url: canonical, title }
   };
 }
 
 export default async function BrandPage({ params, searchParams }: RouteParams) {
-  const { id } = await params;
+  const { id: handle } = await params;
   const { segment } = await searchParams;
   const segmentInboxId = Array.isArray(segment) ? segment[0] : segment ?? null;
   const supabase = await createClient();
+
+  // The path segment may be a slug or a legacy UUID; resolve to the real id
+  // up front so both the locked and unlocked paths below work either way.
+  const resolved = await resolveHandle(handle);
+  if (!resolved) {
+    notFound();
+  }
+  const id = resolved.id;
 
   const viewer = await getViewer();
 
@@ -76,6 +113,8 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     if (!company || company.deleted_at) {
       notFound();
     }
+
+    const summary = await loadBrandSummary(id, resolved.name);
 
     let logoUrl: string | null = null;
     if (company.logo_storage_path) {
@@ -102,6 +141,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
             logoUrl,
             subscribedSince: company.subscribed_since ?? null
           }}
+          summary={summary?.paragraph ?? null}
         />
       </div>
     );

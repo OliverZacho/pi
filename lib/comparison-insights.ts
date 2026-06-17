@@ -1,3 +1,5 @@
+import { NON_CAMPAIGN_CATEGORIES } from "./admin-types";
+import type { EmailCategory } from "./admin-types";
 import type { BrandPageData } from "./brand-db";
 import { getZonedParts } from "./datetime";
 import {
@@ -528,18 +530,28 @@ function buildVoice(
 const MIX_TOP_CATEGORIES = 6;
 
 function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
-  // Per-brand totals + a full categoryId → share map (every category,
+  // The mix reflects *broadcast campaigns* a brand chooses to send, so
+  // triggered/lifecycle types (welcome, transactional) are dropped here — the
+  // welcome flow our own subscription reliably fires would otherwise dominate a
+  // brand's share. Same exclusion the archive-wide content mix uses.
+  const campaignCategories = (b: BrandPageData) =>
+    b.categories.filter(
+      (c) => !NON_CAMPAIGN_CATEGORIES.has(c.id as EmailCategory)
+    );
+
+  // Per-brand totals + a full categoryId → share map (every campaign category,
   // not just the rendered ones) plus the brand's own dominant category,
   // which the takeaway reasons about independent of render order.
   const brandData = brands.map((b, index) => {
-    const total = b.categories.reduce((sum, c) => sum + c.count, 0);
+    const cats = campaignCategories(b);
+    const total = cats.reduce((sum, c) => sum + c.count, 0);
     const shareById = new Map<string, { label: string; share: number }>();
     if (total > 0) {
-      for (const c of b.categories) {
+      for (const c of cats) {
         shareById.set(c.id, { label: c.label, share: c.count / total });
       }
     }
-    const top = [...b.categories].sort((a, c) => c.count - a.count)[0];
+    const top = [...cats].sort((a, c) => c.count - a.count)[0];
     const topCat =
       total > 0 && top
         ? { id: top.id, label: top.label, share: top.count / total }
@@ -552,7 +564,7 @@ function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
   // biggest category always leads. Everything past the top N → "Other".
   const groupTotals = new Map<string, { label: string; count: number }>();
   for (const b of brands) {
-    for (const c of b.categories) {
+    for (const c of campaignCategories(b)) {
       const cur = groupTotals.get(c.id);
       if (cur) cur.count += c.count;
       else groupTotals.set(c.id, { label: c.label, count: c.count });
@@ -577,7 +589,7 @@ function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
       }
       let otherShare = 0;
       if (total > 0) {
-        for (const c of brand.categories) {
+        for (const c of campaignCategories(brand)) {
           if (!topIdSet.has(c.id)) otherShare += c.count / total;
         }
       }
@@ -679,10 +691,18 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
   );
   let totalSends = 0;
 
+  // Triggered/lifecycle mail is left out: a welcome email lands whenever we
+  // happened to subscribe, not when the brand chooses to broadcast, so it
+  // would invent or mask "busy" slots that say nothing about the group's
+  // rhythm. Same exclusion the campaign-mix views use.
+  const isCampaign = (email: { category: string }) =>
+    !NON_CAMPAIGN_CATEGORIES.has(email.category as EmailCategory);
+
   // Anchor the freshness window on the latest send across the group.
   let latestTs = Number.NEGATIVE_INFINITY;
   for (const brand of brands) {
     for (const email of brand.seasonalSample) {
+      if (!isCampaign(email)) continue;
       const ts = new Date(email.receivedAt).getTime();
       if (!Number.isNaN(ts) && ts > latestTs) latestTs = ts;
     }
@@ -694,6 +714,7 @@ function buildQuietZones(brands: BrandPageData[]): QuietZonesInsight {
 
   brands.forEach((brand, brandIndex) => {
     for (const email of brand.seasonalSample) {
+      if (!isCampaign(email)) continue;
       const ts = new Date(email.receivedAt).getTime();
       if (Number.isNaN(ts) || ts < cutoff) continue;
       let parts;
@@ -882,8 +903,7 @@ export function reminderShare(brand: BrandPageData): {
 } {
   const emails = brand.seasonalSample
     .filter(
-      (email) =>
-        email.category !== "transactional" && email.category !== "welcome"
+      (email) => !NON_CAMPAIGN_CATEGORIES.has(email.category as EmailCategory)
     )
     .map((email) => ({
       tokens: subjectTokens(email.subject ?? ""),

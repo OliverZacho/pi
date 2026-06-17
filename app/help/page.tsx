@@ -71,7 +71,7 @@ export default function HelpPage() {
                     <path d="M8 5v14l11-7z" fill="currentColor" />
                   </svg>
                   <span>
-                    Watch a <a href="/learn">video tutorial</a> for step-by-step
+                    Watch a <a href="/tutorials">video tutorial</a> for step-by-step
                     walkthroughs of every feature.
                   </span>
                 </li>

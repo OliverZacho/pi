@@ -664,7 +664,7 @@ function FollowingCard({
   return (
     <div className={styles.cardWrap}>
       <Link
-        href={`/brands/${brand.id}`}
+        href={`/brands/${brand.slug}`}
         className={`${styles.card} ${styles.cardRich}`}
         aria-label={`Open ${brand.name} dashboard`}
       >

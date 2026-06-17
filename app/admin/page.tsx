@@ -1947,6 +1947,9 @@ export default function AdminHomePage() {
               </button>
             );
           })}
+          <a className="admin-nav-item" href="/admin/upgrades">
+            <span className="admin-nav-label">Upgrade clicks</span>
+          </a>
         </nav>
         <form action="/auth/signout" method="post" className="admin-sidebar-footer">
           <button type="submit" className="sign-out">

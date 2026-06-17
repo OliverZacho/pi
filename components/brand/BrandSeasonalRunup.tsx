@@ -17,6 +17,7 @@ type SeasonalSample = BrandPageData["seasonalSample"];
 
 type BrandIdentity = {
   id: string;
+  slug: string;
   name: string;
   domain: string | null;
   markets: string[];
@@ -129,6 +130,7 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
         subject: row.subject,
         preheader: row.preheader,
         companyId: brand.id,
+        companySlug: brand.slug,
         companyName: brand.name,
         companyDomain: brand.domain,
         companyMarkets: brand.markets,

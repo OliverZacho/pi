@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getViewer } from "@/lib/access";
-import {
-  createFeatureRequestInDb,
-  MAX_FEATURE_REQUEST_MESSAGE
-} from "@/lib/feature-requests-db";
+import { createClient } from "@/lib/supabase/server";
+import { clientRateKey } from "@/lib/rate-limit";
+import { MAX_FEATURE_REQUEST_MESSAGE } from "@/lib/feature-requests-db";
 
 /**
  * POST `/api/feature-requests` — endpoint for the "Request a feature" form in
- * the account menu. The insert runs through the service-role client (RLS
- * allows service_role only). Operators triage the rows from the admin
- * Feedback tab.
+ * the account menu. Operators triage the rows from the admin Feedback tab.
+ *
+ * The write goes through the `record_feature_request` SECURITY DEFINER
+ * function via the ordinary cookie-scoped client — deliberately NOT the
+ * service role. This route is unauthenticated, so it holds no elevated
+ * credential: the function is the only write path, it can only insert into
+ * `feature_requests`, and it stamps the caller's own `auth.uid()` + email.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -38,14 +39,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = getSupabaseAdmin();
-    // Attach the signed-in requester (if any) so an operator can follow up.
-    const viewer = await getViewer();
-    await createFeatureRequestInDb(supabase, {
-      message,
-      requestedBy: viewer?.userId ?? null,
-      requesterEmail: viewer?.email ?? null
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("record_feature_request", {
+      p_message: message,
+      p_client_key: clientRateKey(request)
     });
+    if (error) throw error;
+    if (data === "rate_limited") {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a few minutes." },
+        { status: 429 }
+      );
+    }
   } catch (error) {
     console.error("Failed to record feature request", error);
     return NextResponse.json(

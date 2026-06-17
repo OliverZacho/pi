@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getViewer } from "@/lib/access";
-import {
-  createBrandRequestInDb,
-  MAX_BRAND_REQUEST_FIELD
-} from "@/lib/brand-requests-db";
+import { createClient } from "@/lib/supabase/server";
+import { clientRateKey } from "@/lib/rate-limit";
+import { MAX_BRAND_REQUEST_FIELD } from "@/lib/brand-requests-db";
 
 /**
  * POST `/api/brand-requests` — public endpoint for the "Request a brand"
- * forms on Explore and the Brands page. Visitors may be logged out, so the
- * insert runs through the service-role client (RLS allows service_role only).
+ * forms on Explore and the Brands page. Visitors may be logged out.
  * Operators triage the rows from the admin Create tab.
+ *
+ * The write goes through the `record_brand_request` SECURITY DEFINER function
+ * via the ordinary cookie-scoped client — deliberately NOT the service role.
+ * This route is unauthenticated and internet-facing, so it holds no elevated
+ * credential: the function is the only write path, it can only insert into
+ * `brand_requests`, and it stamps the caller's own `auth.uid()` (null when
+ * logged out).
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -43,15 +46,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = getSupabaseAdmin();
-    // Attach the signed-in requester (if any) so the sidebar can notify
-    // them when the brand lands in the archive.
-    const viewer = await getViewer();
-    await createBrandRequestInDb(supabase, {
-      companyName,
-      website,
-      requestedBy: viewer?.userId ?? null
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("record_brand_request", {
+      p_company_name: companyName,
+      p_website: website,
+      p_client_key: clientRateKey(request)
     });
+    if (error) throw error;
+    if (data === "rate_limited") {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a few minutes." },
+        { status: 429 }
+      );
+    }
   } catch (error) {
     console.error("Failed to record brand request", error);
     return NextResponse.json(

@@ -33,34 +33,9 @@ function mapRow(
 const SELECT_COLUMNS =
   "id, message, requester_email, status, created_at, handled_at";
 
-/**
- * Persists a "please build this" request. Called from the public route with
- * a service-role client. `requestedBy`/`requesterEmail` are the signed-in
- * requester (when there is one) so an operator can follow up.
- */
-export async function createFeatureRequestInDb(
-  supabase: PirolDb,
-  input: {
-    message: string;
-    requestedBy?: string | null;
-    requesterEmail?: string | null;
-  }
-): Promise<FeatureRequest> {
-  const { data, error } = await supabase
-    .from("feature_requests")
-    .insert({
-      message: input.message,
-      requested_by: input.requestedBy ?? null,
-      requester_email: input.requesterEmail ?? null
-    })
-    .select(SELECT_COLUMNS)
-    .single();
-
-  if (error || !data) {
-    throw error ?? new Error("Failed to insert feature request");
-  }
-  return mapRow(data);
-}
+// Inserts are written by the `record_feature_request` SECURITY DEFINER
+// function (see the public /api/feature-requests route), not from here — so no
+// service-role insert helper lives in this module.
 
 /**
  * Lists feature requests for the admin Feedback tab, newest first. Defaults

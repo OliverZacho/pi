@@ -22,6 +22,7 @@ import { unstable_cache } from "next/cache";
 import {
   EMAIL_CATEGORY_LABELS,
   ESP_LABELS,
+  NON_CAMPAIGN_CATEGORIES,
   type EmailCategory,
   type EspProvider
 } from "@/lib/admin-types";
@@ -523,13 +524,6 @@ export const getDiscountInsights = unstable_cache(
 
 /* ------------------------------ Content mix ------------------------------- */
 
-/**
- * Triggered / lifecycle types are excluded so the mix reflects *broadcast
- * campaigns* a brand chooses to send — not the welcome mail our own
- * subscription reliably triggers, which would otherwise dominate the share.
- */
-const NON_CAMPAIGN = new Set(["welcome", "transactional"]);
-
 export type ContentMixInsights = {
   /** Campaign emails counted (excludes welcome/transactional). */
   sampleSize: number;
@@ -551,7 +545,7 @@ export const getContentMixInsights = unstable_cache(
     let total = 0;
     for (const row of sample.rows) {
       const cat = row.category;
-      if (!cat || NON_CAMPAIGN.has(cat)) continue;
+      if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
       counts.set(cat, (counts.get(cat) ?? 0) + 1);
       total += 1;
     }
@@ -572,7 +566,7 @@ export const getContentMixInsights = unstable_cache(
         for (const row of sample.rows) {
           if (!ids.has(row.companyId)) continue;
           const cat = row.category;
-          if (!cat || NON_CAMPAIGN.has(cat)) continue;
+          if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
           local.set(cat, (local.get(cat) ?? 0) + 1);
           n += 1;
         }
