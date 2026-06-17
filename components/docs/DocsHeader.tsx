@@ -8,7 +8,7 @@ import styles from "./docs.module.css";
 
 const TABS = [
   { href: "/docs", label: "Learn" },
-  { href: "/learn", label: "Tutorials" },
+  { href: "/tutorials", label: "Tutorials" },
   { href: "/help", label: "Help" }
 ];
 

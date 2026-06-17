@@ -1,0 +1,166 @@
+/* "Need help?" header button + the panel that flies in from the right.
+   The panel is always mounted (so it can animate both in and out) and
+   toggled via the `.open` class; outside-click / Escape handling lives in
+   HelpPane.tsx, mirroring the account UserMenu. */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--header-fg, var(--ink, #0b0b0c));
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: var(--header-fg-hover, rgba(11, 11, 12, 0.06));
+}
+
+.triggerIcon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* "app" variant — matches the white pill in the logged-in AppTopBar
+   (next to the "Learn" link), rather than the marketing header buttons. */
+.triggerApp {
+  height: 30px;
+  padding: 0 0.8rem;
+  background: #fff;
+  color: #475569;
+  font-size: 0.83rem;
+  box-shadow: var(--pill-shadow);
+  transition: color 0.1s ease, box-shadow 0.15s ease;
+}
+
+.triggerApp:hover,
+.triggerApp[aria-expanded="true"] {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: var(--pill-shadow-hover);
+}
+
+/* Sliding panel, pinned to the top-right of the viewport just under the
+   header. Hidden off-screen to the right until `.open` is added. */
+.panel {
+  position: fixed;
+  top: 4.5rem;
+  right: 1rem;
+  z-index: 60;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid rgba(11, 11, 12, 0.08);
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  transform: translateX(calc(100% + 1.5rem));
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease, visibility 0s linear 0.24s;
+}
+
+.panel.open {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.panelHeading {
+  margin: 0.3rem 0.55rem 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.divider {
+  height: 1px;
+  margin: 0.5rem 0.3rem;
+  background: rgba(11, 11, 12, 0.07);
+}
+
+.sectionLabel {
+  margin: 0.2rem 0.55rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+/* Shared row styling for the action buttons and the doc links. */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.55rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #1f2937;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.item:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #4338ca;
+}
+
+.itemIcon {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #6366f1;
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.itemTitle {
+  line-height: 1.2;
+}
+
+.itemDesc {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: #94a3b8;
+  line-height: 1.25;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: auto;
+  color: #cbd5e1;
+}

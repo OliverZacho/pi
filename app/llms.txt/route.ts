@@ -24,7 +24,8 @@ export function GET() {
 
 - [Pirol home](${SITE_URL}/): What Pirol is and who it's for.
 - [Pricing](${SITE_URL}/pricing): Plans and what each tier includes.
-- [Learn](${SITE_URL}/learn): Plain-language guides to email marketing.
+- [Learn](${SITE_URL}/docs): Plain-language guides to email marketing.
+- [Tutorials](${SITE_URL}/tutorials): Short video walkthroughs of every Pirol feature.
 
 ## Features
 

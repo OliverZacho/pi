@@ -32,7 +32,12 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-const EMPTY_FACETS: ExploreFacets = { brands: [], markets: [], categories: [] };
+const EMPTY_FACETS: ExploreFacets = {
+  brands: [],
+  markets: [],
+  categories: [],
+  countries: []
+};
 
 /**
  * `/following` — everything from the brands the current user follows.

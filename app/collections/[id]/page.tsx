@@ -136,7 +136,12 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   // The rules editor needs the canonical list of brands / markets /
   // categories so its dropdowns are exhaustive — same facets the
   // Explore page uses for its own filter chips.
-  let facets: ExploreFacets = { brands: [], markets: [], categories: [] };
+  let facets: ExploreFacets = {
+    brands: [],
+    markets: [],
+    categories: [],
+    countries: []
+  };
   try {
     facets = await getExploreFacets(supabase);
   } catch (err) {

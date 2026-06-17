@@ -544,7 +544,7 @@ function InfoPanel({
       */}
       {email.companyId ? (
         <Link
-          href={`/brands/${email.companyId}`}
+          href={`/brands/${email.companySlug ?? email.companyId}`}
           className={styles.infoBrandRow}
           aria-label={`View ${email.companyName} dashboard`}
         >

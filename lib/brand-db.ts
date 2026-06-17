@@ -7,6 +7,7 @@ import {
   type EspProvider
 } from "./admin-types";
 import { defaultBrandAccent, pickBrandAccent, type BrandAccent } from "./brand-accent";
+import { buildBrandSummary, type BrandSummary } from "./brand-summary";
 import {
   classifyCtaDestination,
   type CtaDestinationKind
@@ -42,6 +43,8 @@ export type BrandMarketCitation = {
 export type BrandPageData = {
   brand: {
     id: string;
+    /** Stable public handle for the brand's `/brands/<slug>` URL. */
+    slug: string;
     name: string;
     domain: string | null;
     /**
@@ -132,6 +135,12 @@ export type BrandPageData = {
     discountShare: number;
     avgDiscount: number | null;
     maxDiscount: number | null;
+    /**
+     * `received_at` (ISO) of the email that carried {@link maxDiscount}, so
+     * copy can name *when* a brand's steepest offer landed ("…50% off, in
+     * November"). `null` when no discounted send exists in the sample.
+     */
+    maxDiscountAt: string | null;
   };
   /**
    * Emoji usage signal computed across the brand's recent subject lines
@@ -259,6 +268,7 @@ const DAILY_TIMELINE_DAYS = 365;
 
 type CompanyRow = {
   id: string;
+  slug: string;
   name: string;
   domain: string;
   markets: string[] | null;
@@ -389,7 +399,7 @@ export async function getBrandPageData(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(id, email_address, is_primary, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, slug, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(id, email_address, is_primary, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -517,6 +527,7 @@ export async function getBrandPageData(
     emailRows.slice(0, RECENT_CARD_COUNT),
     {
       companyId: companyRow.id,
+      companySlug: companyRow.slug,
       companyName: companyRow.name,
       companyDomain: companyRow.domain,
       companyMarkets: rawMarkets,
@@ -527,6 +538,7 @@ export async function getBrandPageData(
   return {
     brand: {
       id: companyRow.id,
+      slug: companyRow.slug,
       name: companyRow.name,
       domain: companyRow.domain,
       markets: rawMarkets.map(formatMarketLabel),
@@ -568,6 +580,103 @@ export async function getBrandPageData(
     recentEmails,
     seasonalSample
   };
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolves a `/brands/<handle>` path segment — which may be either a slug
+ * (`sephora`) or a raw UUID (legacy / internal links) — to the canonical
+ * company identity. Returns `null` for unknown or soft-deleted brands so the
+ * route can 404. The UUID shape is detected up front because passing a slug
+ * to a `uuid` column would be a Postgres cast error, not a clean miss.
+ */
+export async function resolveBrandHandle(
+  supabase: SupabaseClient<Database>,
+  handle: string
+): Promise<{ id: string; slug: string; name: string } | null> {
+  const column = UUID_RE.test(handle) ? "id" : "slug";
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id, slug, name, deleted_at")
+    .eq(column, handle)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.deleted_at) return null;
+  return { id: data.id, slug: data.slug, name: data.name };
+}
+
+/**
+ * Lightweight sibling of {@link getBrandPageData} for the *public* brand page.
+ * Logged-out / unpaid visitors (and crawlers) get a one-paragraph,
+ * data-driven summary without paying for the full analytics payload: this
+ * pulls only the three columns the prose needs plus the materialised total,
+ * then reuses the same cadence / category / promo math.
+ *
+ * Returns `null` when there's nothing worth saying (no captured emails, or
+ * not enough signal for a cadence or mix), so the page can simply omit the
+ * blurb rather than render a thin, boilerplate paragraph.
+ */
+export async function getBrandSummary(
+  supabase: SupabaseClient<Database>,
+  companyId: string,
+  options: { name: string }
+): Promise<BrandSummary | null> {
+  const [emailsResult, statsResult] = await Promise.all([
+    supabase
+      .from("captured_emails")
+      .select("received_at, category, discount_percent")
+      .eq("company_id", companyId)
+      .is("duplicate_of", null)
+      .order("received_at", { ascending: false })
+      .limit(STATS_ROW_CAP),
+    supabase
+      .from("companies")
+      .select("company_email_stats(email_count)")
+      .eq("id", companyId)
+      .maybeSingle()
+  ]);
+
+  if (emailsResult.error) throw emailsResult.error;
+  const rows = (emailsResult.data ?? []) as Pick<
+    EmailRow,
+    "received_at" | "category" | "discount_percent"
+  >[];
+  if (rows.length === 0) return null;
+
+  // Stats errors are non-fatal — we just fall back to the (capped) sample
+  // size for the headline count rather than failing the whole summary.
+  const stats = relationFirst(
+    (statsResult.data?.company_email_stats ?? null) as
+      | { email_count: number | null }
+      | { email_count: number | null }[]
+      | null
+  );
+  const emailCount = stats?.email_count ?? rows.length;
+
+  const cadence = computeCadence(rows);
+  const categories = computeCategories(rows);
+  const promo = computePromo(rows);
+
+  // Only campaign categories describe "what they send" — transactional /
+  // lifecycle mail (incl. our own welcome burst) isn't part of the program.
+  const topCategories = categories
+    .filter((c) => !NON_CAMPAIGN_CATEGORIES.has(c.id as EmailCategory))
+    .slice(0, 2)
+    .map((c) => ({ label: c.label, count: c.count }));
+
+  return buildBrandSummary({
+    name: options.name,
+    emailCount,
+    avgDaysBetween: cadence.avgDaysBetween,
+    typicalDay: cadence.typicalDay
+      ? { label: cadence.typicalDay.label, share: cadence.typicalDay.share }
+      : null,
+    topCategories,
+    maxDiscount: promo.maxDiscount,
+    maxDiscountAt: promo.maxDiscountAt
+  });
 }
 
 /**
@@ -653,7 +762,9 @@ function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
   return { start: startISO, end: endISO, days };
 }
 
-function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
+function computeCadence(
+  rows: Pick<EmailRow, "received_at" | "category">[]
+): BrandPageData["cadence"] {
   // Cadence describes a brand's *broadcast* rhythm, so triggered/lifecycle
   // mail is left out: the welcome series our own subscription fires lands as a
   // burst on the day we joined, which would otherwise inflate send frequency
@@ -799,10 +910,13 @@ function computeCadence(rows: EmailRow[]): BrandPageData["cadence"] {
   };
 }
 
-function computePromo(rows: EmailRow[]): BrandPageData["promo"] {
+function computePromo(
+  rows: Pick<EmailRow, "discount_percent" | "received_at">[]
+): BrandPageData["promo"] {
   let discountEmails = 0;
   let discountSum = 0;
   let discountMax: number | null = null;
+  let discountMaxAt: string | null = null;
 
   for (const row of rows) {
     const dp =
@@ -812,8 +926,12 @@ function computePromo(rows: EmailRow[]): BrandPageData["promo"] {
     if (dp !== null && Number.isFinite(dp)) {
       discountEmails += 1;
       discountSum += dp;
+      // Strictly-greater so the *first* (most recent, since rows arrive
+      // newest-first) email at the peak discount wins the timestamp — ties
+      // shouldn't drag the "when" back to an older identical offer.
       if (discountMax === null || dp > discountMax) {
         discountMax = dp;
+        discountMaxAt = row.received_at;
       }
     }
   }
@@ -822,7 +940,8 @@ function computePromo(rows: EmailRow[]): BrandPageData["promo"] {
     discountEmails,
     discountShare: rows.length > 0 ? discountEmails / rows.length : 0,
     avgDiscount: discountEmails > 0 ? discountSum / discountEmails : null,
-    maxDiscount: discountMax
+    maxDiscount: discountMax,
+    maxDiscountAt: discountMaxAt
   };
 }
 
@@ -897,7 +1016,9 @@ function computeEmojis(rows: EmailRow[]): BrandPageData["emojis"] {
   };
 }
 
-function computeCategories(rows: EmailRow[]): BrandPageData["categories"] {
+function computeCategories(
+  rows: Pick<EmailRow, "category">[]
+): BrandPageData["categories"] {
   const counts = new Map<string, number>();
   for (const row of rows) {
     const cat = row.category || "other";
@@ -1109,6 +1230,7 @@ function mapRecentEmails(
   rows: EmailRow[],
   brand: {
     companyId: string;
+    companySlug: string;
     companyName: string;
     companyDomain: string | null;
     companyMarkets: string[];
@@ -1120,6 +1242,7 @@ function mapRecentEmails(
     subject: row.subject,
     preheader: row.preheader ?? null,
     companyId: brand.companyId,
+    companySlug: brand.companySlug,
     companyName: brand.companyName,
     companyDomain: brand.companyDomain,
     companyMarkets: brand.companyMarkets,

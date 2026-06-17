@@ -105,7 +105,7 @@ const SECTIONS: TutorialSection[] = [
   }
 ];
 
-export default function LearnPage() {
+export default function TutorialsPage() {
   return (
     <div className={styles.shell}>
       <DocsSiteHeader />

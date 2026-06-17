@@ -171,7 +171,7 @@ export async function listSavedEmails(
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
          discount_percent, promo_code, company_id,
-         companies(id, name, domain, markets, logo_storage_path)
+         companies(id, slug, name, domain, markets, logo_storage_path)
        )`,
       { count: "exact" }
     )
@@ -245,6 +245,7 @@ type SavedEmailField =
 type CompaniesField =
   | {
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;
@@ -252,6 +253,7 @@ type CompaniesField =
     }
   | Array<{
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;
@@ -286,6 +288,7 @@ function toExploreCard(
     subject: email.subject,
     preheader: email.preheader ?? null,
     companyId: company?.id ?? null,
+    companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
     companyMarkets: Array.isArray(company?.markets)

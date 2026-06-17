@@ -52,6 +52,7 @@ export const COLLECTION_RULE_FIELDS = [
   "category",
   "brand",
   "market",
+  "country",
   "discount_percent"
 ] as const;
 
@@ -82,6 +83,13 @@ export type CollectionRuleCondition =
       field: "market";
       operator: "in";
       /** Tags to overlap-match against `companies.markets`. */
+      values: string[];
+    }
+  | {
+      id: string;
+      field: "country";
+      operator: "in";
+      /** ISO 3166-1 alpha-2 codes matched against `captured_emails.detected_country`. */
       values: string[];
     }
   | {
@@ -522,6 +530,30 @@ function parseCondition(
         );
       }
       return { id, field: "market", operator: "in", values };
+    }
+    case "country": {
+      if (cond.operator !== "in" && cond.operator !== "is") {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (country) operator must be "in"`
+        );
+      }
+      const raw = collectMultiValue(cond);
+      const values: string[] = [];
+      for (const candidate of raw) {
+        if (typeof candidate !== "string" || !/^[A-Za-z]{2}$/.test(candidate)) {
+          throw new CollectionRulesValidationError(
+            `rules.conditions[${index}] (country) values must be ISO alpha-2 country codes`
+          );
+        }
+        const code = candidate.toUpperCase();
+        if (!values.includes(code)) values.push(code);
+      }
+      if (values.length === 0) {
+        throw new CollectionRulesValidationError(
+          `rules.conditions[${index}] (country) must select at least one value`
+        );
+      }
+      return { id, field: "country", operator: "in", values };
     }
     case "discount_percent": {
       if (
@@ -1186,7 +1218,7 @@ export async function evaluateCollectionRules(
     .select(
       `id, subject, preheader, received_at, category, has_gif, has_dark_mode,
        discount_percent, promo_code, company_id,
-       companies(id, name, domain, markets, logo_storage_path)`
+       companies(id, slug, name, domain, markets, logo_storage_path)`
     )
     .order("received_at", { ascending: false })
     .limit(RULE_EVAL_LIMIT);
@@ -1215,6 +1247,12 @@ export async function evaluateCollectionRules(
             filter.values.length === 0
               ? query.eq("id", IMPOSSIBLE_ID)
               : query.in("category", filter.values);
+          break;
+        case "country_in":
+          query =
+            filter.values.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("detected_country", filter.values);
           break;
         case "in_company":
           query =
@@ -1340,6 +1378,12 @@ export async function evaluateCollectionRuleIds(
               ? query.eq("id", IMPOSSIBLE_ID)
               : query.in("category", filter.values);
           break;
+        case "country_in":
+          query =
+            filter.values.length === 0
+              ? query.eq("id", IMPOSSIBLE_ID)
+              : query.in("detected_country", filter.values);
+          break;
         case "in_company":
           query =
             filter.ids.length === 0
@@ -1377,6 +1421,7 @@ const IMPOSSIBLE_ID = "00000000-0000-0000-0000-000000000000";
 type CompiledFilter =
   | { type: "in_company"; ids: string[] }
   | { type: "category_in"; values: string[] }
+  | { type: "country_in"; values: string[] }
   | { type: "discount"; op: "gte" | "lte" | "eq"; value: number }
   | { type: "search"; term: string; brandIds: string[] };
 
@@ -1431,6 +1476,13 @@ async function compileRules(
         }
         break;
       }
+      case "country":
+        if (cond.values.length === 0) {
+          if (rules.combinator === "AND") return "no_match";
+          break;
+        }
+        filters.push({ type: "country_in", values: cond.values });
+        break;
       case "discount_percent":
         filters.push({
           type: "discount",
@@ -1468,6 +1520,13 @@ function orParts(filters: CompiledFilter[]): string[] {
           .map(escapeOrValue);
         if (safe.length > 0) {
           parts.push(`category.in.(${safe.join(",")})`);
+        }
+        break;
+      }
+      case "country_in": {
+        const safe = filter.values.filter((code) => /^[A-Z]{2}$/.test(code));
+        if (safe.length > 0) {
+          parts.push(`detected_country.in.(${safe.join(",")})`);
         }
         break;
       }
@@ -1569,6 +1628,7 @@ function ruleRowToCard(
     subject: row.subject,
     preheader: row.preheader ?? null,
     companyId: company?.id ?? null,
+    companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
     companyMarkets: pickCompanyMarkets(company),
@@ -1625,7 +1685,7 @@ async function loadCollectionEmails(
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
          discount_percent, promo_code, company_id,
-         companies(id, name, domain, markets, logo_storage_path)
+         companies(id, slug, name, domain, markets, logo_storage_path)
        )`
     )
     .eq("collection_id", collectionId)
@@ -1756,6 +1816,7 @@ type EmailField =
 type CompaniesField =
   | {
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;
@@ -1763,6 +1824,7 @@ type CompaniesField =
     }
   | Array<{
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;
@@ -1797,6 +1859,7 @@ function toExploreCard(
     subject: email.subject,
     preheader: email.preheader ?? null,
     companyId: company?.id ?? null,
+    companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
     companyMarkets: pickCompanyMarkets(company),

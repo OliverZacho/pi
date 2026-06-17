@@ -7,6 +7,11 @@ export type ExploreEmailCard = {
   subject: string;
   preheader: string | null;
   companyId: string | null;
+  /**
+   * Stable public handle for the brand's `/brands/<slug>` URL. `null`
+   * for the rare orphan email with no matched company.
+   */
+  companySlug: string | null;
   companyName: string;
   companyDomain: string | null;
   /**
@@ -98,6 +103,8 @@ export type ExploreFacets = {
   brands: ExploreBrandFacet[];
   markets: string[];
   categories: string[];
+  /** Distinct ISO 3166-1 alpha-2 codes present in `detected_country`. */
+  countries: string[];
 };
 
 // 24 cards per page (3 cols x 8 rows, or 4 cols x 6 rows depending on
@@ -242,8 +249,8 @@ export async function searchExploreEmails(
     params.sort === "brand_asc" || params.sort === "brand_desc";
 
   const companiesEmbed = needsCompanyInnerJoin
-    ? "companies!inner(id, name, domain, markets, logo_storage_path)"
-    : "companies(id, name, domain, markets, logo_storage_path)";
+    ? "companies!inner(id, slug, name, domain, markets, logo_storage_path)"
+    : "companies(id, slug, name, domain, markets, logo_storage_path)";
 
   let emailsQuery = supabase
     .from("captured_emails")
@@ -397,6 +404,7 @@ export async function searchExploreEmails(
       subject: row.subject,
       preheader: row.preheader ?? null,
       companyId: company?.id ?? null,
+      companySlug: company?.slug ?? null,
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
       companyMarkets: normalizeCompanyMarkets(company?.markets),
@@ -433,7 +441,7 @@ export async function getExploreFacets(
   // The `/following` page scopes its facets to the brands the user
   // follows. An empty restriction means there's nothing to show.
   if (options.restrictBrandIds && options.restrictBrandIds.length === 0) {
-    return { brands: [], markets: [], categories: [] };
+    return { brands: [], markets: [], categories: [], countries: [] };
   }
 
   // We join through `captured_emails` so the facet list only contains
@@ -444,7 +452,7 @@ export async function getExploreFacets(
     // `logo_storage_path` deliberately omitted: facets don't render
     // logos, so we save the DB round-trip column and the downstream
     // signed-URL fan-out.
-    .select("category, segment_category, company_id, companies!inner(id, name, markets, is_curated)")
+    .select("category, segment_category, detected_country, company_id, companies!inner(id, name, markets, is_curated)")
     .limit(10000);
 
   if (options.restrictBrandIds) {
@@ -458,9 +466,15 @@ export async function getExploreFacets(
   const brandMap = new Map<string, ExploreBrandFacet>();
   const marketSet = new Set<string>();
   const categorySet = new Set<string>();
+  const countrySet = new Set<string>();
 
   for (const row of emailRows ?? []) {
     if (row.category) categorySet.add(row.category);
+    // Per-email detected origin (ISO alpha-2). Normalised to upper-case so a
+    // mixed-case row can't split one country into two facet entries.
+    if (row.detected_country && /^[A-Za-z]{2}$/.test(row.detected_country)) {
+      countrySet.add(row.detected_country.toUpperCase());
+    }
     // Segment categories share the markets vocabulary and feed the same
     // product-line filter, so surface them in the markets facet even if no
     // brand happens to carry the tag at the company level.
@@ -494,8 +508,9 @@ export async function getExploreFacets(
 
   const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
   const categories = Array.from(categorySet).sort((a, b) => a.localeCompare(b));
+  const countries = Array.from(countrySet).sort((a, b) => a.localeCompare(b));
 
-  return { brands, markets, categories };
+  return { brands, markets, categories, countries };
 }
 
 /**
@@ -549,6 +564,7 @@ export async function isCuratedEmail(
 type CompaniesField =
   | {
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;
@@ -557,6 +573,7 @@ type CompaniesField =
     }
   | Array<{
       id: string;
+      slug?: string | null;
       name: string;
       domain?: string | null;
       markets?: string[] | null;

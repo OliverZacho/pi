@@ -1258,7 +1258,7 @@ function BrandGridCard({
 
   const link = (
     <Link
-      href={`/brands/${brand.id}`}
+      href={`/brands/${brand.slug}`}
       className={`${styles.card} ${styles.cardRich}`}
       aria-label={`Open ${brand.name} dashboard`}
     >

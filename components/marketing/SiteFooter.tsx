@@ -31,7 +31,7 @@ export default function SiteFooter() {
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Resources</p>
             <Link href="/docs" className={styles.footerLink}>Learn</Link>
-            <Link href="/learn" className={styles.footerLink}>Tutorials</Link>
+            <Link href="/tutorials" className={styles.footerLink}>Tutorials</Link>
             <Link href="/help" className={styles.footerLink}>Help</Link>
             <Link href="/pricing" className={styles.footerLink}>Pricing</Link>
           </div>

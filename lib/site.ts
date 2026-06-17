@@ -16,7 +16,7 @@ export const SITE_URL = (
 export const PUBLIC_MARKETING_PATHS = [
   "/",
   "/pricing",
-  "/learn",
+  "/tutorials",
   "/help",
   "/docs",
   "/features/collections",
@@ -57,7 +57,13 @@ export const AI_TRAINING_BOTS = [
 
 /**
  * Path prefixes crawlers must not enter: the app surface, auth, the API,
- * and the entire email archive/catalogue.
+ * and the parts of the email archive we keep private.
+ *
+ * `/brands` is deliberately NOT here: brand pages render a public, SEO-tuned
+ * locked view (data-driven summary + every section heading) for logged-out
+ * visitors, so they're our intended search surface for "<brand> email
+ * frequency / newsletter strategy" queries. The rest of the catalogue
+ * (explore, collections, compare, shared `/c` links) stays off-limits.
  */
 export const DISALLOWED_PATHS = [
   "/admin",
@@ -70,7 +76,6 @@ export const DISALLOWED_PATHS = [
   "/dashboard",
   "/following",
   "/explore",
-  "/brands",
   "/collections",
   "/compare",
   "/c"

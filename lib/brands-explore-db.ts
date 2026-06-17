@@ -11,6 +11,8 @@ import type { Database } from "@/types/supabase";
  */
 export type BrandsExploreCard = {
   id: string;
+  /** Stable public handle for the brand's `/brands/<slug>` URL. */
+  slug: string;
   name: string;
   /**
    * Raw market slugs (e.g. `["home_design", "ecommerce"]`). The UI
@@ -137,6 +139,7 @@ const CADENCE_HARD_MAX = 60;
 
 type CompanyRow = {
   id: string;
+  slug: string;
   name: string;
   domain: string;
   markets: string[] | null;
@@ -196,7 +199,7 @@ export async function searchBrands(
   let query = supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
+      "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
     )
     .is("deleted_at", null);
 
@@ -375,6 +378,7 @@ export async function searchBrands(
       : null;
     return {
       id: row.id,
+      slug: row.slug,
       name: row.name,
       markets: Array.isArray(row.markets) ? row.markets : [],
       primaryMarketCountry: row.primary_market_country ?? null,
