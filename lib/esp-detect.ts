@@ -34,6 +34,11 @@ export type EspProvider =
   | "voyado"
   | "emarsys"
   | "dynamics_365"
+  | "adobe_campaign"
+  | "yulsn"
+  | "flodesk"
+  | "responsys"
+  | "cordial"
   | "unknown";
 
 export type EspSignal = {
@@ -183,28 +188,43 @@ const FINGERPRINTS: Fingerprint[] = [
   {
     provider: "braze",
     // Braze serves every uploaded template asset (images AND @font-face
-    // webfonts) from `braze-images.com/appboy/communication/assets/…` —
-    // "Appboy" is Braze's pre-2017 name and the path survives to this day.
-    // Click/open tracking is wrapped by the underlying transport (usually a
-    // SendGrid `ls/click?upn=` CNAME on a brand domain like
-    // `click.emails.<brand>.com`), so the tracking host tells us nothing —
-    // the asset CDN and the `utm_source=braze` convention carry detection on
-    // header-less sends. We deliberately do NOT fingerprint the generic
-    // SendGrid wrapper itself, so the composing platform (Braze) outranks the
-    // transport.
+    // webfonts) from `braze-images.com/appboy/communication/assets/…` (US /
+    // global cluster) or `cdn.braze.eu/appboy/communication/assets/…` (EU
+    // cluster) — "Appboy" is Braze's pre-2017 name and the path survives to
+    // this day. Click/open tracking is sometimes wrapped by an underlying
+    // SendGrid CNAME (`click.emails.<brand>.com/ls/click?upn=`), but for many
+    // tenants Braze runs its own brand-CNAMEd tracker at
+    // `clicks.<brand>.com/f/a/<token>~~/<hash>~/<base64-payload>` for clicks
+    // and `clicks.<brand>.com/q/<token>~~/<hash>~/<base64-payload>` for the
+    // open pixel — the `~~/` + `~/` separator combo with three base64url
+    // segments is a Braze-only URL shape. The asset CDN, the
+    // `utm_source=braze` convention, and the native click-tracker shape carry
+    // detection on header-less sends. We deliberately do NOT fingerprint the
+    // generic SendGrid wrapper itself, so the composing platform (Braze)
+    // outranks the transport.
     hostPatterns: [
       /(^|\.)bnc\.lt$/i,
       /(^|\.)sparkpostmail\.com$/i,
       /(^|\.)sparkpostmail1\.com$/i,
       /(^|\.)braze\.com$/i,
       /(^|\.)braze-images\.com$/i,
+      /(^|\.)braze\.eu$/i,
       /(^|\.)appboy\.com$/i
     ],
     htmlPatterns: [
-      /\bbraze-images\.com\/appboy\/communication\/assets\//i,
+      /\/(?:braze-images\.com|cdn\.braze\.eu)\/appboy\/communication\/assets\//i,
+      /\/f\/a\/[A-Za-z0-9_-]{16,}~~\/[A-Za-z0-9_-]{4,}~\/[A-Za-z0-9_-]{40,}/,
+      /\/q\/[A-Za-z0-9_-]{16,}~~\/[A-Za-z0-9_-]{4,}~\/[A-Za-z0-9_-]{40,}/,
       /\butm_source=braze\b/i,
       /\bbraze-images\.com\b/i,
+      /\bcdn\.braze\.eu\b/i,
       /\bappboy\.com\b/i
+    ],
+    // Matching the native Braze click-tracker shape against parsed `<a>` links
+    // gives a `link_url` signal so a brand-CNAMEd Braze send (no headers, no
+    // native Braze host) still clears the 0.6 threshold.
+    linkUrlPatterns: [
+      /\/f\/a\/[A-Za-z0-9_-]{16,}~~\/[A-Za-z0-9_-]{4,}~\/[A-Za-z0-9_-]{40,}/
     ],
     dkimPatterns: [/braze\.com/i, /sparkpostmail/i],
     returnPathPatterns: [/sparkpostmail/i, /braze\.com/i],
@@ -698,20 +718,25 @@ const FINGERPRINTS: Fingerprint[] = [
     // path prefix:
     //   /<tenant-slug>/e/<base64url-token>/click  → click redirect
     //   /<tenant-slug>/e/<base64url-token>/open   → open-tracking pixel
-    // Image / template assets are served from a Bloomreach-owned GCS bucket
-    // at `storage.googleapis.com/<region>-app-storage/<tenant-uuid>/media/…`.
-    // The `xnpe-attr="…"` attribute is emitted on every tracked anchor by the
-    // Bloomreach email editor and is unique to this ESP. Brand-CNAMEd
-    // tracking domains are common in the wild (e.g. Acne Studios routes through
-    // `link.acnestudios.com/<tenant>/e/<token>/click`), so the host-agnostic
-    // `/e/<base64url-token>/(click|open)` URL-shape patterns below carry the
-    // detection on their own when the host fingerprint won't fire — the
-    // `/e/<token>/click` + `…/open` path pair is a Bloomreach-only convention.
+    // Newer Bloomreach-cluster tenants serve image / template assets from
+    // `brxcdn.com/<region>-app-storage/<tenant-uuid>/media/…` (replacing the
+    // older `storage.googleapis.com/<region>-app-storage/…` GCS path), and
+    // expose a separate `/ee/v1/webview?params=v1.<base64>` endpoint for
+    // "view in browser" / web preview links (often CNAMEd to
+    // `data.email.<brand>.com`). The `xnpe-attr="…"` attribute is emitted on
+    // every tracked anchor by the Bloomreach email editor and is unique to
+    // this ESP. Brand-CNAMEd tracking domains are common in the wild (e.g.
+    // Acne Studios routes through `link.acnestudios.com/<tenant>/e/<token>/click`),
+    // so the host-agnostic URL-shape patterns below carry the detection on
+    // their own when the host fingerprint won't fire — the `/e/<token>/click`
+    // + `…/open` path pair and the `/ee/v1/webview?params=v1.` shape are both
+    // Bloomreach-only conventions.
     hostPatterns: [
       /(^|\.)exponea\.com$/i,
       /(^|\.)cdn\.[a-z0-9-]+\.exponea\.com$/i,
       /(^|\.)bloomreachengagement\.com$/i,
-      /(^|\.)cdn\.[a-z0-9-]+\.bloomreach\.com$/i
+      /(^|\.)cdn\.[a-z0-9-]+\.bloomreach\.com$/i,
+      /(^|\.)brxcdn\.com$/i
     ],
     // The host-agnostic `/e/<token>/(click|open)` patterns are listed FIRST so
     // the `MAX_HTML_MARKERS_PER_PROVIDER` cap prefers them — they match both the
@@ -719,13 +744,17 @@ const FINGERPRINTS: Fingerprint[] = [
     // which the host-anchored patterns below cannot.
     htmlPatterns: [
       /\/e\/\.?[A-Za-z0-9_.-]{24,}\/(?:click|open)\b/i,
+      /\/ee\/v1\/webview\?params=v1\.[A-Za-z0-9_-]{20,}/i,
+      /\bdata\.email\.[a-z0-9.-]+\/ee\/v1\//i,
       /\bxnpe-attr\s*=\s*["']/i,
+      /\bbrxcdn\.com\/[a-z0-9-]+-app-storage\/[a-f0-9-]{16,}\/media\//i,
       /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bstorage\.googleapis\.com\/[a-z0-9-]+-app-storage\/[a-f0-9-]{16,}\/media\//i
     ],
     linkUrlPatterns: [
       /\/e\/\.?[A-Za-z0-9_.-]{24,}\/(?:click|open)\b/i,
+      /\/ee\/v1\/webview\?params=v1\.[A-Za-z0-9_-]{20,}/i,
       /\bcdn\.[a-z0-9-]+\.exponea\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i,
       /\bcdn\.[a-z0-9-]+\.bloomreach\.com\/[a-z0-9-]+\/e\/[A-Za-z0-9_.-]{20,}\/(?:click|open)\b/i
     ],
@@ -901,6 +930,151 @@ const FINGERPRINTS: Fingerprint[] = [
     dkimPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
     returnPathPatterns: [/dyn365mktg\.com/i, /mkt\.dynamics\.com/i],
     xHeaderNames: ["x-msdynmkt-messageid", "x-ms-dynamicsmarketing-messageid"]
+  },
+  {
+    provider: "adobe_campaign",
+    // Adobe Campaign Classic (formerly Neolane) routes click-tracking through a
+    // per-brand CNAMEd edge (`t<N>.email.<brand>.com`) and serves the open
+    // pixel from the same endpoint. The native sending domain is `neolane.net`
+    // but virtually all production traffic is brand-CNAMEd (e.g. H&M's
+    // `t19.email.hm.com`), so the host/DKIM patterns rarely fire and detection
+    // leans on URL-shape + HTML markers:
+    //   /r/?id=h<uuid>,<hex>,<hex>&did=<n>&rid=<n>&erid=<base64>&p1=DM<n>&p2=<hex>&p3=<YYYYMMDD>
+    //     → click redirect (the `/r/?id=h<UUID>,…,…` shape with the
+    //       `did`/`rid`/`erid` / `p1=DM…` parameter combo is an Adobe Campaign
+    //       Classic-only signature)
+    //   /r/?id=h<uuid>,<hex>,1
+    //     → open-tracking pixel (same endpoint, trailing `,1`)
+    // The HTML carries Adobe Experience Manager (AEM) Communiqué authoring
+    // markers that survive into the rendered send: `x-cq-linkchecker="skip"` on
+    // tracked anchors and `_type="optout"` on the unsubscribe link.
+    hostPatterns: [/(^|\.)neolane\.net$/i],
+    htmlPatterns: [
+      /\/r\/\?id=h[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12},[0-9a-f]+,[0-9a-f]+/i,
+      /[?&]did=\d+&rid=\d+&erid=/i,
+      /[?&]p1=DM\d+&p2=[0-9a-f]+&p3=\d{8}/i,
+      /\bx-cq-linkchecker\s*=\s*["']skip["']/i,
+      /\b_type\s*=\s*["']optout["']/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives `link_url`
+    // signals so a brand-CNAMEd Adobe Campaign send (no headers, no native
+    // `neolane.net` host) still clears the 0.6 confidence threshold.
+    linkUrlPatterns: [
+      /\/r\/\?id=h[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12},[0-9a-f]+,[0-9a-f]+/i,
+      /[?&]did=\d+&rid=\d+&erid=[A-Za-z0-9%+/]+&p1=DM\d+/i
+    ],
+    dkimPatterns: [/neolane\.net/i],
+    returnPathPatterns: [/neolane\.net/i]
+  },
+  {
+    provider: "yulsn",
+    // Yulsn (Nordic ESP, yulsn.com / yulsn.no) routes tracked links through a
+    // brand-CNAMEd edge (`link.<brand>.tld/e/<base64url-JSON>`) where the JSON
+    // envelope is `{"I":"<type>|<msg-hex>|<acct>|<link-hex>","P":{utm_*},"F":{Message.Name,Contact.Secret},"H":"<destination>"}`.
+    // The `eyJJIjoi` prefix is the base64 of `{"I":"`, which is a Yulsn-only
+    // signature. Images are served from the same edge under `/m/<digits>/…`,
+    // the open-tracking pixel uses the same `/e/<token>` shape, and Yulsn
+    // hard-codes `utm_source=yulsn` into the click params. The unsubscribe /
+    // web-view links are CNAMEd to `yulsn.<brand>.tld/l/(unsubscribe|webversion)`.
+    // Native sends land on `yulsn.no`, `yulsn.com`, or `yulsn.dk`.
+    // The HTML carries the block-editor's content-type markers in comments:
+    // `data-cntnt-typ="block(s|-content)"` and `data-caedvar=`.
+    hostPatterns: [
+      /(^|\.)yulsn\.(?:no|com|dk)$/i
+    ],
+    htmlPatterns: [
+      /\/e\/eyJJIjoi[A-Za-z0-9_-]{40,}/,
+      /\bdata-cntnt-typ\s*=\s*["']block(?:s|-content)?["']/i,
+      /\bdata-caedvar\s*=\s*["']\d+["']/i,
+      /[?&]utm_source=yulsn\b/i,
+      /\byulsn\.[a-z0-9.-]+\/l\/(?:unsubscribe|webversion|preferences)/i
+    ],
+    // Matching the same URL shapes against parsed `<a>` links gives `link_url`
+    // signals so a brand-CNAMEd Yulsn send still clears the 0.6 threshold even
+    // when only the link list is available.
+    linkUrlPatterns: [
+      /\/e\/eyJJIjoi[A-Za-z0-9_-]{40,}/,
+      /\byulsn\.[a-z0-9.-]+\/l\/(?:unsubscribe|webversion|preferences)/i
+    ],
+    dkimPatterns: [/yulsn\.(?:no|com|dk)/i],
+    returnPathPatterns: [/yulsn\.(?:no|com|dk)/i]
+  },
+  {
+    provider: "flodesk",
+    // Flodesk hosts every tenant's image library on `usercontent.flodesk.com`
+    // and forms on `form.flodesk.com`. Click tracking is routed through
+    // tenant-scoped subdomains of `fdske.com` (Flodesk's short tracking
+    // domain), e.g. `<6char>.<4char>.fdske.com/<token>`. The native sending
+    // domain is `flodesk.com`.
+    hostPatterns: [
+      /(^|\.)flodesk\.com$/i,
+      /(^|\.)fdske\.com$/i
+    ],
+    htmlPatterns: [
+      /\busercontent\.flodesk\.com\b/i,
+      /\bform\.flodesk\.com\b/i,
+      /\b[a-z0-9]{4,8}\.[a-z0-9]{3,6}\.fdske\.com\b/i
+    ],
+    linkUrlPatterns: [
+      /\b[a-z0-9]{4,8}\.[a-z0-9]{3,6}\.fdske\.com\//i
+    ],
+    dkimPatterns: [/flodesk\.com/i, /fdske\.com/i],
+    returnPathPatterns: [/flodesk\.com/i, /fdske\.com/i]
+  },
+  {
+    provider: "responsys",
+    // Oracle Responsys (acquired 2014, still core to Oracle CX Marketing)
+    // routes click tracking through a tenant CNAME on the brand domain
+    // (`news.<brand>.com`, `email.<brand>.com`) with a very distinctive URL
+    // shape: `/pub/acc?_ri_=<base64>&_ei_=<base64>` where `_ri_` is the
+    // recipient ID and `_ei_` is the entity/event ID. The pair is a
+    // Responsys-only convention dating back to the pre-Oracle days. Native
+    // sending hosts are on `rsys.net` (e.g. `p06.rsys2.net`, `p07.rsys2.net`)
+    // and the bounce domain is `bounces.rsys.net`.
+    hostPatterns: [
+      /(^|\.)rsys\.net$/i,
+      /(^|\.)rsys2\.net$/i,
+      /(^|\.)responsys\.com$/i,
+      /(^|\.)rsys\d?\.com$/i
+    ],
+    htmlPatterns: [
+      /\/pub\/(?:acc|cf|sf|optout|optin)\?_ri_=[A-Za-z0-9%=+/_-]{8,}/i,
+      /[?&]_ri_=[A-Za-z0-9%=+/_-]{8,}&_ei_=[A-Za-z0-9%=+/_-]{4,}/i,
+      /\brsys\d?\.net\b/i,
+      /\bresponsys\.com\b/i
+    ],
+    linkUrlPatterns: [
+      /\/pub\/(?:acc|cf|sf|optout|optin)\?_ri_=[A-Za-z0-9%=+/_-]{8,}/i,
+      /[?&]_ri_=[A-Za-z0-9%=+/_-]{8,}&_ei_=[A-Za-z0-9%=+/_-]{4,}/i
+    ],
+    dkimPatterns: [/rsys\d?\.net/i, /rsys\d?\.com/i, /responsys\.com/i],
+    returnPathPatterns: [/rsys\d?\.net/i, /responsys\.com/i],
+    xHeaderNames: ["x-rsys-eid", "x-rpcampaign"]
+  },
+  {
+    provider: "cordial",
+    // Cordial (cordial.com) routes click tracking through a brand CNAME
+    // (typically `e.mail.<brand>.com` or `email.<brand>.com`) with a multi-
+    // segment base64url path: `/click?E<token>/C<token>/V<token>/S<token>/L<token>/…`
+    // where each leading-letter segment encodes a distinct piece of the click
+    // event (E=encrypted recipient, C=campaign, V=visit/version, S=split,
+    // L=link, etc.). A 5+ letter-prefixed-segment chain after `/click?` is a
+    // Cordial-only URL signature. Native sending hosts are on `cordial.io` /
+    // `cordial.com`.
+    hostPatterns: [
+      /(^|\.)cordial\.io$/i,
+      /(^|\.)cordial\.com$/i
+    ],
+    htmlPatterns: [
+      /\/click\?E[A-Za-z0-9_-]{16,}\/C[A-Za-z0-9_-]{8,}\/V[A-Za-z0-9_-]{8,}/,
+      /\/V[A-Za-z0-9_-]{16,}\/[A-Za-z][A-Za-z0-9_-]{2,}\/[A-Za-z][A-Za-z0-9_-]{2,}\/[A-Za-z][A-Za-z0-9_-]{2,}/,
+      /\bcordial\.(?:io|com)\b/i
+    ],
+    linkUrlPatterns: [
+      /\/click\?E[A-Za-z0-9_-]{16,}\/C[A-Za-z0-9_-]{8,}\/V[A-Za-z0-9_-]{8,}/
+    ],
+    dkimPatterns: [/cordial\.(?:io|com)/i],
+    returnPathPatterns: [/cordial\.(?:io|com)/i]
   }
 ];
 

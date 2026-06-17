@@ -168,6 +168,38 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Braze via cdn.braze.eu asset CDN and brand-CNAMEd /f/a/...~~/...~/... click tracker (no headers)", () => {
+    // Distilled from a real Charlotte Tilbury send. Braze EU-cluster tenants
+    // serve assets from `cdn.braze.eu/appboy/communication/assets/…` (not the
+    // US `braze-images.com` CDN), and many of them route clicks through
+    // Braze's own brand-CNAMEd tracker at
+    // `clicks.<brand>.com/f/a/<token>~~/<hash>~/<base64-payload>` with the
+    // open pixel at `/q/<token>~~/...~/...` instead of the SendGrid wrapper.
+    // The `~~/` + `~/` separator combo across three base64url segments is a
+    // Braze-only URL shape.
+    const html = `
+      <a href="https://clicks.charlottetilbury.com/f/a/XEb3iMSlDn8RSvh9Qu3sjw~~/AAAHahA~/YlOclDZLB7hNw7MjeJB5DDbtziYe_2gzF7Q2Lkbc1yBnPCpWkMnDdzB52C7dYuzC4RH_EgO5ipt">
+        <img src="https://cdn.braze.eu/appboy/communication/assets/image_assets/images/6a27dd544f49c0008f470d6e/original.png?1780997459" alt="" />
+      </a>
+      <img border="0" width="1" height="1" alt="" src="https://clicks.charlottetilbury.com/q/2uHtBOYEu98Al9NIDBMQ9Q~~/AAAHahA~/_b9B-wu7bH7vNyXGRS1oDHEMxpbKSr2dK3OgaryiKWw4KzxDIgG372Pc9vPBPVROvogsE375nPPKbA8ajFvaAF6owZd9GPaLC5kXkeeTjso" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://clicks.charlottetilbury.com/f/a/XEb3iMSlDn8RSvh9Qu3sjw~~/AAAHahA~/YlOclDZLB7hNw7MjeJB5DDbtziYe_2gzF7Q2Lkbc1yBnPCpWkMnDdzB52C7dYuzC4RH_EgO5ipt"
+        )
+      ],
+      resourceHosts: ["cdn.braze.eu", "clicks.charlottetilbury.com"]
+    });
+    expect(result.provider).toBe("braze");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
   it("identifies Iterable via campaign-id link parameter", () => {
     const result = detectEsp({
       headers: {
@@ -1000,6 +1032,175 @@ describe("detectEsp", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.6);
     expect(result.signals.map((s) => s.kind)).toEqual(
       expect.arrayContaining(["link_host", "html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Adobe Campaign Classic via brand-CNAMEd /r/?id=h<uuid>,<hex>,<hex> tracking links and AEM x-cq-linkchecker markup (no headers)", () => {
+    // Distilled from a real H&M send. Adobe Campaign Classic routes clicks
+    // through a brand CNAME (`t19.email.hm.com`) with a `/r/?id=h<uuid>,<hex>,<hex>`
+    // shape plus the `did`/`rid`/`erid` / `p1=DM…` parameter combo, fires the
+    // open pixel from the same endpoint with a trailing `,1`, and the HTML
+    // carries the AEM Communiqué `x-cq-linkchecker="skip"` attribute and the
+    // `_type="optout"` annotation on the unsubscribe link. The `neolane.net`
+    // host fingerprint never fires for this kind of brand-CNAMEd send.
+    const html = `
+      <a href="https://t19.email.hm.com/r/?id=hcc502c8a-5707-4ace-aaf0-a23f786fd662,53f15e99,f703031e&did=1408327321&rid=3326774977&erid=MzMyNjc3NDk3Nw%3D%3D&p1=DM5714525&p2=0982dd0aa7b117bf086dee6ed4af7d0c&p3=20260617" x-cq-linkchecker="skip">Shop nu</a>
+      <a class="footer-unsubscribe-link-text" href="https://t19.email.hm.com/r/?id=hcc502c8a-5707-4ace-aaf0-a23f786fd662,53f15e99,f7030389&did=1408327321&rid=3326774977&erid=MzMyNjc3NDk3Nw%3D%3D&p1=DM5714525&p2=0982dd0aa7b117bf086dee6ed4af7d0c&p3=20260617&p4=3326774977&p5=1b5766ef895e25a1b52cd4793b914e08" x-cq-linkchecker="skip" _type="optout">Afmeld</a>
+      <img height="0" width="0" alt="" src="https://t19.email.hm.com/r/?id=hcc502c8a-5707-4ace-aaf0-a23f786fd662,53f15e99,1" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://t19.email.hm.com/r/?id=hcc502c8a-5707-4ace-aaf0-a23f786fd662,53f15e99,f703031e&did=1408327321&rid=3326774977&erid=MzMyNjc3NDk3Nw%3D%3D&p1=DM5714525&p2=0982dd0aa7b117bf086dee6ed4af7d0c&p3=20260617"
+        ),
+        link(
+          "https://t19.email.hm.com/r/?id=hcc502c8a-5707-4ace-aaf0-a23f786fd662,53f15e99,f7030389&did=1408327321&rid=3326774977&erid=MzMyNjc3NDk3Nw%3D%3D&p1=DM5714525&p2=0982dd0aa7b117bf086dee6ed4af7d0c&p3=20260617&p4=3326774977&p5=1b5766ef895e25a1b52cd4793b914e08"
+        )
+      ],
+      resourceHosts: ["t19.email.hm.com"]
+    });
+    expect(result.provider).toBe("adobe_campaign");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Yulsn via brand-CNAMEd /e/<base64-JSON> tracking links and block-editor data-cntnt-typ markup (no headers)", () => {
+    // Distilled from a real NORMAL (normal.dk) send. Yulsn routes tracked
+    // links through a brand CNAME (`link.normal.dk/e/<base64url-JSON>`) with
+    // the `eyJJIjoi` prefix (base64 of `{"I":"`), serves images from the same
+    // edge under `/m/<digits>/…`, hard-codes `utm_source=yulsn` into the click
+    // params, and CNAMEs the unsubscribe/web-view endpoint to
+    // `yulsn.<brand>.tld/l/(unsubscribe|webversion)`. The HTML carries the
+    // block-editor's `data-cntnt-typ` and `data-caedvar` markers in comments.
+    const html = `
+      <!--=div data-cntnt-typ="blocks" data-caedvar="1"=-->
+      <!--=div data-cntnt-typ="block" data-id="140" data-bid="1"><div data-cntnt-typ="block-content"=-->
+      <a href="https://link.normal.dk/e/eyJJIjoiMnw0ZGFiOGMwMmYyOTA0ZDczYmU0ZmEyYmNjZDExNGIyNHw3MXw1ODc4MjczMTNjOWIxM2JmNzZlYmU5Y2ZmMTI3NDMwNiIsIlAiOnsidXRtX21lZGl1bSI6ImVtYWlsIiwidXRtX3NvdXJjZSI6Inl1bHNuIiwidXRtX2NhbXBhaWduIjoiW01lc3NhZ2UuTmFtZV0ifSwiRiI6eyJNZXNzYWdlLk5hbWUiOiJMb3cgcHJpY2VzIGp1bmUgNl8yMDIwNiIsIkNvbnRhY3QuU2VjcmV0IjoiZGtkSGJpUWJkajBNcG8ifSwiSCI6Imh0dHBzOi8vbm9ybWFsLmRrIn0">Shop now</a>
+      <a href="https://link.normal.dk/e/eyJJIjoiMnw0ZGFiOGMwMmYyOTA0ZDczYmU0ZmEyYmNjZDExNGIyNHw3MXw2ODFjMjM5NzQ5OTFmZGFjNWUwZTFmMDhlMzc5NzhiNSIsIkgiOiJodHRwczovL3l1bHNuLm5vcm1hbC5kay9sL3Vuc3Vic2NyaWJlP3M9JTVCQ29udGFjdC5TZWNyZXQlNUQifQ?utm_source=yulsn">Afmeld nyhedsbrev</a>
+      <img src="https://link.normal.dk/m/526/AFLP_Juni-02.jpg" />
+      <img src="https://link.normal.dk/e/eyJJIjoiMXw0ZGFiOGMwMmYyOTA0ZDczYmU0ZmEyYmNjZDExNGIyNHw3MXwifQ" alt="" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://link.normal.dk/e/eyJJIjoiMnw0ZGFiOGMwMmYyOTA0ZDczYmU0ZmEyYmNjZDExNGIyNHw3MXw1ODc4MjczMTNjOWIxM2JmNzZlYmU5Y2ZmMTI3NDMwNiIsIlAiOnsidXRtX21lZGl1bSI6ImVtYWlsIiwidXRtX3NvdXJjZSI6Inl1bHNuIiwidXRtX2NhbXBhaWduIjoiW01lc3NhZ2UuTmFtZV0ifSwiRiI6eyJNZXNzYWdlLk5hbWUiOiJMb3cgcHJpY2VzIGp1bmUgNl8yMDIwNiIsIkNvbnRhY3QuU2VjcmV0IjoiZGtkSGJpUWJkajBNcG8ifSwiSCI6Imh0dHBzOi8vbm9ybWFsLmRrIn0"
+        ),
+        link(
+          "https://link.normal.dk/e/eyJJIjoiMnw0ZGFiOGMwMmYyOTA0ZDczYmU0ZmEyYmNjZDExNGIyNHw3MXw2ODFjMjM5NzQ5OTFmZGFjNWUwZTFmMDhlMzc5NzhiNSIsIkgiOiJodHRwczovL3l1bHNuLm5vcm1hbC5kay9sL3Vuc3Vic2NyaWJlP3M9JTVCQ29udGFjdC5TZWNyZXQlNUQifQ?utm_source=yulsn"
+        )
+      ],
+      resourceHosts: ["link.normal.dk", "yulsn.normal.dk"]
+    });
+    expect(result.provider).toBe("yulsn");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Flodesk via fdske.com tracking subdomain and usercontent.flodesk.com assets (no headers)", () => {
+    // Distilled from a real Copenhagen Contemporary (cphco.org) send. Flodesk
+    // hosts images at `usercontent.flodesk.com` and forms at
+    // `form.flodesk.com`, and routes click tracking through tenant-scoped
+    // `<6char>.<4char>.fdske.com` short-tracking subdomains.
+    const html = `
+      <a href="https://h2e86z.fh50.fdske.com/m/01J9XYZ123ABC">RSVP</a>
+      <img src="https://usercontent.flodesk.com/abcd-1234-efgh-5678/raw/upload/hero.jpg" />
+      <iframe src="https://form.flodesk.com/forms/embed/abcd1234"></iframe>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [link("https://h2e86z.fh50.fdske.com/m/01J9XYZ123ABC")],
+      resourceHosts: ["h2e86z.fh50.fdske.com", "usercontent.flodesk.com", "form.flodesk.com"]
+    });
+    expect(result.provider).toBe("flodesk");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("identifies Oracle Responsys via _ri_/_ei_ tracking URL parameters and brand-CNAMEd /pub/acc shape (no headers)", () => {
+    // Distilled from a real Zara Home (Inditex) send. Oracle Responsys (acquired
+    // 2014) routes click tracking through a brand CNAME on the sender's domain
+    // (`news.zarahome.com`) with a `/pub/acc?_ri_=...&_ei_=...` URL shape. The
+    // `_ri_` (recipient ID) and `_ei_` (entity/event ID) parameter pair is a
+    // Responsys-only convention dating from the pre-Oracle era.
+    const html = `
+      <a href="https://news.zarahome.com/pub/acc?_ri_=X0Gzc2X%3DBQjkPkSTYQGwgldNuj5qp9fhvsHWvEzaPpJX3XpAMBR0ykaO0T2XqOFlIApzfXBfsR3VXtpKX%3DSRCBDYURT&_ei_=EZllT9hXuvHxMAOlULFtCKFwVVpI0i47gCbA">Shop new in</a>
+      <a href="https://news.zarahome.com/pub/optout?_ri_=X0Gzc2X%3DBQjkPkSTYQ&_ei_=ABcDeFg">Unsubscribe</a>
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://news.zarahome.com/pub/acc?_ri_=X0Gzc2X%3DBQjkPkSTYQGwgldNuj5qp9fhvsHWvEzaPpJX3XpAMBR0ykaO0T2XqOFlIApzfXBfsR3VXtpKX%3DSRCBDYURT&_ei_=EZllT9hXuvHxMAOlULFtCKFwVVpI0i47gCbA"
+        )
+      ],
+      resourceHosts: ["news.zarahome.com"]
+    });
+    expect(result.provider).toBe("responsys");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Cordial via brand-CNAMEd /click?E.../C.../V... multi-segment base64url path (no headers)", () => {
+    // Distilled from a real Ralph Lauren EU send. Cordial routes click
+    // tracking through a brand CNAME (`e.mail.<brand>.com`) with a multi-
+    // segment base64url path where each segment carries a leading letter
+    // identifying its purpose (E=encrypted recipient, C=campaign, V=visit).
+    const fullUrl =
+      "https://e.mail.ralphlauren.eu/click?EcmFscGgtbGF1cmVuLTIwMjYwNjA2QHBpcm9sLmFwcA/CeyJtaWQiOiIxNzgwNzY5MzI2MTIwNGY5NDk2Y2ExNDZjIn0/VaHR0cHM6Ly92aWV3Lm1haWwucmFscGhsYXVyZW4uZXU/SWkhfbXJlX05OVEFOMDYwNjIwMjZjMjEyOTczMw/Lcm0x/qP3V0bV90ZXJtPWFsbA/gaiRiQQ/JMDYwNjIwMjZDMjEyOTczMw/sch2589c07e";
+    const html = `<a href="${fullUrl}">Shop now</a>`;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [link(fullUrl)],
+      resourceHosts: ["e.mail.ralphlauren.eu"]
+    });
+    expect(result.provider).toBe("cordial");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
+    );
+  });
+
+  it("identifies Bloomreach Engagement (Exponea rebrand) via brxcdn.com CDN and /ee/v1/webview shape (no headers)", () => {
+    // Distilled from real Acne Studios and Miu Miu sends. Bloomreach
+    // Engagement (Exponea's new owner) keeps the legacy `/e/<token>/click`
+    // tracking shape on brand-CNAMEd hosts (`link.acnestudios.com/<tenant>-prod/e/<token>/click`)
+    // but serves assets from a new CDN (`brxcdn.com/<region>-app-storage/…`)
+    // and exposes a `/ee/v1/webview?params=v1.<base64>` endpoint for the
+    // web-preview / view-in-browser link (CNAMEd to `data.email.<brand>.com`).
+    const html = `
+      <a href="https://link.acnestudios.com/acnestudios-prod/e/.eJzj4smSaPr772BlVZB8_UEhBZHsXKaFfOuYNJ-ZC8x2ijG8ui9Vrs2Ws4vhSPXcKWV3XAwDM5TPLO645ZjFk5nevrg7fk7wioXu008wMl5ilODiTY4vT00qzixJjS9KLBdiT0zOS41Pyb7EKMLFCZdCEhbi4kmOz8lPTsyB.rvTze01UsD2U5Q/click">Shop FW26</a>
+      <a href="https://data.email.miumiu.com/ee/v1/webview?params=v1.iVVwCZmkZTaYqzPM00ngsFOtjgmU-lpkdJt4VHPWtP4z_2Jd86ToUGIcc6fBEHVAw30i1PlIpyh7B5WIvarwGSYbka4B1f13BavcS-CzXdyzoOHE0-b6mXN3-LblVI">View in browser</a>
+      <img src="https://brxcdn.com/eu3-app-storage/a8e1e80e-d9a3-11f0-80a5-a2228360da40/media/original/3752c102-da8b-11f0-bc4c-a601a9989010" />
+    `;
+    const result = detectEsp({
+      headers: {},
+      html,
+      links: [
+        link(
+          "https://link.acnestudios.com/acnestudios-prod/e/.eJzj4smSaPr772BlVZB8_UEhBZHsXKaFfOuYNJ-ZC8x2ijG8ui9Vrs2Ws4vhSPXcKWV3XAwDM5TPLO645ZjFk5nevrg7fk7wioXu008wMl5ilODiTY4vT00qzixJjS9KLBdiT0zOS41Pyb7EKMLFCZdCEhbi4kmOz8lPTsyB.rvTze01UsD2U5Q/click"
+        ),
+        link(
+          "https://data.email.miumiu.com/ee/v1/webview?params=v1.iVVwCZmkZTaYqzPM00ngsFOtjgmU-lpkdJt4VHPWtP4z_2Jd86ToUGIcc6fBEHVAw30i1PlIpyh7B5WIvarwGSYbka4B1f13BavcS-CzXdyzoOHE0-b6mXN3-LblVI"
+        )
+      ],
+      resourceHosts: ["link.acnestudios.com", "data.email.miumiu.com", "brxcdn.com"]
+    });
+    expect(result.provider).toBe("exponea");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["html_marker", "link_url"])
     );
   });
 
