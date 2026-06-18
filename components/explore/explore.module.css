@@ -24,7 +24,7 @@
   flex-direction: column;
   padding: 1.1rem 0.85rem 1rem;
   gap: 1rem;
-  background: var(--page-bg);
+  background: var(--sidebar-bg);
   border-right: 1px solid #d3e3ee;
   box-shadow: 4px 0 16px rgba(15, 23, 42, 0.06);
   position: sticky;
@@ -422,7 +422,7 @@
   margin-bottom: -1rem;
   padding-bottom: 1rem;
   padding-top: 0.4rem;
-  background: var(--page-bg);
+  background: var(--sidebar-bg);
 }
 
 .accountRow {

@@ -3,8 +3,10 @@
 }
 
 :root {
-  /* Site-wide page background — the light blue from the marketing frontpage. */
-  --page-bg: #ecf8ff;
+  /* Site-wide app background — near-white. */
+  --page-bg: #f2faff;
+  /* Left pane (explore sidebar) background. */
+  --sidebar-bg: #fbfeff;
   /* Brand green used by the Pirol wordmark (components/Logo.tsx) everywhere. */
   --pirol-logo-color: #377d4b;
   /* Flat blue-tinted interactive states for controls on the blue background. */
