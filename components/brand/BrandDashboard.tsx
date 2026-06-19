@@ -8,6 +8,7 @@ import {
   formatRelativeDate as formatRelativeDateZoned,
   formatShortDate as formatShortDateZoned
 } from "@/lib/datetime";
+import { hasAnySeasonalMentions } from "@/lib/seasonal-events";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandCtaCloud from "./BrandCtaCloud";
@@ -210,19 +211,21 @@ export default function BrandDashboard({
             />
           </section>
 
-          <section className={styles.recentSection}>
-            <BrandSeasonalRunup
-              brand={{
-                id: brand.id,
-                slug: brand.slug,
-                name: brand.name,
-                domain: brand.domain,
-                markets: brand.markets,
-                logoUrl: brand.logoUrl
-              }}
-              sample={data.seasonalSample}
-            />
-          </section>
+          {hasAnySeasonalMentions(data.seasonalSample) && (
+            <section className={styles.recentSection}>
+              <BrandSeasonalRunup
+                brand={{
+                  id: brand.id,
+                  slug: brand.slug,
+                  name: brand.name,
+                  domain: brand.domain,
+                  markets: brand.markets,
+                  logoUrl: brand.logoUrl
+                }}
+                sample={data.seasonalSample}
+              />
+            </section>
+          )}
 
           <section className={styles.sectionGrid}>
             <CadenceCard cadence={cadence} totals={totals} />
