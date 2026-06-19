@@ -21,7 +21,7 @@ import {
   type CompareSectionId,
   type CompareSectionPrefs
 } from "@/lib/comparison-sections";
-import { countryFlag, countryName } from "@/lib/country";
+import { countryFlag, countryName, countryZoneSignature } from "@/lib/country";
 import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
 import KpiTiles from "./KpiTiles";
@@ -300,16 +300,25 @@ function ChangeKindIcon({ kind }: { kind: BrandChange["kind"] }) {
    ----------------------------------------------------------------- */
 
 /**
- * Send time and cadence only mean the same thing within one audience: a
- * 09:00 send in Copenhagen is not a 09:00 send in New York. So we surface the
- * region scope of the cohort right above the charts — a quiet confirmation when
- * every brand shares a market, and an explicit warning when they don't, because
- * a cross-region cohort makes the "When they send" comparison misleading.
+ * Send time and cadence only mean the same thing within one time zone: a
+ * 09:00 send in Copenhagen is not a 09:00 send in New York — but it *is* the
+ * same as a 09:00 send in Stockholm, because Denmark and Sweden share one wall
+ * clock. So we surface the time-zone scope of the cohort right above the charts:
+ * a quiet confirmation when every brand shares a clock (even across borders), and
+ * an explicit warning only when they genuinely span zones, because that makes the
+ * "When they send" comparison misleading.
  */
 function RegionNote({ brands }: { brands: BrandPageData[] }) {
   const distinct = new Set<string>();
+  // Group by wall-clock, not by border: countries in the same time zone (e.g.
+  // DK + SE) collapse to one zone and stay comparable. Codes we can't map to a
+  // zone fall back to a per-country bucket so they're treated conservatively.
+  const zones = new Set<string>();
   for (const b of brands) {
-    if (b.brand.primaryMarketCountry) distinct.add(b.brand.primaryMarketCountry);
+    const cc = b.brand.primaryMarketCountry;
+    if (!cc) continue;
+    distinct.add(cc);
+    zones.add(countryZoneSignature(cc) ?? `cc:${cc}`);
   }
   const unknownCount = brands.filter((b) => !b.brand.primaryMarketCountry).length;
   const globalCount = brands.filter((b) => b.brand.isGlobal).length;
@@ -323,7 +332,7 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
   if (brands.length < 2 || codes.length === 0) return null;
 
   const labelFor = (cc: string) => `${countryFlag(cc)} ${countryName(cc)}`;
-  const mixed = codes.length > 1;
+  const mixed = zones.size > 1;
 
   const baseStyle: CSSProperties = {
     display: "flex",
@@ -351,16 +360,25 @@ function RegionNote({ brands }: { brands: BrandPageData[] }) {
       <span>
         {mixed ? (
           <>
-            <strong>These brands span {codes.length} regions</strong> (
-            {codes.map(labelFor).join(", ")}
+            <strong>
+              These brands span {zones.size} time zones
+            </strong>{" "}
+            ({codes.map(labelFor).join(", ")}
             {unknownCount > 0 ? `, plus ${unknownCount} unknown` : ""}). Send time
             and cadence shift with the time zone, so the timing charts below
-            aren&apos;t directly comparable across regions — narrow the cohort to
-            one market for a like-for-like read.{globalSuffix}
+            aren&apos;t directly comparable — narrow the cohort to one zone for a
+            like-for-like read.{globalSuffix}
           </>
         ) : (
           <>
-            Comparing within <strong>{labelFor(codes[0])}</strong>
+            Comparing within{" "}
+            {codes.length > 1 ? (
+              <>
+                <strong>one time zone</strong> ({codes.map(labelFor).join(", ")})
+              </>
+            ) : (
+              <strong>{labelFor(codes[0])}</strong>
+            )}
             {unknownCount > 0
               ? ` (${unknownCount} brand${
                   unknownCount === 1 ? "" : "s"
