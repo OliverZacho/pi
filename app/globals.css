@@ -83,6 +83,13 @@ code {
   padding: 2rem 1rem 3rem;
   display: grid;
   gap: 1rem;
+  /*
+   * This element is also `.admin-content` (flex: 1), so it stretches to the
+   * full shell height. Without this, grid's default align-content stretches
+   * the auto rows to fill that height, opening a large gap between sections on
+   * sparse tabs (e.g. Feedback). Pack rows to the top; let slack sit below.
+   */
+  align-content: start;
 }
 
 /*

@@ -411,18 +411,25 @@
 
 /* ---------- Sidebar account row + menu ---------- */
 
-.accountWrap {
-  /* Pin the account row to the bottom of the sidebar so it stays visible
-     even when the nav content overflows and the sidebar scrolls. Sticky
-     still anchors the absolutely-positioned account menu. The background +
-     negative margin cover the sidebar's bottom padding so scrolled content
-     never shows through beneath the row. */
+.sidebarFooter {
+  /* Pin the notices + account row to the bottom of the sidebar so they stay
+     visible even when the nav content overflows and the sidebar scrolls. The
+     background + negative margin cover the sidebar's bottom padding so scrolled
+     content never shows through beneath the footer. */
   position: sticky;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: -1rem;
-  padding-bottom: 1rem;
+  padding-bottom: 0.5rem;
   padding-top: 0.4rem;
   background: var(--sidebar-bg);
+}
+
+.accountWrap {
+  /* Positioning context for the absolutely-positioned account menu. */
+  position: relative;
 }
 
 .accountRow {

@@ -871,24 +871,26 @@ export default function ExploreSidebar({
 
       <div className={styles.spacer} />
 
-      <SidebarNotices signedIn={Boolean(user)} />
+      <div className={styles.sidebarFooter}>
+        <SidebarNotices signedIn={Boolean(user)} />
 
-      {user ? (
-        <AccountRow user={user} settingsActive={activeId === "settings"} />
-      ) : (
-        <Link
-          href="/settings"
-          className={`${styles.settingsRow}${
-            activeId === "settings" ? ` ${styles.active}` : ""
-          }`}
-          aria-current={activeId === "settings" ? "page" : undefined}
-        >
-          <span>Settings</span>
-          <span className={styles.navIcon}>
-            <MoreIcon />
-          </span>
-        </Link>
-      )}
+        {user ? (
+          <AccountRow user={user} settingsActive={activeId === "settings"} />
+        ) : (
+          <Link
+            href="/settings"
+            className={`${styles.settingsRow}${
+              activeId === "settings" ? ` ${styles.active}` : ""
+            }`}
+            aria-current={activeId === "settings" ? "page" : undefined}
+          >
+            <span>Settings</span>
+            <span className={styles.navIcon}>
+              <MoreIcon />
+            </span>
+          </Link>
+        )}
+      </div>
     </aside>
     </>
   );
