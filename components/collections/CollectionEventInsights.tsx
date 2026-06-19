@@ -45,6 +45,12 @@ type Props = {
    * deepest when a brand has no benchmark.
    */
   brandDiscountBenchmarks?: Record<string, number>;
+  /**
+   * `companies.id`s the viewer follows among the brands in this
+   * collection. When non-empty, the insights card offers a toggle to
+   * narrow every figure and stat to just these brands.
+   */
+  followedCompanyIds?: string[];
   onOpenEmail: (email: ExploreEmailCard) => void;
   /**
    * True while the parent's EmailModal is open on top of us. The
@@ -103,6 +109,7 @@ export default function CollectionEventInsights({
   initialDetection,
   emails,
   brandDiscountBenchmarks,
+  followedCompanyIds,
   onOpenEmail,
   emailModalOpen
 }: Props) {
@@ -254,6 +261,7 @@ export default function CollectionEventInsights({
             detection={detection}
             emails={emails}
             brandDiscountBenchmarks={brandDiscountBenchmarks}
+            followedCompanyIds={followedCompanyIds}
             onOpenEmail={onOpenEmail}
             inModal
           />
@@ -382,20 +390,53 @@ function EventInsightsCard({
   detection,
   emails,
   brandDiscountBenchmarks,
+  followedCompanyIds,
   onOpenEmail,
   inModal = false
 }: {
   detection: CollectionEventDetection;
   emails: ExploreEmailCard[];
   brandDiscountBenchmarks?: Record<string, number>;
+  followedCompanyIds?: string[];
   onOpenEmail: (email: ExploreEmailCard) => void;
   /** Drops the glass-card chrome when rendered inside the pop-up. */
   inModal?: boolean;
 }) {
   const event = detection.event!;
+
+  // "Only brands I follow" filter. Off by default; only offered when the
+  // viewer actually follows at least one brand represented here, so the
+  // toggle can never blank the whole view.
+  const followedSet = useMemo(
+    () => new Set(followedCompanyIds ?? []),
+    [followedCompanyIds]
+  );
+  const [followedOnly, setFollowedOnly] = useState(false);
+  const followedEmailCount = useMemo(
+    () =>
+      followedSet.size === 0
+        ? 0
+        : emails.filter(
+            (email) => email.companyId && followedSet.has(email.companyId)
+          ).length,
+    [emails, followedSet]
+  );
+  const canFilter = followedEmailCount > 0;
+  const filterActive = followedOnly && canFilter;
+
+  const visibleEmails = useMemo(
+    () =>
+      filterActive
+        ? emails.filter(
+            (email) => email.companyId && followedSet.has(email.companyId)
+          )
+        : emails,
+    [filterActive, emails, followedSet]
+  );
+
   const model = useMemo(
-    () => buildTimelineModel(detection, emails, brandDiscountBenchmarks),
-    [detection, emails, brandDiscountBenchmarks]
+    () => buildTimelineModel(detection, visibleEmails, brandDiscountBenchmarks),
+    [detection, visibleEmails, brandDiscountBenchmarks]
   );
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -434,9 +475,29 @@ function EventInsightsCard({
         {event.location ? ` · ${event.location}` : ""}
       </h2>
       <p className={styles.insightsSub}>
-        How the {model.stats.brandCount} brands in this collection time their
-        emails around {event.name}. Click any marker to open the email.
+        How the {model.stats.brandCount}{" "}
+        {filterActive ? "brands you follow" : "brands in this collection"} time
+        their emails around {event.name}. Click any marker to open the email.
       </p>
+
+      {canFilter ? (
+        <div className={styles.insightsFilterRow}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={filterActive}
+            className={`${styles.insightsFollowToggle}${
+              filterActive ? ` ${styles.insightsFollowToggleActive}` : ""
+            }`}
+            onClick={() => setFollowedOnly((current) => !current)}
+          >
+            <span className={styles.insightsFollowToggleTrack} aria-hidden="true">
+              <span className={styles.insightsFollowToggleThumb} />
+            </span>
+            <span>Show only brands I follow</span>
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.insightsStats}>
         <div className={styles.insightsStat}>

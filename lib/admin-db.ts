@@ -55,6 +55,13 @@ export type GetOverviewOptions = {
   minDiscountPercent?: number | null;
   receivedAfter?: string | null;
   receivedBefore?: string | null;
+  /**
+   * Restrict the email list to brands whose `subscribed_since` is at or after
+   * this instant — i.e. brands *added* within a recent window, regardless of
+   * when their mail arrived. Powers the admin "brands added in the last 24h"
+   * confirmation panel.
+   */
+  companiesSubscribedAfter?: string | null;
   search?: string | null;
 };
 
@@ -122,6 +129,21 @@ export async function getOverviewFromDb(
 
   if (options.cursor) {
     emailsQuery = emailsQuery.lt("received_at", options.cursor);
+  }
+
+  if (options.companiesSubscribedAfter) {
+    const { data: recentlyAdded, error: recentlyAddedError } = await supabase
+      .from("companies")
+      .select("id")
+      .is("deleted_at", null)
+      .gte("subscribed_since", options.companiesSubscribedAfter);
+    if (recentlyAddedError) {
+      throw recentlyAddedError;
+    }
+    // Limit the email list to brands added inside the window. An empty list
+    // produces `company_id=in.()`, which correctly matches no rows.
+    const recentIds = (recentlyAdded ?? []).map((row) => row.id);
+    emailsQuery = emailsQuery.in("company_id", recentIds);
   }
 
   const [{ data: companiesRaw, error: companiesError }, { data: emailsRaw, error: emailsError }] =

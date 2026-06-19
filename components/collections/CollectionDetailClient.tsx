@@ -43,6 +43,12 @@ type Props = {
    * months — benchmarks the discount figure in the event insights.
    */
   brandDiscountBenchmarks: Record<string, number>;
+  /**
+   * `companies.id`s the viewer follows among the brands in this
+   * collection — drives the "only brands I follow" toggle in the event
+   * insights. Empty when the user follows none of them.
+   */
+  followedCompanyIds: string[];
 };
 
 /**
@@ -57,7 +63,8 @@ export default function CollectionDetailClient({
   initialSavedIds,
   initialCollections,
   facets,
-  brandDiscountBenchmarks
+  brandDiscountBenchmarks,
+  followedCompanyIds
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -555,6 +562,7 @@ export default function CollectionDetailClient({
           initialDetection={collection.eventDetection}
           emails={emails}
           brandDiscountBenchmarks={brandDiscountBenchmarks}
+          followedCompanyIds={followedCompanyIds}
           onOpenEmail={handleOpenEmail}
           emailModalOpen={openEmail !== null}
         />

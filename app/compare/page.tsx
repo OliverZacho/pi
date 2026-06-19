@@ -147,7 +147,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
           : [],
         logoUrl: company.logo_storage_path
           ? signed[company.logo_storage_path] ?? null
-          : null
+          : null,
+        // Card previews only render logos; list scope is irrelevant here.
+        inboxIds: []
       });
       setPreviews[row.set_id] = bucket;
     }

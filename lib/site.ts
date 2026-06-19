@@ -18,7 +18,7 @@ export const PUBLIC_MARKETING_PATHS = [
   "/pricing",
   "/tutorials",
   "/help",
-  "/docs",
+  "/learn",
   "/features/collections",
   "/features/comparisons",
   "/privacy",

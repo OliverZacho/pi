@@ -17,7 +17,16 @@ const nextConfig: NextConfig = {
   },
   // sharp is a native module used by the logo-invert route — keep it external
   // so Next doesn't try to bundle its platform-specific binaries.
-  serverExternalPackages: ["sharp"]
+  serverExternalPackages: ["sharp"],
+  // The Learn library moved from /docs to /learn to match its branding.
+  // Permanently redirect old URLs so existing links and search results
+  // (the guides are a public SEO surface) keep working.
+  async redirects() {
+    return [
+      { source: "/docs", destination: "/learn", permanent: true },
+      { source: "/docs/:slug", destination: "/learn/:slug", permanent: true }
+    ];
+  }
 };
 
 export default nextConfig;

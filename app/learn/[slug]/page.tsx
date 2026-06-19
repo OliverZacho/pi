@@ -118,7 +118,7 @@ export default async function ArticlePage({ params }: PageProps) {
 
   // Article + FAQPage structured data for search and answer engines (published
   // articles only). FAQPage is added only when at least one answer resolved.
-  const url = `${SITE_URL}/docs/${slug}`;
+  const url = `${SITE_URL}/learn/${slug}`;
   const jsonLd: Record<string, unknown>[] = [];
   if (!article.draft) {
     jsonLd.push({
@@ -154,7 +154,7 @@ export default async function ArticlePage({ params }: PageProps) {
       ) : null}
       <main className={styles.content}>
         <p className={styles.breadcrumb}>
-          <Link href="/docs">Learn</Link> &nbsp;/&nbsp; {category.title}
+          <Link href="/learn">Learn</Link> &nbsp;/&nbsp; {category.title}
         </p>
 
         {article.draft ? (
@@ -206,7 +206,7 @@ export default async function ArticlePage({ params }: PageProps) {
 
         <nav className={styles.articleNav} aria-label="More articles">
           {prev ? (
-            <Link href={`/docs/${prev.slug}`} className={styles.articleNavLink}>
+            <Link href={`/learn/${prev.slug}`} className={styles.articleNavLink}>
               <span className={styles.articleNavLabel}>← Previous</span>
               <span className={styles.articleNavTitle}>{prev.title}</span>
             </Link>
@@ -215,7 +215,7 @@ export default async function ArticlePage({ params }: PageProps) {
           )}
           {next ? (
             <Link
-              href={`/docs/${next.slug}`}
+              href={`/learn/${next.slug}`}
               className={`${styles.articleNavLink} ${styles.next}`}
             >
               <span className={styles.articleNavLabel}>Next →</span>

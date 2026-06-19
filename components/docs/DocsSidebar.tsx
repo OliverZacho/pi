@@ -15,7 +15,7 @@ export default function DocsSidebar() {
           <p className={styles.sidebarHeading}>{category.title}</p>
           <ul className={styles.sidebarList}>
             {category.articles.map((article) => {
-              const href = `/docs/${article.slug}`;
+              const href = `/learn/${article.slug}`;
               const active = pathname === href;
               return (
                 <li key={article.slug}>

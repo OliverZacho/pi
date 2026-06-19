@@ -29,7 +29,7 @@ export default function DocsHome() {
               {category.articles.map((article) => (
                 <Link
                   key={article.slug}
-                  href={`/docs/${article.slug}`}
+                  href={`/learn/${article.slug}`}
                   className={styles.card}
                 >
                   <span className={styles.cardTitle}>{article.title}</span>

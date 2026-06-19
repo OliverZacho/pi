@@ -1,50 +1,177 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 type LogoProps = {
   className?: string;
   title?: string;
 };
 
+// Eye-dot centres in viewBox units, and how far they may drift from rest.
+const EYES = {
+  p: { cx: 30.24, cy: 33.4 },
+  o: { cx: 83.24, cy: 33.4 },
+} as const;
+const MAX_OFFSET = 1.9; // viewBox units — small enough to stay in the counters
+
+// viewBox = "11.5 7.8 90.5 51.9"
+const VIEW = { minX: 11.5, minY: 7.8, width: 90.5, height: 51.9 } as const;
+
 /**
- * Pirol wordmark (bird mark + "Pirol").
+ * Pirol wordmark ("pirol", lowercase).
  *
- * Painted with plain vector fills driven by `--pirol-logo-color` (brand green,
- * defined in globals.css; falls back to `currentColor`). The source artwork's
- * one cut-out — the notch where the descending tail crosses the spiral — is a
- * geometric clipPath rather than a mask: masks rasterize into an offscreen
- * luminance buffer, which renders blurry on HiDPI displays (notably Safari),
- * while clip paths stay vector-sharp. The viewBox is trimmed to the content
- * bounds so the logo fills its box without extra padding.
+ * Painted with plain vector fills driven by `--pirol-logo-color` (ink,
+ * defined in globals.css; falls back to `currentColor`), so the mark recolours
+ * per surface exactly like its predecessor. The two filled dots sit inside the
+ * open counters of the "p" and "o" — the eye motif nodding to the oriole the
+ * brand is named after. The viewBox is trimmed to the glyph bounds so the
+ * wordmark fills its box without extra padding.
+ *
+ * Easter egg: very rarely (and briefly) the two eyes wake up and follow the
+ * cursor for ~5 seconds before easing back to centre.
  */
 export default function Logo({ className, title = "Pirol" }: LogoProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const pEyeRef = useRef<SVGGElement>(null);
+  const oEyeRef = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    if (
+      typeof window === "undefined" ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    let active = false;
+    let pointer: { x: number; y: number } | null = null;
+    let raf = 0;
+    let looping = false;
+    let wakeTimer: ReturnType<typeof setTimeout>;
+    let sleepTimer: ReturnType<typeof setTimeout>;
+
+    // Current (animated) offset per eye; eased toward the target each frame.
+    const cur = { p: { x: 0, y: 0 }, o: { x: 0, y: 0 } };
+
+    // Where an eye wants to be right now (toward the cursor while active,
+    // back to rest otherwise).
+    const targetFor = (eye: { cx: number; cy: number }) => {
+      if (!active || !pointer) return { x: 0, y: 0 };
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+      // Map the eye's viewBox centre to screen space.
+      const eyeX =
+        rect.left + ((eye.cx - VIEW.minX) / VIEW.width) * rect.width;
+      const eyeY =
+        rect.top + ((eye.cy - VIEW.minY) / VIEW.height) * rect.height;
+      const dx = pointer.x - eyeX;
+      const dy = pointer.y - eyeY;
+      const dist = Math.hypot(dx, dy) || 1;
+      const reach = Math.min(1, dist / 120) * MAX_OFFSET;
+      return { x: (dx / dist) * reach, y: (dy / dist) * reach };
+    };
+
+    const apply = (ref: typeof pEyeRef, o: { x: number; y: number }) => {
+      ref.current?.setAttribute("transform", `translate(${o.x} ${o.y})`);
+    };
+
+    // Ease toward the target so both following and the return glide rather
+    // than teleport. Self-stops once settled. The return (active === false)
+    // drifts back noticeably slower than the snappier cursor-following.
+    const FOLLOW_EASE = 0.18;
+    const RETURN_EASE = 0.05;
+    const frame = () => {
+      const ease = active ? FOLLOW_EASE : RETURN_EASE;
+      const tp = targetFor(EYES.p);
+      const to = targetFor(EYES.o);
+      cur.p.x += (tp.x - cur.p.x) * ease;
+      cur.p.y += (tp.y - cur.p.y) * ease;
+      cur.o.x += (to.x - cur.o.x) * ease;
+      cur.o.y += (to.y - cur.o.y) * ease;
+      const rem = Math.max(
+        Math.abs(tp.x - cur.p.x),
+        Math.abs(tp.y - cur.p.y),
+        Math.abs(to.x - cur.o.x),
+        Math.abs(to.y - cur.o.y),
+      );
+      if (rem < 0.01) {
+        // Snap exactly onto target and idle until the next change.
+        cur.p = { ...tp };
+        cur.o = { ...to };
+        apply(pEyeRef, cur.p);
+        apply(oEyeRef, cur.o);
+        looping = false;
+        raf = 0;
+        return;
+      }
+      apply(pEyeRef, cur.p);
+      apply(oEyeRef, cur.o);
+      raf = window.requestAnimationFrame(frame);
+    };
+    const startLoop = () => {
+      if (looping) return;
+      looping = true;
+      raf = window.requestAnimationFrame(frame);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      if (active) startLoop();
+    };
+
+    // Eyes follow for 10s, then rest ~3min (jittered so it never feels
+    // mechanical) before waking again.
+    const ACTIVE_MS = 10000;
+    const gap = () => 150000 + Math.random() * 60000; // 2.5–3.5 min
+
+    const sleep = () => {
+      active = false;
+      // Stop listening entirely while asleep — nothing runs between wake-ups.
+      window.removeEventListener("pointermove", onMove);
+      startLoop(); // glides back to rest, then self-stops
+      wakeTimer = setTimeout(wake, gap());
+    };
+    const wake = () => {
+      active = true;
+      window.addEventListener("pointermove", onMove, { passive: true });
+      startLoop();
+      sleepTimer = setTimeout(sleep, ACTIVE_MS);
+    };
+
+    // First wake-up is delayed too, so it never fires on load.
+    wakeTimer = setTimeout(wake, gap());
+
+    return () => {
+      clearTimeout(wakeTimer);
+      clearTimeout(sleepTimer);
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, []);
+
   return (
     <svg
+      ref={svgRef}
       className={className}
-      viewBox="12 16 95 48"
+      viewBox="11.5 7.8 90.5 51.9"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label={title}
     >
-      <defs>
-        {/* Everything except the notch the tail carves out of the spiral:
-            a generous outer box with the notch as an even-odd hole. */}
-        <clipPath id="pirol-tail-notch" clipPathUnits="userSpaceOnUse">
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M10 14H110V66H10ZM22.0001 48H29.4844V55.3935H22.0001Z"
-          />
-        </clipPath>
-      </defs>
       <g fill="var(--pirol-logo-color, currentColor)">
-        {/* Wordmark letters "irol" + dot */}
-        <path
-          d="M52.3071 46V26.3636H57.7531V46H52.3071ZM55.0429 23.8324C54.2332 23.8324 53.5386 23.5639 52.9591 23.027C52.3881 22.4815 52.1025 21.8295 52.1025 21.071C52.1025 20.321 52.3881 19.6776 52.9591 19.1406C53.5386 18.5952 54.2332 18.3224 55.0429 18.3224C55.8525 18.3224 56.5429 18.5952 57.1139 19.1406C57.6934 19.6776 57.9832 20.321 57.9832 21.071C57.9832 21.8295 57.6934 22.4815 57.1139 23.027C56.5429 23.5639 55.8525 23.8324 55.0429 23.8324ZM62.1157 46V26.3636H67.3955V29.7898H67.6001C67.958 28.571 68.5589 27.6506 69.4026 27.0284C70.2464 26.3977 71.218 26.0824 72.3174 26.0824C72.5901 26.0824 72.8841 26.0994 73.1995 26.1335C73.5148 26.1676 73.7918 26.2145 74.0305 26.2741V31.1065C73.7748 31.0298 73.4211 30.9616 72.9694 30.902C72.5177 30.8423 72.1043 30.8125 71.7293 30.8125C70.9282 30.8125 70.2123 30.9872 69.5816 31.3366C68.9594 31.6776 68.4651 32.1548 68.0986 32.7685C67.7407 33.3821 67.5617 34.0895 67.5617 34.8906V46H62.1157ZM84.8042 46.3835C82.8184 46.3835 81.1011 45.9616 79.6523 45.1179C78.2119 44.2656 77.0997 43.081 76.3156 41.5639C75.5315 40.0384 75.1395 38.2699 75.1395 36.2585C75.1395 34.2301 75.5315 32.4574 76.3156 30.9403C77.0997 29.4148 78.2119 28.2301 79.6523 27.3864C81.1011 26.5341 82.8184 26.108 84.8042 26.108C86.79 26.108 88.5031 26.5341 89.9434 27.3864C91.3923 28.2301 92.5088 29.4148 93.2929 30.9403C94.077 32.4574 94.469 34.2301 94.469 36.2585C94.469 38.2699 94.077 40.0384 93.2929 41.5639C92.5088 43.081 91.3923 44.2656 89.9434 45.1179C88.5031 45.9616 86.79 46.3835 84.8042 46.3835ZM84.8298 42.1648C85.7332 42.1648 86.4875 41.9091 87.0926 41.3977C87.6977 40.8778 88.1537 40.1705 88.4605 39.2756C88.7758 38.3807 88.9335 37.3622 88.9335 36.2202C88.9335 35.0781 88.7758 34.0597 88.4605 33.1648C88.1537 32.2699 87.6977 31.5625 87.0926 31.0426C86.4875 30.5227 85.7332 30.2628 84.8298 30.2628C83.9179 30.2628 83.1508 30.5227 82.5287 31.0426C81.915 31.5625 81.4506 32.2699 81.1352 33.1648C80.8284 34.0597 80.675 35.0781 80.675 36.2202C80.675 37.3622 80.8284 38.3807 81.1352 39.2756C81.4506 40.1705 81.915 40.8778 82.5287 41.3977C83.1508 41.9091 83.9179 42.1648 84.8298 42.1648ZM103.456 19.8182V46H98.0102V19.8182H103.456Z" />
-        {/* Bird / spiral mark, clipped where the tail notch carves it */}
-        <path
-          clipPath="url(#pirol-tail-notch)"
-          d="M31.6832 53.5426C34.402 53.5426 36.8224 53.1719 38.9446 52.4304C41.0668 51.6974 42.8608 50.6193 44.3267 49.196C45.7926 47.7813 46.9091 46.0511 47.6761 44.0057C48.4432 41.9602 48.8267 39.6335 48.8267 37.0256C48.8267 34.4517 48.4432 32.1165 47.6761 30.0199C46.9006 27.9233 45.7713 26.125 44.2884 24.625C42.8054 23.1165 40.9943 21.9574 38.8551 21.1477C36.7074 20.3381 34.2614 19.9332 31.517 19.9332C28.9773 19.9332 26.7102 20.304 24.7159 21.0455C22.7131 21.7869 21.017 22.8438 19.6278 24.2159C18.2301 25.5795 17.169 27.2031 16.4446 29.0866C15.7116 30.9616 15.3494 33.0369 15.358 35.3125C15.3494 36.8807 15.4858 38.321 15.767 39.6335C16.0483 40.946 16.4915 42.0923 17.0966 43.0724C17.6932 44.044 18.4773 44.8153 19.4489 45.3864C20.4205 45.9489 21.5966 46.2685 22.9773 46.3452C23.9659 46.4219 24.767 46.3494 25.3807 46.1278C25.9943 45.9062 26.4631 45.5781 26.7869 45.1435C27.1023 44.7003 27.3068 44.1847 27.4006 43.5966H27.554C27.7585 44.108 28.1591 44.5724 28.7557 44.9901C29.3523 45.3991 30.081 45.7187 30.9418 45.9489C31.794 46.1705 32.7017 46.2514 33.6648 46.1918C34.6705 46.1321 35.625 45.8977 36.5284 45.4886C37.4233 45.0795 38.2202 44.4872 38.919 43.7116C39.6094 42.9361 40.1548 41.9773 40.5554 40.8352C40.9474 39.6932 41.1477 38.3722 41.1562 36.8722C41.1477 35.3892 40.9389 34.098 40.5298 32.9986C40.1122 31.8991 39.5625 30.9744 38.8807 30.2244C38.1903 29.4744 37.4233 28.8864 36.5795 28.4602C35.7358 28.0341 34.8878 27.7614 34.0355 27.642C33.0724 27.4972 32.1605 27.4972 31.2997 27.642C30.4389 27.7869 29.7145 28.0213 29.1264 28.3452C28.5298 28.669 28.1591 29.0185 28.0142 29.3935H27.8352V27.9616H23.8338V40.4389C23.8253 41.027 23.6932 41.483 23.4375 41.8068C23.1818 42.1307 22.8366 42.2926 22.402 42.2926C21.8139 42.2926 21.3239 42.0327 20.9318 41.5128C20.5312 40.9929 20.233 40.196 20.0369 39.1222C19.8324 38.0483 19.7301 36.6804 19.7301 35.0185C19.7301 33.4162 19.9432 32.0099 20.3693 30.7997C20.7869 29.581 21.375 28.5455 22.1335 27.6932C22.8835 26.8324 23.7571 26.1335 24.7543 25.5966C25.7514 25.0597 26.8338 24.6676 28.0014 24.4205C29.1605 24.1733 30.3537 24.0497 31.581 24.0497C33.7031 24.0497 35.5568 24.3736 37.142 25.0213C38.7273 25.6605 40.0483 26.5597 41.1051 27.7188C42.1619 28.8778 42.9545 30.2372 43.483 31.7969C44.0028 33.348 44.267 35.0398 44.2756 36.8722C44.267 38.892 43.9858 40.6818 43.4318 42.2415C42.8693 43.7926 42.0426 45.0966 40.9517 46.1534C39.8608 47.2102 38.5142 48.0114 36.9119 48.5568C35.3097 49.1023 33.4688 49.375 31.3892 49.375C30.4091 49.375 29.4503 49.3026 28.5128 49.1577C27.5753 49.0213 26.7273 48.8509 25.9688 48.6463C25.2102 48.4503 24.6009 48.2585 24.1406 48.071L22.875 51.7784C23.4119 52.0852 24.1406 52.3707 25.0611 52.6349C25.973 52.9077 27.0043 53.125 28.1548 53.2869C29.2969 53.4574 30.473 53.5426 31.6832 53.5426ZM32.2713 41.9858C31.2315 41.9858 30.4048 41.7855 29.7912 41.3849C29.169 40.9844 28.7259 40.392 28.4616 39.608C28.1889 38.8153 28.0611 37.8395 28.0781 36.6804C28.0866 35.6577 28.2188 34.7926 28.4744 34.0852C28.7216 33.3693 29.152 32.8281 29.7656 32.4616C30.3707 32.0866 31.2145 31.8991 32.2969 31.8991C33.2429 31.8991 34.0483 32.0994 34.7131 32.5C35.3693 32.9006 35.8722 33.4631 36.2216 34.1875C36.5625 34.9034 36.7372 35.7472 36.7457 36.7188C36.7372 37.6222 36.5923 38.4787 36.3111 39.2884C36.0298 40.0895 35.5653 40.7415 34.9176 41.2443C34.2699 41.7386 33.3878 41.9858 32.2713 41.9858Z" />
-        {/* The descending tail stroke */}
-        <rect x="24" y="42" width="4" height="20" />
+        {/* "pirol" letters with the p/o counters knocked out */}
+        <path d="M19.032 23.248C19.896 22.032 21.08 21.024 22.584 20.224C24.12 19.392 25.864 18.976 27.816 18.976C30.088 18.976 32.136 19.536 33.96 20.656C35.816 21.776 37.272 23.376 38.328 25.456C39.416 27.504 39.96 29.888 39.96 32.608C39.96 35.328 39.416 37.744 38.328 39.856C37.272 41.936 35.816 43.552 33.96 44.704C32.136 45.856 30.088 46.432 27.816 46.432C25.864 46.432 24.136 46.032 22.632 45.232C21.16 44.432 19.96 43.424 19.032 42.208V58.672H12.312V19.408H19.032V23.248ZM33.096 32.608C33.096 31.008 32.76 29.632 32.088 28.48C31.448 27.296 30.584 26.4 29.496 25.792C28.44 25.184 27.288 24.88 26.04 24.88C24.824 24.88 23.672 25.2 22.584 25.84C21.528 26.448 20.664 27.344 19.992 28.528C19.352 29.712 19.032 31.104 19.032 32.704C19.032 34.304 19.352 35.696 19.992 36.88C20.664 38.064 21.528 38.976 22.584 39.616C23.672 40.224 24.824 40.528 26.04 40.528C27.288 40.528 28.44 40.208 29.496 39.568C30.584 38.928 31.448 38.016 32.088 36.832C32.76 35.648 33.096 34.24 33.096 32.608ZM44.8912 16.24C43.7072 16.24 42.7152 15.872 41.9152 15.136C41.1472 14.368 40.7632 13.424 40.7632 12.304C40.7632 11.184 41.1472 10.256 41.9152 9.52C42.7152 8.752 43.7072 8.368 44.8912 8.368C46.0752 8.368 47.0512 8.752 47.8192 9.52C48.6192 10.256 49.0192 11.184 49.0192 12.304C49.0192 13.424 48.6192 14.368 47.8192 15.136C47.0512 15.872 46.0752 16.24 44.8912 16.24ZM48.2032 19.408V46H41.4832V19.408H48.2032ZM58.2026 23.536C59.0666 22.128 60.1866 21.024 61.5626 20.224C62.9706 19.424 64.5706 19.024 66.3626 19.024V26.08H64.5866C62.4746 26.08 60.8746 26.576 59.7866 27.568C58.7306 28.56 58.2026 30.288 58.2026 32.752V46H51.4826V19.408H58.2026V23.536ZM79.3369 46.432C76.7769 46.432 74.4729 45.872 72.4249 44.752C70.3769 43.6 68.7609 41.984 67.5769 39.904C66.4249 37.824 65.8489 35.424 65.8489 32.704C65.8489 29.984 66.4409 27.584 67.6249 25.504C68.8409 23.424 70.4889 21.824 72.5689 20.704C74.6489 19.552 76.9689 18.976 79.5289 18.976C82.0889 18.976 84.4089 19.552 86.4889 20.704C88.5689 21.824 90.2009 23.424 91.3849 25.504C92.6009 27.584 93.2089 29.984 93.2089 32.704C93.2089 35.424 92.5849 37.824 91.3369 39.904C90.1209 41.984 88.4569 43.6 86.3449 44.752C84.2649 45.872 81.9289 46.432 79.3369 46.432ZM79.3369 40.576C80.5529 40.576 81.6889 40.288 82.7449 39.712C83.8329 39.104 84.6969 38.208 85.3369 37.024C85.9769 35.84 86.2969 34.4 86.2969 32.704C86.2969 30.176 85.6249 28.24 84.2809 26.896C82.9689 25.52 81.3529 24.832 79.4329 24.832C77.5129 24.832 75.8969 25.52 74.5849 26.896C73.3049 28.24 72.6649 30.176 72.6649 32.704C72.6649 35.232 73.2889 37.184 74.5369 38.56C75.8169 39.904 77.4169 40.576 79.3369 40.576ZM101.498 10.48V46H94.7782V10.48H101.498Z" />
+        {/* Eye dot in the "o" counter */}
+        <g ref={oEyeRef}>
+          <path d="M83.288 37.336C82.072 37.336 81.064 36.968 80.264 36.232C79.496 35.464 79.112 34.52 79.112 33.4C79.112 32.28 79.496 31.352 80.264 30.616C81.064 29.848 82.072 29.464 83.288 29.464C84.472 29.464 85.448 29.848 86.216 30.616C86.984 31.352 87.368 32.28 87.368 33.4C87.368 34.52 86.984 35.464 86.216 36.232C85.448 36.968 84.472 37.336 83.288 37.336Z" />
+        </g>
+        {/* Eye dot in the "p" counter */}
+        <g ref={pEyeRef}>
+          <path d="M30.288 37.336C29.072 37.336 28.064 36.968 27.264 36.232C26.496 35.464 26.112 34.52 26.112 33.4C26.112 32.28 26.496 31.352 27.264 30.616C28.064 29.848 29.072 29.464 30.288 29.464C31.472 29.464 32.448 29.848 33.216 30.616C33.984 31.352 34.368 32.28 34.368 33.4C34.368 34.52 33.984 35.464 33.216 36.232C32.448 36.968 31.472 37.336 30.288 37.336Z" />
+        </g>
       </g>
     </svg>
   );

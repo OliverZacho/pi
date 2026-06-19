@@ -202,7 +202,12 @@ export type EspProvider =
   | "exponea"
   | "voyado"
   | "emarsys"
-  | "dynamics_365";
+  | "dynamics_365"
+  | "adobe_campaign"
+  | "yulsn"
+  | "flodesk"
+  | "responsys"
+  | "cordial";
 
 /**
  * Canonical user-facing labels for each ESP provider id. Shared between
@@ -242,7 +247,12 @@ export const ESP_LABELS: Record<EspProvider, string> = {
   exponea: "Bloomreach / Exponea",
   voyado: "Voyado",
   emarsys: "SAP Emarsys",
-  dynamics_365: "Dynamics 365"
+  dynamics_365: "Dynamics 365",
+  adobe_campaign: "Adobe Campaign",
+  yulsn: "Yulsn",
+  flodesk: "Flodesk",
+  responsys: "Responsys",
+  cordial: "Cordial"
 };
 
 export type CapturedEmail = {

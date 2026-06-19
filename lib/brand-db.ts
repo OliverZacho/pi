@@ -90,9 +90,16 @@ export type BrandPageData = {
     }[];
     /**
      * The inbox id the current view is scoped to, or `null` for the "All"
-     * aggregate. The dashboard uses this to highlight the active tab.
+     * aggregate or a multi-list scope. The brand page uses this to highlight
+     * its single active tab.
      */
     activeSegmentId: string | null;
+    /**
+     * Every inbox the current view is scoped to. Empty = "All lists". A
+     * comparison can pin a brand to a subset of its lists (e.g. ARKET's
+     * "Men" + "Women"); this is the field the multi-list selector reflects.
+     */
+    activeSegmentIds: string[];
     /**
      * Auto-derived accent color used to tint the dashboard's stats
      * and graphs (KPI icons, cadence bars, clock heatmap, etc.).
@@ -141,6 +148,14 @@ export type BrandPageData = {
      * November"). `null` when no discounted send exists in the sample.
      */
     maxDiscountAt: string | null;
+    /** Count of `sale`-category sends — matches the calendar's "Sale" squares. */
+    saleEmails: number;
+    /**
+     * Share of all sends classified as `sale`. Drives the "Sale frequency"
+     * KPI tile; deliberately broader than {@link discountShare} so the tile
+     * agrees with the orange Sale cells on the send calendar.
+     */
+    saleShare: number;
   };
   /**
    * Emoji usage signal computed across the brand's recent subject lines
@@ -375,6 +390,46 @@ function formatMarketLabel(market: string): string {
     .join(" ");
 }
 
+/** One selectable mailing list (segment) on a brand, with the category it
+ *  maps to. Mirrors {@link BrandPageData.brand.listTabs} but is fetched
+ *  standalone so the comparison pickers can offer a list choice before the
+ *  brand is even added to a set. */
+export type BrandSegment = {
+  inboxId: string;
+  label: string;
+  categoryLabel: string | null;
+};
+
+/**
+ * Lists the brand's tagged mailing lists (segments) — the same set the
+ * brand page's list switcher shows. Only inboxes the operator has tagged
+ * (label / category / country) count; single-list brands return `[]` and
+ * the comparison UI simply offers no list choice for them.
+ */
+export async function getBrandSegments(
+  supabase: SupabaseClient<Database>,
+  companyId: string
+): Promise<BrandSegment[]> {
+  const { data, error } = await supabase
+    .from("company_inboxes")
+    .select("id, segment_label, segment_category, segment_country")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? [])
+    .filter(
+      (inbox) =>
+        inbox.segment_label || inbox.segment_category || inbox.segment_country
+    )
+    .map((inbox) => ({
+      inboxId: inbox.id,
+      label: segmentDisplayLabel(inbox),
+      categoryLabel: inbox.segment_category
+        ? formatMarketLabel(inbox.segment_category)
+        : null
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /**
  * Loads a brand's profile + everything we know about its email program.
  *
@@ -394,7 +449,16 @@ function formatMarketLabel(market: string): string {
 export async function getBrandPageData(
   supabase: SupabaseClient<Database>,
   companyId: string,
-  options: { segmentInboxId?: string | null } = {}
+  options: {
+    /** Single-list scope (brand page list switcher). */
+    segmentInboxId?: string | null;
+    /**
+     * Multi-list scope (comparisons): include emails from any of these
+     * inboxes. Takes precedence over `segmentInboxId` when non-empty. An
+     * empty / absent list means the brand's full output ("All lists").
+     */
+    segmentInboxIds?: string[] | null;
+  } = {}
 ): Promise<BrandPageData | null> {
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
@@ -426,13 +490,23 @@ export async function getBrandPageData(
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  // Only honour a segment scope that maps to a real segment on this brand;
-  // anything else falls back to the "All" aggregate.
-  const activeSegmentId =
-    options.segmentInboxId &&
-    segments.some((segment) => segment.id === options.segmentInboxId)
-      ? options.segmentInboxId
-      : null;
+  // Only honour segment scopes that map to a real segment on this brand;
+  // anything else falls back to the "All" aggregate. `segmentInboxIds`
+  // (multi-list comparisons) wins over `segmentInboxId` (brand-page tab).
+  const validSegmentIds = new Set(segments.map((segment) => segment.id));
+  const requestedSegmentIds =
+    options.segmentInboxIds && options.segmentInboxIds.length > 0
+      ? options.segmentInboxIds
+      : options.segmentInboxId
+        ? [options.segmentInboxId]
+        : [];
+  const activeSegmentIds = Array.from(
+    new Set(requestedSegmentIds.filter((id) => validSegmentIds.has(id)))
+  );
+  const scoped = activeSegmentIds.length > 0;
+  // Legacy single-scope field: only set when exactly one list is active, so
+  // the brand page's tab highlight keeps working unchanged.
+  const activeSegmentId = activeSegmentIds.length === 1 ? activeSegmentIds[0] : null;
 
   // One tab per segment we've actually tagged. The tab is named by the
   // operator's Label (the brand's own term, e.g. "Homeware") and scopes the
@@ -452,10 +526,10 @@ export async function getBrandPageData(
       "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
     )
     .eq("company_id", companyId);
-  if (activeSegmentId) {
-    // A specific list/segment tab: scope to that inbox. Each list keeps
+  if (scoped) {
+    // One or more specific lists: scope to those inboxes. Each list keeps
     // its own copy of an identical multi-list send, so no dedup here.
-    emailsQuery = emailsQuery.eq("inbox_id", activeSegmentId);
+    emailsQuery = emailsQuery.in("inbox_id", activeSegmentIds);
   } else {
     // The "All" view collapses identical campaign copies (a welcome blast
     // sent once per list) to the canonical row, so the recent-campaign
@@ -485,10 +559,10 @@ export async function getBrandPageData(
   // The materialised `company_email_stats` counters are company-wide, so
   // they're only the source of truth for the "All" view. When a segment is
   // active we derive the totals from the (capped) segment rows instead.
-  const totalsCount = activeSegmentId
+  const totalsCount = scoped
     ? emailRows.length
     : stats?.email_count ?? emailRows.length;
-  const lastReceivedAt = activeSegmentId
+  const lastReceivedAt = scoped
     ? emailRows[0]?.received_at ?? null
     : stats?.last_received_at ?? emailRows[0]?.received_at ?? null;
   const firstReceivedAt =
@@ -559,6 +633,7 @@ export async function getBrandPageData(
       subscriptionEmail: primaryInbox,
       listTabs,
       activeSegmentId,
+      activeSegmentIds,
       accent
     },
     totals: {
@@ -841,11 +916,20 @@ function computeCadence(
     for (let i = 1; i < dayCounts.length; i++) {
       if (dayCounts[i] > dayCounts[bestIdx]) bestIdx = i;
     }
-    typicalDay = {
-      index: bestIdx,
-      label: DAY_LABELS[bestIdx],
-      share: dayCounts[bestIdx] / dates.length
-    };
+    // Only report a typical day when one weekday is a *unique* maximum.
+    // At our per-brand sample sizes several weekdays often tie for the
+    // lead, and the strict-`>` scan above would always award that tie to
+    // Sunday (index 0) — manufacturing a "Mostly Sundays" that's really
+    // "no particular day". A tie means there's no typical day to claim.
+    const isUniqueMax =
+      dayCounts.filter((c) => c === dayCounts[bestIdx]).length === 1;
+    if (isUniqueMax) {
+      typicalDay = {
+        index: bestIdx,
+        label: DAY_LABELS[bestIdx],
+        share: dayCounts[bestIdx] / dates.length
+      };
+    }
   }
 
   let typicalHour: BrandPageData["cadence"]["typicalHour"] = null;
@@ -911,14 +995,25 @@ function computeCadence(
 }
 
 function computePromo(
-  rows: Pick<EmailRow, "discount_percent" | "received_at">[]
+  rows: Pick<EmailRow, "discount_percent" | "received_at" | "category">[]
 ): BrandPageData["promo"] {
   let discountEmails = 0;
   let discountSum = 0;
   let discountMax: number | null = null;
   let discountMaxAt: string | null = null;
+  let saleEmails = 0;
 
   for (const row of rows) {
+    // Sale frequency mirrors the orange "Sale" squares on the send calendar:
+    // it counts the keyword-classified `sale` category, which fires on sale
+    // *language* ("Sale now on", "Final reductions") even when no explicit
+    // "% off" is present. This is intentionally broader than `discountEmails`
+    // below, which only counts emails where the vision model read a numeric
+    // discount off the creative.
+    if (row.category === "sale") {
+      saleEmails += 1;
+    }
+
     const dp =
       row.discount_percent === null || row.discount_percent === undefined
         ? null
@@ -941,7 +1036,9 @@ function computePromo(
     discountShare: rows.length > 0 ? discountEmails / rows.length : 0,
     avgDiscount: discountEmails > 0 ? discountSum / discountEmails : null,
     maxDiscount: discountMax,
-    maxDiscountAt: discountMaxAt
+    maxDiscountAt: discountMaxAt,
+    saleEmails,
+    saleShare: rows.length > 0 ? saleEmails / rows.length : 0
   };
 }
 

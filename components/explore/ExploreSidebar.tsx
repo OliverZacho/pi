@@ -343,7 +343,7 @@ function AppTopBar() {
       }}
     >
       <Link
-        href="/docs"
+        href="/learn"
         onMouseEnter={() => setHoverDocs(true)}
         onMouseLeave={() => setHoverDocs(false)}
         style={{
@@ -470,7 +470,7 @@ function AccountRow({
             Homepage
           </Link>
           <Link
-            href="/docs"
+            href="/learn"
             className={styles.accountMenuItem}
             role="menuitem"
             onClick={() => setOpen(false)}

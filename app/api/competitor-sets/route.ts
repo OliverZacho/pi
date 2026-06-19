@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   createCompetitorSet,
-  dedupeBrandIds,
+  parseMemberInputs,
   listCompetitorSetSummaries,
   MAX_BRANDS_PER_COMPARISON
 } from "@/lib/competitor-db";
@@ -68,15 +68,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const rawBrandIds =
-    body && typeof body === "object" && "brandIds" in body
-      ? (body as { brandIds: unknown }).brandIds
-      : [];
-  const brandIds = Array.isArray(rawBrandIds)
-    ? dedupeBrandIds(rawBrandIds.filter((v): v is string => typeof v === "string"))
-    : [];
+  // Accepts `{ members: [{ companyId, inboxId }] }` (list-scoped) or the
+  // legacy `{ brandIds: string[] }` (all-lists).
+  const members = parseMemberInputs(body);
 
-  if (brandIds.length > MAX_BRANDS_PER_COMPARISON) {
+  if (members.length > MAX_BRANDS_PER_COMPARISON) {
     return NextResponse.json(
       {
         error: `A set can contain at most ${MAX_BRANDS_PER_COMPARISON} brands`
@@ -88,7 +84,7 @@ export async function POST(request: Request) {
   try {
     const detail = await createCompetitorSet(session.supabase, session.user.id, {
       name: rawName,
-      brandIds
+      members
     });
     return NextResponse.json({ set: detail }, { status: 201 });
   } catch (error) {

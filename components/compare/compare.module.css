@@ -105,86 +105,222 @@
   color: #94a3b8;
 }
 
-.setsGrid {
+/* ---------- Saved comparisons grid (Collections-aligned) ----------
+   Mirrors the Collections card grid: square preview header (a 2x2
+   brand-logo mosaic), hover overlay with an Open pill, and a meta
+   footer. Keeps the Compare tab feeling like one product with
+   /collections / /explore. */
+
+.cmpGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
 }
 
-.setCard {
+@media (min-width: 1100px) {
+  .cmpGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.cmpCard {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem 1.05rem 1.1rem;
+  background: #ffffff;
   border: 0;
   border-radius: 16px;
-  background: #ffffff;
-  text-decoration: none;
-  color: inherit;
-  transition: box-shadow 0.15s ease, transform 120ms ease;
+  overflow: hidden;
   box-shadow: var(--card-shadow);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+  isolation: isolate;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
 }
 
-.setCard:hover {
+.cmpCard:hover {
   box-shadow: var(--card-shadow-hover);
   transform: translateY(-2px);
 }
 
-.setCardName {
-  font-size: 0.98rem;
-  font-weight: 600;
-  letter-spacing: -0.005em;
+/* 2x2 brand-logo mosaic. A fixed square aspect ratio keeps every card
+   the same height regardless of how many brands are in the group. */
+.cmpMosaic {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.setCardMeta {
-  font-size: 0.78rem;
+.cmpMosaicCell {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cmpMosaicCell img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+
+.cmpMosaicInitial {
+  font-size: 1.6rem;
+  font-weight: 600;
   color: #94a3b8;
 }
 
-.setLogos {
-  display: inline-flex;
-  align-items: center;
+.cmpMosaicEmpty {
+  background: linear-gradient(
+    135deg,
+    #f8fafc 0%,
+    #eef2f7 50%,
+    #f8fafc 100%
+  );
 }
 
-.setLogo {
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 8px;
-  background: #f1f5f9;
-  border: 1px solid #e5e7eb;
-  margin-right: -0.45rem;
+/* "+N" overlay on the last tile when the group has more than four
+   brands — same cue as the Collections email mosaic. */
+.cmpMosaicMore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  z-index: 1;
+}
+
+.cmpMosaicMoreLabel {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
+}
+
+/* Hover overlay with an Open pill — the whole card is a link, so this
+   is purely an affordance. */
+.cmpCardOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0.5rem 0.9rem;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0) 0%,
+    rgba(15, 23, 42, 0.1) 40%,
+    rgba(15, 23, 42, 0.55) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  z-index: 2;
+}
+
+.cmpCard:hover .cmpCardOverlay,
+.cmpCard:focus-visible .cmpCardOverlay {
+  opacity: 1;
+}
+
+.cmpOpenPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.4);
+}
+
+.cmpCardMeta {
+  padding: 0.75rem 0.9rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: #ffffff;
+}
+
+.cmpCardName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmpCardMetaLine {
+  font-size: 0.75rem;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+/* "New comparison" tile — first cell of the grid, mirrors the
+   Collections "New collection" tile. Toggles the build panel below. */
+.cmpNewTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 100%;
+  aspect-ratio: 1 / 1.18;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  color: #64748b;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 140ms ease, color 140ms ease,
+    background 140ms ease, transform 140ms ease;
+}
+
+.cmpNewTile:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.75);
+  transform: translateY(-2px);
+}
+
+.cmpNewTileActive {
+  border-style: solid;
+  border-color: #0f172a;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.cmpNewTileActive:hover {
+  transform: none;
+}
+
+.cmpNewTileIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #475569;
-  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
 }
 
-.setLogo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #ffffff;
-  padding: 0.18rem;
-}
-
-.setLogoMore {
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 0.7rem;
-}
-
-.setsEmpty {
-  border: 1px dashed #e2e8f0;
-  border-radius: 14px;
-  padding: 1.5rem;
-  text-align: center;
-  color: #64748b;
-  font-size: 0.9rem;
-  background: #ffffff;
+.cmpNewTileLabel {
+  font-size: 0.88rem;
+  font-weight: 500;
 }
 
 /* ---------- Picker panel ---------- */
@@ -645,30 +781,8 @@
   color: #94a3b8;
 }
 
-.saveForm {
-  margin-top: 0.85rem;
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.saveInput {
-  flex: 1;
-  min-width: 180px;
-  padding: 0.5rem 0.8rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  background: #f8fafc;
-  outline: none;
-}
-
-.saveInput:focus {
-  border-color: #94a3b8;
-  background: #ffffff;
-}
-
 .saveError {
+  display: block;
   margin-top: 0.5rem;
   font-size: 0.78rem;
   color: #b91c1c;
@@ -1687,25 +1801,6 @@
 .empty {
   font-size: 0.85rem;
   color: #94a3b8;
-}
-
-/* ---------- Sticky save form on landing ---------- */
-
-.saveModal {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-}
-
-.saveModalLabel {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #0f172a;
 }
 
 /* ---------- Takeaway lines (phase-2 redesign) ---------- */

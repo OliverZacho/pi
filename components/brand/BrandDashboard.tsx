@@ -414,18 +414,18 @@ export function KpiGrid({
       />
       <KpiTile
         icon={<TagIcon />}
-        label="Promo activity"
+        label="Sale frequency"
         value={
-          promo.discountShare > 0
-            ? `${Math.round(promo.discountShare * 100)}%`
+          promo.saleShare > 0
+            ? `${Math.round(promo.saleShare * 100)}%`
             : "0%"
         }
         hint={
           promo.avgDiscount !== null
-            ? `Avg ${Math.round(promo.avgDiscount)}% off when on sale`
-            : "No discount campaigns"
+            ? `Avg ${Math.round(promo.avgDiscount)}% announced off when discounted`
+            : "of sends are sale campaigns"
         }
-        trendTone={promo.discountShare >= 0.4 ? "warn" : "good"}
+        trendTone={promo.saleShare >= 0.4 ? "warn" : "good"}
       />
       <KpiTile
         icon={<StackIcon />}

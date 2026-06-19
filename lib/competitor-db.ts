@@ -54,6 +54,22 @@ export type CompetitorSetBrand = {
    */
   markets: string[];
   logoUrl: string | null;
+  /**
+   * Inbox/list ids this brand is scoped to within the set. Empty = the
+   * brand's full output ("All lists"). Lets a comparison pin e.g. ARKET to
+   * just its "Men" + "Women" lists instead of everything it sends.
+   */
+  inboxIds: string[];
+};
+
+/**
+ * One brand to include in a comparison, optionally pinned to a subset of
+ * its mailing lists. Used by create / add / compare so the list scope rides
+ * alongside the company id through every layer.
+ */
+export type ComparisonMemberInput = {
+  companyId: string;
+  inboxIds?: string[] | null;
 };
 
 export type CompetitorSetDetail = {
@@ -185,10 +201,10 @@ export async function getCompetitorSetForOwner(
 export async function createCompetitorSet(
   supabase: SupabaseClient<Database>,
   userId: string,
-  args: { name: string; brandIds: string[] }
+  args: { name: string; members: ComparisonMemberInput[] }
 ): Promise<CompetitorSetDetail> {
   const name = sanitizeName(args.name);
-  const brandIds = dedupeBrandIds(args.brandIds).slice(
+  const members = dedupeMembers(args.members).slice(
     0,
     MAX_BRANDS_PER_COMPARISON
   );
@@ -203,10 +219,11 @@ export async function createCompetitorSet(
     throw insertError ?? new Error("Failed to create competitor set");
   }
 
-  if (brandIds.length > 0) {
-    const rows = brandIds.map((companyId) => ({
+  if (members.length > 0) {
+    const rows = members.map((member) => ({
       set_id: inserted.id,
-      company_id: companyId
+      company_id: member.companyId,
+      inbox_ids: member.inboxIds && member.inboxIds.length > 0 ? member.inboxIds : null
     }));
     const { error: memberError } = await supabase
       .from("competitor_set_members")
@@ -290,7 +307,7 @@ export async function addBrandsToSet(
   supabase: SupabaseClient<Database>,
   userId: string,
   setId: string,
-  brandIds: string[]
+  members: ComparisonMemberInput[]
 ): Promise<
   | { status: "missing" }
   | { status: "ok"; brands: CompetitorSetBrand[]; addedCount: number }
@@ -299,7 +316,7 @@ export async function addBrandsToSet(
   const owned = await assertSetOwnership(supabase, userId, setId);
   if (!owned) return { status: "missing" };
 
-  const cleaned = dedupeBrandIds(brandIds);
+  const cleaned = dedupeMembers(members);
   if (cleaned.length === 0) {
     const brands = await loadSetBrands(supabase, setId);
     return { status: "ok", brands, addedCount: 0 };
@@ -321,9 +338,10 @@ export async function addBrandsToSet(
     return { status: "full" };
   }
 
-  const rows = cleaned.map((companyId) => ({
+  const rows = cleaned.map((member) => ({
     set_id: setId,
-    company_id: companyId
+    company_id: member.companyId,
+    inbox_ids: member.inboxIds && member.inboxIds.length > 0 ? member.inboxIds : null
   }));
   const { error: insertError } = await supabase
     .from("competitor_set_members")
@@ -340,6 +358,31 @@ export async function addBrandsToSet(
   // because the API consumer only uses this for a "Added N brand(s)"
   // toast.
   return { status: "ok", brands, addedCount: cleaned.length };
+}
+
+/**
+ * Re-scope an existing member to a subset of its mailing lists (or back to
+ * "All lists" with an empty list). Owner-checked; returns `missing` for
+ * sets the caller doesn't own.
+ */
+export async function setMemberInboxes(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  setId: string,
+  companyId: string,
+  inboxIds: string[]
+): Promise<"updated" | "missing"> {
+  const owned = await assertSetOwnership(supabase, userId, setId);
+  if (!owned) return "missing";
+
+  const { error } = await supabase
+    .from("competitor_set_members")
+    .update({ inbox_ids: inboxIds.length > 0 ? inboxIds : null })
+    .eq("set_id", setId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
+  return "updated";
 }
 
 export async function removeBrandFromSet(
@@ -443,15 +486,34 @@ export async function getComparisonActivity(
  */
 export async function getCompetitorComparison(
   supabase: SupabaseClient<Database>,
-  brandIds: string[]
+  members: Array<string | ComparisonMemberInput>
 ): Promise<CompetitorComparison> {
-  const cleaned = dedupeBrandIds(brandIds).slice(0, MAX_BRANDS_PER_COMPARISON);
+  // Accept either bare company ids (ad-hoc `?brands=` deep links, which
+  // always compare a brand's full output) or `{ companyId, inboxIds }`
+  // members (saved sets, where each brand can be pinned to a subset of lists).
+  const normalized = members.map((m) =>
+    typeof m === "string" ? { companyId: m, inboxIds: null } : m
+  );
+
+  // Dedupe by companyId, keeping the first occurrence's list scope.
+  const seen = new Set<string>();
+  const cleaned: ComparisonMemberInput[] = [];
+  for (const member of normalized) {
+    if (!member.companyId || seen.has(member.companyId)) continue;
+    seen.add(member.companyId);
+    cleaned.push(member);
+    if (cleaned.length >= MAX_BRANDS_PER_COMPARISON) break;
+  }
   if (cleaned.length === 0) {
     return { brands: [], missing: [] };
   }
 
   const results = await Promise.all(
-    cleaned.map((id) => getBrandPageData(supabase, id))
+    cleaned.map((member) =>
+      getBrandPageData(supabase, member.companyId, {
+        segmentInboxIds: member.inboxIds ?? null
+      })
+    )
   );
 
   const brands: BrandPageData[] = [];
@@ -461,7 +523,7 @@ export async function getCompetitorComparison(
     if (result) {
       brands.push(result);
     } else {
-      missing.push(cleaned[i]);
+      missing.push(cleaned[i].companyId);
     }
   }
 
@@ -479,6 +541,7 @@ async function loadSetBrands(
     .select(
       `added_at,
        company_id,
+       inbox_ids,
        companies!inner(id, name, domain, markets, logo_storage_path, deleted_at)`
     )
     .eq("set_id", setId)
@@ -520,7 +583,12 @@ async function loadSetBrands(
               typeof value === "string" && value.length > 0
           )
         : [],
-      logoUrl: logoPath ? signed[logoPath] ?? null : null
+      logoUrl: logoPath ? signed[logoPath] ?? null : null,
+      inboxIds: Array.isArray(row.inbox_ids)
+        ? row.inbox_ids.filter(
+            (value): value is string => typeof value === "string"
+          )
+        : []
     });
   }
   return brands;
@@ -574,6 +642,70 @@ export function dedupeBrandIds(input: string[]): string[] {
     out.push(trimmed);
   }
   return out;
+}
+
+/**
+ * Validate + dedupe a member list by companyId (first occurrence wins, so
+ * its list scope is the one kept). Inbox ids that aren't UUIDs are dropped
+ * from the scope rather than rejecting the whole member; an empty result
+ * means "All lists".
+ */
+export function dedupeMembers(
+  input: ComparisonMemberInput[]
+): ComparisonMemberInput[] {
+  const seen = new Set<string>();
+  const out: ComparisonMemberInput[] = [];
+  for (const member of input) {
+    const companyId =
+      typeof member?.companyId === "string" ? member.companyId.trim() : "";
+    if (!UUID_PATTERN.test(companyId)) continue;
+    if (seen.has(companyId)) continue;
+    seen.add(companyId);
+    out.push({ companyId, inboxIds: sanitizeInboxIds(member.inboxIds) });
+  }
+  return out;
+}
+
+/** Keep only well-formed, unique inbox UUIDs; anything else is dropped. */
+function sanitizeInboxIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  for (const value of input) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (UUID_PATTERN.test(trimmed)) seen.add(trimmed);
+  }
+  return Array.from(seen);
+}
+
+/**
+ * Pull a member list out of a request body, accepting both the new
+ * `{ members: [{ companyId, inboxIds }] }` shape and the legacy
+ * `{ brandIds: string[] }` (which always means "all lists"). Validation
+ * and dedupe happen later in {@link dedupeMembers}.
+ */
+export function parseMemberInputs(body: unknown): ComparisonMemberInput[] {
+  if (!body || typeof body !== "object") return [];
+  const obj = body as Record<string, unknown>;
+  if (Array.isArray(obj.members)) {
+    return obj.members
+      .filter(
+        (m): m is Record<string, unknown> =>
+          Boolean(m) && typeof m === "object"
+      )
+      .map((m) => ({
+        companyId: typeof m.companyId === "string" ? m.companyId : "",
+        inboxIds: Array.isArray(m.inboxIds)
+          ? m.inboxIds.filter((v): v is string => typeof v === "string")
+          : null
+      }));
+  }
+  if (Array.isArray(obj.brandIds)) {
+    return obj.brandIds
+      .filter((v): v is string => typeof v === "string")
+      .map((companyId) => ({ companyId, inboxIds: null }));
+  }
+  return [];
 }
 
 type CompanyField =

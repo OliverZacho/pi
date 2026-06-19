@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BrandPageData } from "@/lib/brand-db";
+import { weeklySendRate } from "@/lib/comparison-insights";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -17,6 +18,8 @@ type Props = {
 type KpiDefinition = {
   id: string;
   label: string;
+  /** Optional plain-language explainer shown in the drill-down modal. */
+  description?: string;
   aggregate: (brands: BrandPageData[]) => {
     display: string;
     sublabel: string;
@@ -47,6 +50,20 @@ type KpiDefinition = {
  * picks up the new class map without the stale-cache issues that
  * plagued the original CSS file.
  */
+/**
+ * Average gap between sends over the last 12 weeks, derived as the
+ * reciprocal of the same windowed send rate the "Who sends the most"
+ * league uses (`weeklySendRate`). Deriving it from that one number —
+ * rather than computing a second windowed gap — guarantees the cadence
+ * tile and the rhythm chart rank brands identically and never seem to
+ * contradict each other. Returns null when there were no sends in the
+ * window (rate 0 → infinite gap).
+ */
+function recentCadenceDays(brand: BrandPageData): number | null {
+  const perWeek = weeklySendRate(brand);
+  return perWeek > 0 ? 7 / perWeek : null;
+}
+
 export default function KpiTiles({
   brands,
   urgencyShares = [],
@@ -89,39 +106,53 @@ export default function KpiTiles({
         id: "avg-cadence",
         label: "Avg cadence",
         rank: "low",
+        description:
+          "How often you'll typically hear from each brand right now — the " +
+          "average gap between sends over the last 12 weeks. It's the flip " +
+          "side of “Who sends the most” (≈ 7 ÷ emails per " +
+          "week), measured over the same window, so the two always agree.",
         aggregate: (bs) => {
           let weighted = 0;
           let weightSum = 0;
           let simpleSum = 0;
           let simpleCount = 0;
           for (const b of bs) {
-            if (b.cadence.avgDaysBetween === null) continue;
-            simpleSum += b.cadence.avgDaysBetween;
+            const days = recentCadenceDays(b);
+            if (days === null) continue;
+            simpleSum += days;
             simpleCount += 1;
             const weight = Math.max(1, b.totals.emailCount);
-            weighted += b.cadence.avgDaysBetween * weight;
+            weighted += days * weight;
             weightSum += weight;
           }
           if (simpleCount === 0) {
-            return { display: "—", sublabel: "not enough sends yet" };
+            return { display: "—", sublabel: "no sends in the last 12 weeks" };
           }
           const value =
             weightSum > 0 ? weighted / weightSum : simpleSum / simpleCount;
           return {
             display: formatCadenceDays(value),
-            sublabel: "weighted by send volume"
+            sublabel: "last 12 weeks · weighted by send volume"
           };
         },
-        perBrand: (b) => ({
-          display:
-            b.cadence.avgDaysBetween !== null
-              ? formatCadenceDays(b.cadence.avgDaysBetween)
-              : "—",
-          sublabel: b.cadence.typicalDay
-            ? `Mostly ${b.cadence.typicalDay.label}s`
-            : undefined,
-          numeric: b.cadence.avgDaysBetween
-        })
+        perBrand: (b) => {
+          const days = recentCadenceDays(b);
+          // Only call out a day when one weekday is a clear plurality —
+          // same 0.25 confidence gate the brand page uses. Below that the
+          // sends are spread across the week, so claiming a "typical" day
+          // (often a tie the picker hands to Sunday) would mislead.
+          const td = b.cadence.typicalDay;
+          return {
+            display: days !== null ? formatCadenceDays(days) : "—",
+            sublabel:
+              td && td.share >= 0.25
+                ? `Mostly ${td.label}s`
+                : days !== null
+                  ? "Across the week"
+                  : undefined,
+            numeric: days
+          };
+        }
       },
       {
         id: "promo-share",
@@ -440,6 +471,9 @@ function KpiModal({
               Cohort rollup: <strong>{aggregate.display}</strong>{" "}
               <span className={v2.modalRowHint}>· {aggregate.sublabel}</span>
             </p>
+            {definition.description ? (
+              <p className={v2.modalNote}>{definition.description}</p>
+            ) : null}
           </div>
           <button
             type="button"

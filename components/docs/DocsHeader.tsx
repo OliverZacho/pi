@@ -7,7 +7,7 @@ import { UserMenu, type HeaderUser } from "@/components/marketing/Header";
 import styles from "./docs.module.css";
 
 const TABS = [
-  { href: "/docs", label: "Learn" },
+  { href: "/learn", label: "Learn" },
   { href: "/tutorials", label: "Tutorials" },
   { href: "/help", label: "Help" }
 ];
@@ -25,8 +25,8 @@ export default function DocsHeader({ user = null }: { user?: HeaderUser | null }
         <nav className={styles.tabs} aria-label="Documentation">
           {TABS.map((tab) => {
             const active =
-              tab.href === "/docs"
-                ? pathname.startsWith("/docs")
+              tab.href === "/learn"
+                ? pathname.startsWith("/learn")
                 : pathname.startsWith(tab.href);
             return (
               <Link
@@ -51,7 +51,7 @@ export default function DocsHeader({ user = null }: { user?: HeaderUser | null }
           <input
             className={styles.searchInput}
             type="search"
-            placeholder="Search docs…"
+            placeholder="Search…"
             aria-label="Search documentation"
           />
           <span className={styles.kbd}>⌘K</span>

@@ -494,16 +494,19 @@ export type Database = {
         Row: {
           added_at: string
           company_id: string
+          inbox_ids: string[] | null
           set_id: string
         }
         Insert: {
           added_at?: string
           company_id: string
+          inbox_ids?: string[] | null
           set_id: string
         }
         Update: {
           added_at?: string
           company_id?: string
+          inbox_ids?: string[] | null
           set_id?: string
         }
         Relationships: [
