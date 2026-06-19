@@ -323,6 +323,21 @@ export function countEventMentions(
 }
 
 /**
+ * Whether the sample mentions *any* seasonal occasion at all. Lets the
+ * dashboard hide the whole run-up section for brands that never run
+ * seasonal campaigns, rather than showing a card that's empty for every
+ * occasion. Short-circuits on the first match.
+ */
+export function hasAnySeasonalMentions(emails: SeasonalEmailInput[]): boolean {
+  return SEASONAL_EVENTS.some((event) => {
+    const matches = buildEventMatcher(event.keywords);
+    return emails.some((email) =>
+      matches(`${email.subject ?? ""} ${email.preheader ?? ""}`)
+    );
+  });
+}
+
+/**
  * Builds the full run-up analysis for one brand + one event.
  *
  * For every keyword-matched email we attribute it to the *next* event
