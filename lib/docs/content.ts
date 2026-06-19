@@ -424,7 +424,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "What should you look for in a competitor's emails?",
             body: [
               "Five signals carry most of the meaning, and each has an industry benchmark you can measure a competitor against.",
-              "First, [how often they send](/docs/how-often-to-email) — cadence reveals how hard a brand is working the channel, and whether it ramps before key moments. Second, [when they send](/docs/best-time-to-send-email) — the hours and days they own, and the windows they leave open. Third, [how often and how deeply they discount](/docs/how-much-brands-discount) — the clearest read on pricing confidence. Fourth, [what they put in the inbox](/docs/content-mix-benchmarks) — the balance of sales, product and story that defines their positioning. Fifth, [which platform they run on](/docs/which-esp-do-brands-use), together with design tells like palette, type and animation — a proxy for how sophisticated their tooling and segmentation are.",
+              "First, [how often they send](/learn/how-often-to-email) — cadence reveals how hard a brand is working the channel, and whether it ramps before key moments. Second, [when they send](/learn/best-time-to-send-email) — the hours and days they own, and the windows they leave open. Third, [how often and how deeply they discount](/learn/how-much-brands-discount) — the clearest read on pricing confidence. Fourth, [what they put in the inbox](/learn/content-mix-benchmarks) — the balance of sales, product and story that defines their positioning. Fifth, [which platform they run on](/learn/which-esp-do-brands-use), together with design tells like palette, type and animation — a proxy for how sophisticated their tooling and segmentation are.",
               "Taken together, those five turn a folder of screenshots into a coherent picture of a competitor's whole approach."
             ]
           },
@@ -478,7 +478,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "Why send email when competitors are quiet?",
             body: [
               "Attention is a fixed quantity, and the inbox is the most crowded marketplace for it. When a dozen brands pile into the same morning slot, they are not only competing with you — they are competing with one another, and every sender ends up buried in the same pile. Arrive in a quieter window and the identical email commands a larger share of a smaller, more attentive moment.",
-              "This is the contrarian half of send-time strategy. The raw question of when brands send is covered in the guide to [the best time to send marketing email](/docs/best-time-to-send-email); here the aim is to turn that distribution to your advantage rather than simply join it."
+              "This is the contrarian half of send-time strategy. The raw question of when brands send is covered in the guide to [the best time to send marketing email](/learn/best-time-to-send-email); here the aim is to turn that distribution to your advantage rather than simply join it."
             ]
           },
           {
@@ -554,7 +554,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How do you build a swipe file that updates itself?",
             body: [
               "The remedy is to define what belongs in the file as a rule, then let the capture happen automatically. Rather than saving emails one at a time, you describe the pattern you care about — a market, a campaign type, a discount threshold — and let every new send that matches flow in on its own.",
-              "In Pirol, that is exactly what a collection does. Set a rule — the way brands in your sector [run their sales](/docs/how-much-brands-discount), for instance — and Pirol keeps the board filled as qualifying campaigns land, so the file grows without you lifting a finger."
+              "In Pirol, that is exactly what a collection does. Set a rule — the way brands in your sector [run their sales](/learn/how-much-brands-discount), for instance — and Pirol keeps the board filled as qualifying campaigns land, so the file grows without you lifting a finger."
             ],
             cta: { label: "Build a self-filling collection →", href: "/features/collections" }
           },
@@ -562,7 +562,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             id: "how-to-use",
             heading: "How should you use a swipe file?",
             body: [
-              "A living swipe file earns its keep three ways: as a creative prompt when you are stuck, as a record of how rivals operate over time, and as a shared reference the whole team can draw on. Because it stays current, it doubles as a lightweight [competitor teardown](/docs/competitor-email-teardown) that never goes out of date.",
+              "A living swipe file earns its keep three ways: as a creative prompt when you are stuck, as a record of how rivals operate over time, and as a shared reference the whole team can draw on. Because it stays current, it doubles as a lightweight [competitor teardown](/learn/competitor-email-teardown) that never goes out of date.",
               "The discipline is curation rather than accumulation. A focused board built around a clear theme will be opened and used; a sprawling archive of everything will not."
             ]
           }
@@ -629,7 +629,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "Should you choose the same ESP as your competitors?",
             body: [
               "Not blindly — but their choices are valuable evidence. When a category has converged on one platform, that consolidation usually reflects a genuine fit between the tool and the way that category sells; when it remains fragmented, the decision rests more on your own priorities than on any emerging standard.",
-              "Among the brands Pirol tracks, {{topEsp}} is the most-used platform at {{topEspShare}}, though the leader shifts sharply once you filter by industry. Before you commit, it is worth seeing [which ESP brands in your category actually use](/docs/which-esp-do-brands-use) and lining your shortlisted competitors up side by side."
+              "Among the brands Pirol tracks, {{topEsp}} is the most-used platform at {{topEspShare}}, though the leader shifts sharply once you filter by industry. Before you commit, it is worth seeing [which ESP brands in your category actually use](/learn/which-esp-do-brands-use) and lining your shortlisted competitors up side by side."
             ],
             cta: { label: "Compare competitors' platforms →", href: "/features/comparisons" }
           }
@@ -689,7 +689,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How can you use real-world evidence?",
             body: [
               "Marketing claims are one input; observed behaviour is another, and harder to spin. Knowing which platforms comparable brands have actually committed to — and stayed on — is a powerful sanity check against any vendor's pitch.",
-              "Among the brands Pirol tracks, {{topEsp}} is the most-used platform at {{topEspShare}}, though the leader shifts by industry — so [the platforms brands in your category run](/docs/which-esp-do-brands-use) is the more telling figure. Better still, see it brand by brand: Pirol detects the ESP behind each company, so you can line up the specific competitors you would want to emulate and compare not just the platforms' promises but the choices real brands have made."
+              "Among the brands Pirol tracks, {{topEsp}} is the most-used platform at {{topEspShare}}, though the leader shifts by industry — so [the platforms brands in your category run](/learn/which-esp-do-brands-use) is the more telling figure. Better still, see it brand by brand: Pirol detects the ESP behind each company, so you can line up the specific competitors you would want to emulate and compare not just the platforms' promises but the choices real brands have made."
             ],
             cta: { label: "Compare competitors' platforms →", href: "/features/comparisons" }
           }
@@ -748,9 +748,9 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How do you forecast your real cost?",
             body: [
               "Model the platform against your projected numbers, not today's. Take your list size and sending cadence twelve to twenty-four months out, apply the platform's actual model — contacts, sends, seats and tier — and include the overage you will realistically incur. Run the same exercise for every contender so the comparison is genuinely like for like.",
-              "Pricing is only one row in the wider decision, though. Weigh it alongside the other criteria in the [ESP decision framework](/docs/which-esp-should-you-choose), and when you pit specific providers against each other, follow the method in [how to compare Klaviyo, Mailchimp and Braze](/docs/comparing-esps)."
+              "Pricing is only one row in the wider decision, though. Weigh it alongside the other criteria in the [ESP decision framework](/learn/which-esp-should-you-choose), and when you pit specific providers against each other, follow the method in [how to compare Klaviyo, Mailchimp and Braze](/learn/comparing-esps)."
             ],
-            cta: { label: "Use the ESP decision framework →", href: "/docs/which-esp-should-you-choose" }
+            cta: { label: "Use the ESP decision framework →", href: "/learn/which-esp-should-you-choose" }
           }
         ],
         faqs: [
@@ -798,7 +798,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How do you authenticate your email?",
             body: [
               "Authentication is the non-negotiable foundation. SPF, DKIM and DMARC are the three DNS records that prove an email truly originates from your domain, and bulk-sender requirements at Gmail and Yahoo now make them effectively mandatory rather than optional.",
-              "Set all three, align them to the domain your recipients see, and verify them before you scale sending. The mechanics are covered in full in [SPF, DKIM and DMARC explained](/docs/spf-dkim-dmarc)."
+              "Set all three, align them to the domain your recipients see, and verify them before you scale sending. The mechanics are covered in full in [SPF, DKIM and DMARC explained](/learn/spf-dkim-dmarc)."
             ]
           },
           {
@@ -888,7 +888,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How do SPF, DKIM and DMARC work together?",
             body: [
               "Think of them as a chain: SPF vouches for the sending server, DKIM proves the message is intact and genuinely signed, and DMARC sets the policy and demands that both align with your visible domain. A message that satisfies all three is one a receiver can trust — and one far more likely to reach the inbox.",
-              "Authentication is the foundation of deliverability, but only the foundation. Once it is solid, the rest of the picture — list hygiene, engagement and sending habits — is covered in the [deliverability checklist](/docs/avoiding-the-spam-folder)."
+              "Authentication is the foundation of deliverability, but only the foundation. Once it is solid, the rest of the picture — list hygiene, engagement and sending habits — is covered in the [deliverability checklist](/learn/avoiding-the-spam-folder)."
             ]
           }
         ],
@@ -946,7 +946,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "How do you stay compliant in practice?",
             body: [
               "A handful of habits cover most of both regimes at once. Collect marketing consent explicitly and log it; default to opt-in for EU contacts and apply opt-out only where US rules genuinely apply. Give every email a visible, working unsubscribe link, process opt-outs quickly, and never reuse a suppressed address. Include your physical address, keep your sender identity honest, and offer a preference centre so people can dial frequency down instead of leaving entirely.",
-              "These overlap neatly with good deliverability: prompt unsubscribes and permission-based lists keep you both lawful and welcome in the inbox, as covered in the [deliverability checklist](/docs/avoiding-the-spam-folder)."
+              "These overlap neatly with good deliverability: prompt unsubscribes and permission-based lists keep you both lawful and welcome in the inbox, as covered in the [deliverability checklist](/learn/avoiding-the-spam-folder)."
             ]
           }
         ],

@@ -123,20 +123,20 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
 
       <p className={styles.sectionLabel}>Docs &amp; help</p>
       <div className={styles.section}>
-        <Link href="/docs" className={styles.item} onClick={() => setOpen(false)}>
+        <Link href="/learn" className={styles.item} onClick={() => setOpen(false)}>
           <svg className={styles.itemIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M6 4h9l3 3v13H6V4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
             <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           </svg>
           <span className={styles.itemBody}>
-            <span className={styles.itemTitle}>Documentation</span>
+            <span className={styles.itemTitle}>Learn</span>
           </span>
         </Link>
 
         <Link href="/tutorials" className={styles.item} onClick={() => setOpen(false)}>
           <svg className={styles.itemIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 7.5 12 4l9 3.5L12 11 3 7.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-            <path d="M7 9.5V14c0 1.2 2.2 2.5 5 2.5s5-1.3 5-2.5V9.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M10 9.5v5l4.5-2.5L10 9.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           </svg>
           <span className={styles.itemBody}>
             <span className={styles.itemTitle}>Tutorials</span>

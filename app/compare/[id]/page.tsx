@@ -68,7 +68,7 @@ export default async function CompareSetPage({ params }: PageProps) {
       listCompetitorSetSummaries(supabase, userId),
       getCompetitorComparison(
         supabase,
-        set.brands.map((b) => b.id)
+        set.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
       ),
       getCompareSectionPrefs(supabase, userId)
     ]);

@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { useRouter } from "next/navigation";
 import type { BrandPageData } from "@/lib/brand-db";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
-import BrandSearchPicker from "./BrandSearchPicker";
+import BrandSearchPicker, {
+  type BrandSearchOption
+} from "./BrandSearchPicker";
+import MemberListSelect from "./MemberListSelect";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -50,6 +53,27 @@ export default function CompareBrandStrip({
   const [pendingAdds, setPendingAdds] = useState<string[]>([]);
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Metadata cache for picked brands so the selected-tray can render each
+  // chip's name + logo without an extra fetch. The picker hands us a row
+  // via `onBrandSeen` whenever it surfaces one in its results.
+  const [knownAdds, setKnownAdds] = useState<Map<string, BrandSearchOption>>(
+    () => new Map()
+  );
+
+  const rememberAdd = useCallback((brand: BrandSearchOption) => {
+    setKnownAdds((current) => {
+      if (current.has(brand.id)) return current;
+      const next = new Map(current);
+      next.set(brand.id, brand);
+      return next;
+    });
+  }, []);
+
+  // Per-brand list scope chosen in the add modal, keyed by company id.
+  // Absent / empty = "All lists".
+  const [pendingInbox, setPendingInbox] = useState<Record<string, string[]>>(
+    {}
+  );
 
   // Keep the rename input in sync if the parent re-renders with a new
   // canonical name (e.g. after a successful PATCH refresh).
@@ -60,6 +84,7 @@ export default function CompareBrandStrip({
   const closeAdd = useCallback(() => {
     setAddOpen(false);
     setPendingAdds([]);
+    setPendingInbox({});
     setAddError(null);
   }, []);
 
@@ -166,6 +191,31 @@ export default function CompareBrandStrip({
     }
   }
 
+  // Change which lists an existing member is scoped to (empty = "All"),
+  // persisting immediately and refreshing so the dashboard recomputes.
+  async function handleChangeList(companyId: string, inboxIds: string[]) {
+    if (!setId || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/competitor-sets/${setId}/brands/${companyId}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inboxIds })
+        }
+      );
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change list");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function handleSubmitAdds() {
     if (!setId || adding) return;
     if (pendingAdds.length === 0) {
@@ -179,7 +229,12 @@ export default function CompareBrandStrip({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandIds: pendingAdds })
+        body: JSON.stringify({
+          members: pendingAdds.map((companyId) => ({
+            companyId,
+            inboxIds: pendingInbox[companyId] ?? []
+          }))
+        })
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
@@ -311,6 +366,22 @@ export default function CompareBrandStrip({
                 )}
               </span>
               <span className={styles.brandStripName}>{b.brand.name}</span>
+              {setId && b.brand.listTabs.length > 1 ? (
+                <MemberListSelect
+                  brandId={b.brand.id}
+                  value={b.brand.activeSegmentIds}
+                  segments={b.brand.listTabs.map((tab) => ({
+                    inboxId: tab.inboxId,
+                    label: tab.label,
+                    categoryLabel: tab.categoryLabel
+                  }))}
+                  disabled={pending}
+                  ariaLabel={`Which ${b.brand.name} lists to compare`}
+                  onChange={(inboxIds) =>
+                    handleChangeList(b.brand.id, inboxIds)
+                  }
+                />
+              ) : null}
               {setId && brands.length > 1 ? (
                 <button
                   type="button"
@@ -358,11 +429,67 @@ export default function CompareBrandStrip({
               </button>
             </header>
 
+            <div className={styles.pickerSelectedTray} aria-live="polite">
+              {pendingAdds.length === 0 ? (
+                <span className={styles.pickerChipEmpty}>
+                  No brands picked yet — search and click to add.
+                </span>
+              ) : (
+                pendingAdds.map((id) => {
+                  const brand = knownAdds.get(id);
+                  const displayName = brand?.name ?? "Loading…";
+                  return (
+                    <span key={id} className={styles.pickerChip}>
+                      <span
+                        className={styles.pickerChipLogo}
+                        aria-hidden="true"
+                      >
+                        {brand?.logoUrl ? (
+                          <img
+                            src={brand.logoUrl}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          displayName.charAt(0).toUpperCase()
+                        )}
+                      </span>
+                      <span>{displayName}</span>
+                      <MemberListSelect
+                        brandId={id}
+                        value={pendingInbox[id] ?? []}
+                        ariaLabel={`Which ${displayName} lists to add`}
+                        onChange={(inboxIds) =>
+                          setPendingInbox((current) => ({
+                            ...current,
+                            [id]: inboxIds
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className={styles.pickerChipRemove}
+                        aria-label={`Remove ${displayName}`}
+                        onClick={() =>
+                          setPendingAdds((current) =>
+                            current.filter((x) => x !== id)
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })
+              )}
+            </div>
+
             <BrandSearchPicker
               alreadySelectedIds={existingIds}
               remainingSlots={remainingSlots}
               pendingIds={pendingAdds}
               onChange={setPendingAdds}
+              onBrandSeen={rememberAdd}
               variant="modal"
               placeholder="Search for a brand or category to add…"
               defaultCountry={defaultCountry}

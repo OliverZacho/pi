@@ -150,7 +150,7 @@ export default function Header({ user = null }: { user?: HeaderUser | null }) {
           <Link href="/explore" className={styles.navLink}>
             Explore
           </Link>
-          <Link href="/docs" className={styles.navLink}>
+          <Link href="/learn" className={styles.navLink}>
             Learn
           </Link>
           <Link href="/pricing" className={styles.navLink}>

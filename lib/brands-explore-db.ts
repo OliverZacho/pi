@@ -219,16 +219,14 @@ export async function searchBrands(
     query = query.eq("primary_market_country", params.country);
   }
 
-  const trimmedQuery = (params.query ?? "").trim();
-  if (trimmedQuery.length > 0) {
-    const sanitized = sanitizeIlikeTerm(trimmedQuery);
-    if (sanitized.length > 0) {
-      const term = `%${sanitized}%`;
-      query = query.or(
-        [`name.ilike.${term}`, `domain.ilike.${term}`].join(",")
-      );
-    }
-  }
+  // Free-text term is matched in memory (below) rather than pushed to the
+  // DB. The term needs to match a brand's *category* too (e.g. "kids" →
+  // "baby & kids"), and PostgREST can't do a partial `ilike` against a
+  // `text[]` element. The function already fetches the full structural
+  // match set and filters in memory for activity/cadence/ESP, so folding
+  // the text match in there keeps one code path and makes name, domain and
+  // category all searchable.
+  const searchTerm = (params.query ?? "").trim().toLowerCase();
 
   if (params.hasLogo) {
     query = query.not("logo_storage_path", "is", null);
@@ -286,6 +284,24 @@ export async function searchBrands(
   });
 
   let filtered = enriched;
+  if (searchTerm.length > 0) {
+    // Match name, domain, or any category label the brand is tagged with,
+    // so the picker's "Search by name or category" promise holds.
+    filtered = filtered.filter((row) => {
+      if (row.name.toLowerCase().includes(searchTerm)) return true;
+      if (row.domain && row.domain.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+      return (
+        Array.isArray(row.markets) &&
+        row.markets.some(
+          (market) =>
+            typeof market === "string" &&
+            market.toLowerCase().includes(searchTerm)
+        )
+      );
+    });
+  }
   if (typeof params.minEmailCount === "number" && params.minEmailCount > 0) {
     const min = Math.floor(params.minEmailCount);
     filtered = filtered.filter((row) => row.emailCount >= min);
@@ -563,16 +579,4 @@ export async function getBrandsFacets(
     totalBrands,
     brandsWithEmails
   };
-}
-
-/**
- * Strip characters that would break the PostgREST `or()` string or
- * accidentally turn the user's input into an ILIKE wildcard pattern.
- * Mirrors the helper in `explore-db.ts`.
- */
-function sanitizeIlikeTerm(input: string): string {
-  return input
-    .replace(/[%_,(),"]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }

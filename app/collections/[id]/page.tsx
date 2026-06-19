@@ -13,6 +13,7 @@ import {
 } from "@/lib/competitor-db";
 import { isDiscountFigureEligible } from "@/lib/collection-event-shared";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
+import { listFollowedBrandIds } from "@/lib/follows-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
@@ -103,6 +104,26 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     }
   }
 
+  // Which of the brands in this collection the user follows — powers the
+  // "only brands I follow" toggle in the event insights. Scoped to the
+  // collection's companies so we never pull the user's whole follow list.
+  let followedCompanyIds: string[] = [];
+  try {
+    const companyIds = Array.from(
+      new Set(
+        collection.emails
+          .map((email) => email.companyId)
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+    if (companyIds.length > 0) {
+      const set = await listFollowedBrandIds(supabase, userId, companyIds);
+      followedCompanyIds = Array.from(set);
+    }
+  } catch (err) {
+    console.error("Failed to load followed brands for collection", err);
+  }
+
   // We still want the Save/Unsave bookmark state on every card so the
   // user's existing Saved list lights up here, same as on Explore.
   let savedIds: string[] = [];
@@ -164,6 +185,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           initialCollections={collections}
           facets={facets}
           brandDiscountBenchmarks={brandDiscountBenchmarks}
+          followedCompanyIds={followedCompanyIds}
         />
       </main>
     </div>

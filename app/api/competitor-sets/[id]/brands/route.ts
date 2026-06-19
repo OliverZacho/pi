@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   addBrandsToSet,
-  dedupeBrandIds,
+  parseMemberInputs,
   MAX_BRANDS_PER_COMPARISON
 } from "@/lib/competitor-db";
 
@@ -34,26 +34,17 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const rawBrandIds =
-    body && typeof body === "object" && "brandIds" in body
-      ? (body as { brandIds: unknown }).brandIds
-      : [];
-  if (!Array.isArray(rawBrandIds)) {
-    return NextResponse.json(
-      { error: "brandIds must be an array" },
-      { status: 400 }
-    );
-  }
-  const brandIds = dedupeBrandIds(
-    rawBrandIds.filter((v): v is string => typeof v === "string")
-  );
+  // Accepts either `{ members: [{ companyId, inboxId }] }` (list-scoped) or
+  // the legacy `{ brandIds: string[] }` (all-lists). `parseMemberInputs`
+  // normalises both shapes and drops anything malformed.
+  const members = parseMemberInputs(body);
 
   try {
     const result = await addBrandsToSet(
       session.supabase,
       session.user.id,
       id,
-      brandIds
+      members
     );
     if (result.status === "missing") {
       return NextResponse.json({ error: "Set not found" }, { status: 404 });

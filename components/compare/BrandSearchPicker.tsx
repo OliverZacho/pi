@@ -207,6 +207,15 @@ export default function BrandSearchPicker({
       }
       if (atLimit) return;
       onChange([...pendingIds, id]);
+      // Collapse the dropdown once a brand lands in the tray: clearing
+      // the query drops `hasQuery`, which closes the result list so the
+      // Compare button below it isn't left hidden behind the popover.
+      // The picked brand is now a chip in the parent's tray, so nothing
+      // is lost — the user just starts a fresh search for the next pick.
+      setQuery("");
+      setDebouncedQuery("");
+      setResults([]);
+      setOpen(false);
     },
     [alreadySelectedIds, atLimit, onChange, pendingIds, pendingSet]
   );

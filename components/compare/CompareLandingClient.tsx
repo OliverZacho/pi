@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type {
   ComparisonActivity,
   CompetitorSetBrand,
@@ -12,6 +12,7 @@ import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
 import BrandSearchPicker, {
   type BrandSearchOption
 } from "./BrandSearchPicker";
+import MemberListSelect from "./MemberListSelect";
 import styles from "./compare.module.css";
 
 type Props = {
@@ -71,10 +72,34 @@ export default function CompareLandingClient({
       return map;
     }
   );
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [saveName, setSaveName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-brand list scope, keyed by company id. Absent / empty = "All lists".
+  const [pendingInbox, setPendingInbox] = useState<Record<string, string[]>>(
+    {}
+  );
+  // Build panel mirrors the Collections "New collection" tile: it stays
+  // tucked away until the user opens it. Deep-links (`?brands=…` from the
+  // Brands page) arrive with brands pre-selected, so open it immediately
+  // in that case.
+  const [buildOpen, setBuildOpen] = useState(initialBrandIds.length > 0);
+  const buildRef = useRef<HTMLElement | null>(null);
+
+  function toggleBuild() {
+    setBuildOpen((open) => {
+      const next = !open;
+      if (next) {
+        // Scroll the panel into view on the next paint once it exists.
+        requestAnimationFrame(() =>
+          buildRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+          })
+        );
+      }
+      return next;
+    });
+  }
 
   const remainingSlots = MAX_BRANDS_PER_COMPARISON - selectedIds.length;
   // Picker has no notion of "already saved" on the landing flow —
@@ -127,29 +152,20 @@ export default function CompareLandingClient({
 
   function clearSelection() {
     setSelectedIds([]);
-    setSaveOpen(false);
-    setSaveName("");
+    setPendingInbox({});
+    setError(null);
   }
 
   function removeChip(id: string) {
     setSelectedIds((current) => current.filter((x) => x !== id));
   }
 
-  function handleCompare() {
-    if (selectedIds.length < 1) return;
-    const qs = new URLSearchParams();
-    for (const id of selectedIds) qs.append("brands", id);
-    router.push(`/compare?${qs.toString()}`);
-  }
-
-  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmed = saveName.trim();
-    if (!trimmed || pending) return;
-    if (selectedIds.length === 0) {
-      setError("Pick at least one brand first");
-      return;
-    }
+  // Single action: pressing "Compare" saves the group as a comparison
+  // (auto-named from the picked brands) and opens it. The user can rename
+  // it later from the comparison's own header, so there's no name prompt
+  // standing between them and the result.
+  async function handleCompare() {
+    if (selectedIds.length === 0 || pending) return;
     setPending(true);
     setError(null);
     try {
@@ -157,7 +173,13 @@ export default function CompareLandingClient({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, brandIds: selectedIds })
+        body: JSON.stringify({
+          name: defaultComparisonName(selectedIds, knownBrands),
+          members: selectedIds.map((companyId) => ({
+            companyId,
+            inboxIds: pendingInbox[companyId] ?? []
+          }))
+        })
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
@@ -169,7 +191,7 @@ export default function CompareLandingClient({
       router.push(`/compare/${body.set.id}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save set");
+      setError(err instanceof Error ? err.message : "Failed to save comparison");
     } finally {
       setPending(false);
     }
@@ -185,63 +207,96 @@ export default function CompareLandingClient({
           </div>
         </div>
 
-        {sets.length === 0 ? (
-          <div className={styles.setsEmpty}>
-            You haven't saved any comparisons yet.{" "}
-            <Link href="/brands">Select a few brands on the Brands page</Link>{" "}
-            — or pick them below — and save the group for next time.
-          </div>
-        ) : (
-          <div className={styles.setsGrid}>
-            {sets.map((set) => {
-              const preview = setPreviews[set.id] ?? [];
-              return (
-                <Link
-                  key={set.id}
-                  href={`/compare/${set.id}`}
-                  className={styles.setCard}
-                >
-                  <div className={styles.setLogos} aria-hidden="true">
-                    {preview.slice(0, 4).map((brand) => (
-                      <span key={brand.id} className={styles.setLogo}>
-                        {brand.logoUrl ? (
-                          <img
-                            src={brand.logoUrl}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                          />
+        <div className={styles.cmpGrid}>
+          <button
+            type="button"
+            className={`${styles.cmpNewTile} ${
+              buildOpen ? styles.cmpNewTileActive : ""
+            }`}
+            onClick={toggleBuild}
+            aria-expanded={buildOpen}
+            aria-controls="build"
+          >
+            <span className={styles.cmpNewTileIcon}>
+              <PlusIcon />
+            </span>
+            <span className={styles.cmpNewTileLabel}>New comparison</span>
+          </button>
+
+          {sets.map((set) => {
+            const preview = setPreviews[set.id] ?? [];
+            // Always lay out four mosaic slots so cards stay the same
+            // height; empty slots get a subtle placeholder tile.
+            const slots = Array.from({ length: 4 }, (_, i) => preview[i] ?? null);
+            const hiddenCount = Math.max(0, set.brandCount - 4);
+            return (
+              <Link
+                key={set.id}
+                href={`/compare/${set.id}`}
+                className={styles.cmpCard}
+              >
+                <div className={styles.cmpMosaic} aria-hidden="true">
+                  {slots.map((brand, index) => {
+                    const isLast = index === slots.length - 1;
+                    return (
+                      <div key={index} className={styles.cmpMosaicCell}>
+                        {brand ? (
+                          brand.logoUrl ? (
+                            <img
+                              src={brand.logoUrl}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span className={styles.cmpMosaicInitial}>
+                              {brand.name.charAt(0).toUpperCase()}
+                            </span>
+                          )
                         ) : (
-                          brand.name.charAt(0).toUpperCase()
+                          <div className={styles.cmpMosaicEmpty} />
                         )}
-                      </span>
-                    ))}
-                    {set.brandCount > 4 ? (
-                      <span
-                        className={`${styles.setLogo} ${styles.setLogoMore}`}
-                      >
-                        +{set.brandCount - 4}
-                      </span>
-                    ) : null}
+                        {isLast && hiddenCount > 0 ? (
+                          <div className={styles.cmpMosaicMore}>
+                            <span className={styles.cmpMosaicMoreLabel}>
+                              +{hiddenCount}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  <div className={styles.cmpCardOverlay}>
+                    <span className={styles.cmpOpenPill}>
+                      <OpenIcon />
+                      Open
+                    </span>
                   </div>
-                  <div>
-                    <div className={styles.setCardName}>{set.name}</div>
-                    <div className={styles.setCardMeta}>
-                      {set.brandCount} brand
-                      {set.brandCount === 1 ? "" : "s"}
-                      {" · "}
-                      Updated {formatRelativeDate(set.updatedAt)}
-                    </div>
-                    <ActivityChip activity={setActivity[set.id]} />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                </div>
+                <div className={styles.cmpCardMeta}>
+                  <span className={styles.cmpCardName} title={set.name}>
+                    {set.name}
+                  </span>
+                  <span className={styles.cmpCardMetaLine}>
+                    {set.brandCount} brand
+                    {set.brandCount === 1 ? "" : "s"}
+                    {" · "}
+                    Updated {formatRelativeDate(set.updatedAt)}
+                  </span>
+                  <ActivityChip activity={setActivity[set.id]} />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
-      <section id="build" className={styles.pickerCard}>
-        <div className={styles.pickerHead}>
+      {buildOpen ? (
+        <section
+          id="build"
+          ref={buildRef}
+          className={styles.pickerCard}
+        >
+          <div className={styles.pickerHead}>
           <div>
             <h2>Build a comparison</h2>
             <p>
@@ -287,6 +342,17 @@ export default function CompareLandingClient({
                     )}
                   </span>
                   <span>{displayName}</span>
+                  <MemberListSelect
+                    brandId={id}
+                    value={pendingInbox[id] ?? []}
+                    ariaLabel={`Which ${displayName} lists to compare`}
+                    onChange={(inboxIds) =>
+                      setPendingInbox((current) => ({
+                        ...current,
+                        [id]: inboxIds
+                      }))
+                    }
+                  />
                   <button
                     type="button"
                     className={styles.pickerChipRemove}
@@ -315,17 +381,9 @@ export default function CompareLandingClient({
             type="button"
             className={styles.pickerCompare}
             onClick={handleCompare}
-            disabled={selectedIds.length === 0}
-          >
-            Compare ({selectedIds.length})
-          </button>
-          <button
-            type="button"
-            className={styles.pickerSecondary}
-            onClick={() => setSaveOpen((v) => !v)}
             disabled={selectedIds.length === 0 || pending}
           >
-            {saveOpen ? "Cancel save" : "Save as comparison…"}
+            {pending ? "Comparing…" : "Compare"}
           </button>
           <span className={styles.pickerHint}>
             {remainingSlots <= 0
@@ -334,46 +392,13 @@ export default function CompareLandingClient({
           </span>
         </div>
 
-        {saveOpen ? (
-          <form onSubmit={handleSave} className={styles.saveModal}>
-            <label
-              htmlFor="comparison-name"
-              className={styles.saveModalLabel}
-            >
-              Name this comparison
-            </label>
-            <div className={styles.saveForm}>
-              <input
-                id="comparison-name"
-                type="text"
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                maxLength={120}
-                placeholder="e.g. Nordic eyewear rivals"
-                className={styles.saveInput}
-                disabled={pending}
-                autoFocus
-              />
-              <button
-                type="submit"
-                className={styles.pickerCompare}
-                disabled={
-                  pending ||
-                  saveName.trim().length === 0 ||
-                  selectedIds.length === 0
-                }
-              >
-                {pending ? "Saving…" : "Save & open"}
-              </button>
-            </div>
-            {error ? (
-              <span className={styles.saveError} role="alert">
-                {error}
-              </span>
-            ) : null}
-          </form>
+        {error ? (
+          <span className={styles.saveError} role="alert">
+            {error}
+          </span>
         ) : null}
-      </section>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -407,6 +432,69 @@ function ActivityChip({ activity }: { activity?: ComparisonActivity }) {
     );
   }
   return <div className={styles.setCardActivity}>{parts.join(" · ")}</div>;
+}
+
+/**
+ * Auto-name for a one-click-saved comparison, derived from the picked
+ * brands so the saved card reads sensibly without a name prompt:
+ *   1 → "Mango"
+ *   2 → "Mango & Zara"
+ *   3 → "Mango, Zara & H&M"
+ *  4+ → "Mango, Zara & 3 more"
+ * Capped to the 120-char column limit; the user can rename later.
+ */
+function defaultComparisonName(
+  ids: string[],
+  known: Map<string, BrandSearchOption>
+): string {
+  const names = ids
+    .map((id) => known.get(id)?.name?.trim())
+    .filter((name): name is string => Boolean(name));
+  let label: string;
+  if (names.length === 0) label = "New comparison";
+  else if (names.length === 1) label = names[0];
+  else if (names.length === 2) label = `${names[0]} & ${names[1]}`;
+  else if (names.length === 3)
+    label = `${names[0]}, ${names[1]} & ${names[2]}`;
+  else label = `${names[0]}, ${names[1]} & ${names.length - 2} more`;
+  return label.length > 120 ? `${label.slice(0, 117)}…` : label;
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function OpenIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
+  );
 }
 
 function formatRelativeDate(value: string): string {

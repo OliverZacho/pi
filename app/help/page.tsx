@@ -62,7 +62,7 @@ export default function HelpPage() {
                     <path d="M8 10h8M8 14h5M21 12a9 9 0 1 1-3.5-7.1L21 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span>
-                    Browse the <Link href="/docs">documentation</Link> for guides on ESPs,
+                    Browse the <Link href="/learn">documentation</Link> for guides on ESPs,
                     deliverability, and strategy.
                   </span>
                 </li>

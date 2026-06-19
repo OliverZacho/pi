@@ -24,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     category.articles
       .filter((article) => !article.draft)
       .map((article) => ({
-      url: `${SITE_URL}/docs/${article.slug}`,
+      url: `${SITE_URL}/learn/${article.slug}`,
       lastModified: now,
       changeFrequency: "monthly" as const,
       priority: 0.6
