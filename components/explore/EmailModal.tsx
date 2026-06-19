@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   EMAIL_CATEGORY_LABELS,
+  ESP_LABELS,
   classifyListHeaders,
   type CapturedEmailDetail,
-  type EmailCategory,
-  type EspProvider
+  type EmailCategory
 } from "@/lib/admin-types";
 import type { CollectionSummary } from "@/lib/collections-db";
 import { countryFlag, countryName } from "@/lib/country";
@@ -16,42 +16,6 @@ import type { ExploreEmailCard } from "@/lib/explore-db";
 import AddToCollectionButton from "./AddToCollectionButton";
 import { LOCKED_EMAIL_EVENT, LOCKED_EMAIL_FLAG } from "./SidebarNotices";
 import styles from "./explore.module.css";
-
-const ESP_LABELS: Record<EspProvider, string> = {
-  mailchimp: "Mailchimp",
-  klaviyo: "Klaviyo",
-  hubspot: "HubSpot",
-  sendgrid: "SendGrid",
-  braze: "Braze",
-  iterable: "Iterable",
-  customerio: "Customer.io",
-  salesforce_mc: "Salesforce MC",
-  marketo: "Marketo",
-  omnisend: "Omnisend",
-  activecampaign: "ActiveCampaign",
-  constantcontact: "Constant Contact",
-  drip: "Drip",
-  attentive: "Attentive",
-  sendinblue: "Brevo / Sendinblue",
-  shopify_email: "Shopify Email",
-  substack: "Substack",
-  beehiiv: "beehiiv",
-  convertkit: "ConvertKit / Kit",
-  mailerlite: "MailerLite",
-  mailgun: "Mailgun",
-  postmark: "Postmark",
-  amazon_ses: "Amazon SES",
-  mailjet: "Mailjet",
-  apsis: "APSIS / Efficy",
-  agillic: "Agillic",
-  peytzmail: "Peytzmail",
-  pure360: "Pure360 / Spotler",
-  heyloyalty: "HeyLoyalty",
-  exponea: "Bloomreach / Exponea",
-  voyado: "Voyado",
-  emarsys: "SAP Emarsys",
-  dynamics_365: "Dynamics 365"
-};
 
 type ViewMode = "desktop" | "phone" | "text" | "html";
 

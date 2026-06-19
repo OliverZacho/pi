@@ -1,45 +1,14 @@
+import type { EspProvider as KnownEspProvider } from "./admin-types";
 import type { ParsedLink } from "./extract-metadata";
 
-export type EspProvider =
-  | "mailchimp"
-  | "klaviyo"
-  | "hubspot"
-  | "sendgrid"
-  | "braze"
-  | "iterable"
-  | "customerio"
-  | "salesforce_mc"
-  | "marketo"
-  | "omnisend"
-  | "activecampaign"
-  | "constantcontact"
-  | "drip"
-  | "attentive"
-  | "sendinblue"
-  | "shopify_email"
-  | "substack"
-  | "beehiiv"
-  | "convertkit"
-  | "mailerlite"
-  | "mailgun"
-  | "postmark"
-  | "amazon_ses"
-  | "mailjet"
-  | "apsis"
-  | "agillic"
-  | "peytzmail"
-  | "pure360"
-  | "heyloyalty"
-  | "exponea"
-  | "voyado"
-  | "emarsys"
-  | "dynamics_365"
-  | "adobe_campaign"
-  | "yulsn"
-  | "flodesk"
-  | "responsys"
-  | "cordial"
-  | "unknown";
+/**
+ * A detected ESP, or `"unknown"` when no fingerprint clears the confidence
+ * threshold. The set of *known* providers is the single source of truth in
+ * {@link KnownEspProvider} (lib/admin-types) — which `ESP_LABELS` is also keyed
+ * by — so detection and labels can't drift apart. Add a new provider there and
+ * it's automatically detectable and labelable here.
+ */
+export type EspProvider = KnownEspProvider | "unknown";
 
 export type EspSignal = {
   kind:

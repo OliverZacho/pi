@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOverviewFromDb } from "@/lib/admin-db";
-import { EMAIL_CATEGORIES, type EmailCategory, type EspProvider } from "@/lib/admin-types";
+import { EMAIL_CATEGORIES, ESP_LABELS, type EmailCategory, type EspProvider } from "@/lib/admin-types";
 import {
   endOfDayInZone,
   parseDayKey,
@@ -10,41 +10,12 @@ import { requireAdminSession } from "@/lib/require-admin-api";
 
 const VALID_CATEGORIES: readonly EmailCategory[] = EMAIL_CATEGORIES;
 
-const VALID_ESP_PROVIDERS: EspProvider[] = [
-  "mailchimp",
-  "klaviyo",
-  "hubspot",
-  "sendgrid",
-  "braze",
-  "iterable",
-  "customerio",
-  "salesforce_mc",
-  "marketo",
-  "omnisend",
-  "activecampaign",
-  "constantcontact",
-  "drip",
-  "attentive",
-  "sendinblue",
-  "shopify_email",
-  "substack",
-  "beehiiv",
-  "convertkit",
-  "mailerlite",
-  "mailgun",
-  "postmark",
-  "amazon_ses",
-  "mailjet",
-  "apsis",
-  "agillic",
-  "peytzmail",
-  "pure360",
-  "heyloyalty",
-  "exponea",
-  "voyado",
-  "emarsys",
-  "dynamics_365"
-];
+// Derived from ESP_LABELS so the accepted filter values can't drift from the
+// canonical provider set (this literal had already gone stale — it was missing
+// adobe_campaign, yulsn, flodesk, responsys and cordial).
+const VALID_ESP_PROVIDERS = new Set<EspProvider>(
+  Object.keys(ESP_LABELS) as EspProvider[]
+);
 
 function parseBoolean(raw: string | null): boolean | null {
   if (raw === null) {
@@ -116,7 +87,7 @@ export async function GET(request: Request) {
   const espParam = url.searchParams.get("esp");
   let espProvider: EspProvider | null = null;
   if (espParam) {
-    if (!VALID_ESP_PROVIDERS.includes(espParam as EspProvider)) {
+    if (!VALID_ESP_PROVIDERS.has(espParam as EspProvider)) {
       return NextResponse.json({ error: "Invalid esp filter" }, { status: 400 });
     }
     espProvider = espParam as EspProvider;
@@ -152,6 +123,10 @@ export async function GET(request: Request) {
       receivedBefore: parseDayBoundary(
         url.searchParams.get("receivedBefore"),
         "end"
+      ),
+      companiesSubscribedAfter: parseDayBoundary(
+        url.searchParams.get("subscribedAfter"),
+        "start"
       ),
       search: url.searchParams.get("search")
     });

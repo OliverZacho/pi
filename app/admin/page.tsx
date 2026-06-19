@@ -14,6 +14,7 @@ import {
 import {
   EMAIL_CATEGORIES,
   EMAIL_CATEGORY_LABELS,
+  ESP_LABELS,
   USAGE_FEATURE_LABELS,
   type AdminOverview,
   type CapturedEmail,
@@ -84,77 +85,10 @@ function formatPct(part: number, whole: number): string {
   return formatInt((part / whole) * 100);
 }
 
-const ESP_PROVIDERS: EspProvider[] = [
-  "mailchimp",
-  "klaviyo",
-  "hubspot",
-  "sendgrid",
-  "braze",
-  "iterable",
-  "customerio",
-  "salesforce_mc",
-  "marketo",
-  "omnisend",
-  "activecampaign",
-  "constantcontact",
-  "drip",
-  "attentive",
-  "sendinblue",
-  "shopify_email",
-  "substack",
-  "beehiiv",
-  "convertkit",
-  "mailerlite",
-  "mailgun",
-  "postmark",
-  "amazon_ses",
-  "mailjet",
-  "apsis",
-  "agillic",
-  "peytzmail",
-  "pure360",
-  "heyloyalty",
-  "exponea",
-  "voyado",
-  "emarsys",
-  "dynamics_365"
-];
-
-const ESP_LABELS: Record<EspProvider, string> = {
-  mailchimp: "Mailchimp",
-  klaviyo: "Klaviyo",
-  hubspot: "HubSpot",
-  sendgrid: "SendGrid",
-  braze: "Braze",
-  iterable: "Iterable",
-  customerio: "Customer.io",
-  salesforce_mc: "Salesforce MC",
-  marketo: "Marketo",
-  omnisend: "Omnisend",
-  activecampaign: "ActiveCampaign",
-  constantcontact: "Constant Contact",
-  drip: "Drip",
-  attentive: "Attentive",
-  sendinblue: "Brevo / Sendinblue",
-  shopify_email: "Shopify Email",
-  substack: "Substack",
-  beehiiv: "beehiiv",
-  convertkit: "ConvertKit / Kit",
-  mailerlite: "MailerLite",
-  mailgun: "Mailgun",
-  postmark: "Postmark",
-  amazon_ses: "Amazon SES",
-  mailjet: "Mailjet",
-  apsis: "APSIS / Efficy",
-  agillic: "Agillic",
-  peytzmail: "Peytzmail",
-  pure360: "Pure360 / Spotler",
-  heyloyalty: "HeyLoyalty",
-  exponea: "Bloomreach / Exponea",
-  voyado: "Voyado",
-  emarsys: "SAP Emarsys",
-  dynamics_365: "Dynamics 365"
-};
+// Derived from ESP_LABELS so the filter dropdown's provider list can never
+// drift from the canonical label map (the drift that caused the brands ESP
+// filter bug). Object key order preserves the curated ordering above.
+const ESP_PROVIDERS = Object.keys(ESP_LABELS) as EspProvider[];
 
 type CompanySortKey =
   | "name"
@@ -798,9 +732,12 @@ export default function AdminHomePage() {
       setRecentEmailsLoading(true);
       // Pass the cutoff as a full ISO instant — the overview endpoint trusts a
       // parseable timestamp as-is, giving us a true rolling 24h window rather
-      // than a calendar-day boundary.
+      // than a calendar-day boundary. `subscribedAfter` filters on when each
+      // brand was *added* (companies.subscribed_since), not when its mail
+      // arrived — so this panel shows mail only from brands added in the
+      // last 24h, the point being to confirm a freshly-added brand is sending.
       const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
-      const params = new URLSearchParams({ receivedAfter: since });
+      const params = new URLSearchParams({ subscribedAfter: since });
       const response = await fetch(`/api/admin/overview?${params.toString()}`, {
         cache: "no-store"
       });
@@ -2677,9 +2614,9 @@ export default function AdminHomePage() {
         <section className="card recent-mail-card">
           <div className="recent-mail-header">
             <div>
-              <h2>Received in the last 24 hours</h2>
+              <h2>From brands added in the last 24 hours</h2>
               <p className="muted">
-                Mail captured from any subscribed brand since{" "}
+                Mail from brands you added since{" "}
                 {formatDateTime(
                   new Date(Date.now() - RECENT_WINDOW_MS).toISOString()
                 )}
@@ -2701,7 +2638,7 @@ export default function AdminHomePage() {
             <p className="muted">Loading recent mail…</p>
           ) : recentEmails.length === 0 ? (
             <p className="muted">
-              No mail from a subscribed brand in the last 24 hours yet.
+              No mail yet from a brand added in the last 24 hours.
             </p>
           ) : (
             <ul className="recent-mail-list">
