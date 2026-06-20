@@ -171,6 +171,7 @@ export default async function ExplorePage() {
           initialSavedIds={initialSavedIds}
           initialCollections={initialCollections}
           defaultSort="recommended"
+          isAdmin={viewer.isAdmin}
         />
       </main>
     </div>

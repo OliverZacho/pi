@@ -1224,6 +1224,28 @@ a.quality-row-main:hover .quality-row-title {
   background: #dbeafe;
 }
 
+.quality-row-market {
+  font: inherit;
+  font-size: 0.78rem;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  max-width: 11rem;
+  cursor: pointer;
+}
+
+.quality-row-market:focus {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
+}
+
+.quality-row-market:disabled {
+  background: #f8fafc;
+  cursor: progress;
+}
+
 .quality-logo-thumb {
   display: inline-flex;
   align-items: center;

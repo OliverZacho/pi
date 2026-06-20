@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   EMAIL_CATEGORY_LABELS,
   type CompanySubscription,
   type EmailCategory
 } from "@/lib/admin-types";
+import { countryFlag, countryName } from "@/lib/country";
 
 export type QualityKind =
   | "missing_market"
@@ -98,9 +99,11 @@ export default function QualityDetailModal({
   emailsLoading,
   unattributedEmails,
   unattributedLoading,
+  marketCountryOptions,
   onClose,
   onReviewLogo,
-  onViewCompany
+  onViewCompany,
+  onSetMarket
 }: {
   kind: QualityKind;
   companies: CompanySubscription[];
@@ -108,10 +111,14 @@ export default function QualityDetailModal({
   emailsLoading: boolean;
   unattributedEmails: UnattributedEmail[];
   unattributedLoading: boolean;
+  marketCountryOptions: string[];
   onClose: () => void;
   onReviewLogo: (company: CompanySubscription) => void;
   onViewCompany: (company: CompanySubscription) => void;
+  onSetMarket: (company: CompanySubscription, code: string) => Promise<boolean>;
 }) {
+  const [savingId, setSavingId] = useState<string | null>(null);
+
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -276,13 +283,38 @@ export default function QualityDetailModal({
                         Review logo
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        className="quality-row-action"
-                        onClick={() => onViewCompany(company)}
-                      >
-                        View brand
-                      </button>
+                      <>
+                        <select
+                          className="quality-row-market"
+                          value=""
+                          disabled={savingId === company.id}
+                          aria-label={`Set primary market for ${company.name}`}
+                          title="Pin a primary market country for this brand"
+                          onChange={async (event) => {
+                            const code = event.target.value;
+                            if (!code) return;
+                            setSavingId(company.id);
+                            await onSetMarket(company, code);
+                            setSavingId(null);
+                          }}
+                        >
+                          <option value="">
+                            {savingId === company.id ? "Saving…" : "Set market…"}
+                          </option>
+                          {marketCountryOptions.map((code) => (
+                            <option key={code} value={code}>
+                              {countryFlag(code)} {countryName(code)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="quality-row-action"
+                          onClick={() => onViewCompany(company)}
+                        >
+                          View brand
+                        </button>
+                      </>
                     )}
                   </span>
                 </li>

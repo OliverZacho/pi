@@ -1312,6 +1312,58 @@
   opacity: 0.75;
 }
 
+/*
+ * Admin-only recommend star, pinned top-left (mirroring the saved badge
+ * top-right). Always visible — not gated on hover — so an admin can scan
+ * the grid and tell at a glance which brands are already on the
+ * "Recommended" allowlist. Outline + muted when off, solid amber when on.
+ */
+.cardRecommendStar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.35);
+  z-index: 3;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease,
+    box-shadow 120ms ease, color 120ms ease;
+}
+
+.cardRecommendStar:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.78);
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4);
+}
+
+.cardRecommendStar.cardRecommendStarOn {
+  background: rgba(245, 158, 11, 0.96);
+  color: #ffffff;
+}
+
+.cardRecommendStar.cardRecommendStarOn:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.98);
+}
+
+.cardRecommendStar:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.cardRecommendStar:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
 .cardMeta {
   padding: 0.7rem 0.85rem 0.9rem;
   display: flex;

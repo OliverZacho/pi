@@ -61,6 +61,21 @@ type Props = {
   ) => Promise<CollectionSummary | null>;
   /** Pre-fetch membership for this email when the popover opens. */
   onRequestMemberships?: (emailId: string) => Promise<void> | void;
+  /**
+   * Admin-only affordance. When true (and the email has a matched
+   * company), a pinned star renders in the top-left corner so admins can
+   * add / remove the brand from the Explore "Recommended" allowlist
+   * (`companies.is_curated`) straight from the grid while browsing.
+   */
+  isAdmin?: boolean;
+  /** Whether the email's brand is currently on the recommended allowlist. */
+  isRecommended?: boolean;
+  /**
+   * Toggle the brand's recommended status. Parent owns the optimistic
+   * state + PATCH so the star stays presentational and the whole grid
+   * (every card from the same brand) updates together.
+   */
+  onToggleRecommended?: (companyId: string, next: boolean) => Promise<void> | void;
 };
 
 /**
@@ -85,9 +100,18 @@ export default function EmailCard({
   membershipIds,
   onToggleCollection,
   onCreateCollection,
-  onRequestMemberships
+  onRequestMemberships,
+  isAdmin = false,
+  isRecommended = false,
+  onToggleRecommended
 }: Props) {
   const saveEnabled = !readOnly && typeof onToggleSave === "function";
+  // Admins get the recommend star whenever the email is matched to a
+  // company (no company ⇒ nothing to add to the allowlist).
+  const recommendEnabled =
+    isAdmin &&
+    Boolean(email.companyId) &&
+    typeof onToggleRecommended === "function";
   const collectionsEnabled =
     !readOnly &&
     Array.isArray(collections) &&
@@ -100,6 +124,8 @@ export default function EmailCard({
   // Per-card pending state so we can disable the Save button while the
   // round-trip is in flight without blocking other cards on the grid.
   const [pendingSave, setPendingSave] = useState(false);
+  // Same idea for the admin recommend star.
+  const [pendingRecommend, setPendingRecommend] = useState(false);
 
   // "May 18 · 9:30 AM" — short date plus clock so the grid stays scannable
   // at a glance. Both pieces are zoned to the platform timezone via the
@@ -161,6 +187,16 @@ export default function EmailCard({
     }
   }
 
+  async function handleToggleRecommended() {
+    if (pendingRecommend || !onToggleRecommended || !email.companyId) return;
+    setPendingRecommend(true);
+    try {
+      await onToggleRecommended(email.companyId, !isRecommended);
+    } finally {
+      setPendingRecommend(false);
+    }
+  }
+
   // The whole card is the click target (modern tile pattern). We use an
   // <article> with role="button" + tabIndex so keyboard users can still
   // focus and activate it, and inner buttons (Save, etc.) stop propagation
@@ -196,6 +232,32 @@ export default function EmailCard({
           style={frameStyle}
           onLoad={() => setLoaded(true)}
         />
+        {recommendEnabled ? (
+          <button
+            type="button"
+            className={`${styles.cardRecommendStar}${
+              isRecommended ? ` ${styles.cardRecommendStarOn}` : ""
+            }`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleToggleRecommended();
+            }}
+            disabled={pendingRecommend}
+            aria-pressed={isRecommended}
+            aria-label={
+              isRecommended
+                ? `Remove ${email.companyName} from Recommended`
+                : `Add ${email.companyName} to Recommended`
+            }
+            title={
+              isRecommended
+                ? "On the Recommended list — click to remove"
+                : "Add this brand to Recommended"
+            }
+          >
+            <StarIcon filled={isRecommended} />
+          </button>
+        ) : null}
         {saveEnabled && isSaved ? (
           <button
             type="button"
@@ -277,6 +339,24 @@ function ClockIcon() {
     >
       <circle cx="12" cy="12" r="9" />
       <polyline points="12 7 12 12 15.5 14" />
+    </svg>
+  );
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 17.77 6.6 19.6l1.03-6.01-4.36-4.25 6.03-.88z" />
     </svg>
   );
 }

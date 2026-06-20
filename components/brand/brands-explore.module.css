@@ -167,6 +167,17 @@
   box-shadow: var(--pill-shadow-hover);
 }
 
+/* ESP filter for logged-out / unpaid visitors: a locked upgrade affordance.
+   Visible so the feature is discoverable, but routes to /pricing on click. */
+.filterChipLocked {
+  text-decoration: none;
+  color: #64748b;
+}
+
+.filterChipLocked svg {
+  color: #94a3b8;
+}
+
 .filterChipActive {
   background: #0f172a;
   color: #ffffff;
