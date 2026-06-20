@@ -92,6 +92,12 @@ type Props = {
   saveLimit?: number;
   /** The user's current total saved count (cap basis) on first paint. */
   initialSavedCount?: number;
+  /**
+   * Admin viewer: enables the per-card "Recommended" star so admins can
+   * curate the Explore allowlist (`companies.is_curated`) while browsing
+   * the grid. Off for everyone else.
+   */
+  isAdmin?: boolean;
 };
 
 function SearchIcon() {
@@ -232,7 +238,8 @@ export default function ExploreClient({
   renderUrlBase = "/api/admin/emails",
   allowSave = false,
   saveLimit = 0,
-  initialSavedCount = 0
+  initialSavedCount = 0,
+  isAdmin = false
 }: Props) {
   const isPublic = mode === "public";
   // Free (public + allowSave) users can save curated cards up to a cap;
@@ -281,6 +288,21 @@ export default function ExploreClient({
   // appears later, its Saved state is still correct).
   const [savedIds, setSavedIds] = useState<Set<string>>(
     () => new Set(initialSavedIds)
+  );
+
+  // Admin-only: company ids currently on the "Recommended" allowlist
+  // (`companies.is_curated`), seeded from the facets so the stars paint
+  // correctly on first render. Lifted to the page so every card from the
+  // same brand flips together when an admin toggles the star. Only
+  // populated/used when `isAdmin` is set.
+  const [recommendedCompanyIds, setRecommendedCompanyIds] = useState<
+    Set<string>
+  >(() =>
+    isAdmin
+      ? new Set(
+          facets.brands.filter((b) => b.isCurated).map((b) => b.id)
+        )
+      : new Set()
   );
 
   // Collections + per-email membership are also lifted here so the
@@ -427,6 +449,42 @@ export default function ExploreClient({
       }
     },
     [allowSave]
+  );
+
+  // Admin-only: flip a brand's recommended status optimistically, then
+  // PATCH the curated flag. The whole grid re-reads `recommendedCompanyIds`
+  // so every card from the same brand updates together. Roll back on
+  // failure so the star never lies about what's persisted.
+  const handleToggleRecommended = useCallback(
+    async (companyId: string, next: boolean) => {
+      setRecommendedCompanyIds((current) => {
+        const updated = new Set(current);
+        if (next) updated.add(companyId);
+        else updated.delete(companyId);
+        return updated;
+      });
+
+      try {
+        const res = await fetch(`/api/admin/companies/${companyId}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCurated: next })
+        });
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+      } catch (err) {
+        setRecommendedCompanyIds((current) => {
+          const updated = new Set(current);
+          if (next) updated.delete(companyId);
+          else updated.add(companyId);
+          return updated;
+        });
+        setError(
+          err instanceof Error ? err.message : "Failed to update Recommended"
+        );
+      }
+    },
+    []
   );
 
   const requestMemberships = useCallback(async (emailId: string) => {
@@ -1426,6 +1484,13 @@ export default function ExploreClient({
                   onToggleCollection={handleToggleCollection}
                   onCreateCollection={handleCreateCollection}
                   onRequestMemberships={requestMemberships}
+                  isAdmin={isAdmin}
+                  isRecommended={
+                    email.companyId
+                      ? recommendedCompanyIds.has(email.companyId)
+                      : false
+                  }
+                  onToggleRecommended={handleToggleRecommended}
                 />
               )
             )}

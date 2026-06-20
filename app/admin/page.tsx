@@ -1286,6 +1286,34 @@ export default function AdminHomePage() {
     }
   }
 
+  // Pin a primary market straight from the "Brands missing a market" quality
+  // drill-down, without opening the full edit row. PATCHes just the country and
+  // reconciles the brand in the overview; once it has a market it drops out of
+  // the modal's list on its own. Returns whether the save succeeded.
+  const setCompanyMarket = useCallback(
+    async (company: CompanySubscription, code: string) => {
+      try {
+        const response = await fetch(`/api/admin/companies/${company.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ primaryMarketCountry: code })
+        });
+        const body = (await response.json().catch(() => ({}))) as {
+          company?: CompanySubscription;
+          error?: string;
+        };
+        if (!response.ok || !body.company) {
+          return false;
+        }
+        replaceCompanyInOverview(body.company);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [replaceCompanyInOverview]
+  );
+
   // One-click recommend/unrecommend straight from the row, without entering
   // the full edit mode. Optimistically flips the star, then PATCHes is_curated
   // and reconciles with the server's copy (rolling back on failure).
@@ -3747,6 +3775,7 @@ export default function AdminHomePage() {
           emailsLoading={lowConfidenceLoading}
           unattributedEmails={unattributedEmails}
           unattributedLoading={unattributedLoading}
+          marketCountryOptions={marketCountryOptions}
           onClose={() => setQualityDetail(null)}
           onReviewLogo={(company) => {
             setQualityDetail(null);
@@ -3757,6 +3786,7 @@ export default function AdminHomePage() {
             setCompanySearch(company.name);
             selectTab("companies");
           }}
+          onSetMarket={setCompanyMarket}
         />
       ) : null}
 
