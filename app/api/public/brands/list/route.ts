@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { ESP_LABELS, type EspProvider } from "@/lib/admin-types";
 import {
   searchBrands,
   type BrandsActivityWindow,
@@ -22,10 +21,6 @@ const ACTIVITY_WINDOWS: BrandsActivityWindow[] = [
   "180d",
   "inactive"
 ];
-
-const VALID_ESP_IDS = new Set<EspProvider>(
-  Object.keys(ESP_LABELS) as EspProvider[]
-);
 
 /**
  * Public (no-auth) mirror of `/api/brands/list`, powering the browsable
@@ -49,10 +44,6 @@ export async function GET(request: Request) {
       ? (activityRaw as BrandsActivityWindow)
       : null;
 
-  const espProviders = params
-    .getAll("esp")
-    .filter((id): id is EspProvider => VALID_ESP_IDS.has(id as EspProvider));
-
   const countryRaw = params.get("country");
   const country =
     countryRaw && /^[A-Za-z]{2}$/.test(countryRaw)
@@ -64,7 +55,9 @@ export async function GET(request: Request) {
     markets: params.getAll("market").filter(Boolean),
     country,
     global: params.get("global") === "1",
-    espProviders,
+    // ESP filtering is a paid feature — never honored on the public directory,
+    // even if an `esp` query param is supplied directly.
+    espProviders: [],
     cadenceMinDays: parseNonNegativeFloat(params.get("cadenceMin")),
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),
     activity,

@@ -16,6 +16,7 @@ import type {
   BrandsFacets,
   BrandsSortKey
 } from "@/lib/brands-explore-db";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import { countryFlag, countryName } from "@/lib/country";
@@ -246,7 +247,9 @@ export default function BrandsExploreClient({
     const esps = sp
       .getAll("esp")
       .filter((id): id is EspProvider => validEsps.has(id as EspProvider));
-    if (esps.length > 0) setSelectedEsps(new Set(esps));
+    // ESP filtering is a paid feature — ignore any `esp` params for the
+    // public/unpaid directory so a crafted URL can't bypass the gate.
+    if (!isPublic && esps.length > 0) setSelectedEsps(new Set(esps));
 
     const cadenceMin = Number.parseFloat(sp.get("cadenceMin") ?? "");
     const cadenceMax = Number.parseFloat(sp.get("cadenceMax") ?? "");
@@ -782,23 +785,37 @@ export default function BrandsExploreClient({
           ) : null}
 
           <div className={styles.filterChipWrap}>
-            <button
-              type="button"
-              className={`${styles.filterChip}${
-                selectedEsps.size > 0 ? ` ${styles.filterChipActive}` : ""
-              }${openPopover === "esp" ? ` ${styles.filterChipOpen}` : ""}`}
-              onClick={() => togglePopover("esp")}
-              aria-haspopup="true"
-              aria-expanded={openPopover === "esp"}
-              disabled={facets.espProviders.length === 0}
-            >
-              <span>ESP</span>
-              {selectedEsps.size > 0 ? (
-                <span className={styles.filterCount}>{selectedEsps.size}</span>
-              ) : null}
-              <ChevronIcon />
-            </button>
-            {openPopover === "esp" ? (
+            {isPublic ? (
+              <TrackedUpgradeLink
+                source="brands_esp_filter"
+                className={`${styles.filterChip} ${styles.filterChipLocked}`}
+                title="Filtering by ESP is a Pro feature — upgrade to unlock"
+                aria-label="Upgrade to filter brands by email service provider"
+              >
+                <span>ESP</span>
+                <LockIcon />
+              </TrackedUpgradeLink>
+            ) : (
+              <button
+                type="button"
+                className={`${styles.filterChip}${
+                  selectedEsps.size > 0 ? ` ${styles.filterChipActive}` : ""
+                }${openPopover === "esp" ? ` ${styles.filterChipOpen}` : ""}`}
+                onClick={() => togglePopover("esp")}
+                aria-haspopup="true"
+                aria-expanded={openPopover === "esp"}
+                disabled={facets.espProviders.length === 0}
+              >
+                <span>ESP</span>
+                {selectedEsps.size > 0 ? (
+                  <span className={styles.filterCount}>
+                    {selectedEsps.size}
+                  </span>
+                ) : null}
+                <ChevronIcon />
+              </button>
+            )}
+            {!isPublic && openPopover === "esp" ? (
               <div
                 className={`${styles.popover} ${styles.popoverList}`}
                 role="menu"
@@ -1540,6 +1557,25 @@ function ClockIcon() {
     >
       <circle cx="12" cy="12" r="9" />
       <polyline points="12 7 12 12 16 14" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
     </svg>
   );
 }
