@@ -54,6 +54,10 @@ export default function CollectionCard({
   // sidebars and gaps eat into the available space.
   const mosaicRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState<number | null>(null);
+  // Don't mount the four preview iframes until the card scrolls near the
+  // viewport — each one pulls a full email render, so a long Collections
+  // grid would otherwise fire dozens of them at once on first paint.
+  const [inView, setInView] = useState(false);
 
   useEffect(() => {
     const mosaicEl = mosaicRef.current;
@@ -74,6 +78,22 @@ export default function CollectionCard({
     const ro = new ResizeObserver(recompute);
     ro.observe(mosaicEl);
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const mosaicEl = mosaicRef.current;
+    if (!mosaicEl) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" }
+    );
+    io.observe(mosaicEl);
+    return () => io.disconnect();
   }, []);
 
   // Always render four slots so the mosaic doesn't reflow as a
@@ -140,7 +160,7 @@ export default function CollectionCard({
             const showHiddenCount = isLastTile && hiddenCount > 0;
             return (
               <div key={index} className={styles.mosaicCell}>
-                {emailId ? (
+                {emailId && inView ? (
                   <iframe
                     src={renderUrlFor(emailId)}
                     title=""

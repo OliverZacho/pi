@@ -27,7 +27,7 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
   const [copyError, setCopyError] = useState<string | null>(null);
 
   const renderUrlFor = useCallback(
-    (emailId: string) => `/api/c/${slug}/emails/${emailId}/render`,
+    (emailId: string) => `/api/c/${slug}/emails/${emailId}/render?preview=1`,
     [slug]
   );
 
