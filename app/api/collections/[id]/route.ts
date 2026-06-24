@@ -8,7 +8,8 @@ import {
   renameCollection,
   resolveAppliedAt,
   setCollectionIcon,
-  setCollectionRules
+  setCollectionRules,
+  setCollectionShared
 } from "@/lib/collections-db";
 import { isCollectionIcon } from "@/lib/collection-icons";
 
@@ -88,10 +89,21 @@ export async function PATCH(request: Request, context: RouteContext) {
   const hasName = Object.prototype.hasOwnProperty.call(obj, "name");
   const hasRules = Object.prototype.hasOwnProperty.call(obj, "rules");
   const hasIcon = Object.prototype.hasOwnProperty.call(obj, "icon");
+  const hasShared = Object.prototype.hasOwnProperty.call(obj, "sharedWithTeam");
 
-  if (!hasName && !hasRules && !hasIcon) {
+  if (!hasName && !hasRules && !hasIcon && !hasShared) {
     return NextResponse.json(
-      { error: "At least one of 'name', 'rules' or 'icon' is required" },
+      {
+        error:
+          "At least one of 'name', 'rules', 'icon' or 'sharedWithTeam' is required"
+      },
+      { status: 400 }
+    );
+  }
+
+  if (hasShared && typeof obj.sharedWithTeam !== "boolean") {
+    return NextResponse.json(
+      { error: "'sharedWithTeam' must be a boolean" },
       { status: 400 }
     );
   }
@@ -187,6 +199,21 @@ export async function PATCH(request: Request, context: RouteContext) {
         session.user.id,
         id,
         isCollectionIcon(obj.icon) ? obj.icon : null
+      );
+      if (!updated) {
+        return NextResponse.json(
+          { error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (hasShared) {
+      const updated = await setCollectionShared(
+        session.supabase,
+        session.user.id,
+        id,
+        obj.sharedWithTeam as boolean
       );
       if (!updated) {
         return NextResponse.json(

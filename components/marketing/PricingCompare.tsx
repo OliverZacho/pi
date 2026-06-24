@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import styles from "./pricing.module.css";
 
 /** A cell is either included/excluded or a short literal like "Up to 25". */
@@ -115,7 +116,21 @@ function CellValue({ value }: { value: CompareValue }) {
   );
 }
 
-export default function PricingCompare() {
+/** One per plan, mirroring the cards' actions: free links to sign-up,
+ *  paid plans start checkout. */
+type CtaPlan = { id: string; cta: string; featured: boolean };
+
+type PricingCompareProps = {
+  plans: CtaPlan[];
+  pending: string | null;
+  onCheckout: (planId: string) => void;
+};
+
+export default function PricingCompare({
+  plans,
+  pending,
+  onCheckout,
+}: PricingCompareProps) {
   const [openRow, setOpenRow] = useState<string | null>(null);
 
   return (
@@ -208,6 +223,34 @@ export default function PricingCompare() {
             );
           })}
         </table>
+      </div>
+
+      <div className={styles.compareCta}>
+        <div className={styles.compareCtaRow}>
+          {plans.map((plan) =>
+            plan.id === "free" ? (
+              <Link
+                key={plan.id}
+                href="/login"
+                className={`${styles.cta} ${styles.ctaGhost}`}
+              >
+                {plan.cta}
+              </Link>
+            ) : (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => onCheckout(plan.id)}
+                disabled={pending !== null}
+                className={`${styles.cta} ${
+                  plan.featured ? styles.ctaPrimary : styles.ctaGhost
+                }`}
+              >
+                {pending === plan.id ? "Redirecting…" : plan.cta}
+              </button>
+            ),
+          )}
+        </div>
       </div>
     </div>
   );

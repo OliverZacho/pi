@@ -1059,6 +1059,46 @@ select.ruleOperator:focus {
   background: #ffffff;
 }
 
+.multiSelectQuickRow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0 0.15rem 0.35rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.multiSelectQuickAction {
+  display: inline-flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #cde4d9;
+  border-radius: 7px;
+  background: #eef7f2;
+  color: #086e4b;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+
+.multiSelectQuickAction:hover:not(:disabled) {
+  background: #e2f1ea;
+  border-color: #b6d9c9;
+}
+
+.multiSelectQuickAction:disabled {
+  cursor: default;
+  color: #64748b;
+  background: #f8fafc;
+  border-color: #e5e7eb;
+}
+
 .multiSelectList {
   list-style: none;
   padding: 0;
@@ -1130,27 +1170,27 @@ select.ruleOperator:focus {
   font-size: 0.82rem;
 }
 
-.multiSelectFooter {
-  border-top: 1px solid #f1f5f9;
-  margin-top: 0.25rem;
-  padding: 0.25rem 0.15rem 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .multiSelectClear {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
   color: #64748b;
   font: inherit;
-  font-size: 0.78rem;
-  padding: 0.3rem 0.45rem;
-  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
   cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease,
+    color 100ms ease;
 }
 
 .multiSelectClear:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
+  border-color: #cbd5e1;
   color: #0f172a;
 }
 

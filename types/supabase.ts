@@ -342,6 +342,7 @@ export type Database = {
           name: string
           rules: Json | null
           share_slug: string
+          shared_with_team: boolean
           updated_at: string
           user_id: string
         }
@@ -354,6 +355,7 @@ export type Database = {
           name: string
           rules?: Json | null
           share_slug: string
+          shared_with_team?: boolean
           updated_at?: string
           user_id: string
         }
@@ -366,6 +368,7 @@ export type Database = {
           name?: string
           rules?: Json | null
           share_slug?: string
+          shared_with_team?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -531,6 +534,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          shared_with_team: boolean
           updated_at: string
           user_id: string
         }
@@ -538,6 +542,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          shared_with_team?: boolean
           updated_at?: string
           user_id: string
         }
@@ -545,6 +550,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          shared_with_team?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -734,6 +740,80 @@ export type Database = {
         }
         Relationships: []
       }
+      support_chat_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          sender: string
+          sent_by: string | null
+          sent_by_email: string | null
+          thread_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          sender: string
+          sent_by?: string | null
+          sent_by_email?: string | null
+          thread_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          sender?: string
+          sent_by?: string | null
+          sent_by_email?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_chat_threads: {
+        Row: {
+          admin_unread_count: number
+          created_at: string
+          id: string
+          last_message_at: string
+          last_message_sender: string | null
+          status: string
+          user_email: string | null
+          user_id: string
+          user_unread_count: number
+        }
+        Insert: {
+          admin_unread_count?: number
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          last_message_sender?: string | null
+          status?: string
+          user_email?: string | null
+          user_id: string
+          user_unread_count?: number
+        }
+        Update: {
+          admin_unread_count?: number
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          last_message_sender?: string | null
+          status?: string
+          user_email?: string | null
+          user_id?: string
+          user_unread_count?: number
+        }
+        Relationships: []
+      }
       support_email_replies: {
         Row: {
           body: string
@@ -857,6 +937,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_notices: {
+        Row: {
+          created_at: string
+          id: string
+          seen_at: string | null
+          team_name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seen_at?: string | null
+          team_name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seen_at?: string | null
+          team_name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       team_members: {
         Row: {
@@ -1075,8 +1182,20 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_team_context: {
+        Args: never
+        Returns: {
+          team_id: string
+          team_name: string
+          role: string
+          owner_user_id: string
+          owner_name: string | null
+          owner_active: boolean
+        }[]
+      }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       has_archive_access: { Args: never; Returns: boolean }
+      same_team_as: { Args: { p_other: string }; Returns: boolean }
       pirol_admin_category_country_frequency: { Args: never; Returns: Json }
       pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import FeatureRequestModal from "@/components/feedback/FeatureRequestModal";
+import SupportChat from "./SupportChat";
+import SupportFeedback from "./SupportFeedback";
 import styles from "./HelpPane.module.css";
+
+const UNREAD_POLL_INTERVAL_MS = 30000;
 
 type HelpPaneProps = {
   /**
@@ -22,19 +25,48 @@ type HelpPaneProps = {
  * `transform`, which would otherwise trap a `position: fixed` child). It closes
  * on Escape or a click outside both the trigger and the panel.
  *
- * Entries: Contact support (→ /help), Share feedback (opens the existing
- * FeatureRequestModal), and quick Docs & help links.
+ * Entries: Contact support (expands into the in-app chat), Share feedback
+ * (expands into an inline feedback box), and quick Docs & help links.
  */
 export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
   const [open, setOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [view, setView] = useState<"menu" | "chat" | "feedback">("menu");
   const [mounted, setMounted] = useState(false);
+  const [unread, setUnread] = useState(0);
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Poll for unread admin replies so the trigger shows a notification dot even
+  // when the panel is closed. Logged-in only; a 401 just leaves the count at 0.
+  const refreshUnread = useCallback(async () => {
+    try {
+      const response = await fetch("/api/support/chat?summary=1", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { unreadCount?: number };
+      setUnread(data.unreadCount ?? 0);
+    } catch {
+      /* best-effort */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshUnread();
+    const timer = setInterval(() => void refreshUnread(), UNREAD_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [refreshUnread]);
+
+  // Re-check unread when the panel opens, and return to the menu once closed.
+  useEffect(() => {
+    if (open) {
+      void refreshUnread();
+    } else {
+      setView("menu");
+    }
+  }, [open, refreshUnread]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,18 +96,16 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
       ? `${styles.trigger} ${styles.triggerApp}`
       : styles.trigger;
 
-  const panel = (
-    <div
-      ref={panelRef}
-      className={open ? `${styles.panel} ${styles.open}` : styles.panel}
-      role="dialog"
-      aria-label="Help and support"
-      aria-hidden={!open}
-    >
+  const menuContent = (
+    <>
       <p className={styles.panelHeading}>How can we help?</p>
 
       <div className={styles.section}>
-        <Link href="/help" className={styles.item} onClick={() => setOpen(false)}>
+        <button
+          type="button"
+          className={styles.item}
+          onClick={() => setView("chat")}
+        >
           <svg className={styles.itemIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M4 5h16v11H8l-4 3.5V5Z"
@@ -86,20 +116,21 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
           </svg>
           <span className={styles.itemBody}>
             <span className={styles.itemTitle}>Contact support</span>
-            <span className={styles.itemDesc}>Get in touch with our team</span>
+            <span className={styles.itemDesc}>Chat with our team</span>
           </span>
-          <svg className={styles.chevron} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
+          {unread > 0 ? (
+            <span className={styles.itemDot} aria-label={`${unread} new reply`} />
+          ) : (
+            <svg className={styles.chevron} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
 
         <button
           type="button"
           className={styles.item}
-          onClick={() => {
-            setOpen(false);
-            setFeedbackOpen(true);
-          }}
+          onClick={() => setView("feedback")}
         >
           <svg className={styles.itemIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
@@ -154,6 +185,62 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
           </span>
         </Link>
       </div>
+    </>
+  );
+
+  const chatContent = (
+    <>
+      <div className={styles.chatHeader}>
+        <button
+          type="button"
+          className={styles.chatBack}
+          onClick={() => setView("menu")}
+          aria-label="Back to help menu"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m15 6-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className={styles.chatTitle}>Contact support</span>
+      </div>
+      {view === "chat" ? <SupportChat onRead={() => setUnread(0)} /> : null}
+    </>
+  );
+
+  const feedbackContent = (
+    <>
+      <div className={styles.chatHeader}>
+        <button
+          type="button"
+          className={styles.chatBack}
+          onClick={() => setView("menu")}
+          aria-label="Back to help menu"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m15 6-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className={styles.chatTitle}>Share feedback</span>
+      </div>
+      {view === "feedback" ? <SupportFeedback /> : null}
+    </>
+  );
+
+  const flushView = view === "chat" || view === "feedback";
+
+  const panel = (
+    <div
+      ref={panelRef}
+      className={
+        open
+          ? `${styles.panel} ${styles.open}${flushView ? ` ${styles.panelForm}` : ""}${view === "chat" ? ` ${styles.panelChat}` : ""}`
+          : `${styles.panel}${flushView ? ` ${styles.panelForm}` : ""}${view === "chat" ? ` ${styles.panelChat}` : ""}`
+      }
+      role="dialog"
+      aria-label="Help and support"
+      aria-hidden={!open}
+    >
+      {view === "chat" ? chatContent : view === "feedback" ? feedbackContent : menuContent}
     </div>
   );
 
@@ -182,11 +269,10 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
           <circle cx="12" cy="16.6" r="0.6" fill="currentColor" stroke="currentColor" />
         </svg>
         Need help?
+        {unread > 0 ? <span className={styles.triggerDot} aria-hidden="true" /> : null}
       </button>
 
       {mounted && createPortal(panel, document.body)}
-
-      {feedbackOpen && <FeatureRequestModal onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }

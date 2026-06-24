@@ -239,7 +239,7 @@
 }
 
 .heroDomain {
-  color: #2563eb;
+  color: #086e4b;
   text-decoration: none;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.82rem;
@@ -1282,7 +1282,7 @@
 
 .calendarCell:focus-visible {
   box-shadow: 0 0 0 2px #ffffff,
-    0 0 0 4px var(--brand-accent, #2563eb);
+    0 0 0 4px var(--brand-accent, #086e4b);
 }
 
 .calendarCellGhost {

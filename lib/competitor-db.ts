@@ -76,6 +76,8 @@ export type CompetitorSetDetail = {
   id: string;
   name: string;
   ownerId: string;
+  /** Owner has shared this with their team (read-only for co-members). */
+  sharedWithTeam: boolean;
   createdAt: string;
   updatedAt: string;
   brands: CompetitorSetBrand[];
@@ -170,7 +172,7 @@ export async function getCompetitorSetForOwner(
 ): Promise<CompetitorSetDetail | null> {
   const { data: setRow, error: setError } = await supabase
     .from("competitor_sets")
-    .select("id, name, user_id, created_at, updated_at")
+    .select("id, name, user_id, shared_with_team, created_at, updated_at")
     .eq("id", setId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -184,10 +186,173 @@ export async function getCompetitorSetForOwner(
     id: setRow.id,
     name: setRow.name,
     ownerId: setRow.user_id,
+    sharedWithTeam: setRow.shared_with_team,
     createdAt: setRow.created_at,
     updatedAt: setRow.updated_at,
     brands
   };
+}
+
+/**
+ * Read a set by id WITHOUT the owner filter — RLS decides access, so this
+ * returns the row when the caller owns it OR it's shared with their team.
+ * Callers compare `ownerId` to the viewer to gate edit controls.
+ */
+export async function getCompetitorSetForReader(
+  supabase: SupabaseClient<Database>,
+  setId: string
+): Promise<CompetitorSetDetail | null> {
+  const { data: setRow, error: setError } = await supabase
+    .from("competitor_sets")
+    .select("id, name, user_id, shared_with_team, created_at, updated_at")
+    .eq("id", setId)
+    .maybeSingle();
+
+  if (setError) throw setError;
+  if (!setRow) return null;
+
+  const brands = await loadSetBrands(supabase, setId);
+
+  return {
+    id: setRow.id,
+    name: setRow.name,
+    ownerId: setRow.user_id,
+    sharedWithTeam: setRow.shared_with_team,
+    createdAt: setRow.created_at,
+    updatedAt: setRow.updated_at,
+    brands
+  };
+}
+
+/** Set/clear the team-share flag. Owner-only (RLS + explicit user filter). */
+export async function setCompetitorSetShared(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  setId: string,
+  shared: boolean
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("competitor_sets")
+    .update({ shared_with_team: shared })
+    .eq("id", setId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
+ * Deep-copy a team-shared comparison into another user's account. Uses the
+ * admin client (the recipient may be a lapsed member without archive
+ * access). The source MUST be shared_with_team — the route also checks the
+ * recipient is on the owner's team. The copy is private and clones the
+ * brand membership (with per-brand inbox scopes).
+ */
+export async function copySharedSet(
+  admin: SupabaseClient<Database>,
+  sourceSetId: string,
+  targetUserId: string
+): Promise<{ id: string; name: string } | null> {
+  const { data: source, error } = await admin
+    .from("competitor_sets")
+    .select("name, shared_with_team")
+    .eq("id", sourceSetId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!source || !source.shared_with_team) return null;
+
+  const copyName = `${source.name} (copy)`.slice(0, 120);
+
+  const { data: created, error: insertError } = await admin
+    .from("competitor_sets")
+    .insert({ user_id: targetUserId, name: copyName, shared_with_team: false })
+    .select("id, name")
+    .single();
+  if (insertError || !created) {
+    throw insertError ?? new Error("Failed to create comparison copy");
+  }
+
+  const { data: members, error: membersError } = await admin
+    .from("competitor_set_members")
+    .select("company_id, inbox_ids")
+    .eq("set_id", sourceSetId);
+  if (membersError) throw membersError;
+
+  const rows = (members ?? []).map((m) => ({
+    set_id: created.id,
+    company_id: m.company_id,
+    inbox_ids: m.inbox_ids
+  }));
+  if (rows.length > 0) {
+    const { error: copyError } = await admin
+      .from("competitor_set_members")
+      .insert(rows);
+    if (copyError) throw copyError;
+  }
+
+  return { id: created.id, name: created.name };
+}
+
+/** A comparison a teammate has shared with the viewer's team. */
+export type TeamSharedSet = {
+  id: string;
+  name: string;
+  brandCount: number;
+  updatedAt: string;
+  ownerId: string;
+  ownerName: string | null;
+};
+
+/**
+ * Comparisons shared with the viewer's team by OTHER members. RLS returns
+ * only same-team shared rows; owner names resolved via the admin client.
+ */
+export async function listTeamSharedSets(
+  supabase: SupabaseClient<Database>,
+  admin: SupabaseClient<Database>,
+  userId: string
+): Promise<TeamSharedSet[]> {
+  const { data, error } = await supabase
+    .from("competitor_sets")
+    .select("id, name, user_id, updated_at")
+    .eq("shared_with_team", true)
+    .neq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const setIds = rows.map((r) => r.id);
+  const { data: memberRows } = await supabase
+    .from("competitor_set_members")
+    .select("set_id")
+    .in("set_id", setIds);
+  const counts = new Map<string, number>();
+  for (const m of memberRows ?? []) {
+    counts.set(m.set_id, (counts.get(m.set_id) ?? 0) + 1);
+  }
+
+  const ownerIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles } = await admin
+    .from("user_profiles")
+    .select("user_id, full_name, email")
+    .in("user_id", ownerIds);
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.user_id, p.full_name || p.email])
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    brandCount: counts.get(r.id) ?? 0,
+    updatedAt: r.updated_at,
+    ownerId: r.user_id,
+    ownerName: nameById.get(r.user_id) ?? null
+  }));
 }
 
 /**
@@ -247,6 +412,7 @@ export async function createCompetitorSet(
     id: inserted.id,
     name: inserted.name,
     ownerId: inserted.user_id,
+    sharedWithTeam: false,
     createdAt: inserted.created_at,
     updatedAt: inserted.updated_at,
     brands

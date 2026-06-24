@@ -31,14 +31,14 @@ type Props = {
   onClose: () => void;
   /**
    * Base path for the rendered-preview iframe; the modal builds
-   * `${renderUrlBase}/${id}/render`. Defaults to the admin route; the
-   * public teaser passes `/api/explore/emails` (no auth, links stripped).
+   * `${renderUrlBase}/${id}/render`. Defaults to the entitlement-safe
+   * public route; admin surfaces pass `/api/admin/emails`.
    */
   renderUrlBase?: string;
   /**
    * Base path for the email-detail fetch (metadata panel); builds
-   * `${detailUrlBase}/${id}`. Defaults to the admin route; the public
-   * teaser passes `/api/public/emails`.
+   * `${detailUrlBase}/${id}`. Defaults to the public route; admin
+   * surfaces pass `/api/admin/emails`.
    */
   detailUrlBase?: string;
   /**
@@ -90,8 +90,8 @@ type Props = {
 export default function EmailModal({
   email,
   onClose,
-  renderUrlBase = "/api/admin/emails",
-  detailUrlBase = "/api/admin/emails",
+  renderUrlBase = "/api/explore/emails",
+  detailUrlBase = "/api/public/emails",
   readOnly = false,
   isSaved = false,
   onToggleSave,

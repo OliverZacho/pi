@@ -188,7 +188,7 @@ export default function CollectionsGridClient({
           <CollectionCard
             key={collection.id}
             collection={collection}
-            renderUrlFor={(emailId) => `/api/admin/emails/${emailId}/render`}
+            renderUrlFor={(emailId) => `/api/explore/emails/${emailId}/render`}
             shareUrl={
               shareOrigin
                 ? `${shareOrigin}/c/${collection.shareSlug}`

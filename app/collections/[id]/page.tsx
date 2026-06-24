@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getBrandDiscountBenchmarks,
   getCollectionForOwner,
+  getCollectionForReader,
   listCollectionSummaries,
   markCollectionViewed,
   type CollectionSummary
@@ -61,15 +62,24 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   const userId = viewer.userId;
 
-  const collection = await getCollectionForOwner(supabase, userId, id);
+  // Owner path first; fall back to the team-reader path (RLS lets a
+  // co-member read a collection shared with their team).
+  let collection = await getCollectionForOwner(supabase, userId, id);
+  if (!collection) {
+    collection = await getCollectionForReader(supabase, id);
+  }
   if (!collection) {
     notFound();
   }
 
-  try {
-    await markCollectionViewed(supabase, userId, id);
-  } catch (err) {
-    console.error("Failed to mark collection viewed", err);
+  const canEdit = collection.ownerId === userId;
+
+  if (canEdit) {
+    try {
+      await markCollectionViewed(supabase, userId, id);
+    } catch (err) {
+      console.error("Failed to mark collection viewed", err);
+    }
   }
 
   // Deepest discount each brand in this collection has run over the past
@@ -186,6 +196,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           facets={facets}
           brandDiscountBenchmarks={brandDiscountBenchmarks}
           followedCompanyIds={followedCompanyIds}
+          canEdit={canEdit}
         />
       </main>
     </div>

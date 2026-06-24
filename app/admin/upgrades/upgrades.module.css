@@ -20,7 +20,7 @@
 }
 
 .back:hover {
-  color: #2563eb;
+  color: #086e4b;
 }
 
 .title {
@@ -88,7 +88,7 @@
 .sparkBar {
   flex: 1;
   min-width: 2px;
-  background: #2563eb;
+  background: #086e4b;
   border-radius: 3px 3px 0 0;
   opacity: 0.85;
 }
@@ -151,7 +151,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: #2563eb;
+  background: #086e4b;
 }
 
 .empty {

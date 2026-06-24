@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getCompetitorComparison,
   getCompetitorSetForOwner,
+  getCompetitorSetForReader,
   listCompetitorSetSummaries
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
@@ -57,10 +58,17 @@ export default async function CompareSetPage({ params }: PageProps) {
 
   const userId = viewer.userId;
 
-  const set = await getCompetitorSetForOwner(supabase, userId, id);
+  // Owner path first; fall back to the team-reader path (RLS lets a
+  // co-member read a comparison shared with their team).
+  let set = await getCompetitorSetForOwner(supabase, userId, id);
+  if (!set) {
+    set = await getCompetitorSetForReader(supabase, id);
+  }
   if (!set) {
     notFound();
   }
+
+  const canEdit = set.ownerId === userId;
 
   const [collections, sidebarSets, comparison, sectionPrefs] =
     await Promise.all([
@@ -101,6 +109,8 @@ export default async function CompareSetPage({ params }: PageProps) {
           setId={set.id}
           setName={set.name}
           subtitle={subtitle}
+          canEdit={canEdit}
+          sharedWithTeam={set.sharedWithTeam}
         />
 
         {set.brands.length === 0 ? (

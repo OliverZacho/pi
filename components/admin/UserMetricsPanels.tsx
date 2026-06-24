@@ -29,7 +29,7 @@ const RECENCY: {
   color: string;
 }[] = [
   { key: "active7d", label: "Active · ≤7d", color: "#059669" },
-  { key: "recent", label: "Recent · 8–30d", color: "#2563eb" },
+  { key: "recent", label: "Recent · 8–30d", color: "#086e4b" },
   { key: "atRisk", label: "At risk · 31–60d", color: "#d97706" },
   { key: "dormant", label: "Dormant · 60d+", color: "#dc2626" },
   { key: "neverOnboarded", label: "Never onboarded", color: "#94a3b8" }

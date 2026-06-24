@@ -146,7 +146,7 @@ function wrapHtml(body: string, subject: string): string {
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #ffffff; }
       img { max-width: 100%; height: auto; }
-      a { color: #2563eb; }
+      a { color: #086e4b; }
     </style>
   </head>
   <body>

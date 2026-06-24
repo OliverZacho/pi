@@ -26,6 +26,14 @@ type Props = {
    * ad-hoc compares pass a count + "ad-hoc comparison" label.
    */
   subtitle: string;
+  /**
+   * Whether the viewer owns this set. False when a teammate is viewing a
+   * team-shared comparison — controls are hidden and it renders read-only.
+   * Defaults to true for ad-hoc / owner use.
+   */
+  canEdit?: boolean;
+  /** Whether the set is shared with the owner's team (owner view only). */
+  sharedWithTeam?: boolean;
 };
 
 /**
@@ -42,12 +50,16 @@ export default function CompareBrandStrip({
   brands,
   setId,
   setName,
-  subtitle
+  subtitle,
+  canEdit = true,
+  sharedWithTeam = false
 }: Props) {
   const router = useRouter();
   const [name, setName_] = useState(setName);
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
+  const [shared, setShared] = useState(sharedWithTeam);
+  const [sharePending, setSharePending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [pendingAdds, setPendingAdds] = useState<string[]>([]);
@@ -166,6 +178,30 @@ export default function CompareBrandStrip({
     } catch (err) {
       console.error("Failed to delete set", err);
       setPending(false);
+    }
+  }
+
+  async function handleToggleShare() {
+    if (!setId || sharePending) return;
+    const next = !shared;
+    setSharePending(true);
+    setShared(next); // optimistic
+    setError(null);
+    try {
+      const res = await fetch(`/api/competitor-sets/${setId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sharedWithTeam: next })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+    } catch (err) {
+      setShared(!next);
+      setError(
+        err instanceof Error ? err.message : "Failed to update team sharing"
+      );
+    } finally {
+      setSharePending(false);
     }
   }
 
@@ -302,7 +338,7 @@ export default function CompareBrandStrip({
           )}
         </div>
 
-        {setId ? (
+        {setId && canEdit ? (
           <div className={styles.compareActions}>
             <button
               type="button"
@@ -324,6 +360,19 @@ export default function CompareBrandStrip({
             <button
               type="button"
               className={styles.iconButton}
+              onClick={handleToggleShare}
+              disabled={sharePending}
+              title={
+                shared
+                  ? "Your team can view this comparison. Click to stop sharing."
+                  : "Let your team view this comparison"
+              }
+            >
+              {shared ? "✓ Shared with team" : "Share with team"}
+            </button>
+            <button
+              type="button"
+              className={styles.iconButton}
               onClick={() => setEditing((v) => !v)}
               disabled={pending}
             >
@@ -337,6 +386,12 @@ export default function CompareBrandStrip({
             >
               Delete
             </button>
+          </div>
+        ) : setId && !canEdit ? (
+          <div className={styles.compareActions}>
+            <span className={styles.compareReadonly}>
+              Shared with your team · read-only
+            </span>
           </div>
         ) : null}
       </div>

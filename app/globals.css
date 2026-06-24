@@ -643,7 +643,7 @@ code {
 .cost-trend-fill {
   display: block;
   width: 100%;
-  background: #2563eb;
+  background: #086e4b;
   border-radius: 3px 3px 0 0;
 }
 
@@ -686,7 +686,7 @@ code {
 .rank-fill {
   display: block;
   height: 100%;
-  background: #2563eb;
+  background: #086e4b;
   border-radius: 999px;
 }
 
@@ -730,7 +730,7 @@ code {
 }
 
 .growth-legend-item:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 1px;
 }
 
@@ -884,7 +884,7 @@ code {
   display: block;
   height: 100%;
   border-radius: 7px;
-  background: #2563eb;
+  background: #086e4b;
   transition: width 0.3s ease;
 }
 
@@ -931,7 +931,7 @@ code {
   min-width: 1.6rem;
   padding: 0 0.55rem;
   border-radius: 8px;
-  background: linear-gradient(90deg, #1d4ed8, #2563eb);
+  background: linear-gradient(90deg, #065a3c, #086e4b);
   color: #ffffff;
   font-size: 0.74rem;
   font-weight: 600;
@@ -992,7 +992,7 @@ code {
 }
 
 .cat-chart-select select:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 1px;
 }
 
@@ -1016,7 +1016,7 @@ code {
 }
 
 .cat-chart-toggle:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 1px;
 }
 
@@ -1032,7 +1032,7 @@ code {
 }
 
 .cat-chart-toggle.is-on .cat-chart-toggle-track {
-  background: #2563eb;
+  background: #086e4b;
 }
 
 .cat-chart-toggle-thumb {
@@ -1089,7 +1089,7 @@ code {
 }
 
 .quality-card:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 2px;
 }
 
@@ -1119,7 +1119,7 @@ code {
   padding: 0.05rem 0.5rem;
   border-radius: 999px;
   background: #eff6ff;
-  color: #2563eb;
+  color: #086e4b;
   font-size: 0.8rem;
   font-weight: 600;
   vertical-align: middle;
@@ -1211,7 +1211,7 @@ a.quality-row-main:hover .quality-row-title {
   font: inherit;
   font-size: 0.78rem;
   font-weight: 500;
-  color: #2563eb;
+  color: #086e4b;
   background: #eff6ff;
   border: 1px solid #dbeafe;
   border-radius: 6px;
@@ -1667,7 +1667,7 @@ th.sortable-header.numeric .sortable-header-button {
 }
 
 .sortable-header-button:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: -2px;
 }
 
@@ -1824,7 +1824,7 @@ th.sortable-header.is-active .sortable-header-indicator {
 
 .badge.suggestion-scope {
   background: #dbeafe;
-  color: #1d4ed8;
+  color: #065a3c;
   letter-spacing: 0.04em;
 }
 
@@ -1924,7 +1924,7 @@ th.sortable-header.is-active .sortable-header-indicator {
 }
 
 .suggestion-domain {
-  color: #2563eb;
+  color: #086e4b;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.85rem;
   text-decoration: none;
@@ -2085,7 +2085,7 @@ th.sortable-header.is-active .sortable-header-indicator {
 }
 
 .company-info-popover a {
-  color: #2563eb;
+  color: #086e4b;
 }
 
 .company-logo {
@@ -3020,7 +3020,7 @@ tr.is-editing > td {
 }
 
 .list-headers-row-info .list-headers-marker {
-  color: #1d4ed8;
+  color: #065a3c;
 }
 
 .list-headers-row-muted .list-headers-marker {
@@ -3271,7 +3271,7 @@ tr.is-editing > td {
 
 .raw-source-link {
   font-size: 0.8rem;
-  color: #2563eb;
+  color: #086e4b;
 }
 
 button.raw-source-link {
@@ -3924,6 +3924,13 @@ button.raw-source-link:hover {
   background: #f8fafc;
 }
 
+/* Chat detail action bar sits above the transcript, not below the body. */
+.support-chat-actions {
+  align-items: center;
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+
 .support-body-text {
   margin: 0;
   white-space: pre-wrap;
@@ -4024,4 +4031,85 @@ button.raw-source-link:hover {
 
 .support-error {
   color: #dc2626;
+}
+
+/* Email / Live chat channel switch above the inbox. */
+.support-modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: #f1f5f9;
+  border-radius: 9px;
+  align-self: flex-start;
+}
+
+.support-mode {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.35rem 0.9rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.support-mode.is-active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+/* Admin live-chat transcript (messenger-style). */
+.support-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-height: 18rem;
+  max-height: 26rem;
+  overflow-y: auto;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.support-chat-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.support-chat-row.is-admin {
+  justify-content: flex-end;
+}
+
+.support-chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 80%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.support-chat-row.is-admin .support-chat-bubble {
+  background: #086e4b;
+  border-color: #086e4b;
+  color: #ffffff;
+}
+
+.support-chat-text {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.support-chat-meta {
+  font-size: 0.68rem;
+  opacity: 0.65;
 }

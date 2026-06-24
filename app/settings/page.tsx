@@ -13,14 +13,17 @@ import { isConsumerEmailDomain } from "@/lib/email-domains";
 import { getProfile, userHasPassword } from "@/lib/profile-db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
+  getTeamContext,
   getTeamForUser,
   hasActiveTeamPlan,
+  TEAM_SEAT_LIMIT,
   type TeamView
 } from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import SettingsClient, {
-  type BillingInfo
+  type BillingInfo,
+  type TeamMembershipInfo
 } from "@/components/settings/SettingsClient";
 import styles from "@/components/explore/explore.module.css";
 
@@ -103,6 +106,23 @@ export default async function SettingsPage() {
   const inviteDomainRestricted =
     Boolean(emailDomain) && !isConsumerEmailDomain(emailDomain);
 
+  // Team-plan membership context — drives the "managed by …" billing copy
+  // and the profile badge. Session client: the RPC keys off auth.uid().
+  let teamMembership: TeamMembershipInfo = null;
+  try {
+    const ctx = await getTeamContext(supabase);
+    if (ctx) {
+      teamMembership = {
+        role: ctx.role,
+        teamName: ctx.teamName,
+        ownerName: ctx.ownerName,
+        ownerActive: ctx.ownerActive
+      };
+    }
+  } catch (err) {
+    console.error("Failed to load team context", err);
+  }
+
   // Billing tab state — the viewer's own subscription row (RLS self-select).
   let billing: BillingInfo = {
     status: "inactive",
@@ -153,6 +173,8 @@ export default async function SettingsPage() {
           initialTeam={initialTeam}
           canInviteTeam={canInviteTeam}
           inviteDomainRestricted={inviteDomainRestricted}
+          seatLimit={TEAM_SEAT_LIMIT}
+          teamMembership={teamMembership}
           billing={billing}
         />
       </main>

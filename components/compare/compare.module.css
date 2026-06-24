@@ -835,6 +835,12 @@
   gap: 0.4rem;
 }
 
+.compareReadonly {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .iconButton {
   display: inline-flex;
   align-items: center;
@@ -2452,7 +2458,7 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.76rem;
-  color: #2563eb;
+  color: #086e4b;
   font-weight: 500;
 }
 

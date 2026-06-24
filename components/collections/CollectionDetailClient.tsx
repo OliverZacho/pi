@@ -49,14 +49,20 @@ type Props = {
    * insights. Empty when the user follows none of them.
    */
   followedCompanyIds: string[];
+  /**
+   * Whether the viewer owns this collection. False when viewing a
+   * collection a teammate shared with the team — the page is read-only
+   * (no rename/delete/share/rules edits, no card-level mutations).
+   */
+  canEdit: boolean;
 };
 
 /**
- * Owner-side `/collections/[id]` client. Header shows the collection
- * name + meta + Share / Rename / Delete actions; below sits the same
- * `EmailCard` + `EmailModal` pair Explore uses, so users get an
- * identical interaction model (open, save, add to other collections,
- * remove from this collection).
+ * `/collections/[id]` client. For the owner the header shows the
+ * collection name + meta + Share / Rename / Delete actions; below sits
+ * the same `EmailCard` + `EmailModal` pair Explore uses. When a teammate
+ * is viewing a team-shared collection (`canEdit` false) the editing
+ * controls are hidden and it renders read-only.
  */
 export default function CollectionDetailClient({
   initialCollection,
@@ -64,7 +70,8 @@ export default function CollectionDetailClient({
   initialCollections,
   facets,
   brandDiscountBenchmarks,
-  followedCompanyIds
+  followedCompanyIds,
+  canEdit
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -119,6 +126,7 @@ export default function CollectionDetailClient({
   const [nameDraft, setNameDraft] = useState(initialCollection.name);
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+  const [sharePending, setSharePending] = useState(false);
   const [copied, setCopied] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -429,6 +437,32 @@ export default function CollectionDetailClient({
     }
   }
 
+  async function handleToggleShare() {
+    if (sharePending) return;
+    const next = !collection.sharedWithTeam;
+    setSharePending(true);
+    // Optimistic; roll back on failure.
+    setCollection((current) => ({ ...current, sharedWithTeam: next }));
+    try {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sharedWithTeam: next })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+    } catch (err) {
+      setCollection((current) => ({ ...current, sharedWithTeam: !next }));
+      setError(
+        err instanceof Error ? err.message : "Failed to update team sharing"
+      );
+    } finally {
+      setSharePending(false);
+    }
+  }
+
   return (
     <>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
@@ -447,13 +481,15 @@ export default function CollectionDetailClient({
       <header className={styles.detailHeader}>
         <div className={styles.detailTitleGroup}>
           <div className={styles.detailTitleRow}>
-            <CollectionIconPicker
-              value={collection.icon}
-              onChange={handleChangeIcon}
-              size="lg"
-              label="Choose an icon for this collection"
-            />
-            {renaming ? (
+            {canEdit ? (
+              <CollectionIconPicker
+                value={collection.icon}
+                onChange={handleChangeIcon}
+                size="lg"
+                label="Choose an icon for this collection"
+              />
+            ) : null}
+            {canEdit && renaming ? (
               <form onSubmit={handleRename}>
                 <input
                   ref={renameInputRef}
@@ -475,18 +511,20 @@ export default function CollectionDetailClient({
             ) : (
               <h1 className={styles.detailTitle}>
                 {collection.name}
-                <button
-                  type="button"
-                  className={styles.detailEditIcon}
-                  onClick={() => {
-                    setNameDraft(collection.name);
-                    setRenaming(true);
-                  }}
-                  aria-label="Rename collection"
-                  title="Rename"
-                >
-                  <PencilIcon />
-                </button>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className={styles.detailEditIcon}
+                    onClick={() => {
+                      setNameDraft(collection.name);
+                      setRenaming(true);
+                    }}
+                    aria-label="Rename collection"
+                    title="Rename"
+                  >
+                    <PencilIcon />
+                  </button>
+                ) : null}
               </h1>
             )}
           </div>
@@ -500,34 +538,62 @@ export default function CollectionDetailClient({
         </div>
 
         <div className={styles.detailActions}>
-          <button
-            type="button"
-            className={`${styles.detailButton} ${
-              copied ? styles.detailButtonCopied : ""
-            }`}
-            onClick={handleCopyShare}
-          >
-            <ShareIcon />
-            <span>{copied ? "Link copied" : "Share link"}</span>
-          </button>
-          <a
-            href={`/c/${collection.shareSlug}`}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.detailButton}
-          >
-            <ExternalIcon />
-            <span>Preview public</span>
-          </a>
-          <button
-            type="button"
-            className={`${styles.detailButton} ${styles.detailButtonDanger}`}
-            onClick={handleDelete}
-            disabled={deletePending}
-          >
-            <TrashIcon />
-            <span>{deletePending ? "Deleting…" : "Delete"}</span>
-          </button>
+          {canEdit ? (
+            <>
+              <button
+                type="button"
+                className={`${styles.detailButton} ${
+                  collection.sharedWithTeam ? styles.detailButtonCopied : ""
+                }`}
+                onClick={handleToggleShare}
+                disabled={sharePending}
+                title={
+                  collection.sharedWithTeam
+                    ? "Your team can view this collection. Click to stop sharing."
+                    : "Let your team view this collection"
+                }
+              >
+                <TeamIcon />
+                <span>
+                  {collection.sharedWithTeam
+                    ? "Shared with team"
+                    : "Share with team"}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`${styles.detailButton} ${
+                  copied ? styles.detailButtonCopied : ""
+                }`}
+                onClick={handleCopyShare}
+              >
+                <ShareIcon />
+                <span>{copied ? "Link copied" : "Share link"}</span>
+              </button>
+              <a
+                href={`/c/${collection.shareSlug}`}
+                target="_blank"
+                rel="noreferrer"
+                className={styles.detailButton}
+              >
+                <ExternalIcon />
+                <span>Preview public</span>
+              </a>
+              <button
+                type="button"
+                className={`${styles.detailButton} ${styles.detailButtonDanger}`}
+                onClick={handleDelete}
+                disabled={deletePending}
+              >
+                <TrashIcon />
+                <span>{deletePending ? "Deleting…" : "Delete"}</span>
+              </button>
+            </>
+          ) : (
+            <span className={styles.detailMeta}>
+              Shared with your team · read-only
+            </span>
+          )}
         </div>
       </header>
 
@@ -553,6 +619,7 @@ export default function CollectionDetailClient({
           onSave={handleSaveRules}
           onCancel={() => setRulesEditorOpen(false)}
           showCancel
+          followedBrandIds={followedCompanyIds}
         />
       ) : null}
 
@@ -589,6 +656,7 @@ export default function CollectionDetailClient({
               initialRules={null}
               facets={facets}
               onSave={handleSaveRules}
+              followedBrandIds={followedCompanyIds}
             />
           </div>
         )
@@ -601,6 +669,7 @@ export default function CollectionDetailClient({
               key={email.id}
               email={email}
               onOpen={handleOpenEmail}
+              renderUrlBase="/api/explore/emails"
               isSaved={savedIds.has(email.id)}
               onToggleSave={handleToggleSave}
               collections={collections}
@@ -617,6 +686,8 @@ export default function CollectionDetailClient({
         <EmailModal
           email={openEmail}
           onClose={handleCloseEmail}
+          renderUrlBase="/api/explore/emails"
+          detailUrlBase="/api/public/emails"
           isSaved={savedIds.has(openEmail.id)}
           onToggleSave={handleToggleSave}
           collections={collections}
@@ -921,6 +992,27 @@ function ShareIcon() {
       <circle cx="18" cy="19" r="3" />
       <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
       <line x1="15.4" y1="6.5" x2="8.6" y2="10.5" />
+    </svg>
+  );
+}
+
+function TeamIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

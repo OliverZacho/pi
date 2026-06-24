@@ -201,7 +201,7 @@ export default function Pricing() {
             className={`${styles.card} ${plan.featured ? styles.cardFeatured : ""}`}
           >
             {plan.featured ? (
-              <span className={styles.ribbon}>Best value</span>
+              <span className={styles.ribbon}>Best for teams</span>
             ) : null}
 
             <div className={styles.cardHead}>
@@ -279,7 +279,15 @@ export default function Pricing() {
         Not for you? Email us within 7 days for a full refund — no questions asked.
       </p>
 
-      <PricingCompare />
+      <PricingCompare
+        plans={PLANS.map((p) => ({
+          id: p.id,
+          cta: p.cta,
+          featured: Boolean(p.featured),
+        }))}
+        pending={pending}
+        onCheckout={startCheckout}
+      />
     </section>
   );
 }

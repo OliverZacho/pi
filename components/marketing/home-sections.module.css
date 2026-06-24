@@ -1526,12 +1526,12 @@
 }
 
 .planCta {
-  background: var(--accent);
+  background: #086e4b;
   color: #fff;
 }
 
 .planCta:hover {
-  background: #0c655e;
+  background: #065a3c;
   transform: translateY(-1px);
 }
 

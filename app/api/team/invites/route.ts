@@ -5,12 +5,14 @@ import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   addMember,
+  countTeamSeats,
   createPendingInvite,
   deleteInvite,
   ensureTeamForUser,
   findUserIdByEmail,
   getTeamForUser,
-  hasActiveTeamPlan
+  hasActiveTeamPlan,
+  TEAM_SEAT_LIMIT
 } from "@/lib/teams-db";
 
 const EMAIL_SHAPE = /.+@.+\..+/;
@@ -116,6 +118,19 @@ export async function POST(request: Request) {
       session.user.id,
       defaultTeamName
     );
+
+    // Seat cap: owner + 5 invitees. Counted against members + pending
+    // invites so a fully-invited team can't overshoot before sign-ups land.
+    const seats = await countTeamSeats(admin, teamId);
+    if (seats >= TEAM_SEAT_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `Your team is full (${TEAM_SEAT_LIMIT} seats). Remove a member or revoke an invite to free a seat.`,
+          code: "TEAM_FULL"
+        },
+        { status: 409 }
+      );
+    }
 
     const existingUserId = await findUserIdByEmail(admin, email);
 

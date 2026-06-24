@@ -42,6 +42,12 @@ type Props = {
    * hides cancel because there's nothing to revert to.
    */
   showCancel?: boolean;
+  /**
+   * `companies.id`s of the brands this user follows. Powers the
+   * "Select brands I follow" shortcut on the Brand condition so a
+   * collection can be scoped to followed brands in one click.
+   */
+  followedBrandIds?: string[];
 };
 
 type Draft = {
@@ -115,7 +121,8 @@ export default function CollectionRulesEditor({
   facets,
   onSave,
   onCancel,
-  showCancel = false
+  showCancel = false,
+  followedBrandIds = []
 }: Props) {
   const [draft, setDraft] = useState<Draft>(() =>
     initialRules
@@ -144,6 +151,16 @@ export default function CollectionRulesEditor({
       ),
     [facets.brands]
   );
+
+  // Followed brands that actually appear in this catalogue — a brand
+  // the user follows but that has no emails here can't be selected and
+  // would contribute nothing, so we drop it from the shortcut.
+  const followableBrandIds = useMemo(() => {
+    const followed = new Set(followedBrandIds);
+    return sortedBrands
+      .map((brand) => brand.id)
+      .filter((id) => followed.has(id));
+  }, [sortedBrands, followedBrandIds]);
 
   const isValid = useMemo(
     () =>
@@ -453,6 +470,7 @@ export default function CollectionRulesEditor({
               <ConditionValueInputs
                 condition={condition}
                 brands={sortedBrands}
+                followableBrandIds={followableBrandIds}
                 markets={facets.markets}
                 countries={facets.countries}
                 onChange={(next) => updateCondition(index, next)}
@@ -513,12 +531,14 @@ export default function CollectionRulesEditor({
 function ConditionValueInputs({
   condition,
   brands,
+  followableBrandIds,
   markets,
   countries,
   onChange
 }: {
   condition: CollectionRuleCondition;
   brands: ExploreBrandFacet[];
+  followableBrandIds: string[];
   markets: string[];
   countries: string[];
   onChange: (next: CollectionRuleCondition) => void;
@@ -576,6 +596,14 @@ function ConditionValueInputs({
             }))}
             values={condition.values}
             onChange={(values) => onChange({ ...condition, values })}
+            quickAction={
+              followableBrandIds.length > 0
+                ? {
+                    label: `Select brands I follow (${followableBrandIds.length})`,
+                    values: followableBrandIds
+                  }
+                : undefined
+            }
           />
         </>
       );
@@ -763,7 +791,8 @@ function MultiSelect({
   options,
   values,
   onChange,
-  searchable = false
+  searchable = false,
+  quickAction
 }: {
   ariaLabel: string;
   placeholder: string;
@@ -771,6 +800,12 @@ function MultiSelect({
   values: string[];
   onChange: (next: string[]) => void;
   searchable?: boolean;
+  /**
+   * Optional one-click shortcut shown above the list. Clicking it
+   * merges `values` into the current selection (it never deselects),
+   * e.g. "Select brands I follow".
+   */
+  quickAction?: { label: string; values: string[] };
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -842,6 +877,11 @@ function MultiSelect({
     onChange([]);
   }
 
+  const quickActionDone =
+    quickAction != null &&
+    quickAction.values.length > 0 &&
+    quickAction.values.every((value) => selectedSet.has(value));
+
   return (
     <div className={styles.multiSelect} ref={wrapRef}>
       <button
@@ -873,6 +913,35 @@ function MultiSelect({
                 className={styles.multiSelectSearchInput}
                 aria-label={`Search ${ariaLabel}`}
               />
+            </div>
+          ) : null}
+          {(quickAction && quickAction.values.length > 0) ||
+          values.length > 0 ? (
+            <div className={styles.multiSelectQuickRow}>
+              {quickAction && quickAction.values.length > 0 ? (
+                <button
+                  type="button"
+                  className={styles.multiSelectQuickAction}
+                  onClick={() =>
+                    onChange(
+                      Array.from(new Set([...values, ...quickAction.values]))
+                    )
+                  }
+                  disabled={quickActionDone}
+                >
+                  {quickActionDone ? "✓ " : ""}
+                  {quickAction.label}
+                </button>
+              ) : null}
+              {values.length > 0 ? (
+                <button
+                  type="button"
+                  className={styles.multiSelectClear}
+                  onClick={clearAll}
+                >
+                  Clear selection
+                </button>
+              ) : null}
             </div>
           ) : null}
           <ul className={styles.multiSelectList}>
@@ -909,17 +978,6 @@ function MultiSelect({
               })
             )}
           </ul>
-          {values.length > 0 ? (
-            <div className={styles.multiSelectFooter}>
-              <button
-                type="button"
-                className={styles.multiSelectClear}
-                onClick={clearAll}
-              >
-                Clear selection
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>

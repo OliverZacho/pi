@@ -14,7 +14,7 @@ type SeriesConfig = {
 // Both series share one y-axis: paid is a strict subset of total users, so the
 // gap between the lines reads directly as the free tier.
 const SERIES: SeriesConfig[] = [
-  { key: "users", label: "Total users", color: "#2563eb" },
+  { key: "users", label: "Total users", color: "#086e4b" },
   { key: "paid", label: "Paid", color: "#059669" }
 ];
 

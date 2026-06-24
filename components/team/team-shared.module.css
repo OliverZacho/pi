@@ -1,0 +1,82 @@
+.section {
+  margin-top: 28px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.cardLink {
+  display: block;
+  text-decoration: none;
+}
+
+.copyBtn {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.copyBtn:hover:not(:disabled) {
+  background: #eef2f6;
+}
+
+.copyBtn:disabled {
+  cursor: default;
+  color: #64748b;
+}
+
+.cardName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.cardMeta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}

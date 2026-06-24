@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import SupportChatAdmin from "./SupportChatAdmin";
 
 type SupportStatus = "unread" | "read" | "archived";
+type SupportMode = "email" | "chat";
 
 type SupportListItem = {
   id: string;
@@ -67,6 +69,7 @@ function preview(text: string | null): string {
 }
 
 export default function SupportInbox() {
+  const [mode, setMode] = useState<SupportMode>("email");
   const [filter, setFilter] = useState<StatusFilter>("active");
   const [emails, setEmails] = useState<SupportListItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -216,6 +219,31 @@ export default function SupportInbox() {
 
   return (
     <section className="card support-card">
+      <div className="support-modes" role="tablist" aria-label="Support channel">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "email"}
+          className={`support-mode${mode === "email" ? " is-active" : ""}`}
+          onClick={() => setMode("email")}
+        >
+          Email
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "chat"}
+          className={`support-mode${mode === "chat" ? " is-active" : ""}`}
+          onClick={() => setMode("chat")}
+        >
+          Live chat
+        </button>
+      </div>
+
+      {mode === "chat" ? (
+        <SupportChatAdmin />
+      ) : (
+        <>
       <div className="support-toolbar">
         <div className="support-filters" role="tablist" aria-label="Support filters">
           {FILTERS.map((option) => (
@@ -400,6 +428,8 @@ export default function SupportInbox() {
           )}
         </div>
       </div>
+        </>
+      )}
     </section>
   );
 }
