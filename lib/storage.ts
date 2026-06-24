@@ -322,7 +322,24 @@ export type GetSignedAssetsOptions = {
    * around the broken `<img>`.
    */
   transform?: ImageTransform;
+  /**
+   * Optional per-path byte sizes (from `storage.objects`). When provided,
+   * the CDN resize path applies the {@link MIN_RESIZE_BYTES} gate: assets
+   * smaller than the threshold are served straight (no transform), since
+   * resizing a sub-100KB logo/icon/spacer burns a billable Cloudflare
+   * transformation for ~no byte saving. Paths absent from the map (unknown
+   * size) are resized — we'd rather pay a transform than risk serving a
+   * large original. Omit entirely to resize every transformable path.
+   */
+  sizesByPath?: Record<string, number>;
 };
+
+/**
+ * Below this size we don't bother resizing — the byte saving is marginal and
+ * not worth a Cloudflare transformation. ~45% of mirrored assets (logos,
+ * icons, spacers) fall under this line. See {@link GetSignedAssetsOptions.sizesByPath}.
+ */
+const MIN_RESIZE_BYTES = 100 * 1024;
 
 /**
  * File extensions that Supabase Storage's image transformation pipeline
@@ -363,11 +380,17 @@ export async function getSignedAssets(
   // public URL.
   if (PUBLIC_ASSET_CDN_BASE_URL) {
     const out: Record<string, string> = {};
-    const resize = CF_IMAGE_RESIZE_ENABLED;
+    const resize = CF_IMAGE_RESIZE_ENABLED && Boolean(options.transform);
+    const sizes = options.sizesByPath;
     for (const path of paths) {
+      // Gate: only resize transformable assets that are either of unknown
+      // size or above the threshold. Small known assets pass through as
+      // plain public URLs so they don't burn a transformation.
+      const size = sizes?.[path];
+      const bigEnough = size === undefined || size >= MIN_RESIZE_BYTES;
       out[path] =
-        resize && options.transform && isTransformablePath(path)
-          ? cloudflareImageUrl(path, options.transform)
+        resize && bigEnough && isTransformablePath(path)
+          ? cloudflareImageUrl(path, options.transform!)
           : publicAssetUrl(path);
     }
     return out;

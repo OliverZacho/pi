@@ -198,6 +198,36 @@ export type GetEmailDetailOptions = {
   imageTransform?: ImageTransform;
 };
 
+/**
+ * Byte sizes for a set of email-asset paths, via the `email_asset_sizes`
+ * RPC (which reads `storage.objects` — not otherwise queryable from the
+ * client). Feeds the resize gate in {@link getSignedAssets}. Returns
+ * `undefined` on any failure so resizing falls back to "resize all" rather
+ * than breaking — the gate is a cost optimisation, not correctness. The RPC
+ * name is cast because it post-dates the generated `Database` types.
+ */
+async function fetchEmailAssetSizes(
+  supabase: PirolDb,
+  paths: string[]
+): Promise<Record<string, number> | undefined> {
+  try {
+    const { data, error } = await supabase.rpc(
+      "email_asset_sizes" as never,
+      { p_paths: paths } as never
+    );
+    if (error || !Array.isArray(data)) return undefined;
+    const out: Record<string, number> = {};
+    for (const row of data as { name?: unknown; size?: unknown }[]) {
+      if (typeof row?.name === "string" && row.size != null) {
+        out[row.name] = Number(row.size);
+      }
+    }
+    return out;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getEmailDetailFromDb(
   supabase: PirolDb,
   emailId: string,
@@ -221,11 +251,23 @@ export async function getEmailDetailFromDb(
   const company = relationFirst(data.companies);
   const imagePaths: string[] = data.image_urls ?? [];
 
-  const [htmlSignedUrl, signedAssets, sentToLists] = await Promise.all([
+  // Asset sizes drive the ≥100KB resize gate (don't spend a Cloudflare
+  // transformation on tiny logos/icons). Only needed on the preview render
+  // (the modal has no transform). Run the lookup *in parallel* with the
+  // other render queries so it adds no serial latency — building the signed
+  // URLs afterwards is a cheap string concat on the CDN path.
+  const [htmlSignedUrl, sizesByPath, sentToLists] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    getSignedAssets(imagePaths, { transform: options.imageTransform }),
+    options.imageTransform && imagePaths.length > 0
+      ? fetchEmailAssetSizes(supabase, imagePaths)
+      : Promise.resolve(undefined),
     loadSentToLists(supabase, data.id, data.duplicate_of ?? null)
   ]);
+
+  const signedAssets = await getSignedAssets(imagePaths, {
+    transform: options.imageTransform,
+    sizesByPath
+  });
 
   return {
     id: data.id,
