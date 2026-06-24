@@ -322,6 +322,32 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     expect(createSignedUrlMock).not.toHaveBeenCalled();
   });
 
+  it("applies the 100KB resize gate when sizes are provided", async () => {
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app";
+    process.env.CF_IMAGE_RESIZE = "1";
+    const storage = await import("@/lib/storage");
+
+    const map = await storage.getSignedAssets(
+      ["email-1/big.jpg", "email-1/tiny.png", "email-1/unknown.jpg"],
+      {
+        transform: { width: 600, quality: 70 },
+        sizesByPath: {
+          "email-1/big.jpg": 200 * 1024, // >= 100KB -> resize
+          "email-1/tiny.png": 5 * 1024 // < 100KB -> passthrough
+          // unknown.jpg absent -> unknown size -> resize
+        }
+      }
+    );
+
+    expect(map["email-1/big.jpg"]).toContain("/cdn-cgi/image/");
+    // Under the gate: plain public URL, no transformation spent.
+    expect(map["email-1/tiny.png"]).toBe(
+      "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/tiny.png"
+    );
+    // Unknown size errs toward resizing (don't risk serving a huge original).
+    expect(map["email-1/unknown.jpg"]).toContain("/cdn-cgi/image/");
+  });
+
   it("ignores a trailing slash on the env var", async () => {
     process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app//";
     const storage = await import("@/lib/storage");

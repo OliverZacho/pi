@@ -198,6 +198,36 @@ export type GetEmailDetailOptions = {
   imageTransform?: ImageTransform;
 };
 
+/**
+ * Byte sizes for a set of email-asset paths, via the `email_asset_sizes`
+ * RPC (which reads `storage.objects` — not otherwise queryable from the
+ * client). Feeds the resize gate in {@link getSignedAssets}. Returns
+ * `undefined` on any failure so resizing falls back to "resize all" rather
+ * than breaking — the gate is a cost optimisation, not correctness. The RPC
+ * name is cast because it post-dates the generated `Database` types.
+ */
+async function fetchEmailAssetSizes(
+  supabase: PirolDb,
+  paths: string[]
+): Promise<Record<string, number> | undefined> {
+  try {
+    const { data, error } = await supabase.rpc(
+      "email_asset_sizes" as never,
+      { p_paths: paths } as never
+    );
+    if (error || !Array.isArray(data)) return undefined;
+    const out: Record<string, number> = {};
+    for (const row of data as { name?: unknown; size?: unknown }[]) {
+      if (typeof row?.name === "string" && row.size != null) {
+        out[row.name] = Number(row.size);
+      }
+    }
+    return out;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getEmailDetailFromDb(
   supabase: PirolDb,
   emailId: string,
@@ -221,9 +251,20 @@ export async function getEmailDetailFromDb(
   const company = relationFirst(data.companies);
   const imagePaths: string[] = data.image_urls ?? [];
 
+  // Only fetch asset sizes when we're actually resizing (preview render):
+  // the sizes drive the ≥100KB gate so we don't spend a Cloudflare
+  // transformation on tiny logos/icons. The modal (no transform) skips this.
+  const sizesByPath =
+    options.imageTransform && imagePaths.length > 0
+      ? await fetchEmailAssetSizes(supabase, imagePaths)
+      : undefined;
+
   const [htmlSignedUrl, signedAssets, sentToLists] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    getSignedAssets(imagePaths, { transform: options.imageTransform }),
+    getSignedAssets(imagePaths, {
+      transform: options.imageTransform,
+      sizesByPath
+    }),
     loadSentToLists(supabase, data.id, data.duplicate_of ?? null)
   ]);
 
