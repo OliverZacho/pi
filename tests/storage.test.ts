@@ -275,6 +275,7 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     } else {
       process.env.NEXT_PUBLIC_ASSET_CDN_URL = realEnv;
     }
+    delete process.env.CF_IMAGE_RESIZE;
     vi.resetModules();
   });
 
@@ -296,6 +297,29 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     expect(createSignedUrlsMock).not.toHaveBeenCalled();
     expect(createSignedUrlMock).not.toHaveBeenCalled();
     expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("emits Cloudflare resize URLs for raster paths when a transform is given", async () => {
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app";
+    process.env.CF_IMAGE_RESIZE = "1";
+    const storage = await import("@/lib/storage");
+
+    const map = await storage.getSignedAssets(
+      ["email-1/hero.jpg", "email-1/logo.svg"],
+      { transform: { width: 600, quality: 70 } }
+    );
+
+    // Raster image → Cloudflare /cdn-cgi/image/ resize URL (never upscales,
+    // serves WebP/AVIF). SVG is not transformable → plain public URL.
+    expect(map["email-1/hero.jpg"]).toBe(
+      "https://cdn.pirol.app/cdn-cgi/image/width=600,fit=scale-down,format=auto,quality=70/storage/v1/object/public/email-assets/email-1/hero.jpg"
+    );
+    expect(map["email-1/logo.svg"]).toBe(
+      "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/logo.svg"
+    );
+    // Still no Supabase signing round-trip — resizing is all edge-side.
+    expect(createSignedUrlsMock).not.toHaveBeenCalled();
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
   });
 
   it("ignores a trailing slash on the env var", async () => {

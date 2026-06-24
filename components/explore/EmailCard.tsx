@@ -190,7 +190,10 @@ export default function EmailCard({
     }
   }, [inView]);
 
-  const renderUrl = `${renderUrlBase}/${email.id}/render`;
+  // `?preview=1` opts the grid thumbnail into CDN-resized body images
+  // (≤600px, WebP/AVIF) — far smaller than the full-fidelity originals the
+  // modal pulls. The render route keys its cache on this param.
+  const renderUrl = `${renderUrlBase}/${email.id}/render?preview=1`;
 
   const frameStyle =
     scale !== null

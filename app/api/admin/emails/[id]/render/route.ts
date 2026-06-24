@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
 import { rewriteEmailHtml } from "@/lib/email-render";
 import { requireAdminSession } from "@/lib/require-admin-api";
+import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -22,11 +23,17 @@ export async function GET(request: Request, context: RouteContext) {
   // raw destinations stay clickable for inspection. Every other caller
   // (Explore grid + modal) gets the default safe behaviour where links
   // are neutralised before the iframe renders.
-  const keepLinks = new URL(request.url).searchParams.get("keepLinks") === "1";
+  const params = new URL(request.url).searchParams;
+  const keepLinks = params.get("keepLinks") === "1";
+  // Grid cards request `?preview=1` for CDN-resized body images; the modal
+  // omits it and gets full-fidelity originals.
+  const isPreview = params.get("preview") === "1";
 
   let email;
   try {
-    email = await getEmailDetailFromDb(session.supabase, id);
+    email = await getEmailDetailFromDb(session.supabase, id, {
+      imageTransform: isPreview ? CARD_IMAGE_TRANSFORM : undefined
+    });
   } catch (error) {
     console.error("Failed to load email for render", error);
     return NextResponse.json({ error: "Failed to load email" }, { status: 500 });

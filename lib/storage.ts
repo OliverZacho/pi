@@ -72,8 +72,47 @@ const EMAIL_ASSET_CACHE_CONTROL = "31536000, immutable";
 const PUBLIC_ASSET_CDN_BASE_URL =
   process.env.NEXT_PUBLIC_ASSET_CDN_URL?.replace(/\/+$/, "") || null;
 
+/**
+ * Master switch for Cloudflare Image Resizing on the CDN path. OFF by
+ * default so this code is safe to deploy *before* the feature is enabled
+ * on the `cdn.pirol.app` Cloudflare zone — while off we emit plain public
+ * URLs (full-size originals, same as before). The `/cdn-cgi/image/...`
+ * path 404s on a zone where resizing isn't enabled, so flipping this on
+ * before the dashboard toggle would break every resized image.
+ *
+ * Rollout order: (1) enable Image Resizing in the Cloudflare dashboard,
+ * (2) set `CF_IMAGE_RESIZE=1` in the env, (3) redeploy. Flip the env back
+ * to roll resizing off instantly without a code change.
+ */
+const CF_IMAGE_RESIZE_ENABLED = process.env.CF_IMAGE_RESIZE === "1";
+
 function publicAssetUrl(path: string): string {
   return `${PUBLIC_ASSET_CDN_BASE_URL}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
+}
+
+/**
+ * Resized variant of {@link publicAssetUrl} via Cloudflare Image
+ * Resizing (the `/cdn-cgi/image/<options>/<path>` URL form). This runs
+ * on the `cdn.pirol.app` zone, NOT Supabase's metered transform pipeline,
+ * so it sidesteps the transform quota entirely (see the note in
+ * {@link getSignedAssets}). Only meaningful when the CDN is configured.
+ *
+ *   - `fit=scale-down` never upscales, so an image already smaller than
+ *     the requested width is served untouched (no quality loss).
+ *   - `format=auto` serves WebP/AVIF to browsers that accept it — the
+ *     bulk of the byte savings on top of the resize.
+ *
+ * Billing note: Cloudflare counts one transformation per unique
+ * `(source image, options)` pair per month, then serves cached variants
+ * free. So cost tracks unique images *viewed* per month, not requests.
+ */
+function cloudflareImageUrl(path: string, transform: ImageTransform): string {
+  const opts = [`width=${transform.width}`, "fit=scale-down", "format=auto"];
+  if (transform.height) opts.push(`height=${transform.height}`);
+  if (transform.quality) opts.push(`quality=${transform.quality}`);
+  return `${PUBLIC_ASSET_CDN_BASE_URL}/cdn-cgi/image/${opts.join(
+    ","
+  )}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
 }
 
 export type ImageTransform = {
@@ -311,36 +350,37 @@ export async function getSignedAssets(
     return {};
   }
 
-  // Public-CDN short-circuit. When `NEXT_PUBLIC_ASSET_CDN_URL` is
-  // set, the `email-assets` bucket is being served as a public
-  // bucket behind Cloudflare, so we can skip `createSignedUrls`
-  // entirely and hand callers the deterministic public URL. This is
-  // O(n) string concat with no Supabase round-trip and no signed-URL
-  // memoisation cost. Transform handling stays a no-op for the same
-  // reason it's a no-op below (see the comment block).
+  // Public-CDN short-circuit. When `NEXT_PUBLIC_ASSET_CDN_URL` is set the
+  // `email-assets` bucket is served as a public bucket behind Cloudflare,
+  // so we skip `createSignedUrls` entirely and hand back deterministic
+  // public URLs (O(n) string concat, no Supabase round-trip, no signing
+  // TTFB, and the edge can dedupe across viewers).
+  //
+  // Resizing happens HERE via Cloudflare Image Resizing (the
+  // `/cdn-cgi/image/...` form) — NOT Supabase's metered transform
+  // pipeline (see the note below). A raster path with a transform gets the
+  // resized URL; everything else (no transform, or SVG/ICO) gets the plain
+  // public URL.
   if (PUBLIC_ASSET_CDN_BASE_URL) {
-    void options.transform;
     const out: Record<string, string> = {};
-    for (const path of paths) out[path] = publicAssetUrl(path);
+    const resize = CF_IMAGE_RESIZE_ENABLED;
+    for (const path of paths) {
+      out[path] =
+        resize && options.transform && isTransformablePath(path)
+          ? cloudflareImageUrl(path, options.transform)
+          : publicAssetUrl(path);
+    }
     return out;
   }
 
-  // ⚠️ Image transformations are DISABLED at the storage layer.
+  // ⚠️ Supabase Storage's own transform pipeline (imgproxy) stays DISABLED.
   //
-  // Supabase Storage's image transformation pipeline (imgproxy) is
-  // metered per unique `(path, transform)` pair. The current plan
-  // includes 100 transformations/month and we blew past 500% of that
-  // by minting transformed URLs for every brand logo on the Explore
-  // / Collections / Compare grids (one per unique logo, forever).
-  //
-  // Until we either (a) upgrade to a usage-based plan, (b) move
-  // resizing to a CDN/Vercel image loader, or (c) pre-bake thumbnails
-  // at capture time, force every caller through the plain
-  // `object/sign` path even when they pass `transform: ...`. The
-  // option still type-checks so the existing call sites compile —
-  // it's just a no-op. To re-enable: delete this override and the
-  // surrounding comment block, and audit which call sites really
-  // need a transform vs. a one-time pre-baked thumbnail.
+  // It's metered per unique `(path, transform)` pair and the plan only
+  // includes 100/month, which we blew past 5x by minting transformed URLs
+  // for every brand logo on the grids. Resizing now lives on the Cloudflare
+  // CDN path above; this branch (local dev / no CDN) serves plain
+  // `object/sign` URLs even when a transform is requested. The option still
+  // type-checks so call sites compile — it's just a no-op without the CDN.
   const transform: ImageTransform | undefined = undefined;
   void options.transform;
 

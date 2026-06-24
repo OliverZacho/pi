@@ -3,6 +3,7 @@ import { getEmailDetailFromDb } from "@/lib/admin-db";
 import { isEmailInPublicCollection } from "@/lib/collections-db";
 import { rewriteEmailHtml } from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
 const SLUG_PATTERN = /^[A-Za-z0-9_-]{6,64}$/;
 const UUID_PATTERN =
@@ -24,7 +25,7 @@ type RouteContext = {
  * Links are always stripped on this endpoint: only the admin variant
  * supports `?keepLinks=1`, and the share view is read-only by design.
  */
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { slug, id } = await context.params;
 
   if (!SLUG_PATTERN.test(slug)) {
@@ -50,9 +51,15 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Grid cards request `?preview=1` for CDN-resized body images; the modal
+  // omits it and gets full-fidelity originals.
+  const isPreview = new URL(request.url).searchParams.get("preview") === "1";
+
   let email;
   try {
-    email = await getEmailDetailFromDb(admin, id);
+    email = await getEmailDetailFromDb(admin, id, {
+      imageTransform: isPreview ? CARD_IMAGE_TRANSFORM : undefined
+    });
   } catch (error) {
     console.error("Failed to load email for public render", error);
     return NextResponse.json(
