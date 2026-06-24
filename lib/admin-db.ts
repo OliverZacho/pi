@@ -251,22 +251,23 @@ export async function getEmailDetailFromDb(
   const company = relationFirst(data.companies);
   const imagePaths: string[] = data.image_urls ?? [];
 
-  // Only fetch asset sizes when we're actually resizing (preview render):
-  // the sizes drive the ≥100KB gate so we don't spend a Cloudflare
-  // transformation on tiny logos/icons. The modal (no transform) skips this.
-  const sizesByPath =
-    options.imageTransform && imagePaths.length > 0
-      ? await fetchEmailAssetSizes(supabase, imagePaths)
-      : undefined;
-
-  const [htmlSignedUrl, signedAssets, sentToLists] = await Promise.all([
+  // Asset sizes drive the ≥100KB resize gate (don't spend a Cloudflare
+  // transformation on tiny logos/icons). Only needed on the preview render
+  // (the modal has no transform). Run the lookup *in parallel* with the
+  // other render queries so it adds no serial latency — building the signed
+  // URLs afterwards is a cheap string concat on the CDN path.
+  const [htmlSignedUrl, sizesByPath, sentToLists] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    getSignedAssets(imagePaths, {
-      transform: options.imageTransform,
-      sizesByPath
-    }),
+    options.imageTransform && imagePaths.length > 0
+      ? fetchEmailAssetSizes(supabase, imagePaths)
+      : Promise.resolve(undefined),
     loadSentToLists(supabase, data.id, data.duplicate_of ?? null)
   ]);
+
+  const signedAssets = await getSignedAssets(imagePaths, {
+    transform: options.imageTransform,
+    sizesByPath
+  });
 
   return {
     id: data.id,
