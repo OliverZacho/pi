@@ -631,6 +631,8 @@ export type CollectionDetail = {
   icon: CollectionIcon | null;
   shareSlug: string;
   ownerId: string;
+  /** Owner has shared this with their team (read-only for co-members). */
+  sharedWithTeam: boolean;
   emailCount: number;
   createdAt: string;
   updatedAt: string;
@@ -826,27 +828,31 @@ export async function markCollectionViewed(
  * Owner-side detail view for `/collections/[id]`. Mirrors the embed +
  * logo-signing flow used by `listSavedEmails`.
  */
-export async function getCollectionForOwner(
+const COLLECTION_DETAIL_COLUMNS =
+  "id, name, icon, share_slug, user_id, shared_with_team, created_at, updated_at, rules, event_detection";
+
+type CollectionDetailRow = {
+  id: string;
+  name: string;
+  icon: string | null;
+  share_slug: string;
+  user_id: string;
+  shared_with_team: boolean;
+  created_at: string;
+  updated_at: string;
+  rules: Json | null;
+  event_detection: Json | null;
+};
+
+/** Build a CollectionDetail from a fetched row (owner or team-reader path). */
+async function buildCollectionDetail(
   supabase: SupabaseClient<Database>,
-  userId: string,
-  collectionId: string
-): Promise<CollectionDetail | null> {
-  const { data, error } = await supabase
-    .from("collections")
-    .select(
-      "id, name, icon, share_slug, user_id, created_at, updated_at, rules, event_detection"
-    )
-    .eq("id", collectionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) return null;
-
+  data: CollectionDetailRow
+): Promise<CollectionDetail> {
   const rules = safeParseStoredRules(data.rules);
   const emails = rules
     ? await evaluateCollectionRules(supabase, rules)
-    : await loadCollectionEmails(supabase, collectionId);
+    : await loadCollectionEmails(supabase, data.id);
 
   return {
     id: data.id,
@@ -854,6 +860,7 @@ export async function getCollectionForOwner(
     icon: readIcon(data.icon),
     shareSlug: data.share_slug,
     ownerId: data.user_id,
+    sharedWithTeam: data.shared_with_team,
     emailCount: emails.length,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
@@ -861,6 +868,196 @@ export async function getCollectionForOwner(
     rules,
     eventDetection: safeParseEventDetection(data.event_detection)
   };
+}
+
+export async function getCollectionForOwner(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string
+): Promise<CollectionDetail | null> {
+  const { data, error } = await supabase
+    .from("collections")
+    .select(COLLECTION_DETAIL_COLUMNS)
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return buildCollectionDetail(supabase, data as CollectionDetailRow);
+}
+
+/**
+ * Read a collection by id WITHOUT the owner filter — RLS decides access, so
+ * this returns the row when the caller owns it OR it's shared with their
+ * team. Use for the detail page's team-reader path; callers compare
+ * `ownerId` to the viewer to gate edit controls.
+ */
+export async function getCollectionForReader(
+  supabase: SupabaseClient<Database>,
+  collectionId: string
+): Promise<CollectionDetail | null> {
+  const { data, error } = await supabase
+    .from("collections")
+    .select(COLLECTION_DETAIL_COLUMNS)
+    .eq("id", collectionId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return buildCollectionDetail(supabase, data as CollectionDetailRow);
+}
+
+/** Set/clear the team-share flag. Owner-only (RLS + explicit user filter). */
+export async function setCollectionShared(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  shared: boolean
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("collections")
+    .update({ shared_with_team: shared })
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
+ * Deep-copy a team-shared collection into another user's account. Uses the
+ * admin client (the recipient may be a lapsed member without archive access,
+ * so RLS would block a session-client insert). The source MUST be
+ * shared_with_team — the route also checks the recipient is on the owner's
+ * team. The copy is private (shared_with_team=false) and gets its own slug;
+ * manual collections copy their email membership, rule-based collections
+ * copy the rule so the recipient's copy stays live.
+ */
+export async function copySharedCollection(
+  admin: SupabaseClient<Database>,
+  sourceCollectionId: string,
+  targetUserId: string
+): Promise<{ id: string; name: string } | null> {
+  const { data: source, error } = await admin
+    .from("collections")
+    .select("name, icon, rules, shared_with_team")
+    .eq("id", sourceCollectionId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!source || !source.shared_with_team) return null;
+
+  const copyName = sanitizeName(`${source.name} (copy)`.slice(0, 120));
+
+  let created: { id: string; name: string } | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = generateShareSlug();
+    const { data, error: insertError } = await admin
+      .from("collections")
+      .insert({
+        user_id: targetUserId,
+        name: copyName,
+        icon: source.icon,
+        rules: source.rules,
+        share_slug: slug,
+        shared_with_team: false
+      })
+      .select("id, name")
+      .single();
+
+    if (!insertError && data) {
+      created = { id: data.id, name: data.name };
+      break;
+    }
+    if (
+      insertError &&
+      (insertError.code === "23505" || /duplicate key/i.test(insertError.message))
+    ) {
+      continue;
+    }
+    if (insertError) throw insertError;
+  }
+  if (!created) {
+    throw new Error("Failed to allocate a unique share slug after 5 attempts");
+  }
+
+  // Manual collection: copy the membership rows. (Rule-based collections
+  // need none — the copied rule repopulates them.)
+  if (!source.rules) {
+    const { data: members, error: membersError } = await admin
+      .from("collection_emails")
+      .select("email_id")
+      .eq("collection_id", sourceCollectionId);
+    if (membersError) throw membersError;
+
+    const rows = (members ?? []).map((m) => ({
+      collection_id: created.id,
+      email_id: m.email_id
+    }));
+    if (rows.length > 0) {
+      const { error: copyError } = await admin
+        .from("collection_emails")
+        .insert(rows);
+      if (copyError) throw copyError;
+    }
+  }
+
+  return created;
+}
+
+/** A collection a teammate has shared with the viewer's team. */
+export type TeamSharedCollection = {
+  id: string;
+  name: string;
+  icon: CollectionIcon | null;
+  shareSlug: string;
+  ownerId: string;
+  ownerName: string | null;
+};
+
+/**
+ * Collections shared with the viewer's team by OTHER members. RLS returns
+ * only same-team shared rows; owner display names are resolved via the
+ * admin client (user_profiles is self-only under RLS).
+ */
+export async function listTeamSharedCollections(
+  supabase: SupabaseClient<Database>,
+  admin: SupabaseClient<Database>,
+  userId: string
+): Promise<TeamSharedCollection[]> {
+  const { data, error } = await supabase
+    .from("collections")
+    .select("id, name, icon, share_slug, user_id")
+    .eq("shared_with_team", true)
+    .neq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const ownerIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles } = await admin
+    .from("user_profiles")
+    .select("user_id, full_name, email")
+    .in("user_id", ownerIds);
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.user_id, p.full_name || p.email])
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    icon: readIcon(r.icon),
+    shareSlug: r.share_slug,
+    ownerId: r.user_id,
+    ownerName: nameById.get(r.user_id) ?? null
+  }));
 }
 
 /**
@@ -911,33 +1108,14 @@ export async function getCollectionBySlugPublic(
 ): Promise<CollectionDetail | null> {
   const { data, error } = await adminClient
     .from("collections")
-    .select(
-      "id, name, icon, share_slug, user_id, created_at, updated_at, rules, event_detection"
-    )
+    .select(COLLECTION_DETAIL_COLUMNS)
     .eq("share_slug", slug)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
 
-  const rules = safeParseStoredRules(data.rules);
-  const emails = rules
-    ? await evaluateCollectionRules(adminClient, rules)
-    : await loadCollectionEmails(adminClient, data.id);
-
-  return {
-    id: data.id,
-    name: data.name,
-    icon: readIcon(data.icon),
-    shareSlug: data.share_slug,
-    ownerId: data.user_id,
-    emailCount: emails.length,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
-    emails,
-    rules,
-    eventDetection: safeParseEventDetection(data.event_detection)
-  };
+  return buildCollectionDetail(adminClient, data as CollectionDetailRow);
 }
 
 /**

@@ -4,20 +4,25 @@ import {
   getCompetitorComparison,
   getComparisonActivity,
   listCompetitorSetSummaries,
+  listTeamSharedSets,
   MAX_BRANDS_PER_COMPARISON,
   type ComparisonActivity,
-  type CompetitorSetBrand
+  type CompetitorSetBrand,
+  type TeamSharedSet
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
 import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
 import CompareLandingClient from "@/components/compare/CompareLandingClient";
+import TeamSharedCard from "@/components/team/TeamSharedCard";
 import styles from "@/components/compare/compare.module.css";
+import shared from "@/components/team/team-shared.module.css";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 
 export const metadata = {
@@ -73,21 +78,29 @@ export default async function ComparePage({ searchParams }: PageProps) {
         : []
   ).slice(0, MAX_BRANDS_PER_COMPARISON);
 
-  // Parallelise the three sources of data the landing needs: saved
-  // sets, collections (for the sidebar), and — if we're rendering the
-  // ad-hoc dashboard — the full comparison payload. Skipping the last
-  // one when no brands are selected saves a fan-out of
-  // `getBrandPageData` calls. The picker itself searches the brand
-  // directory on demand via `/api/brands/list`, so we no longer
-  // prefetch the catalogue here.
-  const [sets, collections, comparison, sectionPrefs] = await Promise.all([
-    listCompetitorSetSummaries(supabase, userId),
-    listCollectionSummaries(supabase, userId),
-    requestedBrandIds.length > 0
-      ? getCompetitorComparison(supabase, requestedBrandIds)
-      : Promise.resolve({ brands: [], missing: [] }),
-    getCompareSectionPrefs(supabase, userId)
-  ]);
+  // Parallelise everything the landing needs that doesn't depend on
+  // another result: saved sets, collections (sidebar), the full comparison
+  // payload (only when brands are deep-linked — otherwise we skip the
+  // `getBrandPageData` fan-out), section prefs, the team-shared list, and
+  // the viewer display row. The picker searches the brand directory on
+  // demand via `/api/brands/list`, so we no longer prefetch the catalogue.
+  // `teamShared` swallows its own error so a missing table can't break the
+  // page. (`setPreviews`/`setActivity` below still run after this batch —
+  // they depend on the resolved `sets`.)
+  const [sets, collections, comparison, sectionPrefs, teamShared, viewerDisplay] =
+    await Promise.all([
+      listCompetitorSetSummaries(supabase, userId),
+      listCollectionSummaries(supabase, userId),
+      requestedBrandIds.length > 0
+        ? getCompetitorComparison(supabase, requestedBrandIds)
+        : Promise.resolve({ brands: [], missing: [] }),
+      getCompareSectionPrefs(supabase, userId),
+      listTeamSharedSets(supabase, getSupabaseAdmin(), userId).catch((err) => {
+        console.error("Failed to load team-shared comparisons", err);
+        return [] as TeamSharedSet[];
+      }),
+      getViewerDisplay()
+    ]);
 
   // Preview brands for each saved set — used by the grid card to show
   // 4 stacked logos. Fetched as a single bulk query so we don't fan
@@ -173,7 +186,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId="compare"
         collections={collections}
         competitorSets={sets}
@@ -214,6 +227,29 @@ export default async function ComparePage({ searchParams }: PageProps) {
               missingIds={comparison.missing}
               sectionPrefs={sectionPrefs}
             />
+          </section>
+        ) : null}
+
+        {teamShared.length > 0 ? (
+          <section className={shared.section}>
+            <h2 className={shared.title}>Shared with your team</h2>
+            <p className={shared.subtitle}>
+              Comparisons teammates have shared. You can view and copy them.
+            </p>
+            <div className={shared.grid}>
+              {teamShared.map((s) => (
+                <TeamSharedCard
+                  key={s.id}
+                  type="comparison"
+                  id={s.id}
+                  href={`/compare/${s.id}`}
+                  name={s.name}
+                  meta={`${s.brandCount} brand${
+                    s.brandCount === 1 ? "" : "s"
+                  } · Shared by ${s.ownerName ?? "a teammate"}`}
+                />
+              ))}
+            </div>
           </section>
         ) : null}
       </main>

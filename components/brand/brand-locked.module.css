@@ -6,7 +6,7 @@
   gap: 0.5rem;
   padding: 0.6rem 1.1rem;
   border-radius: 999px;
-  background: #2563eb;
+  background: #086e4b;
   color: #fff;
   font-size: 0.9rem;
   font-weight: 500;
@@ -28,7 +28,7 @@
    --------------------------------------------------------------------------- */
 .lockedRegion {
   /* Tints both the unlock CTA and the sample charts a consistent accent. */
-  --brand-accent: #2563eb;
+  --brand-accent: #086e4b;
   position: relative;
   margin-top: 0.5rem;
   isolation: isolate;

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getTeamForUser, removeMember } from "@/lib/teams-db";
+import {
+  getTeamForUser,
+  recordRemovalNotice,
+  removeMember
+} from "@/lib/teams-db";
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -50,6 +54,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     await removeMember(admin, team.id, userId);
+
+    // Leave a one-time notice so the removed member is told on next login
+    // (their membership row is gone, so there's nothing else to derive it
+    // from). Best-effort — removal already succeeded.
+    try {
+      await recordRemovalNotice(admin, userId, team.name);
+    } catch (err) {
+      console.error("Failed to record removal notice", err);
+    }
 
     const fresh = await getTeamForUser(admin, session.user.id);
     return NextResponse.json({ team: fresh });

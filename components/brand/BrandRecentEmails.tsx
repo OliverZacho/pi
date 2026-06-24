@@ -94,6 +94,7 @@ export default function BrandRecentEmails({ emails }: Props) {
             key={email.id}
             email={email}
             onOpen={handleOpen}
+            renderUrlBase="/api/explore/emails"
             isSaved={savedIds.has(email.id)}
             onToggleSave={handleToggleSave}
           />
@@ -103,6 +104,8 @@ export default function BrandRecentEmails({ emails }: Props) {
         <EmailModal
           email={openEmail}
           onClose={handleClose}
+          renderUrlBase="/api/explore/emails"
+          detailUrlBase="/api/public/emails"
           isSaved={savedIds.has(openEmail.id)}
           onToggleSave={handleToggleSave}
         />

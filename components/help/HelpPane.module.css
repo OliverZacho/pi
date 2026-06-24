@@ -9,6 +9,7 @@
 }
 
 .trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -163,4 +164,318 @@
   height: 0.9rem;
   margin-left: auto;
   color: #cbd5e1;
+}
+
+/* Unread notification dots — on the trigger pill and the Contact support row. */
+.triggerDot {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.itemDot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
+/* ---- Chat view ------------------------------------------------------------ */
+
+/* Chat / feedback views drop the menu padding so the header sits flush and the
+   body owns its own spacing. The panel grows downward from the trigger. */
+.panel.panelForm {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  width: min(22rem, calc(100vw - 2rem));
+}
+
+/* Chat additionally pins to a fixed height so the transcript scrolls. */
+.panel.panelChat {
+  height: min(30rem, calc(100vh - 6rem));
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(11, 11, 12, 0.07);
+}
+
+.chatBack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.chatBack:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #4338ca;
+}
+
+.chatBack svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.chatTitle {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.chatLog {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem;
+}
+
+.chatStatus {
+  margin: auto;
+  font-size: 0.83rem;
+  color: #94a3b8;
+}
+
+.chatIntro {
+  margin: auto;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+}
+
+.chatIntroTitle {
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.chatIntroText {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.bubbleRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.bubbleRowMine {
+  justify-content: flex-end;
+}
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 78%;
+  padding: 0.45rem 0.65rem;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.bubbleTheirs {
+  background: #f1f5f9;
+  color: #1f2937;
+  border-bottom-left-radius: 4px;
+}
+
+.bubbleMine {
+  background: #086e4b;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubbleText {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubbleTime {
+  align-self: flex-end;
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+.chatError {
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.78rem;
+  color: #dc2626;
+}
+
+.chatComposer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  padding: 0.6rem 0.65rem;
+  border-top: 1px solid rgba(11, 11, 12, 0.07);
+}
+
+.chatInput {
+  flex: 1 1 auto;
+  max-height: 7rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgba(11, 11, 12, 0.14);
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  resize: none;
+}
+
+.chatInput:focus {
+  outline: none;
+  border-color: #086e4b;
+  box-shadow: 0 0 0 3px rgba(8, 110, 75, 0.12);
+}
+
+.chatSend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 0;
+  border-radius: 10px;
+  background: #086e4b;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.13s ease, opacity 0.13s ease;
+}
+
+.chatSend:hover:not(:disabled) {
+  background: #065a3c;
+}
+
+.chatSend:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chatSend svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* ---- Feedback view -------------------------------------------------------- */
+
+.feedbackBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+}
+
+.feedbackLead {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.feedbackText {
+  width: 100%;
+  min-height: 6.5rem;
+  max-height: 12rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(11, 11, 12, 0.14);
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.feedbackText:focus {
+  outline: none;
+  border-color: #086e4b;
+  box-shadow: 0 0 0 3px rgba(8, 110, 75, 0.12);
+}
+
+.feedbackError {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #dc2626;
+}
+
+.feedbackSubmit {
+  align-self: flex-end;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: #086e4b;
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.13s ease, opacity 0.13s ease;
+}
+
+.feedbackSubmit:hover:not(:disabled) {
+  background: #065a3c;
+}
+
+.feedbackSubmit:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.feedbackSuccess {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1rem 0.5rem;
+  text-align: center;
+}
+
+.feedbackSuccessTitle {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #086e4b;
+}
+
+.feedbackSuccessText {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #64748b;
 }

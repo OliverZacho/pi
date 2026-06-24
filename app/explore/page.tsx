@@ -97,62 +97,54 @@ export default async function ExplorePage() {
 
   const userId = viewer.userId;
 
-  // Server-render the first page + facets so the grid is hydrated with
-  // real data on first paint. The client takes over for subsequent
-  // filtering / search / infinite scroll via the `/api/explore/*` routes.
-  const [initialResult, facets] = await Promise.all([
-    // "Recommended" is the default Explore order: emails from the
-    // admin-curated brand allowlist, newest first. SSR with the same sort
-    // the client initialises to so the first paint matches and doesn't
-    // flip to a different ordering on hydration.
+  // Everything the page needs is independent, so fetch it in one parallel
+  // fan-out rather than a chain of awaits — on a remote DB each serialized
+  // round-trip is otherwise added latency the user waits through.
+  //   - first page + facets: SSR so the grid is hydrated with real data on
+  //     first paint ("recommended" = curated allowlist, newest first; SSR
+  //     with the sort the client initialises to so paint matches hydration).
+  //   - saved ids: the user's entire saved-id set up front so infinite-scroll
+  //     cards already know their saved state (just UUIDs — a few hundred KB
+  //     even for thousands of saves).
+  //   - collections: feeds the "Add to collection" popover on every card.
+  //   - competitor sets: feeds the sidebar's "Your competitors" section.
+  //   - viewer display: the sidebar account row.
+  // The per-source `.catch`es swallow errors so a single broken table
+  // (saves / collections / sets) never takes down Explore itself.
+  const [
+    initialResult,
+    facets,
+    savedSet,
+    initialCollections,
+    initialCompetitorSets,
+    viewerDisplay
+  ] = await Promise.all([
     searchExploreEmails(supabase, {
       page: 1,
       pageSize: EXPLORE_PAGE_SIZE,
       sort: "recommended"
     }),
-    getExploreFacets(supabase)
+    getExploreFacets(supabase),
+    listSavedEmailIds(supabase, userId).catch((err) => {
+      console.error("Failed to load saved email IDs", err);
+      return new Set<string>();
+    }),
+    listCollectionSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load collections", err);
+      return [] as CollectionSummary[];
+    }),
+    listCompetitorSetSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load competitor sets", err);
+      return [] as CompetitorSetSummary[];
+    }),
+    getViewerDisplay()
   ]);
-
-  // Pull the user's entire saved-id set up front so cards loaded later
-  // via infinite scroll already know whether they're saved without an
-  // extra round-trip. The payload is just UUIDs, so even users with a
-  // few thousand saves cost us a few hundred KB at most. We swallow
-  // errors here so a broken saves table never breaks Explore itself.
-  let initialSavedIds: string[] = [];
-  try {
-    const savedSet = await listSavedEmailIds(supabase, userId);
-    initialSavedIds = Array.from(savedSet);
-  } catch (err) {
-    console.error("Failed to load saved email IDs", err);
-  }
-
-  // SSR the user's collections so the "Add to collection" popover on
-  // every card has data ready on first paint. Same swallow-errors
-  // strategy: a broken collections table shouldn't take down Explore.
-  let initialCollections: CollectionSummary[] = [];
-  try {
-    initialCollections = await listCollectionSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load collections", err);
-  }
-
-  // Same idea for saved competitor sets — feeds the sidebar's
-  // "Your competitors" section. Swallow errors so a missing table
-  // never breaks Explore.
-  let initialCompetitorSets: CompetitorSetSummary[] = [];
-  try {
-    initialCompetitorSets = await listCompetitorSetSummaries(
-      supabase,
-      userId
-    );
-  } catch (err) {
-    console.error("Failed to load competitor sets", err);
-  }
+  const initialSavedIds = Array.from(savedSet);
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         collections={initialCollections}
         competitorSets={initialCompetitorSets}
       />

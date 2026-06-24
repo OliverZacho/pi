@@ -3,10 +3,13 @@ import type { PirolSupabaseClient } from "./supabase-admin";
 /**
  * Helpers for the Settings Team tab.
  *
- * Teams are grouping only — membership has no entitlement effect
- * (`has_archive_access()` is untouched). The model is one team per user
- * (unique index on `team_members.user_id`); the first invite a user sends
- * creates their team with them as owner.
+ * Membership grants archive access: `has_archive_access()` (see
+ * 20260621000000_team_entitlement.sql) returns true for any member of a
+ * team whose owner holds an active "team" plan. A member's active/inactive
+ * state is derived from the owner's subscription — never stored — so a
+ * lapse drops access without deleting any data. The model is one team per
+ * user (unique index on `team_members.user_id`); the first invite a user
+ * sends creates their team with them as owner.
  *
  * Every function takes the service-role admin client: the team tables are
  * RLS'd to service_role only, and the API routes enforce ownership
@@ -15,6 +18,43 @@ import type { PirolSupabaseClient } from "./supabase-admin";
  */
 
 const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Seats a team plan grants: the owner plus five invitees (6 total). Counted
+ * against members + pending invites so a fully-invited team can't overshoot
+ * even before the invitees sign up.
+ */
+export const TEAM_SEAT_LIMIT = 6;
+
+/** Seats currently consumed by a team: members + pending invites. */
+export async function countTeamSeats(
+  admin: PirolSupabaseClient,
+  teamId: string
+): Promise<number> {
+  const [
+    { count: memberCount, error: membersError },
+    { count: inviteCount, error: invitesError }
+  ] = await Promise.all([
+    admin
+      .from("team_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("team_id", teamId),
+    admin
+      .from("team_invites")
+      .select("id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .eq("status", "pending")
+  ]);
+
+  if (membersError) {
+    throw new Error(`Failed to count team members: ${membersError.message}`);
+  }
+  if (invitesError) {
+    throw new Error(`Failed to count pending invites: ${invitesError.message}`);
+  }
+
+  return (memberCount ?? 0) + (inviteCount ?? 0);
+}
 
 /**
  * Whether the user has an active (or trialing, unexpired) subscription on
@@ -76,8 +116,54 @@ export type TeamView = {
   pendingInvites: PendingInviteView[];
 };
 
+/**
+ * The caller's team context as seen by entitlement: their role, the team
+ * owner, and whether that owner currently holds an active "team" plan
+ * (`ownerActive`). Backs the Settings billing/profile copy ("managed by …")
+ * and the lapse interstitial. Sourced from the `get_team_context()` RPC,
+ * which is SECURITY DEFINER but only returns the caller's own row.
+ */
+export type TeamContext = {
+  teamId: string;
+  teamName: string;
+  role: "owner" | "member";
+  ownerUserId: string;
+  ownerName: string | null;
+  /** Owner's "team" subscription is active/trialing or within grace. */
+  ownerActive: boolean;
+};
+
 function asRole(role: string): "owner" | "member" {
   return role === "owner" ? "owner" : "member";
+}
+
+/**
+ * Resolve the caller's team context via the `get_team_context()` RPC. Takes
+ * the session client (the RPC keys off `auth.uid()`). Null when the caller
+ * belongs to no team.
+ */
+export async function getTeamContext(
+  client: PirolSupabaseClient
+): Promise<TeamContext | null> {
+  const { data, error } = await client.rpc("get_team_context");
+
+  if (error) {
+    throw new Error(`Failed to load team context: ${error.message}`);
+  }
+
+  const row = data?.[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    teamId: row.team_id,
+    teamName: row.team_name,
+    role: asRole(row.role),
+    ownerUserId: row.owner_user_id,
+    ownerName: row.owner_name,
+    ownerActive: row.owner_active
+  };
 }
 
 /** The team the user belongs to, with members and pending invites. */
@@ -213,6 +299,135 @@ export async function ensureTeamForUser(
   }
 
   return { teamId: team.id, role: "owner" };
+}
+
+/**
+ * Where a signed-in user should be diverted because their team access ended:
+ * "removed" (an event, from team_notices) or "lapsed" (derived — the owner's
+ * plan expired). Null when the user has access or has no team issue.
+ */
+export type TeamGate =
+  | { kind: "removed"; teamName: string; noticeId: string }
+  | { kind: "lapsed"; teamName: string; ownerName: string | null };
+
+/** Record a one-time "you were removed from {team}" notice for a user. */
+export async function recordRemovalNotice(
+  admin: PirolSupabaseClient,
+  userId: string,
+  teamName: string
+): Promise<void> {
+  const { error } = await admin
+    .from("team_notices")
+    .insert({ user_id: userId, type: "removed", team_name: teamName });
+
+  if (error) {
+    throw new Error(`Failed to record removal notice: ${error.message}`);
+  }
+}
+
+/** The user's most recent unseen removal notice, if any. */
+export async function getUnseenRemovalNotice(
+  admin: PirolSupabaseClient,
+  userId: string
+): Promise<{ id: string; teamName: string } | null> {
+  const { data, error } = await admin
+    .from("team_notices")
+    .select("id, team_name")
+    .eq("user_id", userId)
+    .eq("type", "removed")
+    .is("seen_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load notices: ${error.message}`);
+  }
+  if (!data) {
+    return null;
+  }
+  return { id: data.id, teamName: data.team_name };
+}
+
+/** Mark a notice seen so it isn't shown again. */
+export async function markNoticeSeen(
+  admin: PirolSupabaseClient,
+  noticeId: string
+): Promise<void> {
+  const { error } = await admin
+    .from("team_notices")
+    .update({ seen_at: new Date().toISOString() })
+    .eq("id", noticeId);
+
+  if (error) {
+    throw new Error(`Failed to mark notice seen: ${error.message}`);
+  }
+}
+
+/**
+ * Decide whether a signed-in user should be diverted to the team-inactive
+ * interstitial. Returns null when they still have access (admin, own
+ * subscription, or an active team owner). Removal (an event) takes
+ * precedence over lapse (derived). Takes both a session client (for the
+ * auth.uid()-scoped checks) and the admin client (for notices).
+ */
+export async function resolveTeamGate(
+  sessionClient: PirolSupabaseClient,
+  admin: PirolSupabaseClient,
+  userId: string
+): Promise<TeamGate | null> {
+  const { data: access } = await sessionClient.rpc("has_archive_access");
+  if (access) {
+    return null;
+  }
+
+  const notice = await getUnseenRemovalNotice(admin, userId);
+  if (notice) {
+    return { kind: "removed", teamName: notice.teamName, noticeId: notice.id };
+  }
+
+  const ctx = await getTeamContext(sessionClient);
+  if (ctx && ctx.role === "member" && !ctx.ownerActive) {
+    return { kind: "lapsed", teamName: ctx.teamName, ownerName: ctx.ownerName };
+  }
+
+  return null;
+}
+
+/**
+ * The caller's team id and the user ids of all its members. Used to
+ * authorize copying team-shared items (the owner must be a co-member) via
+ * the admin client, which works even for a lapsed member who has lost
+ * archive access. Null when the caller is on no team.
+ */
+export async function getTeamMembership(
+  admin: PirolSupabaseClient,
+  userId: string
+): Promise<{ teamId: string; memberIds: string[] } | null> {
+  const { data: mine, error } = await admin
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load membership: ${error.message}`);
+  }
+  if (!mine) return null;
+
+  const { data: members, error: membersError } = await admin
+    .from("team_members")
+    .select("user_id")
+    .eq("team_id", mine.team_id);
+
+  if (membersError) {
+    throw new Error(`Failed to load team members: ${membersError.message}`);
+  }
+
+  return {
+    teamId: mine.team_id,
+    memberIds: (members ?? []).map((m) => m.user_id)
+  };
 }
 
 /** Resolve an email to a user id via the service-role-only DB lookup. */

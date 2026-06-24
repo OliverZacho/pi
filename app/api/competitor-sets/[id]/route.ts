@@ -3,7 +3,8 @@ import { requireArchiveAccess } from "@/lib/require-admin-api";
 import {
   deleteCompetitorSet,
   getCompetitorSetForOwner,
-  renameCompetitorSet
+  renameCompetitorSet,
+  setCompetitorSetShared
 } from "@/lib/competitor-db";
 
 const UUID_PATTERN =
@@ -48,7 +49,9 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 /**
- * PATCH `/api/competitor-sets/[id]` `{ name }` — owner-only rename.
+ * PATCH `/api/competitor-sets/[id]` `{ name?, sharedWithTeam? }` —
+ * owner-only. Either field may be supplied; `sharedWithTeam` toggles team
+ * read access.
  */
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await requireArchiveAccess();
@@ -68,35 +71,78 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const rawName =
-    body && typeof body === "object" && "name" in body
-      ? (body as { name: unknown }).name
-      : undefined;
-  if (typeof rawName !== "string" || rawName.trim().length === 0) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
-  if (rawName.length > MAX_NAME_LENGTH) {
+
+  const obj = body as Record<string, unknown>;
+  const hasName = Object.prototype.hasOwnProperty.call(obj, "name");
+  const hasShared = Object.prototype.hasOwnProperty.call(obj, "sharedWithTeam");
+
+  if (!hasName && !hasShared) {
     return NextResponse.json(
-      { error: `Name must be ${MAX_NAME_LENGTH} characters or fewer` },
+      { error: "At least one of 'name' or 'sharedWithTeam' is required" },
+      { status: 400 }
+    );
+  }
+
+  if (hasName) {
+    if (typeof obj.name !== "string" || obj.name.trim().length === 0) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    if (obj.name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Name must be ${MAX_NAME_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (hasShared && typeof obj.sharedWithTeam !== "boolean") {
+    return NextResponse.json(
+      { error: "'sharedWithTeam' must be a boolean" },
       { status: 400 }
     );
   }
 
   try {
-    const updated = await renameCompetitorSet(
+    if (hasName) {
+      const renamed = await renameCompetitorSet(
+        session.supabase,
+        session.user.id,
+        id,
+        obj.name as string
+      );
+      if (!renamed) {
+        return NextResponse.json({ error: "Set not found" }, { status: 404 });
+      }
+    }
+
+    if (hasShared) {
+      const updated = await setCompetitorSetShared(
+        session.supabase,
+        session.user.id,
+        id,
+        obj.sharedWithTeam as boolean
+      );
+      if (!updated) {
+        return NextResponse.json({ error: "Set not found" }, { status: 404 });
+      }
+    }
+
+    const detail = await getCompetitorSetForOwner(
       session.supabase,
       session.user.id,
-      id,
-      rawName
+      id
     );
-    if (!updated) {
+    if (!detail) {
       return NextResponse.json({ error: "Set not found" }, { status: 404 });
     }
-    return NextResponse.json({ set: updated });
+    return NextResponse.json({ set: detail });
   } catch (error) {
-    console.error("Failed to rename competitor set", error);
+    console.error("Failed to update competitor set", error);
     return NextResponse.json(
-      { error: "Failed to rename competitor set" },
+      { error: "Failed to update competitor set" },
       { status: 500 }
     );
   }

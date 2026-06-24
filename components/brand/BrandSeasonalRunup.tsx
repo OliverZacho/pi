@@ -320,6 +320,8 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
         <EmailModal
           email={openEmail}
           onClose={() => setOpenEmail(null)}
+          renderUrlBase="/api/explore/emails"
+          detailUrlBase="/api/public/emails"
           isSaved={savedIds.has(openEmail.id)}
           onToggleSave={handleToggleSave}
         />

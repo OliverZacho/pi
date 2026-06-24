@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { claimPendingInvites } from "@/lib/teams-db";
+import { claimPendingInvites, resolveTeamGate } from "@/lib/teams-db";
 
 const EMAIL_OTP_TYPES: EmailOtpType[] = [
   "signup",
@@ -53,13 +53,27 @@ export async function GET(request: Request) {
   }
 
   if (user) {
+    const admin = getSupabaseAdmin();
     if (user.email) {
       try {
-        await claimPendingInvites(getSupabaseAdmin(), user.id, user.email);
+        await claimPendingInvites(admin, user.id, user.email);
       } catch (err) {
         console.error("Failed to claim team invites", err);
       }
     }
+
+    // If their team access has ended (removed, or the owner's plan lapsed),
+    // divert to the interstitial that explains it and offers to subscribe.
+    // Never let this block login — fall through to the normal redirect.
+    try {
+      const gate = await resolveTeamGate(supabase, admin, user.id);
+      if (gate) {
+        return NextResponse.redirect(`${origin}/team/inactive`);
+      }
+    } catch (err) {
+      console.error("Failed to resolve team gate", err);
+    }
+
     return NextResponse.redirect(`${origin}${next}`);
   }
 

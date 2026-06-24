@@ -175,7 +175,7 @@
 }
 
 .link {
-  color: #2563eb;
+  color: #086e4b;
   font-weight: 600;
   text-decoration: none;
 }
@@ -190,7 +190,7 @@
   padding: 0;
   font: inherit;
   font-weight: 600;
-  color: #2563eb;
+  color: #086e4b;
   cursor: pointer;
 }
 
@@ -218,7 +218,7 @@
   width: 3rem;
   height: 3rem;
   margin: 0 auto 0.5rem;
-  color: #2563eb;
+  color: #086e4b;
 }
 
 /* ---------- Right: 3D fanned newsletter stack ---------- */

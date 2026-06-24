@@ -39,6 +39,20 @@ export type BillingInfo = {
   hasBillingAccount: boolean;
 };
 
+/**
+ * The viewer's team-plan membership, when they belong to a team. A member
+ * (role "member") rides on the owner's subscription: the Billing tab shows
+ * "managed by …" instead of their own (empty) billing, and the User tab
+ * shows a "Team plan" badge. Null when the viewer is on no team.
+ */
+export type TeamMembershipInfo = {
+  role: "owner" | "member";
+  teamName: string;
+  ownerName: string | null;
+  /** Owner's "team" plan is currently active (incl. trial/grace). */
+  ownerActive: boolean;
+} | null;
+
 type Props = {
   /** Signed-in user's email — prefilled into the User tab. */
   email: string;
@@ -71,6 +85,10 @@ type Props = {
    * the restriction would be meaningless.
    */
   inviteDomainRestricted: boolean;
+  /** Seats a team plan grants (owner + invitees), for the seat counter. */
+  seatLimit: number;
+  /** The viewer's team-plan membership, or null. */
+  teamMembership: TeamMembershipInfo;
   /** Current subscription state, for the Billing tab. */
   billing: BillingInfo;
 };
@@ -84,6 +102,8 @@ export default function SettingsClient({
   initialTeam,
   canInviteTeam,
   inviteDomainRestricted,
+  seatLimit,
+  teamMembership,
   billing
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("user");
@@ -114,6 +134,7 @@ export default function SettingsClient({
             email={email}
             initialFullName={initialFullName}
             initialHasPassword={hasPassword}
+            teamMembership={teamMembership}
           />
         ) : activeTab === "notifications" ? (
           <NotificationsTab />
@@ -124,9 +145,10 @@ export default function SettingsClient({
             initialTeam={initialTeam}
             canInvite={canInviteTeam}
             domainRestricted={inviteDomainRestricted}
+            seatLimit={seatLimit}
           />
         ) : (
-          <BillingTab billing={billing} />
+          <BillingTab billing={billing} teamMembership={teamMembership} />
         )}
       </div>
     </div>
@@ -140,11 +162,13 @@ export default function SettingsClient({
 function UserTab({
   email,
   initialFullName,
-  initialHasPassword
+  initialHasPassword,
+  teamMembership
 }: {
   email: string;
   initialFullName: string | null;
   initialHasPassword: boolean;
+  teamMembership: TeamMembershipInfo;
 }) {
   // ----- Personal details -----
   const [fullName, setFullName] = useState(initialFullName ?? "");
@@ -280,12 +304,23 @@ function UserTab({
   // ----- Delete account -----
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  const isTeamMember =
+    teamMembership?.role === "member" && teamMembership.ownerActive;
+
   return (
     <div className={styles.sections}>
       <Section
         title="Personal details"
         description="Update your name and the email tied to your account."
       >
+        {isTeamMember ? (
+          <div className={styles.planNotice} role="note">
+            <span className={styles.planNoticeText}>
+              You&rsquo;re on a <strong>Team plan</strong>, part of{" "}
+              {teamMembership?.teamName}. Billing is managed by your team owner.
+            </span>
+          </div>
+        ) : null}
         <form className={styles.sectionBody} onSubmit={handleDetailsSubmit}>
           <Field label="Full name">
             <input
@@ -541,45 +576,45 @@ function DeleteAccountDialog({
 function NotificationsTab() {
   return (
     <div className={styles.sections}>
-      <Section
-        title="Collection activity"
-        description="Get notified when something happens inside your collections."
-      >
-        <ToggleRow
-          label="New email in a collection"
-          description="Email me when a brand I follow lands a new email in one of my collections."
+      {/* Brand intelligence — the signals Pirol exists to surface. */}
+      <Section>
+        <FrequencyRow
+          label="New email from a brand you follow"
+          description="When a brand you follow sends a new email."
+          value="Instant"
         />
-        <ToggleRow
-          label="Collection shared with me"
-          description="Email me when a teammate shares a collection."
+        <FrequencyRow
+          label="Unusual sending activity"
+          description="When a brand you follow ramps up its sending or suddenly goes quiet."
+          value="Daily"
         />
-      </Section>
-
-      <Section
-        title="Digests"
-        description="Periodic summaries instead of per-event emails."
-      >
-        <ToggleRow
-          label="Weekly recap"
-          description="A Monday-morning summary of the past week's activity."
+        <FrequencyRow
+          label="Seasonal run-up"
+          description="When a brand you follow starts its run-up to a seasonal event like Black Friday."
+          value="Weekly"
         />
-        <ToggleRow
-          label="Monthly recap"
-          description="A higher-level rollup at the start of each month."
+        <FrequencyRow
+          label="New matches in a smart collection"
+          description="When a rule-based collection picks up new emails."
+          value="Daily"
         />
       </Section>
 
-      <Section
-        title="Product & account"
-        description="Occasional, important-only updates."
-      >
-        <ToggleRow
+      {/* Account updates. */}
+      <Section>
+        <FrequencyRow
           label="Product updates"
           description="New features and notable changes."
+          value="Instant"
+          options={["Instant", "Off"]}
+          warnOnInstant={false}
         />
-        <ToggleRow
+        <FrequencyRow
           label="Security alerts"
           description="Sign-ins from new devices and other security events."
+          value="Instant"
+          options={["Instant", "Off"]}
+          warnOnInstant={false}
         />
       </Section>
 
@@ -601,16 +636,31 @@ function TeamTab({
   viewerId,
   initialTeam,
   canInvite,
-  domainRestricted
+  domainRestricted,
+  seatLimit
 }: {
   emailDomain: string;
   viewerId: string;
   initialTeam: TeamView | null;
   canInvite: boolean;
   domainRestricted: boolean;
+  seatLimit: number;
 }) {
   const [team, setTeam] = useState<TeamView | null>(initialTeam);
   const domainLabel = emailDomain ? `@${emailDomain}` : "your company domain";
+
+  // Seats = members (the owner is always one of them) + pending invites,
+  // against the plan's limit of 6 (owner + 5). Before the team exists the
+  // owner-to-be still occupies one seat, so the count starts at 1 — never
+  // "0 of 6", which would wrongly imply 6 invitees on top of the owner.
+  const seatsUsed = team
+    ? team.members.length + team.pendingInvites.length
+    : 1;
+  const atCapacity = canInvite && seatsUsed >= seatLimit;
+  // On a team but not the owner: they can't invite — but it's because of
+  // their role, not a missing plan, so show a role message (not an upsell)
+  // and hide the always-disabled invite form.
+  const isTeamMember = team !== null && team.viewerRole === "member";
 
   // ----- Invite -----
   const [inviteEmail, setInviteEmail] = useState("");
@@ -732,6 +782,21 @@ function TeamTab({
     setRowError("");
     setRowBusy("leave");
     try {
+      // A departing member loses access to anything teammates shared with
+      // the team — offer to keep a private copy first.
+      if (
+        !isSoleOwner &&
+        window.confirm(
+          "Before you go — copy collections & comparisons shared with you into your own account?"
+        )
+      ) {
+        try {
+          await fetch("/api/team/shared/copy-all", { method: "POST" });
+        } catch {
+          // Copy is best-effort; don't block leaving on it.
+        }
+      }
+
       const response = await fetch("/api/team/leave", { method: "POST" });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as {
@@ -759,40 +824,63 @@ function TeamTab({
         }
       >
         {!canInvite ? (
+          isTeamMember ? (
+            <div className={styles.planNotice} role="note">
+              <span className={styles.planNoticeText}>
+                Only the team owner can invite or remove members.
+              </span>
+            </div>
+          ) : (
+            <div className={styles.planNotice} role="note">
+              <span className={styles.planNoticeText}>
+                Inviting teammates requires the <strong>Team plan</strong>.
+              </span>
+              <TrackedUpgradeLink source="settings_team_plan" className={styles.planNoticeCta}>
+                View plans
+              </TrackedUpgradeLink>
+            </div>
+          )
+        ) : null}
+        {canInvite ? (
+          <p className={styles.hint} role="status">
+            {seatsUsed} of {seatLimit} seats used.
+          </p>
+        ) : null}
+        {atCapacity ? (
           <div className={styles.planNotice} role="note">
             <span className={styles.planNoticeText}>
-              Inviting teammates requires the <strong>Team plan</strong>.
+              Your team is full ({seatLimit} seats). Remove a member or revoke
+              a pending invite to free a seat.
             </span>
-            <TrackedUpgradeLink source="settings_team_plan" className={styles.planNoticeCta}>
-              View plans
-            </TrackedUpgradeLink>
           </div>
         ) : null}
-        <form onSubmit={handleInvite}>
-          <Field label="Email address">
-            <div className={styles.inviteRow}>
-              <input
-                type="email"
-                className={styles.input}
-                placeholder={
-                  domainRestricted && emailDomain
-                    ? `teammate@${emailDomain}`
-                    : "teammate@company.com"
-                }
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-                disabled={!canInvite || inviteSubmitting}
-              />
-              <button
-                type="submit"
-                className={styles.primaryBtn}
-                disabled={!canInvite || inviteSubmitting}
-              >
-                {inviteSubmitting ? "Sending…" : "Send invite"}
-              </button>
-            </div>
-          </Field>
-        </form>
+        {!isTeamMember ? (
+          <form onSubmit={handleInvite}>
+            <Field label="Email address">
+              <div className={styles.inviteRow}>
+                <input
+                  type="email"
+                  className={styles.input}
+                  placeholder={
+                    domainRestricted && emailDomain
+                      ? `teammate@${emailDomain}`
+                      : "teammate@company.com"
+                  }
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  disabled={!canInvite || atCapacity || inviteSubmitting}
+                />
+                <button
+                  type="submit"
+                  className={styles.primaryBtn}
+                  disabled={!canInvite || atCapacity || inviteSubmitting}
+                >
+                  {inviteSubmitting ? "Sending…" : "Send invite"}
+                </button>
+              </div>
+            </Field>
+          </form>
+        ) : null}
         {inviteError ? (
           <p className={styles.error} role="alert">
             {inviteError}
@@ -966,7 +1054,13 @@ function billingStatusLine(billing: BillingInfo): string {
   }
 }
 
-function BillingTab({ billing }: { billing: BillingInfo }) {
+function BillingTab({
+  billing,
+  teamMembership
+}: {
+  billing: BillingInfo;
+  teamMembership: TeamMembershipInfo;
+}) {
   const planLabel = billing.plan ? PLAN_LABELS[billing.plan] ?? "Free" : "Free";
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");
@@ -990,6 +1084,46 @@ function BillingTab({ billing }: { billing: BillingInfo }) {
       );
       setPortalLoading(false);
     }
+  }
+
+  // A team member rides on the owner's subscription — they have no billing
+  // of their own to manage. Show who provides their access instead.
+  if (teamMembership && teamMembership.role === "member") {
+    const ownerLabel = teamMembership.ownerName?.trim() || "your team owner";
+    return (
+      <div className={styles.sections}>
+        <Section
+          title="Plan & billing"
+          description="Your access is provided through your team."
+        >
+          <div className={styles.planRow}>
+            <div>
+              <div className={styles.planName}>
+                {teamMembership.ownerActive ? "Team" : "Team — inactive"}
+              </div>
+              <div className={styles.planMeta}>
+                {teamMembership.ownerActive
+                  ? `Part of ${teamMembership.teamName} — billing managed by ${ownerLabel}.`
+                  : `${teamMembership.teamName}'s plan is no longer active.`}
+              </div>
+            </div>
+            {teamMembership.ownerActive ? null : (
+              <TrackedUpgradeLink
+                source="settings_team_lapsed"
+                className={styles.primaryBtn}
+              >
+                Subscribe
+              </TrackedUpgradeLink>
+            )}
+          </div>
+          <p className={styles.hint}>
+            {teamMembership.ownerActive
+              ? "To leave this team, use the Team tab. Your saved emails and followed brands stay with your account."
+              : "Subscribe to keep full access. Your saved emails and followed brands are kept either way."}
+          </p>
+        </Section>
+      </div>
+    );
   }
 
   return (
@@ -1099,7 +1233,7 @@ function Section({
   danger = false,
   children
 }: {
-  title: string;
+  title?: string;
   description?: string;
   danger?: boolean;
   children: React.ReactNode;
@@ -1108,12 +1242,14 @@ function Section({
     <section
       className={`${styles.section}${danger ? ` ${styles.sectionDanger}` : ""}`}
     >
-      <div className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>{title}</h2>
-        {description ? (
-          <p className={styles.sectionDesc}>{description}</p>
-        ) : null}
-      </div>
+      {title || description ? (
+        <div className={styles.sectionHead}>
+          {title ? <h2 className={styles.sectionTitle}>{title}</h2> : null}
+          {description ? (
+            <p className={styles.sectionDesc}>{description}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className={styles.sectionBody}>{children}</div>
     </section>
   );
@@ -1134,13 +1270,37 @@ function Field({
   );
 }
 
-function ToggleRow({
+/**
+ * The delivery cadence for one notification type. "Off" disables it, so the
+ * frequency selector doubles as the on/off control — no separate toggle.
+ */
+const FREQUENCIES = ["Instant", "Daily", "Weekly", "Monthly", "Off"] as const;
+type Frequency = (typeof FREQUENCIES)[number];
+
+/**
+ * One notification type plus its cadence selector. Skeleton: the highlighted
+ * option is purely visual until wired up to the user's saved preferences.
+ */
+function FrequencyRow({
   label,
-  description
+  description,
+  value,
+  options = FREQUENCIES,
+  warnOnInstant = true
 }: {
   label: string;
   description?: string;
+  value: Frequency;
+  /** The cadences offered for this row. Defaults to the full set. */
+  options?: readonly Frequency[];
+  /**
+   * Whether choosing "Instant" shows the high-volume spam-throttle warning.
+   * Off for low-volume account mail (product updates, security alerts).
+   */
+  warnOnInstant?: boolean;
 }) {
+  const [selected, setSelected] = useState<Frequency>(value);
+
   return (
     <div className={styles.toggleRow}>
       <div className={styles.toggleText}>
@@ -1149,10 +1309,49 @@ function ToggleRow({
           <span className={styles.toggleDesc}>{description}</span>
         ) : null}
       </div>
-      {/* Skeleton switch — purely visual until wired up. */}
-      <span className={styles.switch} aria-hidden="true">
-        <span className={styles.switchKnob} />
-      </span>
+      <div className={styles.frequencyControl}>
+        <div
+          className={styles.segmented}
+          role="group"
+          aria-label={`${label} frequency`}
+        >
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.segment}${
+                option === selected ? ` ${styles.segmentActive}` : ""
+              }`}
+              aria-pressed={option === selected}
+              onClick={() => setSelected(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        {/* Always rendered so it reserves its width — the segments don't
+            shift when the warning toggles. Hidden unless Instant is chosen. */}
+        {warnOnInstant ? (
+        <span
+          className={`${styles.instantWarning}${
+            selected === "Instant" ? "" : ` ${styles.instantWarningHidden}`
+          }`}
+          tabIndex={selected === "Instant" ? 0 : -1}
+          role="note"
+          aria-hidden={selected !== "Instant"}
+          aria-label="Instant delivery can send a lot of email. If your messages start landing in spam, we'll automatically throttle them."
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="#f59e0b" d="M12 2 1 21h22L12 2z" />
+            <path fill="#fff" d="M11 9h2v6h-2zM11 17h2v2h-2z" />
+          </svg>
+          <span className={styles.instantTooltip} role="tooltip">
+            Instant sends one email per event — that can add up fast. If they
+            start landing in spam, we'll automatically throttle them.
+          </span>
+        </span>
+        ) : null}
+      </div>
     </div>
   );
 }

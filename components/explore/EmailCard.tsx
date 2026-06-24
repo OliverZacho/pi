@@ -14,9 +14,9 @@ type Props = {
   onOpen: (email: ExploreEmailCard) => void;
   /**
    * Base path for the preview iframe's render endpoint; the card builds
-   * `${renderUrlBase}/${id}/render`. Defaults to the admin route; the
-   * public Explore teaser passes `/api/explore/emails` (no auth, links
-   * stripped).
+   * `${renderUrlBase}/${id}/render`. Defaults to the entitlement-safe
+   * public route (works for any viewer, links stripped); admin surfaces
+   * pass `/api/admin/emails` to opt into the admin-gated render.
    */
   renderUrlBase?: string;
   /**
@@ -92,7 +92,7 @@ type Props = {
 export default function EmailCard({
   email,
   onOpen,
-  renderUrlBase = "/api/admin/emails",
+  renderUrlBase = "/api/explore/emails",
   readOnly = false,
   isSaved = false,
   onToggleSave,
@@ -121,6 +121,12 @@ export default function EmailCard({
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scale, setScale] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Off-screen cards must not mount their preview iframe — each one pulls
+  // the full email and every image it references (the grid can be hundreds
+  // of cards). `loading="lazy"` alone doesn't gate this reliably, so we
+  // only attach the iframe `src` once the card scrolls within range. Until
+  // then the skeleton shows and zero asset requests fire.
+  const [inView, setInView] = useState(false);
   // Per-card pending state so we can disable the Save button while the
   // round-trip is in flight without blocking other cards on the grid.
   const [pendingSave, setPendingSave] = useState(false);
@@ -154,13 +160,35 @@ export default function EmailCard({
     return () => ro.disconnect();
   }, []);
 
+  // Defer mounting the iframe until the card nears the viewport. The 600px
+  // root margin starts the render just before it scrolls into view so the
+  // preview is ready by the time the user sees it, without loading the
+  // whole grid up front. Disconnect after the first hit — once loaded it
+  // stays loaded.
   useEffect(() => {
+    const previewEl = previewRef.current;
+    if (!previewEl) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" }
+    );
+    io.observe(previewEl);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!inView) return;
     const frame = frameRef.current;
     if (!frame) return;
     if (frame.contentDocument?.readyState === "complete") {
       setLoaded(true);
     }
-  }, []);
+  }, [inView]);
 
   const renderUrl = `${renderUrlBase}/${email.id}/render`;
 
@@ -218,20 +246,22 @@ export default function EmailCard({
       <div className={styles.cardPreview} ref={previewRef}>
         {!loaded ? (
           <div className={styles.cardSkeleton} aria-hidden="true">
-            Rendering preview…
+            {inView ? "Rendering preview…" : null}
           </div>
         ) : null}
-        <iframe
-          ref={frameRef}
-          src={renderUrl}
-          title={`${email.companyName} — ${email.subject}`}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          sandbox="allow-popups allow-popups-to-escape-sandbox"
-          className={styles.cardFrame}
-          style={frameStyle}
-          onLoad={() => setLoaded(true)}
-        />
+        {inView ? (
+          <iframe
+            ref={frameRef}
+            src={renderUrl}
+            title={`${email.companyName} — ${email.subject}`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            sandbox="allow-popups allow-popups-to-escape-sandbox"
+            className={styles.cardFrame}
+            style={frameStyle}
+            onLoad={() => setLoaded(true)}
+          />
+        ) : null}
         {recommendEnabled ? (
           <button
             type="button"

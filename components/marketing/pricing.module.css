@@ -223,6 +223,9 @@
   justify-content: center;
   width: 100%;
   padding: 0.7rem 1.1rem;
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
   border-radius: 999px;
   font-size: 0.95rem;
   font-weight: 500;
@@ -236,22 +239,25 @@
 }
 
 .ctaPrimary {
-  background: #0b0b0c;
+  background: #086e4b;
   color: #fff;
   box-shadow: var(--primary-shadow);
 }
 
 .ctaPrimary:hover {
+  background: #065a3c;
   box-shadow: var(--primary-shadow-hover);
 }
 
 .ctaGhost {
-  background: #f4f6f8;
-  color: #0b0b0c;
+  background: #ffffff;
+  color: #086e4b;
+  box-shadow: var(--pill-shadow);
 }
 
 .ctaGhost:hover {
-  background: #eaeef1;
+  background: #f6f9ff;
+  box-shadow: var(--pill-shadow-hover);
 }
 
 /* ---------- Feature list ---------- */
@@ -407,7 +413,39 @@
 
 /* Subtle highlight on the featured plan's column, like the cards above. */
 .colFeatured {
-  background: #f6f7f9;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* One CTA per plan below the compare table, aligned under the plan columns.
+   The leading empty cell matches the table's feature-label column. */
+.compareCta {
+  margin-top: 1.75rem;
+}
+
+.compareCtaRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 0.6rem 1.5rem;
+  align-items: start;
+}
+
+.compareCtaRow .cta {
+  grid-column: auto;
+}
+
+/* Spacer cell under the feature-label column — no button there. */
+.compareCtaRow::before {
+  content: "";
+}
+
+@media (max-width: 720px) {
+  .compareCtaRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .compareCtaRow::before {
+    display: none;
+  }
 }
 
 .srOnly {

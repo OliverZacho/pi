@@ -1,0 +1,94 @@
+/*
+ * Self-contained loading skeleton for the app shell (sidebar + main grid).
+ *
+ * Kept independent of the per-page CSS modules (explore / brands /
+ * compare) on purpose: `loading.tsx` renders the instant Next streams the
+ * navigation — before the page's own server fetch resolves — so it must
+ * not depend on anything the page provides. The layout dimensions mirror
+ * `explore.module.css` (.shell / .sidebar / .main / .grid) closely enough
+ * that the real page swaps in without a jarring shift.
+ */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--page-bg);
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid #d3e3ee;
+  box-shadow: 4px 0 16px rgba(15, 23, 42, 0.06);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 2.4rem 2.6rem 4rem;
+  overflow-x: hidden;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+.heading p {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  background: #ffffff;
+}
+
+.cardPreview {
+  width: 100%;
+  aspect-ratio: 1 / 1.05;
+  background: linear-gradient(90deg, #f8fafc 0%, #eef2f7 50%, #f8fafc 100%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s linear infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Respect users who'd rather not see the looping shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  .cardPreview {
+    animation: none;
+  }
+}

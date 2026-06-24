@@ -20,7 +20,7 @@ const UNKNOWN_COUNTRY = "__unknown__";
 // the most common markets get the most distinct hues. Unknown gets the muted
 // grey below and is always stacked last.
 const COUNTRY_PALETTE = [
-  "#2563eb",
+  "#086e4b",
   "#059669",
   "#d97706",
   "#db2777",
@@ -35,7 +35,7 @@ const COUNTRY_PALETTE = [
 ];
 const UNKNOWN_COLOR = "#cbd5e1";
 // Single-series colour used when the chart is not stacked.
-const TOTAL_COLOR = "#2563eb";
+const TOTAL_COLOR = "#086e4b";
 
 type CategoryDatum = {
   /** Raw category tag, or the {@link UNCATEGORIZED} sentinel. */

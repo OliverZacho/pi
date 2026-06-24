@@ -15,17 +15,6 @@
   font-feature-settings: "ss01", "cv11";
 }
 
-/* Soft vignette so the floating cards fall into a haze at the edges */
-.page::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(120% 80% at 50% 40%, transparent 45%, rgba(236, 248, 255, 0.85) 75%, var(--bg) 100%);
-  pointer-events: none;
-  z-index: 2;
-}
-
 /* ---------- Header ---------- */
 
 .header {

@@ -87,42 +87,45 @@ export default async function BrandsPage() {
 
   const userId = viewer.userId;
 
-  const [initialResult, facets] = await Promise.all([
+  // All independent — fan them out in one parallel batch instead of a chain
+  // of awaits so the page's server time is one round-trip, not five.
+  // Sidebar collections / sets and the followed-brand ids each swallow their
+  // own errors so one missing table can't take down the directory.
+  const [
+    initialResult,
+    facets,
+    sidebarCollections,
+    sidebarSets,
+    followedBrandIdSet,
+    viewerDisplay
+  ] = await Promise.all([
     searchBrands(supabase, {
       page: 1,
       pageSize: BRANDS_PAGE_SIZE,
       sort: "most_active"
     }),
-    getBrandsFacets(supabase)
+    getBrandsFacets(supabase),
+    listCollectionSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load collections", err);
+      return [] as CollectionSummary[];
+    }),
+    listCompetitorSetSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load comparisons", err);
+      return [] as CompetitorSetSummary[];
+    }),
+    // Followed brand ids power the batch bar's follow/unfollow action.
+    listFollowedBrandIds(supabase, userId).catch((err) => {
+      console.error("Failed to load followed brands", err);
+      return new Set<string>();
+    }),
+    getViewerDisplay()
   ]);
-
-  let sidebarCollections: CollectionSummary[] = [];
-  try {
-    sidebarCollections = await listCollectionSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load collections", err);
-  }
-  let sidebarSets: CompetitorSetSummary[] = [];
-  try {
-    sidebarSets = await listCompetitorSetSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load comparisons", err);
-  }
-
-  // Followed brand ids power the batch bar's follow/unfollow action.
-  let followedBrandIds: string[] = [];
-  try {
-    followedBrandIds = Array.from(
-      await listFollowedBrandIds(supabase, userId)
-    );
-  } catch (err) {
-    console.error("Failed to load followed brands", err);
-  }
+  const followedBrandIds = Array.from(followedBrandIdSet);
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId="brands"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

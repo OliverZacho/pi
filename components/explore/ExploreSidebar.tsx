@@ -469,14 +469,6 @@ function AccountRow({
           >
             Homepage
           </Link>
-          <Link
-            href="/learn"
-            className={styles.accountMenuItem}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            Learn
-          </Link>
           <button
             type="button"
             className={styles.accountMenuItem}
@@ -499,14 +491,6 @@ function AccountRow({
           >
             Request a feature
           </button>
-          <a
-            href="mailto:help@pirol.app"
-            className={styles.accountMenuItem}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            Need help?
-          </a>
           <form
             action="/auth/signout"
             method="post"

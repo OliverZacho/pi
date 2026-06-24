@@ -287,7 +287,7 @@ export default function BrandSearchPicker({
               border: "none",
               background: "none",
               padding: 0,
-              color: "#2563eb",
+              color: "#086e4b",
               cursor: "pointer",
               font: "inherit",
               textDecoration: "underline"

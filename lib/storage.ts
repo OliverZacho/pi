@@ -11,8 +11,9 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
  * Signed URLs live for 7 days. Bumped up from 1 hour so the same URL is
  * reused across many page views, which lets the browser cache and Supabase
  * Storage's CDN edge layer actually do their job. Combined with the
- * `public, max-age=31536000, immutable` `cacheControl` we set at upload
- * time, this means a card image only crosses the Storage Egress meter
+ * `public, max-age=31536000, immutable` cache-control we set at upload
+ * time (see {@link EMAIL_ASSET_CACHE_CONTROL}), this means a card image
+ * only crosses the Storage Egress meter
  * once per (URL, viewer) tuple inside the 7-day window.
  *
  * Storage paths are content-addressed by SHA-1 (`mirrorRemoteImages`), so
@@ -29,7 +30,20 @@ const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
  */
 const SIGNED_URL_REFRESH_BUFFER_MS = 24 * 60 * 60 * 1000;
 
-const EMAIL_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/**
+ * Value passed to Supabase Storage's `upload({ cacheControl })`. Storage
+ * does NOT take a full header here — it substitutes this into
+ * `public, max-age=<value>` itself. So we pass only the seconds plus the
+ * `immutable` directive and let Storage prepend `public, max-age=`,
+ * yielding `public, max-age=31536000, immutable`.
+ *
+ * (Previously this was the *entire* header string, which Storage then
+ * double-stamped into the invalid `public, max-age=public, max-age=...`
+ * — that broke the `max-age` parse so browsers revalidated far more often
+ * than the intended year. Only assets uploaded after this fix get the
+ * corrected header.)
+ */
+const EMAIL_ASSET_CACHE_CONTROL = "31536000, immutable";
 
 /**
  * Public-CDN base URL for the `email-assets` bucket. When set, every

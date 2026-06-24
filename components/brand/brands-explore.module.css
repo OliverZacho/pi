@@ -761,12 +761,12 @@
 }
 
 .rangeInput:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 2px;
 }
 
 .rangeInput:focus-visible::-moz-range-thumb {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #086e4b;
   outline-offset: 2px;
 }
 

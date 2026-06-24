@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import Pricing from "@/components/marketing/Pricing";
 import PricingFaq from "@/components/marketing/PricingFaq";
+import SiteFooter from "@/components/marketing/SiteFooter";
 import { PRICING_FAQ } from "@/lib/marketing/pricing-faq";
 import styles from "@/components/marketing/landing.module.css";
 
@@ -32,6 +33,7 @@ export default function PricingPage() {
       <SiteHeader />
       <Pricing />
       <PricingFaq />
+      <SiteFooter />
     </main>
   );
 }

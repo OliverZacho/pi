@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   ExploreEmailCard,
   ExploreFacets,
@@ -242,10 +243,21 @@ export default function ExploreClient({
   isAdmin = false
 }: Props) {
   const isPublic = mode === "public";
+  // The admin render/detail routes are admin-gated, so a paid NON-admin
+  // (e.g. a team member) would get 403 previews. Route them to the
+  // entitlement-safe public endpoints; admins keep the admin routes for
+  // full-fidelity inspection.
+  const authedRenderBase = isAdmin ? renderUrlBase : "/api/explore/emails";
+  const authedDetailBase = isAdmin ? "/api/admin/emails" : "/api/public/emails";
   // Free (public + allowSave) users can save curated cards up to a cap;
   // track the running total to drive the quota nudge.
   const [savedCount, setSavedCount] = useState(initialSavedCount);
   const [saveLimitHit, setSaveLimitHit] = useState(false);
+  // Logged-out visitors get a Save button too, but clicking it can't
+  // persist anything — instead we pop a modal asking them to create a
+  // free account. `signupModalNext` is where /login sends them back to.
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
+  const [signupModalNext, setSignupModalNext] = useState("/explore");
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -450,6 +462,17 @@ export default function ExploreClient({
     },
     [allowSave]
   );
+
+  // Logged-out visitors can't persist a save, so the Save button instead
+  // pops a sign-up nudge. We capture the current path so /login can send
+  // them straight back here once they have an account.
+  const handleLoggedOutSave = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname + window.location.search;
+      setSignupModalNext(path.startsWith("/") ? path : "/explore");
+    }
+    setSignupModalOpen(true);
+  }, []);
 
   // Admin-only: flip a brand's recommended status optimistically, then
   // PATCH the curated flag. The whole grid re-reads `recommendedCompanyIds`
@@ -1424,6 +1447,43 @@ export default function ExploreClient({
         </div>
       ) : null}
 
+      {signupModalOpen ? (
+        <div
+          className={styles.signupModalBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="signup-modal-title"
+          onClick={() => setSignupModalOpen(false)}
+        >
+          <div
+            className={styles.signupModal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.signupModalClose}
+              onClick={() => setSignupModalOpen(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2 id="signup-modal-title" className={styles.signupModalTitle}>
+              Create a free account to save emails
+            </h2>
+            <p className={styles.signupModalText}>
+              Sign up for free to start saving emails to your gallery and pick
+              up where you left off.
+            </p>
+            <Link
+              href={`/login?next=${encodeURIComponent(signupModalNext)}`}
+              className={styles.signupModalCta}
+            >
+              Sign up
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       {isPublic && allowSave ? (
         <div
           className={styles.saveQuota}
@@ -1452,12 +1512,16 @@ export default function ExploreClient({
           <div className={styles.grid}>
             {emails.map((email) =>
               isPublic && !allowSave ? (
+                // Logged-out visitor: show the Save button as a conversion
+                // hook, but clicking it nudges them to sign up rather than
+                // saving (nothing persists without an account).
                 <EmailCard
                   key={email.id}
                   email={email}
                   onOpen={handleOpenEmail}
                   renderUrlBase={renderUrlBase}
-                  readOnly
+                  isSaved={false}
+                  onToggleSave={handleLoggedOutSave}
                 />
               ) : isPublic && allowSave ? (
                 // Signed-in free user: Save enabled, collections withheld
@@ -1475,6 +1539,7 @@ export default function ExploreClient({
                   key={email.id}
                   email={email}
                   onOpen={handleOpenEmail}
+                  renderUrlBase={authedRenderBase}
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
                   collections={collections}
@@ -1538,6 +1603,8 @@ export default function ExploreClient({
           <EmailModal
             email={openEmail}
             onClose={handleCloseEmail}
+            renderUrlBase={authedRenderBase}
+            detailUrlBase={authedDetailBase}
             isSaved={savedIds.has(openEmail.id)}
             onToggleSave={handleToggleSave}
             collections={collections}

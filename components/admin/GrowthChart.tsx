@@ -14,7 +14,7 @@ type SeriesConfig = {
 };
 
 const SERIES: SeriesConfig[] = [
-  { key: "emails", label: "Captured emails", color: "#2563eb", axis: "left" },
+  { key: "emails", label: "Captured emails", color: "#086e4b", axis: "left" },
   { key: "brands", label: "Subscribed brands", color: "#059669", axis: "right" }
 ];
 
