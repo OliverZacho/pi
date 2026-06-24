@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
 import { rewriteEmailHtml } from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -25,18 +26,26 @@ type RouteContext = {
  * Reads run through the service-role client so emails are reachable
  * regardless of row-level security on `captured_emails`.
  */
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
 
   if (!UUID_PATTERN.test(id)) {
     return NextResponse.json({ error: "Invalid email id" }, { status: 400 });
   }
 
+  // Grid cards request `?preview=1` to get CDN-resized (≤600px, WebP/AVIF)
+  // body images — the high-volume surface. The modal omits it and gets
+  // full-fidelity originals.
+  const isPreview =
+    new URL(request.url).searchParams.get("preview") === "1";
+
   const admin = getSupabaseAdmin();
 
   let email;
   try {
-    email = await getEmailDetailFromDb(admin, id);
+    email = await getEmailDetailFromDb(admin, id, {
+      imageTransform: isPreview ? CARD_IMAGE_TRANSFORM : undefined
+    });
   } catch (error) {
     console.error("Failed to load email for public render", error);
     return NextResponse.json(
