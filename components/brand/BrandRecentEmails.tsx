@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import EmailCard from "@/components/explore/EmailCard";
 import EmailModal from "@/components/explore/EmailModal";
 import exploreStyles from "@/components/explore/explore.module.css";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import { useSavedEmails } from "./useSavedEmails";
 
 type Props = {
   emails: ExploreEmailCard[];
@@ -29,7 +30,7 @@ type Props = {
  */
 export default function BrandRecentEmails({ emails }: Props) {
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
+  const { savedIds, toggleSave: handleToggleSave } = useSavedEmails();
 
   const handleOpen = useCallback((email: ExploreEmailCard) => {
     setOpenEmail(email);
@@ -38,53 +39,6 @@ export default function BrandRecentEmails({ emails }: Props) {
   const handleClose = useCallback(() => {
     setOpenEmail(null);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/explore/saved?ids=1", { credentials: "include" })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        const body = (await res.json()) as { ids: string[] };
-        return body.ids ?? [];
-      })
-      .then((ids) => {
-        if (!cancelled && ids) {
-          setSavedIds(new Set(ids));
-        }
-      })
-      .catch(() => {
-        /* Best-effort — cards default to unsaved if this fails. */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleToggleSave = useCallback(
-    async (email: ExploreEmailCard, next: boolean) => {
-      setSavedIds((current) => {
-        const updated = new Set(current);
-        if (next) updated.add(email.id);
-        else updated.delete(email.id);
-        return updated;
-      });
-      try {
-        const res = await fetch(`/api/explore/saved/${email.id}`, {
-          method: next ? "PUT" : "DELETE",
-          credentials: "include"
-        });
-        if (!res.ok) throw new Error(`Failed (${res.status})`);
-      } catch {
-        setSavedIds((current) => {
-          const updated = new Set(current);
-          if (next) updated.delete(email.id);
-          else updated.add(email.id);
-          return updated;
-        });
-      }
-    },
-    []
-  );
 
   return (
     <>

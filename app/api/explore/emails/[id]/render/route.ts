@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
-import { rewriteEmailHtml } from "@/lib/email-render";
+import { rewriteEmailHtml, emailPreviewCsp } from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
@@ -82,6 +82,10 @@ export async function GET(request: Request, context: RouteContext) {
       // with a 7-day TTL) and the route is public, so let the edge serve
       // repeats — same approach as the shared-collection render route.
       "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+      // Block the email's own remote resources (trackers, unmirrored images,
+      // remote fonts) — only our mirrored CDN assets load. Stops slow
+      // third-party hangs + per-view tracker re-fires. See emailPreviewCsp().
+      "Content-Security-Policy": emailPreviewCsp(),
       "Referrer-Policy": "no-referrer"
     }
   });

@@ -12,6 +12,9 @@ import { hasAnySeasonalMentions } from "@/lib/seasonal-events";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandCtaCloud from "./BrandCtaCloud";
+import BrandDiscountTimeline, {
+  type DiscountTimelineCompany
+} from "./BrandDiscountTimeline";
 import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import BrandSeasonalRunup from "./BrandSeasonalRunup";
@@ -237,7 +240,20 @@ export default function BrandDashboard({
           </section>
 
           <section className={styles.sectionGrid}>
-            <PromoCard promo={promo} sample={totals.sampleSize} />
+            <PromoCard
+              promo={promo}
+              sample={totals.sampleSize}
+              brandName={brand.name}
+              seasonalSample={data.seasonalSample}
+              company={{
+                id: brand.id,
+                slug: brand.slug,
+                name: brand.name,
+                domain: brand.domain,
+                markets: brand.markets,
+                logoUrl: brand.logoUrl
+              }}
+            />
             <EmojiCard emojis={emojis} sample={totals.sampleSize} />
           </section>
 
@@ -692,10 +708,16 @@ export function CategoryCard({
 
 export function PromoCard({
   promo,
-  sample
+  sample,
+  brandName = "this brand",
+  seasonalSample = [],
+  company = null
 }: {
   promo: BrandPageData["promo"];
   sample: number;
+  brandName?: string;
+  seasonalSample?: BrandPageData["seasonalSample"];
+  company?: DiscountTimelineCompany | null;
 }) {
   return (
     <article className={styles.card}>
@@ -721,7 +743,13 @@ export function PromoCard({
         </span>
       </div>
 
-      <div className={styles.statStrip}>
+      <BrandDiscountTimeline
+        brandName={brandName}
+        sample={seasonalSample}
+        company={company}
+      />
+
+      <div className={`${styles.statStrip} ${styles.statStripCompact}`}>
         <div className={styles.statBlock}>
           <span className={styles.statBlockLabel}>Avg discount</span>
           <span className={styles.statBlockValue}>

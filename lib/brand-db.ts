@@ -840,12 +840,31 @@ function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
 function computeCadence(
   rows: Pick<EmailRow, "received_at" | "category">[]
 ): BrandPageData["cadence"] {
+  // The very first email a brand ever sends us is the signup/welcome mail
+  // our own subscription triggers — it lands at whatever moment we happened
+  // to join, so its timestamp reflects our signup, not the brand's send
+  // schedule. Drop that earliest capture before any rhythm math. Welcome
+  // mail the classifier tagged `welcome` is already excluded below by
+  // category; dropping the earliest row additionally catches onboarding mail
+  // misfiled as `sale` (e.g. a "10% off your first order" signup blast).
+  let earliestIdx = -1;
+  let earliestTime = Infinity;
+  rows.forEach((row, i) => {
+    const t = new Date(row.received_at).getTime();
+    if (!Number.isNaN(t) && t < earliestTime) {
+      earliestTime = t;
+      earliestIdx = i;
+    }
+  });
+  const rowsAfterSignup =
+    earliestIdx === -1 ? rows : rows.filter((_, i) => i !== earliestIdx);
+
   // Cadence describes a brand's *broadcast* rhythm, so triggered/lifecycle
   // mail is left out: the welcome series our own subscription fires lands as a
   // burst on the day we joined, which would otherwise inflate send frequency
   // and skew the typical day/hour. Same exclusion the campaign-mix and
   // quiet-zones views use.
-  const campaignRows = rows.filter(
+  const campaignRows = rowsAfterSignup.filter(
     (row) => !NON_CAMPAIGN_CATEGORIES.has(row.category as EmailCategory)
   );
 

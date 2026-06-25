@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
-import { rewriteEmailHtml } from "@/lib/email-render";
+import { rewriteEmailHtml, emailPreviewCsp } from "@/lib/email-render";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
@@ -71,6 +71,8 @@ export async function GET(request: Request, context: RouteContext) {
       // of shared caches since the body still depends on the
       // authenticated session.
       "Cache-Control": "private, max-age=3600",
+      // Block remote trackers/images/fonts in the preview — see emailPreviewCsp().
+      "Content-Security-Policy": emailPreviewCsp(),
       // The iframe is sandboxed at the host level, but we still set a strict
       // referrer policy to avoid leaking signed urls to remote trackers.
       "Referrer-Policy": "no-referrer"
