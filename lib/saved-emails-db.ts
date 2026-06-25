@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { collapseDuplicateRows } from "./dedup";
 import type { Database } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -164,23 +165,30 @@ export async function listSavedEmails(
   supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<SavedEmailsResult> {
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from("saved_emails")
     .select(
       `saved_at,
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-         discount_percent, promo_code, company_id,
+         discount_percent, promo_code, company_id, duplicate_of,
          companies(id, slug, name, domain, markets, logo_storage_path)
-       )`,
-      { count: "exact" }
+       )`
     )
     .eq("user_id", userId)
     .order("saved_at", { ascending: false });
 
   if (error) throw error;
 
-  const rows = data ?? [];
+  // Collapse the list-copies of multi-segment sends down to one card, so
+  // the saved gallery matches what Explore shows (which filters
+  // `duplicate_of IS NULL` at the query level). We can't filter in SQL
+  // here — the user may have saved a duplicate copy, not the canonical —
+  // so we group in memory instead. `count` is dropped: the exact count
+  // would be the pre-collapse total, which no longer matches the rows.
+  const rows = collapseDuplicateRows(data ?? [], (row) =>
+    pickEmail(row.captured_emails)
+  );
 
   // Collect every logo path in one pass so we can resolve them in a
   // single signed-URL batch instead of per-row.
@@ -203,8 +211,7 @@ export async function listSavedEmails(
     .map((row) => toExploreCard(row, signed))
     .filter((card): card is SavedEmailCard => card !== null);
 
-  const total = typeof count === "number" ? count : items.length;
-  return { items, total };
+  return { items, total: items.length };
 }
 
 type SavedRow = {
@@ -224,6 +231,7 @@ type SavedEmailField =
       discount_percent: number | null;
       promo_code: string | null;
       company_id: string | null;
+      duplicate_of: string | null;
       companies: CompaniesField;
     }
   | Array<{
@@ -237,6 +245,7 @@ type SavedEmailField =
       discount_percent: number | null;
       promo_code: string | null;
       company_id: string | null;
+      duplicate_of: string | null;
       companies: CompaniesField;
     }>
   | null

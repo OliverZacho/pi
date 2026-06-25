@@ -7,6 +7,7 @@ import {
 } from "./collection-event-shared";
 import { type CollectionIcon, isCollectionIcon } from "./collection-icons";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { collapseDuplicateRows } from "./dedup";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -1395,7 +1396,7 @@ export async function evaluateCollectionRules(
     .from("captured_emails")
     .select(
       `id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-       discount_percent, promo_code, company_id,
+       discount_percent, promo_code, company_id, duplicate_of,
        companies(id, slug, name, domain, markets, logo_storage_path)`
     )
     .order("received_at", { ascending: false })
@@ -1462,7 +1463,11 @@ export async function evaluateCollectionRules(
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = data ?? [];
+  // Collapse list-copies of multi-segment sends so a rule that matches a
+  // campaign yields one card, not one per inbox segment — same intent as
+  // Explore's `duplicate_of IS NULL` filter. Rule rows are the email rows
+  // themselves, so the group key reads straight off the row.
+  const rows = collapseDuplicateRows(data ?? [], (row) => row);
   const logoPaths = new Set<string>();
   for (const row of rows) {
     const company = pickCompany(row.companies);
@@ -1862,7 +1867,7 @@ async function loadCollectionEmails(
       `added_at,
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-         discount_percent, promo_code, company_id,
+         discount_percent, promo_code, company_id, duplicate_of,
          companies(id, slug, name, domain, markets, logo_storage_path)
        )`
     )
@@ -1871,7 +1876,13 @@ async function loadCollectionEmails(
 
   if (error) throw error;
 
-  const rows = data ?? [];
+  // Collapse list-copies of multi-segment sends to one card, mirroring
+  // Explore's `duplicate_of IS NULL` filter. Manual membership stores
+  // literal email ids (which may be duplicate copies, not the canonical),
+  // so we group in memory rather than filtering in SQL.
+  const rows = collapseDuplicateRows(data ?? [], (row) =>
+    pickEmail(row.captured_emails)
+  );
   const logoPaths = new Set<string>();
   for (const row of rows) {
     const email = pickEmail(row.captured_emails);
@@ -1973,6 +1984,7 @@ type EmailField =
       discount_percent: number | null;
       promo_code: string | null;
       company_id: string | null;
+      duplicate_of: string | null;
       companies: CompaniesField;
     }
   | Array<{
@@ -1986,6 +1998,7 @@ type EmailField =
       discount_percent: number | null;
       promo_code: string | null;
       company_id: string | null;
+      duplicate_of: string | null;
       companies: CompaniesField;
     }>
   | null
