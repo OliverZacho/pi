@@ -74,101 +74,115 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   const canEdit = collection.ownerId === userId;
 
-  // Everything below depends only on `collection` (already resolved) and is
-  // otherwise independent, so fan it all out in one parallel batch rather
-  // than a chain of awaits — each was a separate serial DB round-trip.
-  const companyIds = Array.from(
-    new Set(
-      collection.emails
-        .map((email) => email.companyId)
-        .filter((value): value is string => Boolean(value))
-    )
-  );
-  const emailIds = collection.emails.map((email) => email.id);
+  if (canEdit) {
+    try {
+      await markCollectionViewed(supabase, userId, id);
+    } catch (err) {
+      console.error("Failed to mark collection viewed", err);
+    }
+  }
 
-  // Deepest discount each brand has run over the past 12 months — benchmarks
-  // the campaign's cuts in the insights figure. Only runs for a
-  // confirmed-event, discount-heavy collection ("detected and not
-  // dismissed", so it's ready on the first client-side confirm too); skipped
-  // for the ~all other collections rather than run and binned.
+  // Deepest discount each brand in this collection has run over the past
+  // 12 months — benchmarks the campaign's cuts in the insights figure.
+  // The figure only renders for a confirmed-event, discount-heavy
+  // collection, so skip this whole-archive lookup otherwise rather than
+  // run it on every page load and bin the result.
+  // "Detected and not dismissed" rather than strictly confirmed: a user
+  // confirms client-side without a reload, so this keeps the benchmark
+  // ready for that first view too. Still skips non-event, dismissed, and
+  // non-discount-heavy collections — i.e. almost all of them.
+  let brandDiscountBenchmarks: Record<string, number> = {};
   const detection = collection.eventDetection;
   const discountFigureMayRender =
     detection?.status === "detected" &&
     detection.confirmed !== false &&
     isDiscountFigureEligible(collection.emails);
-  const since = new Date();
-  since.setFullYear(since.getFullYear() - 1);
+  if (discountFigureMayRender) {
+    try {
+      const companyIds = collection.emails
+        .map((email) => email.companyId)
+        .filter((value): value is string => Boolean(value));
+      const since = new Date();
+      since.setFullYear(since.getFullYear() - 1);
+      brandDiscountBenchmarks = await getBrandDiscountBenchmarks(
+        supabase,
+        companyIds,
+        since.toISOString()
+      );
+    } catch (err) {
+      console.error("Failed to load brand discount benchmarks", err);
+    }
+  }
 
-  const [
-    ,
-    brandDiscountBenchmarks,
-    followedSet,
-    savedSet,
-    collections,
-    competitorSets,
-    facets,
-    viewerDisplay
-  ] = await Promise.all([
-    // Fire-and-forget view marker; owners only.
-    canEdit
-      ? markCollectionViewed(supabase, userId, id).catch((err) => {
-          console.error("Failed to mark collection viewed", err);
-          return null;
-        })
-      : Promise.resolve(null),
-    discountFigureMayRender
-      ? getBrandDiscountBenchmarks(
-          supabase,
-          companyIds,
-          since.toISOString()
-        ).catch((err) => {
-          console.error("Failed to load brand discount benchmarks", err);
-          return {} as Record<string, number>;
-        })
-      : Promise.resolve({} as Record<string, number>),
-    // Which collection brands the user follows — scoped to the collection's
-    // companies so we never pull their whole follow list.
-    companyIds.length > 0
-      ? listFollowedBrandIds(supabase, userId, companyIds).catch((err) => {
-          console.error("Failed to load followed brands for collection", err);
-          return new Set<string>();
-        })
-      : Promise.resolve(new Set<string>()),
-    // Save/Unsave bookmark state for every card, same as Explore.
-    listSavedEmailIds(supabase, userId, emailIds).catch((err) => {
-      console.error("Failed to load saved ids for collection", err);
-      return new Set<string>();
-    }),
-    // Every collection the user owns, for the "Add to another collection"
-    // popover on each card.
-    listCollectionSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load collections", err);
-      return [] as CollectionSummary[];
-    }),
-    listCompetitorSetSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load competitor sets", err);
-      return [] as CompetitorSetSummary[];
-    }),
-    // Canonical brands / markets / categories for the rules editor dropdowns.
-    getExploreFacets(supabase).catch((err) => {
-      console.error("Failed to load explore facets", err);
-      return {
-        brands: [],
-        markets: [],
-        categories: [],
-        countries: []
-      } as ExploreFacets;
-    }),
-    getViewerDisplay()
-  ]);
+  // Which of the brands in this collection the user follows — powers the
+  // "only brands I follow" toggle in the event insights. Scoped to the
+  // collection's companies so we never pull the user's whole follow list.
+  let followedCompanyIds: string[] = [];
+  try {
+    const companyIds = Array.from(
+      new Set(
+        collection.emails
+          .map((email) => email.companyId)
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+    if (companyIds.length > 0) {
+      const set = await listFollowedBrandIds(supabase, userId, companyIds);
+      followedCompanyIds = Array.from(set);
+    }
+  } catch (err) {
+    console.error("Failed to load followed brands for collection", err);
+  }
 
-  const followedCompanyIds = Array.from(followedSet);
-  const savedIds = Array.from(savedSet);
+  // We still want the Save/Unsave bookmark state on every card so the
+  // user's existing Saved list lights up here, same as on Explore.
+  let savedIds: string[] = [];
+  try {
+    const set = await listSavedEmailIds(
+      supabase,
+      userId,
+      collection.emails.map((email) => email.id)
+    );
+    savedIds = Array.from(set);
+  } catch (err) {
+    console.error("Failed to load saved ids for collection", err);
+  }
+
+  // Pre-load every collection this user owns so the "Add to another
+  // collection" popover on each card works without an extra fetch.
+  let collections: CollectionSummary[] = [];
+  try {
+    collections = await listCollectionSummaries(supabase, userId);
+  } catch (err) {
+    console.error("Failed to load collections", err);
+  }
+
+  let competitorSets: CompetitorSetSummary[] = [];
+  try {
+    competitorSets = await listCompetitorSetSummaries(supabase, userId);
+  } catch (err) {
+    console.error("Failed to load competitor sets", err);
+  }
+
+  // The rules editor needs the canonical list of brands / markets /
+  // categories so its dropdowns are exhaustive — same facets the
+  // Explore page uses for its own filter chips.
+  let facets: ExploreFacets = {
+    brands: [],
+    markets: [],
+    categories: [],
+    countries: []
+  };
+  try {
+    facets = await getExploreFacets(supabase);
+  } catch (err) {
+    console.error("Failed to load explore facets", err);
+  }
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={viewerDisplay}
+        user={await getViewerDisplay()}
         activeId={`collection:${collection.id}`}
         collections={collections}
         competitorSets={competitorSets}
