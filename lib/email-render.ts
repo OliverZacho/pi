@@ -6,6 +6,44 @@
  * time, so the preview looks like the email actually landed in an inbox.
  */
 
+/**
+ * Content-Security-Policy for the rendered email-preview document.
+ *
+ * Captured emails embed the sender's own remote resources — most notably
+ * **open-tracking pixels** and unmirrored remote images. Letting the preview
+ * iframe load them means (a) a slow third-party (e.g. an ESP tracker that
+ * takes 8s to answer) hangs the whole page's load spinner, and (b) we phone
+ * home to the brand's tracker on every view, leaking our capture address.
+ *
+ * This policy restricts the preview to images from our own mirrored assets
+ * (the CDN, or the Supabase signed-URL host in dev) plus inline data: URIs,
+ * and blocks everything else — scripts, remote stylesheets, remote fonts, and
+ * crucially remote/tracking images. The real content images are all mirrored
+ * to our CDN, so the preview is visually unchanged; only third-party calls are
+ * cut.
+ *
+ * Opens are NOT lost by this: we already fetch every embedded image (including
+ * the tracking pixel) once at ingest (`mirrorRemoteImages`), which is what
+ * registers the open with the sender — the per-view re-fire this blocks was
+ * redundant.
+ */
+export function emailPreviewCsp(): string {
+  const imgHosts = [
+    "'self'",
+    "data:",
+    process.env.NEXT_PUBLIC_ASSET_CDN_URL?.replace(/\/+$/, ""),
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "")
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return [
+    "default-src 'none'",
+    `img-src ${imgHosts}`,
+    "style-src 'unsafe-inline'",
+    "font-src data:"
+  ].join("; ");
+}
+
 const IMG_TAG_RE = /<img\b[^>]*>/gi;
 const ATTR_RE = /(\s)(src|srcset|background|data-src|data-original|data-image|data-bg)\s*=\s*("([^"]*)"|'([^']*)')/gi;
 const STYLE_TAG_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;

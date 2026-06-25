@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
 import { isEmailInPublicCollection } from "@/lib/collections-db";
-import { rewriteEmailHtml } from "@/lib/email-render";
+import { rewriteEmailHtml, emailPreviewCsp } from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
@@ -101,6 +101,8 @@ export async function GET(request: Request, context: RouteContext) {
       // Storage egress) at all.
       "Cache-Control":
         "public, s-maxage=86400, stale-while-revalidate=604800",
+      // Block remote trackers/images/fonts in the preview — see emailPreviewCsp().
+      "Content-Security-Policy": emailPreviewCsp(),
       "Referrer-Policy": "no-referrer"
     }
   });
