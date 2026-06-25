@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/require-admin-api";
-import { getBillingGraceStatus } from "@/lib/billing-status";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,10 +9,6 @@ export const runtime = "nodejs";
  * user, read from their own `subscriptions` row (RLS self-select). Currently
  * surfaces just the dunning grace window so the in-app reminder card knows
  * whether (and until when) to nudge a `past_due` user to fix their card.
- *
- * The app sidebar now resolves this server-side via {@link getBillingGraceStatus}
- * and seeds `BillingGraceCard` directly, so this route is only the
- * client-fetch fallback for surfaces that don't pass the server value.
  */
 export async function GET() {
   const session = await requireSession();
@@ -21,7 +16,19 @@ export async function GET() {
     return session.response;
   }
 
-  return NextResponse.json(
-    await getBillingGraceStatus(session.supabase, session.user.id)
-  );
+  const { data } = await session.supabase
+    .from("subscriptions")
+    .select("status, grace_until")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  const inGrace =
+    data?.status === "past_due" &&
+    !!data.grace_until &&
+    new Date(data.grace_until).getTime() > Date.now();
+
+  return NextResponse.json({
+    inGrace,
+    graceEndsAt: inGrace ? data!.grace_until : null,
+  });
 }

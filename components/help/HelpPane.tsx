@@ -54,15 +54,9 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
   }, []);
 
   useEffect(() => {
-    // Defer the first unread check ~1.5s so it doesn't compete with the
-    // page's initial content/image requests — it only drives a notification
-    // dot, not anything the user needs on first paint. Then poll as normal.
-    const initial = window.setTimeout(() => void refreshUnread(), 1500);
+    void refreshUnread();
     const timer = setInterval(() => void refreshUnread(), UNREAD_POLL_INTERVAL_MS);
-    return () => {
-      clearTimeout(initial);
-      clearInterval(timer);
-    };
+    return () => clearInterval(timer);
   }, [refreshUnread]);
 
   // Re-check unread when the panel opens, and return to the menu once closed.
