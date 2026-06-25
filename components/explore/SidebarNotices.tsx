@@ -70,20 +70,28 @@ export default function SidebarNotices({ signedIn }: Props) {
   useEffect(() => {
     if (!signedIn) return;
     const controller = new AbortController();
-    (async () => {
-      try {
-        const res = await fetch("/api/notices", {
-          credentials: "include",
-          signal: controller.signal
-        });
-        if (!res.ok) return;
-        const body = (await res.json()) as { notices?: SidebarNotice[] };
-        setNotices(Array.isArray(body.notices) ? body.notices : []);
-      } catch {
-        // Network hiccup — the slot just stays empty for this render.
-      }
-    })();
-    return () => controller.abort();
+    // Defer ~1.2s so this footer status line's (relatively slow) request
+    // doesn't compete with the page's content + image requests during the
+    // initial-load window. It's a status line, not first-paint content.
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const res = await fetch("/api/notices", {
+            credentials: "include",
+            signal: controller.signal
+          });
+          if (!res.ok) return;
+          const body = (await res.json()) as { notices?: SidebarNotice[] };
+          setNotices(Array.isArray(body.notices) ? body.notices : []);
+        } catch {
+          // Network hiccup — the slot just stays empty for this render.
+        }
+      })();
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [signedIn]);
 
   useEffect(() => {

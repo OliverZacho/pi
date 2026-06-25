@@ -41,26 +41,31 @@ export default function BillingGraceCard() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/billing/status");
-        if (!res.ok) return;
-        const data = (await res.json()) as Status;
-        if (cancelled || !data.inGrace) return;
-        // Respect a prior dismissal for this same grace window.
-        if (
-          typeof window !== "undefined" &&
-          window.sessionStorage.getItem(dismissKey(data.graceEndsAt)) === "1"
-        ) {
-          return;
+    // Defer ~1.2s so this rarely-relevant nudge (only past_due users see it)
+    // doesn't compete with the page's initial content/image load.
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const res = await fetch("/api/billing/status");
+          if (!res.ok) return;
+          const data = (await res.json()) as Status;
+          if (cancelled || !data.inGrace) return;
+          // Respect a prior dismissal for this same grace window.
+          if (
+            typeof window !== "undefined" &&
+            window.sessionStorage.getItem(dismissKey(data.graceEndsAt)) === "1"
+          ) {
+            return;
+          }
+          setStatus(data);
+        } catch {
+          // Silent — a missing nudge must never break the page.
         }
-        setStatus(data);
-      } catch {
-        // Silent — a missing nudge must never break the page.
-      }
-    })();
+      })();
+    }, 1200);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, []);
 
