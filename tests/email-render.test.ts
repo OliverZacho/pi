@@ -29,6 +29,22 @@ describe("rewriteEmailHtml", () => {
     expect(result.html).not.toContain("cdn.example.com/banner.png");
   });
 
+  it("resolves signed URLs when the mirror map stores the historical ${emailId}/${sha} path but signed assets are keyed by the dedup basename", () => {
+    // Production state for ~197 older emails: image_mirror_map values predate the
+    // path-dedup migration, while image_urls / signedAssets use the flat layout.
+    const mirrorMap = {
+      "https://cdn.example.com/banner.png": "em-1/abc.png"
+    };
+    const signedAssets = {
+      "abc.png": "https://signed.supabase.co/abc.png?token=banner"
+    };
+    const html = '<img src="https://cdn.example.com/banner.png" />';
+    const result = rewriteEmailHtml(html, { mirrorMap, signedAssets });
+    expect(result.rewritten).toBe(1);
+    expect(result.html).toContain("https://signed.supabase.co/abc.png?token=banner");
+    expect(result.html).not.toContain("cdn.example.com/banner.png");
+  });
+
   it("rewrites srcset entries while keeping descriptors", () => {
     const html =
       '<img src="https://cdn.example.com/banner.png" srcset="https://cdn.example.com/banner.png 1x, https://cdn.example.com/products/shoe.jpg 2x" />';
