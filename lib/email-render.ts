@@ -197,7 +197,15 @@ function buildLookup(options: RewriteOptions): Lookup {
   const byBasename = new Map<string, string>();
 
   for (const [remoteUrl, storagePath] of Object.entries(options.mirrorMap ?? {})) {
-    const signed = options.signedAssets[storagePath];
+    // `signedAssets` is keyed by the deduplicated `${sha}${ext}` storage path
+    // (the current layout). Older emails' mirror maps still store the historical
+    // `${emailId}/${sha}${ext}` path, whose basename is exactly the dedup path —
+    // so fall back to the basename when the full value misses. Without this, those
+    // emails resolve no signed URLs, every image stays on its remote host, and the
+    // preview CSP (which only allows our mirrored hosts) renders them all broken.
+    const signed =
+      options.signedAssets[storagePath] ??
+      options.signedAssets[storagePathBasename(storagePath)];
     if (!signed) continue;
 
     const normalizedRemote = normalizeUrl(remoteUrl);
@@ -212,6 +220,17 @@ function buildLookup(options: RewriteOptions): Lookup {
   }
 
   return { byRemote, byBasename };
+}
+
+/**
+ * Last path segment of a storage path. The dedup storage layout is a flat
+ * `${sha}${ext}` (no slash), so for a historical `${emailId}/${sha}${ext}`
+ * value this returns the equivalent dedup key. A value with no slash is
+ * returned unchanged.
+ */
+function storagePathBasename(storagePath: string): string {
+  const lastSlash = storagePath.lastIndexOf("/");
+  return lastSlash >= 0 ? storagePath.slice(lastSlash + 1) : storagePath;
 }
 
 function resolveUrl(raw: string, lookup: Lookup): string | null {
