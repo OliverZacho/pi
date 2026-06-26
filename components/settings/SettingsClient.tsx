@@ -22,6 +22,11 @@ const TABS: Tab[] = [
 
 const MIN_PASSWORD_LENGTH = 8;
 
+// Mirror the server-side resend limits (lib/teams-db) for the button state.
+// The server is the source of truth; these just keep the UI honest.
+const RESEND_COOLDOWN_MS = 60_000;
+const RESEND_LIMIT = 3;
+
 /**
  * The viewer's current subscription state, resolved on the server from their
  * own `subscriptions` row. Drives the Billing tab: what plan to show and
@@ -649,6 +654,18 @@ function TeamTab({
   const [team, setTeam] = useState<TeamView | null>(initialTeam);
   const domainLabel = emailDomain ? `@${emailDomain}` : "your company domain";
 
+  // Ticks once a second so the per-invite resend cooldown counts down live.
+  // The interval (which only runs while there are pending invites) is the
+  // sole writer, keeping setState out of the effect body.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!team || team.pendingInvites.length === 0) {
+      return;
+    }
+    const handle = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(handle);
+  }, [team]);
+
   // Seats = members (the owner is always one of them) + pending invites,
   // against the plan's limit of 6 (owner + 5). Before the team exists the
   // owner-to-be still occupies one seat, so the count starts at 1 — never
@@ -758,6 +775,34 @@ function TeamTab({
       };
       if (!response.ok) {
         setRowError(body.error ?? "Failed to revoke the invite.");
+        return;
+      }
+      setTeam(body.team ?? null);
+    } catch {
+      setRowError("Something went wrong. Please try again.");
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  async function handleResendInvite(inviteId: string) {
+    setRowError("");
+    setRowBusy(`resend:${inviteId}`);
+    try {
+      const response = await fetch(`/api/team/invites/${inviteId}/resend`, {
+        method: "POST"
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        team?: TeamView;
+        error?: string;
+      };
+      if (!response.ok) {
+        setRowError(body.error ?? "Failed to resend the invite.");
+        // A rejected resend (cooldown/limit) still returns fresh server
+        // counts on the team payload when present — keep the UI in sync.
+        if (body.team) {
+          setTeam(body.team);
+        }
         return;
       }
       setTeam(body.team ?? null);
@@ -983,9 +1028,34 @@ function TeamTab({
         {team && team.pendingInvites.length > 0 ? (
           <div className={styles.memberList}>
             {team.pendingInvites.map((invite) => {
-              const mayRevoke =
+              // Owner or the original inviter may manage (resend / revoke).
+              const mayManage =
                 team.viewerRole === "owner" ||
                 invite.invitedByUserId === viewerId;
+              const resendsLeft = RESEND_LIMIT - invite.resendCount;
+              const limitReached = resendsLeft <= 0;
+              const cooldownRemaining =
+                nowTs > 0
+                  ? Math.max(
+                      0,
+                      Math.ceil(
+                        (RESEND_COOLDOWN_MS -
+                          (nowTs - new Date(invite.lastSentAt).getTime())) /
+                          1000
+                      )
+                    )
+                  : 0;
+              const onCooldown = cooldownRemaining > 0;
+              const resendBusy = rowBusy === `resend:${invite.id}`;
+              const resendLabel = resendBusy
+                ? "Resending…"
+                : limitReached
+                  ? "No resends left"
+                  : onCooldown
+                    ? `Resend in ${cooldownRemaining}s`
+                    : `Resend${
+                        invite.resendCount > 0 ? ` (${resendsLeft} left)` : ""
+                      }`;
               return (
                 <div key={invite.id} className={styles.memberRow}>
                   <div className={styles.memberMeta}>
@@ -993,17 +1063,32 @@ function TeamTab({
                   </div>
                   <div className={styles.memberActions}>
                     <span className={styles.roleBadge}>pending</span>
-                    {mayRevoke ? (
-                      <button
-                        type="button"
-                        className={styles.rowAction}
-                        onClick={() => handleRevokeInvite(invite.id)}
-                        disabled={rowBusy === `invite:${invite.id}`}
-                      >
-                        {rowBusy === `invite:${invite.id}`
-                          ? "Revoking…"
-                          : "Revoke"}
-                      </button>
+                    {mayManage ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.rowAction}
+                          onClick={() => handleResendInvite(invite.id)}
+                          disabled={resendBusy || limitReached || onCooldown}
+                          title={
+                            limitReached
+                              ? "This invite has been resent the maximum number of times."
+                              : undefined
+                          }
+                        >
+                          {resendLabel}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.rowAction}
+                          onClick={() => handleRevokeInvite(invite.id)}
+                          disabled={rowBusy === `invite:${invite.id}`}
+                        >
+                          {rowBusy === `invite:${invite.id}`
+                            ? "Revoking…"
+                            : "Revoke"}
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -1146,7 +1231,7 @@ function BillingTab({
             >
               {portalLoading ? "Opening…" : "Manage billing"}
             </button>
-          ) : (
+          ) : billing.plan === "team" ? null : (
             <TrackedUpgradeLink source="settings_upgrade_plan" className={styles.primaryBtn}>
               Upgrade plan
             </TrackedUpgradeLink>

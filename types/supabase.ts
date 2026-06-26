@@ -907,6 +907,8 @@ export type Database = {
           email: string
           id: string
           invited_by: string | null
+          last_sent_at: string | null
+          resend_count: number
           status: string
           team_id: string
         }
@@ -916,6 +918,8 @@ export type Database = {
           email: string
           id?: string
           invited_by?: string | null
+          last_sent_at?: string | null
+          resend_count?: number
           status?: string
           team_id: string
         }
@@ -925,6 +929,8 @@ export type Database = {
           email?: string
           id?: string
           invited_by?: string | null
+          last_sent_at?: string | null
+          resend_count?: number
           status?: string
           team_id?: string
         }
@@ -1149,6 +1155,7 @@ export type Database = {
       }
     }
     Functions: {
+      bump_invite_resend: { Args: { p_invite_id: string }; Returns: undefined }
       bump_rate_limit: {
         Args: { p_bucket: string; p_limit: number; p_window: string }
         Returns: boolean
