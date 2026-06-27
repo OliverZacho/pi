@@ -1053,9 +1053,7 @@ function TeamTab({
                   ? "No resends left"
                   : onCooldown
                     ? `Resend in ${cooldownRemaining}s`
-                    : `Resend${
-                        invite.resendCount > 0 ? ` (${resendsLeft} left)` : ""
-                      }`;
+                    : "Resend";
               return (
                 <div key={invite.id} className={styles.memberRow}>
                   <div className={styles.memberMeta}>
