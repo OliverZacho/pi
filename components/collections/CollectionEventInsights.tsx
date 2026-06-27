@@ -9,8 +9,11 @@ import {
   DISCOUNT_FIGURE_MIN_SHARE,
   isEligibleForEventDetection,
   isEventDetectionStale,
+  resolveCollectionEvents,
   type CampaignPhase,
-  type CollectionEventDetection
+  type CollectionDetectedEvent,
+  type CollectionEventDetection,
+  type CollectionEventWithEmails
 } from "@/lib/collection-event-shared";
 import { formatMonthShort, formatShortDate, parseDayKey } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
@@ -190,6 +193,12 @@ export default function CollectionEventInsights({
 
   if (detection.confirmed === false) return null;
 
+  const detectedEvents = resolveCollectionEvents(
+    detection,
+    emails.map((email) => email.id)
+  );
+  const multiEvent = detectedEvents.length >= 2;
+
   if (detection.confirmed === null) {
     return (
       <div className={styles.insightsBanner}>
@@ -198,11 +207,14 @@ export default function CollectionEventInsights({
         </span>
         <div className={styles.insightsBannerBody}>
           <p className={styles.insightsBannerTitle}>
-            Event detected in this collection
+            {multiEvent
+              ? `${detectedEvents.length} events detected in this collection`
+              : "Event detected in this collection"}
           </p>
           <p className={styles.insightsBannerText}>
-            {detection.event.userMessage} Confirm to see how every brand in
-            this collection times its emails around the event.
+            {multiEvent
+              ? `This collection covers ${formatEventNames(detectedEvents)}. Confirm to see how brands time their emails around each one.`
+              : `${detection.event.userMessage} Confirm to see how every brand in this collection times its emails around the event.`}
           </p>
           <div className={styles.insightsBannerActions}>
             <button
@@ -239,9 +251,20 @@ export default function CollectionEventInsights({
           <CalendarSparkIcon />
         </span>
         <p className={styles.insightsSummaryText}>
-          <strong>{detection.event.name}</strong>
-          {eventDates ? ` — ${eventDates}` : ""}
-          {detection.event.location ? ` · ${detection.event.location}` : ""}
+          {multiEvent ? (
+            <>
+              <strong>{detectedEvents.length} events</strong>
+              {` · ${formatEventNames(detectedEvents)}`}
+            </>
+          ) : (
+            <>
+              <strong>{detection.event.name}</strong>
+              {eventDates ? ` — ${eventDates}` : ""}
+              {detection.event.location
+                ? ` · ${detection.event.location}`
+                : ""}
+            </>
+          )}
         </p>
         <button
           type="button"
@@ -253,21 +276,108 @@ export default function CollectionEventInsights({
       </div>
       {popupOpen ? (
         <InsightsPopup
-          title={`${detection.event.name} insights`}
+          title={multiEvent ? "Collection insights" : `${detection.event.name} insights`}
           emailModalOpen={emailModalOpen}
           onClose={() => setPopupOpen(false)}
         >
-          <EventInsightsCard
-            detection={detection}
-            emails={emails}
-            brandDiscountBenchmarks={brandDiscountBenchmarks}
-            followedCompanyIds={followedCompanyIds}
-            onOpenEmail={onOpenEmail}
-            inModal
-          />
+          {multiEvent ? (
+            <MultiEventInsights
+              detection={detection}
+              events={detectedEvents}
+              emails={emails}
+              brandDiscountBenchmarks={brandDiscountBenchmarks}
+              followedCompanyIds={followedCompanyIds}
+              onOpenEmail={onOpenEmail}
+            />
+          ) : (
+            <EventInsightsCard
+              detection={detection}
+              emails={emails}
+              brandDiscountBenchmarks={brandDiscountBenchmarks}
+              followedCompanyIds={followedCompanyIds}
+              onOpenEmail={onOpenEmail}
+              inModal
+            />
+          )}
         </InsightsPopup>
       ) : null}
     </>
+  );
+}
+
+/** "3daysofdesign and Father's Day", or with commas for three or more. */
+function formatEventNames(events: CollectionDetectedEvent[]): string {
+  const names = events.map((event) => event.name);
+  if (names.length <= 1) return names.join("");
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/* -----------------------------------------------------------------
+   Multi-event view — one tab per detected event. Each tab reuses the
+   single-event card with a detection scoped to that event and only the
+   emails the model assigned to it, so the figures never blend two events.
+   ----------------------------------------------------------------- */
+
+function MultiEventInsights({
+  detection,
+  events,
+  emails,
+  brandDiscountBenchmarks,
+  followedCompanyIds,
+  onOpenEmail
+}: {
+  detection: CollectionEventDetection;
+  events: CollectionEventWithEmails[];
+  emails: ExploreEmailCard[];
+  brandDiscountBenchmarks?: Record<string, number>;
+  followedCompanyIds?: string[];
+  onOpenEmail: (email: ExploreEmailCard) => void;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const active = events[activeIdx] ?? events[0];
+
+  // Scope the detection + emails to the active event. EventInsightsCard
+  // reads `detection.event` / `detection.phases`, so handing it the
+  // event-specific slice makes it render exactly that event.
+  const scopedDetection = useMemo<CollectionEventDetection>(
+    () => ({ ...detection, event: active, phases: active.phases }),
+    [detection, active]
+  );
+  const scopedEmails = useMemo(() => {
+    const ids = new Set(active.emailIds);
+    return emails.filter((email) => ids.has(email.id));
+  }, [emails, active]);
+
+  return (
+    <div>
+      <div className={styles.insightsTabs} role="tablist" aria-label="Events">
+        {events.map((event, idx) => (
+          <button
+            key={`${event.name}-${idx}`}
+            type="button"
+            role="tab"
+            aria-selected={idx === activeIdx}
+            className={`${styles.insightsTab}${
+              idx === activeIdx ? ` ${styles.insightsTabActive}` : ""
+            }`}
+            onClick={() => setActiveIdx(idx)}
+          >
+            {event.name}
+            <span className={styles.insightsTabCount}>{event.emailIds.length}</span>
+          </button>
+        ))}
+      </div>
+      <EventInsightsCard
+        key={activeIdx}
+        detection={scopedDetection}
+        emails={scopedEmails}
+        brandDiscountBenchmarks={brandDiscountBenchmarks}
+        followedCompanyIds={followedCompanyIds}
+        onOpenEmail={onOpenEmail}
+        inModal
+      />
+    </div>
   );
 }
 

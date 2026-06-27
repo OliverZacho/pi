@@ -71,7 +71,7 @@ export default function PricingTeaser() {
       </div>
 
       <p className={styles.teamLine}>
-        Working as a team? <strong>Team</strong> adds up to 6 seats, shared
+        Working as a team? <strong>Team</strong>{" "}adds up to 6 seats, shared
         collections &amp; priority support for €89/mo.{" "}
         <Link href="/pricing" className={styles.inlineLink}>
           Compare all plans →

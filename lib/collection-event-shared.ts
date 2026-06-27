@@ -58,6 +58,19 @@ export type CollectionDetectedEvent = {
   userMessage: string;
 };
 
+/**
+ * One detected event together with the slice of the collection that
+ * belongs to it. A collection that mixes two occasions (say 3daysofdesign
+ * and Father's Day) yields one of these per occasion, each owning only its
+ * own emails so the insights figures never blend the two.
+ */
+export type CollectionEventWithEmails = CollectionDetectedEvent & {
+  /** Ids of the emails the model assigned to this event. */
+  emailIds: string[];
+  /** email id → campaign phase, scoped to this event's emails. */
+  phases: Record<string, CampaignPhase>;
+};
+
 export type CollectionEventDetection = {
   version: 1;
   /** `no_event` is cached too, so we don't re-ask on every page view. */
@@ -71,9 +84,24 @@ export type CollectionEventDetection = {
    * `true` = confirmed (insights visible), `false` = dismissed.
    */
   confirmed: boolean | null;
+  /**
+   * The most prevalent event — kept for the single-event banner/summary
+   * and for back-compat with rows written before multi-event support.
+   * Equals `events[0]` when `events` is present.
+   */
   event: CollectionDetectedEvent | null;
-  /** email id → campaign phase, as labelled by the model. */
+  /**
+   * email id → campaign phase across the whole collection (the union of
+   * every event's phases). Back-compat: the single-event insights card
+   * reads this directly.
+   */
   phases: Record<string, CampaignPhase>;
+  /**
+   * Every distinct event the collection covers, most prevalent first.
+   * Absent on legacy rows (treated as the single `event` above). Two or
+   * more entries drives the tabbed insights view.
+   */
+  events?: CollectionEventWithEmails[];
 };
 
 // ---------- Eligibility heuristic ----------
@@ -193,34 +221,29 @@ export function safeParseEventDetection(
 
   let event: CollectionDetectedEvent | null = null;
   if (obj.status === "detected") {
-    const raw = obj.event;
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-    const e = raw as Record<string, unknown>;
-    if (typeof e.name !== "string" || e.name.length === 0) return null;
-    if (typeof e.userMessage !== "string") return null;
-    event = {
-      name: e.name,
-      startDate: parseIsoDate(e.startDate),
-      endDate: parseIsoDate(e.endDate),
-      location: typeof e.location === "string" ? e.location : null,
-      kind: KIND_LOOKUP.has(String(e.kind))
-        ? (e.kind as CollectionEventKind)
-        : "other",
-      confidence:
-        typeof e.confidence === "number"
-          ? Math.max(0, Math.min(1, e.confidence))
-          : 0,
-      userMessage: e.userMessage
-    };
+    event = parseDetectedEvent(obj.event);
+    // A "detected" row without a usable event is corrupt — degrade to null.
+    if (!event) return null;
   }
 
-  const phases: Record<string, CampaignPhase> = {};
-  if (obj.phases && typeof obj.phases === "object" && !Array.isArray(obj.phases)) {
-    for (const [id, phase] of Object.entries(obj.phases as Record<string, unknown>)) {
-      if (typeof phase === "string" && PHASE_LOOKUP.has(phase)) {
-        phases[id] = phase as CampaignPhase;
-      }
+  const phases = parsePhaseMap(obj.phases);
+
+  // Optional multi-event array. Each entry is a full event plus the slice
+  // of emails assigned to it; a malformed entry is dropped rather than
+  // failing the whole parse (legacy rows simply omit the field).
+  let events: CollectionEventWithEmails[] | undefined;
+  if (Array.isArray(obj.events)) {
+    const parsed: CollectionEventWithEmails[] = [];
+    for (const raw of obj.events) {
+      const detected = parseDetectedEvent(raw);
+      if (!detected) continue;
+      const e = raw as Record<string, unknown>;
+      const emailIds = Array.isArray(e.emailIds)
+        ? e.emailIds.filter((id): id is string => typeof id === "string")
+        : [];
+      parsed.push({ ...detected, emailIds, phases: parsePhaseMap(e.phases) });
     }
+    if (parsed.length > 0) events = parsed;
   }
 
   return {
@@ -231,8 +254,61 @@ export function safeParseEventDetection(
     model: obj.model,
     confirmed: obj.confirmed as boolean | null,
     event,
-    phases
+    phases,
+    ...(events ? { events } : {})
   };
+}
+
+/** Parse a single detected-event object, or null when it's unusable. */
+function parseDetectedEvent(raw: unknown): CollectionDetectedEvent | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const e = raw as Record<string, unknown>;
+  if (typeof e.name !== "string" || e.name.length === 0) return null;
+  if (typeof e.userMessage !== "string") return null;
+  return {
+    name: e.name,
+    startDate: parseIsoDate(e.startDate),
+    endDate: parseIsoDate(e.endDate),
+    location: typeof e.location === "string" ? e.location : null,
+    kind: KIND_LOOKUP.has(String(e.kind))
+      ? (e.kind as CollectionEventKind)
+      : "other",
+    confidence:
+      typeof e.confidence === "number"
+        ? Math.max(0, Math.min(1, e.confidence))
+        : 0,
+    userMessage: e.userMessage
+  };
+}
+
+function parsePhaseMap(value: unknown): Record<string, CampaignPhase> {
+  const phases: Record<string, CampaignPhase> = {};
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    for (const [id, phase] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof phase === "string" && PHASE_LOOKUP.has(phase)) {
+        phases[id] = phase as CampaignPhase;
+      }
+    }
+  }
+  return phases;
+}
+
+/**
+ * Normalises a detection into the list of events to render. Multi-event
+ * rows return their `events`; a single-event (or legacy) row returns one
+ * synthesised entry that owns the supplied email ids — so the caller can
+ * treat both shapes uniformly.
+ */
+export function resolveCollectionEvents(
+  detection: CollectionEventDetection,
+  allEmailIds: string[]
+): CollectionEventWithEmails[] {
+  if (detection.status !== "detected") return [];
+  if (detection.events && detection.events.length > 0) return detection.events;
+  if (!detection.event) return [];
+  return [
+    { ...detection.event, emailIds: allEmailIds, phases: detection.phases }
+  ];
 }
 
 function parseIsoDate(value: unknown): string | null {

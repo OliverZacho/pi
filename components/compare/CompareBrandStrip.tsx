@@ -8,6 +8,7 @@ import BrandSearchPicker, {
   type BrandSearchOption
 } from "./BrandSearchPicker";
 import MemberListSelect from "./MemberListSelect";
+import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -34,6 +35,13 @@ type Props = {
   canEdit?: boolean;
   /** Whether the set is shared with the owner's team (owner view only). */
   sharedWithTeam?: boolean;
+  /**
+   * Whether the owner may actually share with their team — true for an
+   * active Team plan (or an admin). When false the owner still sees the
+   * "Share with team" button, but it's rendered as a locked upsell that
+   * starts the Team-plan upgrade instead of toggling sharing.
+   */
+  canShareWithTeam?: boolean;
 };
 
 /**
@@ -52,7 +60,8 @@ export default function CompareBrandStrip({
   setName,
   subtitle,
   canEdit = true,
-  sharedWithTeam = false
+  sharedWithTeam = false,
+  canShareWithTeam = false
 }: Props) {
   const router = useRouter();
   const [name, setName_] = useState(setName);
@@ -357,19 +366,33 @@ export default function CompareBrandStrip({
             >
               + Add brands
             </button>
-            <button
-              type="button"
-              className={styles.iconButton}
-              onClick={handleToggleShare}
-              disabled={sharePending}
-              title={
-                shared
-                  ? "Your team can view this comparison. Click to stop sharing."
-                  : "Let your team view this comparison"
-              }
-            >
-              {shared ? "✓ Shared with team" : "Share with team"}
-            </button>
+            {canShareWithTeam ? (
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={handleToggleShare}
+                disabled={sharePending}
+                title={
+                  shared
+                    ? "Your team can view this comparison. Click to stop sharing."
+                    : "Let your team view this comparison"
+                }
+              >
+                {shared ? "✓ Shared with team" : "Share with team"}
+              </button>
+            ) : (
+              <TeamUpgradeButton
+                source="compare_share_team"
+                className={`${styles.iconButton} ${styles.iconButtonLocked}`}
+                title="Sharing comparisons with your team is a Team plan feature. Upgrade to enable it."
+                onError={setError}
+              >
+                <span>Share with team</span>
+                <span className={styles.lockGlyph}>
+                  <LockGlyph />
+                </span>
+              </TeamUpgradeButton>
+            )}
             <button
               type="button"
               className={styles.iconButton}
@@ -582,5 +605,24 @@ export default function CompareBrandStrip({
         </div>
       ) : null}
     </header>
+  );
+}
+
+function LockGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }

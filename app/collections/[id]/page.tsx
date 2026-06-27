@@ -16,6 +16,7 @@ import { isDiscountFigureEligible } from "@/lib/collection-event-shared";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listFollowedBrandIds } from "@/lib/follows-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
+import { hasActiveTeamPlan } from "@/lib/teams-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
@@ -107,7 +108,8 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     collections,
     competitorSets,
     facets,
-    viewerDisplay
+    viewerDisplay,
+    canShareWithTeam
   ] = await Promise.all([
     // Fire-and-forget view marker; owners only.
     canEdit
@@ -159,7 +161,18 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         countries: []
       } as ExploreFacets;
     }),
-    getViewerDisplay()
+    getViewerDisplay(),
+    // Team sharing is a Team-plan feature. Owners without it still see the
+    // button — rendered as a locked upsell — so resolve entitlement here.
+    // Admins always pass; otherwise it's an active "team" subscription.
+    canEdit
+      ? viewer.isAdmin
+        ? Promise.resolve(true)
+        : hasActiveTeamPlan(supabase, userId).catch((err) => {
+            console.error("Failed to check team plan for collection", err);
+            return false;
+          })
+      : Promise.resolve(false)
   ]);
 
   const followedCompanyIds = Array.from(followedSet);
@@ -183,6 +196,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           brandDiscountBenchmarks={brandDiscountBenchmarks}
           followedCompanyIds={followedCompanyIds}
           canEdit={canEdit}
+          canShareWithTeam={canShareWithTeam}
         />
       </main>
     </div>

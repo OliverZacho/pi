@@ -538,6 +538,20 @@
   background: #fef2f2;
 }
 
+/* Owner without a Team plan: the share button becomes an upsell. Still
+   clickable (it funnels to /pricing), but muted with a lock to read as
+   "available on a higher plan" rather than an active toggle. */
+.detailButtonLocked {
+  color: #475569;
+}
+
+.detailLockIcon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -0.15rem;
+  color: #94a3b8;
+}
+
 .detailButtonCopied {
   background: #16a34a;
   border-color: #16a34a;
@@ -1920,6 +1934,63 @@ select.ruleOperator:focus {
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.insightsTabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 1.1rem 1.4rem 0.75rem;
+  background: #ffffff;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.insightsTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.insightsTab:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.insightsTabActive,
+.insightsTabActive:hover {
+  background: #ecfdf5;
+  border-color: #086e4b;
+  color: #086e4b;
+}
+
+.insightsTabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.insightsTabActive .insightsTabCount {
+  background: rgba(8, 110, 75, 0.16);
 }
 
 @media (max-width: 640px) {

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { track } from "@vercel/analytics";
 import type { ReactNode } from "react";
+import { trackUpgradeClick } from "@/lib/upgrade-tracking";
 
 /**
  * A `/pricing` (or custom-href) link that records the click before navigating,
@@ -28,39 +28,11 @@ export default function TrackedUpgradeLink({
   title?: string;
   "aria-label"?: string;
 }) {
-  function handleClick() {
-    try {
-      track("upgrade_click", { source });
-      const payload = JSON.stringify({
-        source,
-        path: typeof window !== "undefined" ? window.location.pathname : null
-      });
-      const url = "/api/track/upgrade-click";
-      const sent =
-        typeof navigator !== "undefined" &&
-        typeof navigator.sendBeacon === "function" &&
-        navigator.sendBeacon(
-          url,
-          new Blob([payload], { type: "application/json" })
-        );
-      if (!sent) {
-        void fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-          keepalive: true
-        }).catch(() => {});
-      }
-    } catch {
-      // Never let tracking interfere with the click.
-    }
-  }
-
   return (
     <Link
       href={href}
       className={className}
-      onClick={handleClick}
+      onClick={() => trackUpgradeClick(source)}
       title={title}
       aria-label={ariaLabel}
     >

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { getViewer } from "@/lib/access";
+import { hasActiveTeamPlan } from "@/lib/teams-db";
 import {
   deleteCompetitorSet,
   getCompetitorSetForOwner,
@@ -103,6 +105,29 @@ export async function PATCH(request: Request, context: RouteContext) {
       { error: "'sharedWithTeam' must be a boolean" },
       { status: 400 }
     );
+  }
+
+  // Sharing a comparison with your team is a Team-plan feature. The UI already
+  // locks the button for non-team owners (funneling them into the upgrade),
+  // but guard the API too so a crafted request can't flip a set to shared
+  // without entitlement. Un-sharing (`false`) is always allowed, so a lapsed
+  // team can still turn it back off.
+  if (hasShared && obj.sharedWithTeam === true) {
+    const viewer = await getViewer();
+    let entitled = viewer?.isAdmin ?? false;
+    if (!entitled) {
+      try {
+        entitled = await hasActiveTeamPlan(session.supabase, session.user.id);
+      } catch (err) {
+        console.error("Failed to check team plan for comparison share", err);
+      }
+    }
+    if (!entitled) {
+      return NextResponse.json(
+        { error: "Sharing comparisons with your team requires the Team plan." },
+        { status: 403 }
+      );
+    }
   }
 
   try {
