@@ -7,7 +7,6 @@ export type EmailCategory =
   | "education"
   | "loyalty"
   | "welcome"
-  | "transactional"
   | "seasonal"
   | "partnership"
   | "company_news"
@@ -23,7 +22,6 @@ export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
   "education",
   "loyalty",
   "welcome",
-  "transactional",
   "seasonal",
   "partnership",
   "company_news",
@@ -36,14 +34,12 @@ export const EMAIL_CATEGORIES: readonly EmailCategory[] = [
  * statistic (what a brand *chooses* to broadcast). They stay first-class
  * categories everywhere else — on the brand page, in admin, in the raw
  * {@link EMAIL_CATEGORIES} list — but the welcome mail our own subscription
- * reliably triggers (and one-off transactional receipts) would otherwise
- * dominate a per-brand share and say more about when we subscribed than about
- * the brand's content. Shared so every campaign-mix surface excludes the same
- * set and they can't drift apart.
+ * reliably triggers would otherwise dominate a per-brand share and say more
+ * about when we subscribed than about the brand's content. Shared so every
+ * campaign-mix surface excludes the same set and they can't drift apart.
  */
 export const NON_CAMPAIGN_CATEGORIES: ReadonlySet<EmailCategory> = new Set([
-  "welcome",
-  "transactional"
+  "welcome"
 ]);
 
 export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
@@ -55,7 +51,6 @@ export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
   education: "Education",
   loyalty: "Loyalty",
   welcome: "Welcome",
-  transactional: "Transactional",
   seasonal: "Seasonal",
   partnership: "Partnership",
   company_news: "Company news",

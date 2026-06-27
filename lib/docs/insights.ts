@@ -525,7 +525,7 @@ export const getDiscountInsights = unstable_cache(
 /* ------------------------------ Content mix ------------------------------- */
 
 export type ContentMixInsights = {
-  /** Campaign emails counted (excludes welcome/transactional). */
+  /** Campaign emails counted (excludes welcome). */
   sampleSize: number;
   top: { label: string; share: number };
   second: { label: string; share: number } | null;

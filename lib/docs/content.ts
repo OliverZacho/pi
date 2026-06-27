@@ -341,7 +341,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
             heading: "What does a brand's content mix reveal?",
             body: [
               "A brand's content mix is its strategy made visible. A sender that fills the inbox with markdowns is competing on price and training its audience to wait for the next cut; one that leads with product storytelling and editorial is building desire and defending full price. Neither is wrong, but they are different games — and the proportions give the game away long before any results do.",
-              "Reading that mix across many brands turns a vague impression into a benchmark you can position against. The figures here cover broadcast campaigns from the brands Pirol tracks, and deliberately exclude welcome and transactional mail — those are triggered lifecycle messages, not the deliberate campaign choices that reveal strategy."
+              "Reading that mix across many brands turns a vague impression into a benchmark you can position against. The figures here cover broadcast campaigns from the brands Pirol tracks, and deliberately exclude welcome mail — those are triggered lifecycle messages, not the deliberate campaign choices that reveal strategy."
             ]
           },
           {

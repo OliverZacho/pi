@@ -531,7 +531,7 @@ const MIX_TOP_CATEGORIES = 6;
 
 function buildContentMix(brands: BrandPageData[]): ContentMixInsight {
   // The mix reflects *broadcast campaigns* a brand chooses to send, so
-  // triggered/lifecycle types (welcome, transactional) are dropped here — the
+  // triggered/lifecycle types (welcome) are dropped here — the
   // welcome flow our own subscription reliably fires would otherwise dominate a
   // brand's share. Same exclusion the archive-wide content mix uses.
   const campaignCategories = (b: BrandPageData) =>
@@ -894,8 +894,8 @@ function jaccard(a: Set<string>, b: Set<string>): number {
  * subject heavily overlaps a send from the previous few days is a
  * reminder/resend of that campaign ("Last chance: 30% off" following
  * "30% off everything"). Returns the share of threads that received at
- * least one follow-up. Transactional and welcome emails are excluded —
- * receipts legitimately repeat phrasing without being campaigns.
+ * least one follow-up. Welcome emails are excluded — onboarding sends
+ * legitimately repeat phrasing without being campaigns.
  */
 export function reminderShare(brand: BrandPageData): {
   share: number;

@@ -19,7 +19,6 @@ export const CATEGORY_COLORS: Record<EmailCategory, string> = {
   education: "#06b6d4",
   loyalty: "#8b5cf6",
   welcome: "#14b8a6",
-  transactional: "#94a3b8",
   seasonal: "#ef4444",
   partnership: "#f97316",
   company_news: "#475569",

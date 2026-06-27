@@ -17,6 +17,7 @@ import {
 } from "@/lib/competitor-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
@@ -52,14 +53,24 @@ export default async function ExplorePage() {
     // get no Save button.
     let initialSavedIds: string[] = [];
     let savedCount = 0;
+    // A brand-new signup hasn't picked a plan yet (`plan_selected_at` is null).
+    // Force the onboarding choice modal until they do — backfilled existing
+    // users already have a stamp, so only fresh accounts see it.
+    let mustChoosePlan = false;
     if (viewer) {
       try {
-        const [savedSet, count] = await Promise.all([
+        const [savedSet, count, profile] = await Promise.all([
           listSavedEmailIds(admin, viewer.userId),
-          countSavedEmails(admin, viewer.userId)
+          countSavedEmails(admin, viewer.userId),
+          admin
+            .from("user_profiles")
+            .select("plan_selected_at")
+            .eq("user_id", viewer.userId)
+            .maybeSingle()
         ]);
         initialSavedIds = Array.from(savedSet);
         savedCount = count;
+        mustChoosePlan = !profile.data?.plan_selected_at;
       } catch (err) {
         console.error("Failed to load saved email IDs", err);
       }
@@ -67,6 +78,7 @@ export default async function ExplorePage() {
 
     return (
       <div className={styles.shell}>
+        {mustChoosePlan ? <PlanChoiceModal /> : null}
         <ExploreSidebar user={await getViewerDisplay()} hasAccess={false} />
 
         <main className={styles.main}>

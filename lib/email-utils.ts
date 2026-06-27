@@ -65,10 +65,6 @@ export function classifyFromRules(subject: string, html: string): {
   // preferences", etc.) can never trigger a category on its own.
   const haystack = stripFooter(fullHaystack);
 
-  if (/\breceipt\b|\border\s*#?\s*\d+\b|\border confirmation\b|\bpayment received\b|\bshipping confirmation\b|\binvoice\b/.test(haystack)) {
-    return { category: "transactional", confidence: 0.9 };
-  }
-
   // Strong welcome/onboarding signals in the SUBJECT win over sale-style body
   // copy: many welcome emails ship a signup discount ("Welcome to BRAND — 10%
   // off your first order"), and we don't want those to be miscategorised as

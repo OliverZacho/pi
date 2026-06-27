@@ -11,11 +11,19 @@
  *
  * Detection is keyword-based against the subject line + preheader (the
  * only reliable, body-free signal we ship to the dashboard), so each
- * event carries a curated keyword set. Because the platform standardises
- * on the Danish market (Europe/Copenhagen) the keyword lists are
- * bilingual — English *and* Danish — and the event dates use the Danish
- * convention where it differs (Father's Day = June 5 / Grundlovsdag,
- * Christmas anchored on December 24).
+ * event carries a curated keyword set. The keyword lists are bilingual —
+ * English *and* Danish — because the platform centres on the Danish
+ * market (Europe/Copenhagen).
+ *
+ * Crucially, several occasions fall on *different* days by region —
+ * Father's Day is June 5 in Denmark, the 3rd Sunday of June in the
+ * US/UK, the 2nd Sunday of November in the Nordics, March 19 in Catholic
+ * Europe. A single hardcoded date silently drops every brand that times
+ * its campaign to another market's calendar. So events that vary expose
+ * *all* their regional dates, and the run-up analysis self-selects
+ * whichever one a given brand's emails actually cluster on (see
+ * `analyzeSeasonalRunup`). Where an event is genuinely fixed
+ * (Christmas = December 24, Danish convention) it just lists the one.
  *
  * Everything here is pure and isomorphic so the brand dashboard can run
  * the analysis client-side and re-compute instantly as the user flips
@@ -46,8 +54,14 @@ export type SeasonalEvent = {
    * subject + preheader, so "jul" hits Danish Christmas but not "July".
    */
   keywords: string[];
-  /** Resolves the event's calendar date for a specific year. */
-  dateForYear: (year: number) => SeasonalEventDate;
+  /**
+   * Resolves the event's candidate calendar date(s) for a specific year.
+   * Most events return a single date; occasions that fall on different
+   * days by region (Father's Day, Mother's Day) return every major
+   * regional variant. The first entry is the Danish/default convention,
+   * used to break ties when self-selecting which one a brand targets.
+   */
+  datesForYear: (year: number) => SeasonalEventDate[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -90,7 +104,19 @@ function easterSunday(year: number): SeasonalEventDate {
   return { month, day };
 }
 
-const fixed = (month: number, day: number) => () => ({ month, day });
+/**
+ * UK/Irish Mothering Sunday — the 4th Sunday of Lent, exactly three weeks
+ * before Easter Sunday, so it drifts across March with Easter.
+ */
+function motheringSunday(year: number): SeasonalEventDate {
+  const easter = easterSunday(year);
+  const d = new Date(Date.UTC(year, easter.month - 1, easter.day - 21));
+  return { month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
+const fixed = (month: number, day: number) => (): SeasonalEventDate[] => [
+  { month, day }
+];
 
 /**
  * The curated event set, in rough calendar order. Keyword lists lean
@@ -104,58 +130,70 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     label: "New Year",
     emoji: "🎆",
     keywords: ["new year", "new year's", "nytår", "nytaar", "godt nytår"],
-    dateForYear: fixed(1, 1)
+    datesForYear: fixed(1, 1)
   },
   {
     id: "valentines",
     label: "Valentine's Day",
     emoji: "💝",
     keywords: ["valentine", "valentines", "valentine's", "valentins", "valentinsdag"],
-    dateForYear: fixed(2, 14)
+    datesForYear: fixed(2, 14)
   },
   {
     id: "easter",
     label: "Easter",
     emoji: "🐣",
     keywords: ["easter", "påske", "paaske", "påsketilbud", "påskeæg"],
-    dateForYear: easterSunday
+    datesForYear: (year) => [easterSunday(year)]
   },
   {
     id: "mothers-day",
     label: "Mother's Day",
     emoji: "🌷",
     keywords: ["mother's day", "mothers day", "mors dag", "morsdag"],
-    // Denmark: second Sunday of May.
-    dateForYear: (year) => ({ month: 5, day: nthWeekdayOfMonth(year, 5, 0, 2) })
+    datesForYear: (year) => [
+      // DK/US/DE/NL/IT and most of the world: 2nd Sunday of May.
+      { month: 5, day: nthWeekdayOfMonth(year, 5, 0, 2) },
+      // UK/IE: Mothering Sunday, three weeks before Easter.
+      motheringSunday(year)
+    ]
   },
   {
     id: "fathers-day",
     label: "Father's Day",
     emoji: "👔",
     keywords: ["father's day", "fathers day", "fars dag", "farsdag"],
-    // Denmark: June 5 (Constitution Day doubles as Fars dag).
-    dateForYear: fixed(6, 5)
+    datesForYear: (year) => [
+      // DK: June 5 (Constitution Day doubles as Fars dag).
+      { month: 6, day: 5 },
+      // US/UK/NL/CA/FR: 3rd Sunday of June.
+      { month: 6, day: nthWeekdayOfMonth(year, 6, 0, 3) },
+      // NO/SE/FI: 2nd Sunday of November.
+      { month: 11, day: nthWeekdayOfMonth(year, 11, 0, 2) },
+      // ES/IT/PT (St Joseph's Day): March 19.
+      { month: 3, day: 19 }
+    ]
   },
   {
     id: "midsummer",
     label: "Midsummer",
     emoji: "🔥",
     keywords: ["midsummer", "sankt hans", "sankthans", "skt. hans", "sankthansaften"],
-    dateForYear: fixed(6, 23)
+    datesForYear: fixed(6, 23)
   },
   {
     id: "halloween",
     label: "Halloween",
     emoji: "🎃",
     keywords: ["halloween"],
-    dateForYear: fixed(10, 31)
+    datesForYear: fixed(10, 31)
   },
   {
     id: "singles-day",
     label: "Singles' Day",
     emoji: "🛍️",
     keywords: ["singles day", "singles' day", "single's day"],
-    dateForYear: fixed(11, 11)
+    datesForYear: fixed(11, 11)
   },
   {
     id: "black-friday",
@@ -163,7 +201,7 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     emoji: "🏷️",
     keywords: ["black friday", "black week", "blackfriday", "black-friday", "cyber monday"],
     // Fourth Friday of November.
-    dateForYear: (year) => ({ month: 11, day: nthWeekdayOfMonth(year, 11, 5, 4) })
+    datesForYear: (year) => [{ month: 11, day: nthWeekdayOfMonth(year, 11, 5, 4) }]
   },
   {
     id: "christmas",
@@ -171,7 +209,7 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     emoji: "🎄",
     keywords: ["christmas", "xmas", "x-mas", "jul", "julegave", "juletilbud", "julegaver"],
     // Denmark celebrates on the 24th; that's the anchor the run-up builds toward.
-    dateForYear: fixed(12, 24)
+    datesForYear: fixed(12, 24)
   }
 ];
 
@@ -236,6 +274,12 @@ export type SeasonalRunupEmail = {
   eventYear: number;
   /** Calendar days the email was sent before the event (0 = event day). */
   daysBefore: number;
+  /**
+   * Which regional date variant (index into `datesForYear`) this email
+   * was attributed to. Constant across a brand's matches for one event —
+   * the run-up self-selects a single convention per brand.
+   */
+  variantIndex: number;
 };
 
 export type SeasonalRunup = {
@@ -251,7 +295,13 @@ export type SeasonalRunup = {
   typicalLeadDays: number | null;
   /** The single earliest lead seen across all occurrences. */
   earliestLeadDays: number | null;
-  perOccurrence: { year: number; count: number; leadDays: number }[];
+  perOccurrence: {
+    year: number;
+    count: number;
+    leadDays: number;
+    /** `YYYY-MM-DD` of the regional date this occurrence resolved to. */
+    eventDate: string;
+  }[];
   /** Matched emails, sorted earliest-first (largest `daysBefore` first). */
   emails: SeasonalRunupEmail[];
   /** Send counts bucketed by whole weeks before the event (index = weeks). */
@@ -273,28 +323,35 @@ const WINDOW_BEFORE_DAYS = 120;
 /** Minimum weeks the timeline spans so a tight run-up still has an axis. */
 const MIN_WEEKS = 4;
 
-/** `YYYY-MM-DD` for an event's occurrence in a specific year. */
-function eventDayKey(event: SeasonalEvent, year: number): string {
-  const { month, day } = event.dateForYear(year);
+/** `YYYY-MM-DD` for a concrete calendar date in a specific year. */
+function dayKeyOf(year: number, { month, day }: SeasonalEventDate): string {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(
     day
   ).padStart(2, "0")}`;
 }
 
+/** Every candidate `YYYY-MM-DD` for an event's occurrence in a year. */
+function eventDayKeys(event: SeasonalEvent, year: number): string[] {
+  return event.datesForYear(year).map((date) => dayKeyOf(year, date));
+}
+
 /**
- * The upcoming occurrence of `event` relative to `now` (or this year's
- * if it hasn't passed). Used to label the timeline flag with a concrete,
- * forward-looking date.
+ * The nearest upcoming occurrence of `event` relative to `now`, across
+ * every regional variant. Used to label the timeline flag with a concrete,
+ * forward-looking date when a brand has no matched emails to anchor on.
  */
 export function upcomingOccurrence(
   event: SeasonalEvent,
   now: Date = new Date(),
   zone?: TimeZone
 ): string {
-  const { year } = getZonedParts(now, zone);
   const todayKey = formatDayKey(now, zone);
-  const thisYear = eventDayKey(event, year);
-  return thisYear >= todayKey ? thisYear : eventDayKey(event, year + 1);
+  const { year } = getZonedParts(now, zone);
+  const keys = [...eventDayKeys(event, year), ...eventDayKeys(event, year + 1)].sort();
+  for (const key of keys) {
+    if (key >= todayKey) return key;
+  }
+  return keys[keys.length - 1];
 }
 
 function median(values: number[]): number {
@@ -340,10 +397,14 @@ export function hasAnySeasonalMentions(emails: SeasonalEmailInput[]): boolean {
 /**
  * Builds the full run-up analysis for one brand + one event.
  *
- * For every keyword-matched email we attribute it to the *next* event
- * occurrence on or after the send (checking the email's year and the two
- * neighbours so a late-December "New Year" teaser maps to January). Sends
- * that don't fall inside the look-ahead window are dropped. From the
+ * Events can fall on different days by region, so the analysis runs in two
+ * passes. First, for every keyword-matched email, we find the nearest
+ * in-window occurrence of *each* regional date variant (checking the
+ * email's year and its two neighbours so a late-December "New Year" teaser
+ * maps to January). Then we self-select the single variant the brand
+ * targets — the one capturing the most of its emails — and attribute
+ * everything to that one date, so a US brand's Father's Day run-up measures
+ * against the 3rd Sunday of June rather than Denmark's June 5. From the
  * survivors we derive the per-occurrence first-mention (lead time), the
  * weekly build-up histogram, and the headline medians.
  */
@@ -357,33 +418,78 @@ export function analyzeSeasonalRunup(
   const yearFilter = options.year ?? null;
   const matches = buildEventMatcher(event.keywords);
 
-  const matched: SeasonalRunupEmail[] = [];
+  // Pass 1: for each matched email, the nearest in-window occurrence of
+  // every regional variant. An email can be captured by more than one.
+  type Candidate = { variantIndex: number; eventYear: number; daysBefore: number };
+  const perEmail: { email: SeasonalEmailInput; candidates: Candidate[] }[] = [];
   for (const email of emails) {
     const text = `${email.subject ?? ""} ${email.preheader ?? ""}`;
     if (!matches(text)) continue;
     const sent = new Date(email.receivedAt);
     if (Number.isNaN(sent.getTime())) continue;
 
-    // Attribute to the closest upcoming occurrence: smallest non-negative
-    // days-before across the email's year and its two neighbours.
     const { year } = getZonedParts(sent, zone);
-    let best: { eventYear: number; daysBefore: number } | null = null;
-    for (const candidateYear of [year - 1, year, year + 1]) {
-      const eventInstant = parseDayKey(eventDayKey(event, candidateYear), zone);
-      if (!eventInstant) continue;
-      const daysBefore = differenceInCalendarDays(sent, eventInstant, zone);
-      if (daysBefore < 0 || daysBefore > WINDOW_BEFORE_DAYS) continue;
-      if (!best || daysBefore < best.daysBefore) {
-        best = { eventYear: candidateYear, daysBefore };
+    const variantCount = event.datesForYear(year).length;
+    const candidates: Candidate[] = [];
+    for (let vi = 0; vi < variantCount; vi++) {
+      let best: Candidate | null = null;
+      for (const candidateYear of [year - 1, year, year + 1]) {
+        const date = event.datesForYear(candidateYear)[vi];
+        if (!date) continue;
+        const eventInstant = parseDayKey(dayKeyOf(candidateYear, date), zone);
+        if (!eventInstant) continue;
+        const daysBefore = differenceInCalendarDays(sent, eventInstant, zone);
+        if (daysBefore < 0 || daysBefore > WINDOW_BEFORE_DAYS) continue;
+        if (!best || daysBefore < best.daysBefore) {
+          best = { variantIndex: vi, eventYear: candidateYear, daysBefore };
+        }
       }
+      if (best) candidates.push(best);
     }
-    if (!best) continue;
+    if (candidates.length > 0) perEmail.push({ email, candidates });
+  }
+
+  // Self-select the brand's regional convention: the variant capturing the
+  // most emails, tie-broken toward the date the emails sit closest to, then
+  // toward the Danish/default (lowest index).
+  const variantStats = new Map<number, { count: number; daysSum: number }>();
+  for (const { candidates } of perEmail) {
+    for (const c of candidates) {
+      const stat = variantStats.get(c.variantIndex) ?? { count: 0, daysSum: 0 };
+      stat.count += 1;
+      stat.daysSum += c.daysBefore;
+      variantStats.set(c.variantIndex, stat);
+    }
+  }
+  let dominantVariant = 0;
+  let dominantStat: { count: number; daysSum: number } | null = null;
+  for (const [vi, stat] of variantStats) {
+    const better =
+      dominantStat === null ||
+      stat.count > dominantStat.count ||
+      (stat.count === dominantStat.count && stat.daysSum < dominantStat.daysSum) ||
+      (stat.count === dominantStat.count &&
+        stat.daysSum === dominantStat.daysSum &&
+        vi < dominantVariant);
+    if (better) {
+      dominantVariant = vi;
+      dominantStat = stat;
+    }
+  }
+
+  // Pass 2: attribute every email to the dominant variant only, so lead
+  // times and the timeline all measure against one consistent date.
+  const matched: SeasonalRunupEmail[] = [];
+  for (const { email, candidates } of perEmail) {
+    const hit = candidates.find((c) => c.variantIndex === dominantVariant);
+    if (!hit) continue;
     matched.push({
       id: email.id ?? "",
       subject: email.subject,
       receivedAt: email.receivedAt,
-      eventYear: best.eventYear,
-      daysBefore: best.daysBefore
+      eventYear: hit.eventYear,
+      daysBefore: hit.daysBefore,
+      variantIndex: dominantVariant
     });
   }
 
@@ -420,11 +526,16 @@ export function analyzeSeasonalRunup(
     byYear.set(email.eventYear, list);
   }
   const perOccurrence = Array.from(byYear.entries())
-    .map(([year, list]) => ({
-      year,
-      count: list.length,
-      leadDays: Math.max(...list.map((e) => e.daysBefore))
-    }))
+    .map(([year, list]) => {
+      const variants = event.datesForYear(year);
+      const date = variants[dominantVariant] ?? variants[0];
+      return {
+        year,
+        count: list.length,
+        leadDays: Math.max(...list.map((e) => e.daysBefore)),
+        eventDate: dayKeyOf(year, date)
+      };
+    })
     .sort((a, b) => b.year - a.year);
 
   const earliestLeadDays = Math.max(...perOccurrence.map((o) => o.leadDays));

@@ -102,7 +102,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   welcome: "Welcome",
   seasonal: "Seasonal",
   company_news: "Company news",
-  transactional: "Transactional",
 };
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
