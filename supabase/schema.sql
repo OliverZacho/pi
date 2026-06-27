@@ -81,7 +81,6 @@ create table if not exists public.captured_emails (
     'education',
     'loyalty',
     'welcome',
-    'transactional',
     'seasonal',
     'partnership',
     'company_news',

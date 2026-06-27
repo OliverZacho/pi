@@ -2,17 +2,34 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
+import {
+  EMAIL_CATEGORIES,
+  EMAIL_CATEGORY_LABELS,
+  ESP_LABELS
+} from "@/lib/admin-types";
 import { countryFlag, countryName } from "@/lib/country";
 import styles from "./landing.module.css";
 
 type BrandFacet = { id: string; name: string; isCurated?: boolean };
-type EspProvider = { id: string; label: string };
-type ExploreFacets = {
+type SearchFacets = {
   brands: BrandFacet[];
   markets: string[];
-  categories: string[];
+  countries: string[];
 };
+
+// Content types and ESP providers are fixed enums, so the browse list is
+// premade on the client — no network round-trip, no email scan to discover
+// "which values exist". Built once at module load.
+const CONTENT_TYPES = EMAIL_CATEGORIES.map((id) => ({
+  id,
+  label: EMAIL_CATEGORY_LABELS[id]
+}));
+
+const ESP_LIST = (Object.entries(ESP_LABELS) as [string, string][])
+  .map(([id, label]) => ({ id, label }))
+  .sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
 
 type Suggestion = {
   key: string;
@@ -46,33 +63,29 @@ export default function SearchOverlay({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const [facets, setFacets] = useState<ExploreFacets | null>(null);
-  const [countries, setCountries] = useState<string[]>([]);
-  const [espProviders, setEspProviders] = useState<EspProvider[]>([]);
+  const [facets, setFacets] = useState<SearchFacets | null>(null);
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
   const loadedRef = useRef(false);
 
-  // Lazy-load the taxonomies the first time the overlay opens.
+  // Prefetch the brand taxonomy on mount so the browse list is ready the
+  // instant the overlay opens. It's a single small, CDN-cached request
+  // (popular brands, categories, regions) — content types and ESP providers
+  // are static, so they need no fetch at all.
   useEffect(() => {
-    if (!open || loadedRef.current) return;
+    if (loadedRef.current) return;
     loadedRef.current = true;
 
-    fetch("/api/explore/facets")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) setFacets(data as ExploreFacets);
-      })
-      .catch(() => {});
-
-    fetch("/api/brands/facets")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.countries) setCountries(data.countries as string[]);
-        if (data?.espProviders)
-          setEspProviders(data.espProviders as EspProvider[]);
-      })
-      .catch(() => {});
-  }, [open]);
+    fetch("/api/search/facets")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data) => setFacets(data as SearchFacets))
+      .catch((err) => {
+        // Don't swallow silently: a failure here used to leave the overlay
+        // stuck on "Start typing to search." with no clue why. Content types
+        // and ESPs still render from the static enums even if this fails.
+        loadedRef.current = false;
+        console.error("Failed to load search facets", err);
+      });
+  }, []);
 
   // Focus the field and lock background scroll while open.
   useEffect(() => {
@@ -146,12 +159,7 @@ export default function SearchOverlay({
         href: `/explore?market=${encodeURIComponent(m.id)}`,
       }));
 
-    const contentTypeItems = (facets?.categories ?? [])
-      .map((id) => ({
-        id,
-        label:
-          EMAIL_CATEGORY_LABELS[id as keyof typeof EMAIL_CATEGORY_LABELS] ?? id,
-      }))
+    const contentTypeItems = CONTENT_TYPES
       .filter((c) => (q ? c.label.toLowerCase().includes(q) : true))
       .slice(0, q ? MATCH_LIMIT : Infinity)
       .map<Suggestion>((c) => ({
@@ -160,7 +168,7 @@ export default function SearchOverlay({
         href: `/explore?category=${encodeURIComponent(c.id)}`,
       }));
 
-    const regionItems = countries
+    const regionItems = (facets?.countries ?? [])
       .map((code) => ({ code, label: countryName(code), flag: countryFlag(code) }))
       .filter((r) =>
         q
@@ -175,7 +183,7 @@ export default function SearchOverlay({
         icon: r.flag,
       }));
 
-    const espItems = espProviders
+    const espItems = ESP_LIST
       .filter((e) => (q ? e.label.toLowerCase().includes(q) : true))
       .slice(0, q ? MATCH_LIMIT : Infinity)
       .map<Suggestion>((e) => ({
@@ -210,7 +218,7 @@ export default function SearchOverlay({
       result.push({ title: "ESP provider", items: espItems });
 
     return result;
-  }, [facets, countries, espProviders, trimmed]);
+  }, [facets, trimmed]);
 
   if (!open) return null;
 

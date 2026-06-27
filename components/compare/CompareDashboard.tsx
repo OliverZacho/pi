@@ -1179,9 +1179,9 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
       <h2 className={styles.sectionTitle}>What they talk about</h2>
       <p className={styles.sectionSub}>
         Each brand's campaign mix by category, as a share of the broadcast
-        campaigns we've captured from them. Triggered emails (welcome,
-        transactional) are left out so the mix reflects what a brand chooses
-        to send. Categories run in the same order in every bar — the group's
+        campaigns we've captured from them. Triggered emails (welcome) are
+        left out so the mix reflects what a brand chooses to send. Categories
+        run in the same order in every bar — the group's
         biggest first — so you can scan down a colour to compare.
       </p>
       <Takeaway text={insight.takeaway} />
@@ -1252,7 +1252,7 @@ function MixRow({
 function RecentCampaigns({ brands }: { brands: BrandPageData[] }) {
   // Merge each brand's recent campaigns into a single chronological
   // feed. Caps at 24 entries so the grid stays a single screen and
-  // we don't pull a wall of identical-looking transactionals.
+  // we don't pull a wall of near-identical sends.
   const merged: ExploreEmailCard[] = [];
   for (const b of brands) {
     merged.push(...b.recentEmails);

@@ -305,7 +305,7 @@ async function buildContentMix(): Promise<ArticleInsights> {
   const figures: Record<string, FigureData> = {
     contentMix: {
       kind: "shareBar",
-      caption: "Share of broadcast campaigns by type (excludes welcome & transactional)",
+      caption: "Share of broadcast campaigns by type (excludes welcome)",
       segments
     }
   };

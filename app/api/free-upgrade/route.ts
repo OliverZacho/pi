@@ -2,32 +2,19 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { PlanId } from "@/lib/stripe";
+import { grantTestWindow, stampPlanSelected } from "@/lib/plan-selection";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const PLANS: PlanId[] = ["solo", "team"];
 
-/** How long a free grant lasts — the two-week external-test window. */
-const WINDOW_DAYS = 14;
-
-/**
- * When the granted access lapses: now + the test window. Stamped onto
- * `current_period_end`, which `has_archive_access()` already enforces, so the
- * grant self-expires with zero cleanup.
- */
-function accessUntil(): string {
-  return new Date(
-    Date.now() + WINDOW_DAYS * 24 * 60 * 60 * 1000
-  ).toISOString();
-}
-
 /**
  * POST `/api/free-upgrade` — TEMPORARY launch bridge for the external-test
  * window. Any signed-in user can flip themselves to an active Solo/Team
- * entitlement for free, time-boxed to two weeks. No Stripe involved: we upsert
- * an `active` subscription row (with no `stripe_subscription_id`) via the
- * service role, and the existing entitlement check does the rest.
+ * entitlement for free, time-boxed to two weeks. No Stripe involved (see
+ * {@link grantTestWindow}). We also stamp `plan_selected_at` so anyone who
+ * upgrades here isn't later re-prompted by the onboarding plan modal.
  *
  * Revert this route + its client wiring (git revert) once Stripe checkout is
  * live; the real `/api/checkout` path is left fully intact.
@@ -52,17 +39,8 @@ export async function POST(request: Request) {
 
   try {
     const admin = getSupabaseAdmin();
-    const { error } = await admin.from("subscriptions").upsert(
-      {
-        user_id: session.user.id,
-        status: "active",
-        plan,
-        current_period_end: accessUntil(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-    if (error) throw error;
+    await grantTestWindow(admin, session.user.id, plan);
+    await stampPlanSelected(admin, session.user.id);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

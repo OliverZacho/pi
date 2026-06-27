@@ -129,9 +129,15 @@ describe("classifyFromRules", () => {
     expect(result.category).toBe("company_news");
   });
 
-  it("matches transactional keywords", () => {
-    const result = classifyFromRules("Order confirmation", "<p>Your receipt for order #1234.</p>");
-    expect(result.category).toBe("transactional");
+  it("does not let deliverability boilerplate hijack the category", () => {
+    // "to ensure receipt of our emails, please add us to your address book" is
+    // standard allowlist chrome — it must not pull a marketing email into a
+    // receipt/transactional bucket (which no longer exists).
+    const result = classifyFromRules(
+      "Welcome to Acme",
+      "<p>Glad you're here. To ensure receipt of our emails, please add us to your address book.</p>"
+    );
+    expect(result.category).toBe("welcome");
   });
 
   it("matches editorial / content keywords", () => {

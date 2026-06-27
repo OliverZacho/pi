@@ -103,17 +103,16 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
     [fullAnalysis, sample, selectedEvent, effectiveYear]
   );
 
-  // Label the flag with the most recent matched occurrence's date —
-  // derived purely from the data (not "now"), so server and client HTML
-  // stay identical with no hydration churn.
-  const refYear = analysis.perOccurrence[0]?.year ?? null;
+  // Label the flag with the most recent matched occurrence's date — the
+  // analysis resolves it to the regional variant this brand actually
+  // targets, and it's derived purely from the data (not "now"), so server
+  // and client HTML stay identical with no hydration churn.
   const refDateLabel = useMemo(() => {
-    if (refYear === null) return null;
-    const { month, day } = selectedEvent.dateForYear(refYear);
-    const key = `${refYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const instant = parseDayKey(key);
+    const eventDate = analysis.perOccurrence[0]?.eventDate;
+    if (!eventDate) return null;
+    const instant = parseDayKey(eventDate);
     return instant ? formatShortDate(instant) : null;
-  }, [refYear, selectedEvent]);
+  }, [analysis]);
 
   // The closest send to the day (smallest days-before) — the final push.
   const closestDays =

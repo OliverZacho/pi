@@ -427,6 +427,70 @@ export async function searchExploreEmails(
   return { items, total, page, pageSize, hasMore };
 }
 
+export type SearchFacets = {
+  brands: { id: string; name: string; isCurated: boolean }[];
+  markets: string[];
+  countries: string[];
+};
+
+/**
+ * Lightweight taxonomy for the marketing search overlay's *browse* view.
+ *
+ * Reads only the small `companies` table — NOT `captured_emails`. The
+ * browse options (popular brands, categories, regions) are slowly-changing
+ * brand metadata, so there's no reason to scan tens of thousands of email
+ * rows on every overlay open the way {@link getExploreFacets} does. Content
+ * types and ESP providers aren't fetched at all: they're fixed enums the
+ * client renders statically.
+ *
+ * Cheap and non-sensitive (brand names are already the public SEO surface),
+ * so the route that wraps this is public and CDN-cached.
+ */
+export async function getSearchFacets(
+  supabase: SupabaseClient<Database>
+): Promise<SearchFacets> {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id, name, is_curated, markets, primary_market_country")
+    .is("deleted_at", null);
+
+  if (error) throw error;
+
+  const marketSet = new Set<string>();
+  const countrySet = new Set<string>();
+
+  const brands = (data ?? [])
+    .map((row) => {
+      if (Array.isArray(row.markets)) {
+        for (const market of row.markets) {
+          if (typeof market === "string" && market.length > 0) {
+            marketSet.add(market);
+          }
+        }
+      }
+      if (
+        typeof row.primary_market_country === "string" &&
+        row.primary_market_country.length > 0
+      ) {
+        countrySet.add(row.primary_market_country);
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        isCurated: Boolean(row.is_curated)
+      };
+    })
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
+
+  return {
+    brands,
+    markets: Array.from(marketSet).sort((a, b) => a.localeCompare(b)),
+    countries: Array.from(countrySet).sort((a, b) => a.localeCompare(b))
+  };
+}
+
 /**
  * Returns every brand / market / category currently present in the
  * Explore data set so the filter dropdowns can show all options

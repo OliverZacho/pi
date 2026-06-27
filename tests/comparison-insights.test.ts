@@ -434,11 +434,11 @@ describe("reminder detection", () => {
     expect(result.share).toBe(0);
   });
 
-  it("ignores transactional emails", () => {
+  it("ignores non-campaign (welcome) emails", () => {
     const brand = makeBrand("A", {
       seasonalSubjects: [
-        { subject: "Your order has shipped", receivedAt: "2026-06-01T10:00:00Z", category: "transactional" },
-        { subject: "Your order has shipped", receivedAt: "2026-06-02T10:00:00Z", category: "transactional" }
+        { subject: "Welcome to the club", receivedAt: "2026-06-01T10:00:00Z", category: "welcome" },
+        { subject: "Welcome to the club", receivedAt: "2026-06-02T10:00:00Z", category: "welcome" }
       ]
     });
     expect(reminderShare(brand).threads).toBe(0);

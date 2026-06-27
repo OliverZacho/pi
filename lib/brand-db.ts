@@ -734,8 +734,8 @@ export async function getBrandSummary(
   const categories = computeCategories(rows);
   const promo = computePromo(rows);
 
-  // Only campaign categories describe "what they send" — transactional /
-  // lifecycle mail (incl. our own welcome burst) isn't part of the program.
+  // Only campaign categories describe "what they send" — lifecycle mail
+  // (our own welcome burst) isn't part of the program.
   const topCategories = categories
     .filter((c) => !NON_CAMPAIGN_CATEGORIES.has(c.id as EmailCategory))
     .slice(0, 2)
