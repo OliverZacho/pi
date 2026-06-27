@@ -3,11 +3,13 @@ import {
   isDiscountFigureEligible,
   isEligibleForEventDetection,
   isEventDetectionStale,
+  resolveCollectionEvents,
   safeParseEventDetection,
   type CollectionEventDetection
 } from "@/lib/collection-event-shared";
 import { buildTimelineModel } from "@/components/collections/CollectionEventInsights";
-import { explicitPhaseFromSubject } from "@/lib/collection-event";
+import { buildDetection, explicitPhaseFromSubject } from "@/lib/collection-event";
+import type { EventDetectionEmail } from "@/lib/collection-event";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 
 function card(overrides: Partial<ExploreEmailCard>): ExploreEmailCard {
@@ -379,5 +381,271 @@ describe("buildTimelineModel", () => {
       card({ companyName: "Solo", discountPercent: 30, receivedAt: "2026-06-04T08:00:00+00:00" })
     ];
     expect(buildTimelineModel(det, oneBrand)!.discount).toBeNull();
+  });
+});
+
+// ---------- Multi-event detection ----------
+
+function evtEmail(
+  number: number,
+  overrides: Partial<EventDetectionEmail> = {}
+): EventDetectionEmail {
+  return {
+    id: `e${number}`,
+    subject: "Join us",
+    preheader: null,
+    receivedAt: `2026-06-0${number}T08:00:00+00:00`,
+    category: "event",
+    companyName: `Brand ${number}`,
+    ...overrides
+  };
+}
+
+describe("buildDetection — multiple events", () => {
+  const ordered: EventDetectionEmail[] = [
+    evtEmail(1, { subject: "3daysofdesign save the date" }),
+    evtEmail(2, { subject: "3daysofdesign programme" }),
+    evtEmail(3, { subject: "Father's Day gift guide" }),
+    evtEmail(4, { subject: "Newsletter about nothing" })
+  ];
+
+  const raw = {
+    is_event_collection: true,
+    events: [
+      {
+        name: "3daysofdesign",
+        confidence: 0.95,
+        start_date: "2026-06-10",
+        end_date: "2026-06-12",
+        location: "Copenhagen",
+        kind: "festival",
+        user_message: "About 3daysofdesign."
+      },
+      {
+        name: "Father's Day",
+        confidence: 0.8,
+        start_date: "2026-06-05",
+        end_date: null,
+        location: null,
+        kind: "seasonal",
+        user_message: "About Father's Day."
+      }
+    ],
+    emails: [
+      { email_number: 1, event_index: 0, phase: "reminder" },
+      { email_number: 2, event_index: 0, phase: "programme" },
+      { email_number: 3, event_index: 1, phase: "day_of" },
+      { email_number: 4, event_index: -1, phase: "other" }
+    ]
+  };
+
+  it("splits the collection into one event per occasion", () => {
+    const det = buildDetection(raw, ordered);
+    expect(det.status).toBe("detected");
+    expect(det.events).toHaveLength(2);
+    expect(det.events!.map((e) => e.name)).toEqual([
+      "3daysofdesign",
+      "Father's Day"
+    ]);
+  });
+
+  it("assigns each email only to its own event, leaving strays out", () => {
+    const det = buildDetection(raw, ordered);
+    const [design, fathers] = det.events!;
+    expect(design.emailIds).toEqual(["e1", "e2"]);
+    expect(fathers.emailIds).toEqual(["e3"]);
+    // The unrelated newsletter (event_index -1) belongs to neither tab.
+    expect(design.emailIds).not.toContain("e4");
+    expect(fathers.emailIds).not.toContain("e4");
+  });
+
+  it("scopes each event's phases to its own emails", () => {
+    const det = buildDetection(raw, ordered);
+    const [design, fathers] = det.events!;
+    // "save the date" subject override wins over the model's "reminder".
+    expect(design.phases).toEqual({ e1: "save_the_date", e2: "programme" });
+    expect(fathers.phases).toEqual({ e3: "day_of" });
+  });
+
+  it("exposes the most-prevalent event as the back-compat primary", () => {
+    const det = buildDetection(raw, ordered);
+    expect(det.event?.name).toBe("3daysofdesign");
+    expect(det.event?.location).toBe("Copenhagen");
+  });
+
+  it("drops events the model named but assigned no emails to", () => {
+    const det = buildDetection(
+      {
+        ...raw,
+        emails: raw.emails.map((e) =>
+          e.event_index === 1 ? { ...e, event_index: 0 } : e
+        )
+      },
+      ordered
+    );
+    // Father's Day got nothing → only one event survives.
+    expect(det.events).toHaveLength(1);
+    expect(det.events![0].name).toBe("3daysofdesign");
+  });
+
+  it("returns no_event when nothing is an event", () => {
+    const det = buildDetection(
+      {
+        is_event_collection: false,
+        events: [],
+        emails: ordered.map((_, i) => ({
+          email_number: i + 1,
+          event_index: -1,
+          phase: "other"
+        }))
+      },
+      ordered
+    );
+    expect(det.status).toBe("no_event");
+    expect(det.event).toBeNull();
+    expect(det.events).toBeUndefined();
+  });
+});
+
+describe("resolveCollectionEvents", () => {
+  function base(
+    overrides: Partial<CollectionEventDetection> = {}
+  ): CollectionEventDetection {
+    return {
+      version: 1,
+      status: "detected",
+      detectedAt: "2026-06-11T09:00:00.000Z",
+      emailCountAtDetection: 10,
+      model: "claude-haiku-4-5",
+      confirmed: true,
+      event: {
+        name: "Solo Event",
+        startDate: "2026-06-10",
+        endDate: null,
+        location: null,
+        kind: "festival",
+        confidence: 0.9,
+        userMessage: "About Solo Event."
+      },
+      phases: { a: "reminder" },
+      ...overrides
+    };
+  }
+
+  it("synthesises one event owning all emails for legacy rows", () => {
+    const events = resolveCollectionEvents(base(), ["a", "b", "c"]);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe("Solo Event");
+    expect(events[0].emailIds).toEqual(["a", "b", "c"]);
+    expect(events[0].phases).toEqual({ a: "reminder" });
+  });
+
+  it("returns the stored events array when present", () => {
+    const events = resolveCollectionEvents(
+      base({
+        events: [
+          {
+            name: "A",
+            startDate: null,
+            endDate: null,
+            location: null,
+            kind: "other",
+            confidence: 1,
+            userMessage: "x",
+            emailIds: ["a"],
+            phases: { a: "day_of" }
+          }
+        ]
+      }),
+      ["a", "b"]
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].emailIds).toEqual(["a"]);
+  });
+
+  it("returns nothing when no event was detected", () => {
+    expect(
+      resolveCollectionEvents(
+        base({ status: "no_event", event: null }),
+        ["a"]
+      )
+    ).toEqual([]);
+  });
+});
+
+describe("safeParseEventDetection — multi-event", () => {
+  it("round-trips a stored events array", () => {
+    const raw = {
+      version: 1,
+      status: "detected",
+      detectedAt: "2026-06-11T09:00:00.000Z",
+      emailCountAtDetection: 10,
+      model: "claude-haiku-4-5",
+      confirmed: true,
+      event: {
+        name: "3daysofdesign",
+        startDate: "2026-06-10",
+        endDate: "2026-06-12",
+        location: "Copenhagen",
+        kind: "festival",
+        confidence: 0.95,
+        userMessage: "About 3daysofdesign."
+      },
+      phases: { e1: "reminder", e3: "day_of" },
+      events: [
+        {
+          name: "3daysofdesign",
+          startDate: "2026-06-10",
+          endDate: "2026-06-12",
+          location: "Copenhagen",
+          kind: "festival",
+          confidence: 0.95,
+          userMessage: "About 3daysofdesign.",
+          emailIds: ["e1"],
+          phases: { e1: "reminder" }
+        },
+        {
+          name: "Father's Day",
+          startDate: "2026-06-05",
+          endDate: null,
+          location: null,
+          kind: "seasonal",
+          confidence: 0.8,
+          userMessage: "About Father's Day.",
+          emailIds: ["e3"],
+          phases: { e3: "day_of", e3bad: "nope" }
+        }
+      ]
+    };
+    const parsed = safeParseEventDetection(JSON.parse(JSON.stringify(raw)));
+    expect(parsed?.events).toHaveLength(2);
+    expect(parsed?.events?.[1].emailIds).toEqual(["e3"]);
+    // Bogus phase dropped, valid one kept.
+    expect(parsed?.events?.[1].phases).toEqual({ e3: "day_of" });
+  });
+
+  it("ignores a malformed events array (legacy single-event still works)", () => {
+    const parsed = safeParseEventDetection({
+      version: 1,
+      status: "detected",
+      detectedAt: "2026-06-11T09:00:00.000Z",
+      emailCountAtDetection: 10,
+      model: "claude-haiku-4-5",
+      confirmed: null,
+      event: {
+        name: "Solo",
+        startDate: null,
+        endDate: null,
+        location: null,
+        kind: "other",
+        confidence: 1,
+        userMessage: "x"
+      },
+      phases: {},
+      events: [{ garbage: true }]
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed?.events).toBeUndefined();
+    expect(parsed?.event?.name).toBe("Solo");
   });
 });
