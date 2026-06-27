@@ -9,6 +9,7 @@ import {
 } from "@/lib/competitor-db";
 import { listCollectionSummaries } from "@/lib/collections-db";
 import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
+import { hasActiveTeamPlan } from "@/lib/teams-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
@@ -70,7 +71,7 @@ export default async function CompareSetPage({ params }: PageProps) {
 
   const canEdit = set.ownerId === userId;
 
-  const [collections, sidebarSets, comparison, sectionPrefs] =
+  const [collections, sidebarSets, comparison, sectionPrefs, canShareWithTeam] =
     await Promise.all([
       listCollectionSummaries(supabase, userId),
       listCompetitorSetSummaries(supabase, userId),
@@ -78,7 +79,18 @@ export default async function CompareSetPage({ params }: PageProps) {
         supabase,
         set.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
       ),
-      getCompareSectionPrefs(supabase, userId)
+      getCompareSectionPrefs(supabase, userId),
+      // Team sharing is a Team-plan feature. Owners without it still see the
+      // button — rendered as a locked upsell — so resolve entitlement here.
+      // Admins always pass; otherwise it's an active "team" subscription.
+      canEdit
+        ? viewer.isAdmin
+          ? Promise.resolve(true)
+          : hasActiveTeamPlan(supabase, userId).catch((err) => {
+              console.error("Failed to check team plan for comparison", err);
+              return false;
+            })
+        : Promise.resolve(false)
     ]);
 
   const subtitle = `${set.brands.length} brand${
@@ -111,6 +123,7 @@ export default async function CompareSetPage({ params }: PageProps) {
           subtitle={subtitle}
           canEdit={canEdit}
           sharedWithTeam={set.sharedWithTeam}
+          canShareWithTeam={canShareWithTeam}
         />
 
         {set.brands.length === 0 ? (

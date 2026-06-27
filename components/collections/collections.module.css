@@ -538,6 +538,20 @@
   background: #fef2f2;
 }
 
+/* Owner without a Team plan: the share button becomes an upsell. Still
+   clickable (it funnels to /pricing), but muted with a lock to read as
+   "available on a higher plan" rather than an active toggle. */
+.detailButtonLocked {
+  color: #475569;
+}
+
+.detailLockIcon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -0.15rem;
+  color: #94a3b8;
+}
+
 .detailButtonCopied {
   background: #16a34a;
   border-color: #16a34a;

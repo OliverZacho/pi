@@ -22,6 +22,7 @@ import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
 import CollectionEventInsights from "./CollectionEventInsights";
+import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
 import CollectionIconPicker from "./CollectionIconPicker";
 import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
@@ -55,6 +56,13 @@ type Props = {
    * (no rename/delete/share/rules edits, no card-level mutations).
    */
   canEdit: boolean;
+  /**
+   * Whether the owner may actually share with their team — true for an
+   * active Team plan (or an admin). When false the owner still sees the
+   * "Share with team" button, but it's rendered as a locked upsell that
+   * funnels to `/pricing` instead of toggling sharing.
+   */
+  canShareWithTeam: boolean;
 };
 
 /**
@@ -71,7 +79,8 @@ export default function CollectionDetailClient({
   facets,
   brandDiscountBenchmarks,
   followedCompanyIds,
-  canEdit
+  canEdit,
+  canShareWithTeam
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -540,26 +549,41 @@ export default function CollectionDetailClient({
         <div className={styles.detailActions}>
           {canEdit ? (
             <>
-              <button
-                type="button"
-                className={`${styles.detailButton} ${
-                  collection.sharedWithTeam ? styles.detailButtonCopied : ""
-                }`}
-                onClick={handleToggleShare}
-                disabled={sharePending}
-                title={
-                  collection.sharedWithTeam
-                    ? "Your team can view this collection. Click to stop sharing."
-                    : "Let your team view this collection"
-                }
-              >
-                <TeamIcon />
-                <span>
-                  {collection.sharedWithTeam
-                    ? "Shared with team"
-                    : "Share with team"}
-                </span>
-              </button>
+              {canShareWithTeam ? (
+                <button
+                  type="button"
+                  className={`${styles.detailButton} ${
+                    collection.sharedWithTeam ? styles.detailButtonCopied : ""
+                  }`}
+                  onClick={handleToggleShare}
+                  disabled={sharePending}
+                  title={
+                    collection.sharedWithTeam
+                      ? "Your team can view this collection. Click to stop sharing."
+                      : "Let your team view this collection"
+                  }
+                >
+                  <TeamIcon />
+                  <span>
+                    {collection.sharedWithTeam
+                      ? "Shared with team"
+                      : "Share with team"}
+                  </span>
+                </button>
+              ) : (
+                <TeamUpgradeButton
+                  source="collection_share_team"
+                  className={`${styles.detailButton} ${styles.detailButtonLocked}`}
+                  title="Sharing collections with your team is a Team plan feature. Upgrade to enable it."
+                  onError={setError}
+                >
+                  <TeamIcon />
+                  <span>Share with team</span>
+                  <span className={styles.detailLockIcon}>
+                    <LockIcon />
+                  </span>
+                </TeamUpgradeButton>
+              )}
               <button
                 type="button"
                 className={`${styles.detailButton} ${
@@ -1013,6 +1037,25 @@ function TeamIcon() {
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
     </svg>
   );
 }

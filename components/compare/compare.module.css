@@ -868,6 +868,15 @@
   color: #b91c1c;
 }
 
+/* Owner without a Team plan: the share button becomes an upsell. Still
+   clickable (it kicks off the Team-plan upgrade), with a lock so it reads
+   as "available on a higher plan" rather than an active toggle. */
+.iconButtonLocked .lockGlyph {
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+}
+
 .brandStrip {
   display: flex;
   flex-wrap: wrap;

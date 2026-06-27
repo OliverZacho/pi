@@ -16,6 +16,8 @@ export const UPGRADE_SOURCE_LABELS: Record<string, string> = {
   explore_paywall: "Explore — scroll paywall",
   sidebar_notice: "Sidebar — preview notice",
   settings_team_plan: "Settings — team invite notice",
+  collection_share_team: "Collection — share with team (locked)",
+  compare_share_team: "Comparison — share with team (locked)",
   settings_upgrade_plan: "Settings — billing upgrade",
   saved_quota: "Saved — save limit reached",
   locked_brand_stats: "Locked — brand stats",
