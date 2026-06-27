@@ -26,6 +26,16 @@ const UNIQUE_VIOLATION = "23505";
  */
 export const TEAM_SEAT_LIMIT = 6;
 
+/**
+ * Resend throttling for pending invites. At most one resend per
+ * `INVITE_RESEND_COOLDOWN_MS`, and no more than `INVITE_RESEND_LIMIT`
+ * resends in total per invite. Enforced server-side (see the resend route)
+ * so the limits survive reloads and other devices; the UI mirrors them for
+ * the button state.
+ */
+export const INVITE_RESEND_COOLDOWN_MS = 60_000;
+export const INVITE_RESEND_LIMIT = 3;
+
 /** Seats currently consumed by a team: members + pending invites. */
 export async function countTeamSeats(
   admin: PirolSupabaseClient,
@@ -106,6 +116,10 @@ export type PendingInviteView = {
   email: string;
   createdAt: string;
   invitedByUserId: string | null;
+  /** How many times the invite email has been resent (0 on creation). */
+  resendCount: number;
+  /** ISO timestamp of the most recent send, coalesced to createdAt. */
+  lastSentAt: string;
 };
 
 export type TeamView = {
@@ -196,7 +210,7 @@ export async function getTeamForUser(
         .order("created_at", { ascending: true }),
       admin
         .from("team_invites")
-        .select("id, email, created_at, invited_by")
+        .select("id, email, created_at, invited_by, resend_count, last_sent_at")
         .eq("team_id", teamId)
         .eq("status", "pending")
         .order("created_at", { ascending: true })
@@ -242,7 +256,9 @@ export async function getTeamForUser(
     id: row.id,
     email: row.email,
     createdAt: row.created_at,
-    invitedByUserId: row.invited_by
+    invitedByUserId: row.invited_by,
+    resendCount: row.resend_count ?? 0,
+    lastSentAt: row.last_sent_at ?? row.created_at
   }));
 
   return {
@@ -512,8 +528,28 @@ export async function createPendingInvite(
     id: data.id,
     email: data.email,
     createdAt: data.created_at,
-    invitedByUserId: data.invited_by
+    invitedByUserId: data.invited_by,
+    resendCount: 0,
+    lastSentAt: data.created_at
   };
+}
+
+/**
+ * Record a successful invite resend: bump the counter and stamp the send
+ * time. The caller checks the cooldown/limit before sending; this only
+ * runs after the email actually goes out.
+ */
+export async function markInviteResent(
+  admin: PirolSupabaseClient,
+  inviteId: string
+): Promise<void> {
+  const { error } = await admin.rpc("bump_invite_resend", {
+    p_invite_id: inviteId
+  });
+
+  if (error) {
+    throw new Error(`Failed to record invite resend: ${error.message}`);
+  }
 }
 
 /** Hard-delete an invite row (used to roll back when the email fails to send). */
