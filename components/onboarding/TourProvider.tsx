@@ -1,0 +1,260 @@
+"use client";
+
+import { driver, type Driver, type PopoverDOM } from "driver.js";
+import "driver.js/dist/driver.css";
+import "./tour-theme.css";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
+import { TOUR_STEPS } from "./tour-steps";
+
+/**
+ * Cross-page onboarding tour controller.
+ *
+ * The tour walks a brand-new signup through the real app — /explore, /brands,
+ * /following, /collections, /compare — spotlighting one element per stop with a
+ * Back / Next / Skip tooltip (driver.js). Because the stops span several routes,
+ * the controller lives in the root layout and persists its position in
+ * `sessionStorage`, so it survives the client-side navigations between stops
+ * (and a mid-tour refresh). When the user finishes or skips, it stamps
+ * `tour_completed_at` (POST /api/complete-tour) and returns to /explore, where
+ * the forced plan-choice modal then takes over.
+ *
+ * Idle cost is nil: with no active step the provider renders only its children
+ * and never constructs a driver instance.
+ */
+
+const STORAGE_KEY = "pirol.tour.v1";
+const ANCHOR_TIMEOUT_MS = 8000;
+
+type TourContextValue = {
+  /** Begin the tour from the first stop (no-op if already running). */
+  start: () => void;
+  active: boolean;
+};
+
+const TourContext = createContext<TourContextValue | null>(null);
+
+/** Resolve once the selector matches an element, or null after `timeout`. */
+function waitForElement(
+  selector: string,
+  timeout: number
+): Promise<Element | null> {
+  const existing = document.querySelector(selector);
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (el: Element | null) => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      window.clearTimeout(timer);
+      resolve(el);
+    };
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector(selector);
+      if (el) finish(el);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const timer = window.setTimeout(() => finish(null), timeout);
+  });
+}
+
+export default function TourProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // -1 = inactive; otherwise the current stop index. Mirrored into a ref so the
+  // imperative driver.js click hooks always read the latest value without
+  // re-binding the instance on every step.
+  const [stepIndex, setStepIndex] = useState(-1);
+  const stepRef = useRef(-1);
+  useEffect(() => {
+    stepRef.current = stepIndex;
+  }, [stepIndex]);
+
+  const driverRef = useRef<Driver | null>(null);
+  // Late-bound click handlers, so the (single, long-lived) driver instance's
+  // hooks always call the current closures.
+  const handlersRef = useRef({
+    next: () => {},
+    prev: () => {},
+    skip: () => {}
+  });
+
+  const persist = useCallback((index: number) => {
+    try {
+      if (index < 0) sessionStorage.removeItem(STORAGE_KEY);
+      else sessionStorage.setItem(STORAGE_KEY, String(index));
+    } catch {
+      // Private-mode / storage-disabled: the tour still works for this page
+      // session, it just won't resume across a hard refresh.
+    }
+  }, []);
+
+  const goTo = useCallback(
+    (index: number) => {
+      setStepIndex(index);
+      persist(index);
+    },
+    [persist]
+  );
+
+  const endTour = useCallback(() => {
+    setStepIndex(-1);
+    persist(-1);
+    driverRef.current?.destroy();
+  }, [persist]);
+
+  // Finish == skip: in both cases we mark the tour done so it never auto-starts
+  // again, then return to /explore where the forced plan modal takes over.
+  const finish = useCallback(() => {
+    endTour();
+    void fetch("/api/complete-tour", { method: "POST" }).catch(() => {});
+    router.push("/explore");
+    router.refresh();
+  }, [endTour, router]);
+
+  // Keep the click handlers current. Writing to the ref in an effect (not
+  // during render) lets the long-lived driver instance's hooks always invoke
+  // the latest closures over `finish` / `goTo`.
+  useEffect(() => {
+    handlersRef.current.next = () => {
+      const i = stepRef.current;
+      if (i + 1 >= TOUR_STEPS.length) finish();
+      else goTo(i + 1);
+    };
+    handlersRef.current.prev = () => {
+      const i = stepRef.current;
+      if (i > 0) goTo(i - 1);
+    };
+    handlersRef.current.skip = () => finish();
+  }, [finish, goTo]);
+
+  const ensureDriver = useCallback((): Driver => {
+    if (driverRef.current) return driverRef.current;
+    driverRef.current = driver({
+      allowClose: false, // Esc / overlay click don't end the tour — buttons do.
+      overlayColor: "#0b1220",
+      overlayOpacity: 0.6,
+      stagePadding: 6,
+      stageRadius: 12,
+      popoverClass: "pirol-tour",
+      // Inject an explicit, always-visible "Skip tour" control into every
+      // tooltip so the user can bail at any point.
+      onPopoverRender: (popover: PopoverDOM) => {
+        const skip = document.createElement("button");
+        skip.type = "button";
+        skip.className = "pirol-tour-skip";
+        skip.textContent = "Skip tour";
+        skip.addEventListener("click", () => handlersRef.current.skip());
+        popover.footer.insertBefore(skip, popover.footer.firstChild);
+      }
+    });
+    return driverRef.current;
+  }, []);
+
+  // Drive the highlight for the current stop. Re-runs whenever the step or the
+  // route changes: if we're not yet on the stop's route we navigate and bail
+  // (the pathname change re-triggers this effect on arrival), otherwise we wait
+  // for the anchor to mount and spotlight it.
+  useEffect(() => {
+    if (stepIndex < 0) return;
+    const step = TOUR_STEPS[stepIndex];
+    if (!step) return;
+
+    if (pathname !== step.route) {
+      router.push(step.route);
+      return;
+    }
+
+    let cancelled = false;
+    waitForElement(step.anchor, ANCHOR_TIMEOUT_MS).then((el) => {
+      if (cancelled) return;
+      if (!el) {
+        // Anchor never showed (slow page / markup drift). Don't trap the user
+        // on a blank overlay — advance past this stop.
+        handlersRef.current.next();
+        return;
+      }
+
+      const isLast = stepIndex === TOUR_STEPS.length - 1;
+      const showButtons: ("next" | "previous")[] =
+        stepIndex === 0 ? ["next"] : ["previous", "next"];
+
+      ensureDriver().highlight({
+        element: el,
+        popover: {
+          title: step.title,
+          description: `${step.body}<span class="pirol-tour-count">${
+            stepIndex + 1
+          } / ${TOUR_STEPS.length}</span>`,
+          side: step.side ?? "bottom",
+          align: step.align ?? "start",
+          showButtons,
+          nextBtnText: isLast ? "Choose plan" : "Next",
+          prevBtnText: "Back",
+          onNextClick: () => handlersRef.current.next(),
+          onPrevClick: () => handlersRef.current.prev(),
+          onCloseClick: () => handlersRef.current.skip()
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stepIndex, pathname, ensureDriver, router]);
+
+  // Resume an in-progress tour after a hard refresh (the step was persisted).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw === null) return;
+      const n = Number(raw);
+      if (Number.isInteger(n) && n >= 0 && n < TOUR_STEPS.length) {
+        // Mount-time read of persisted state; can't be a lazy initializer
+        // because sessionStorage isn't available during SSR.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setStepIndex(n);
+      }
+    } catch {
+      // ignore — nothing to resume
+    }
+  }, []);
+
+  // Tear down the driver instance if the provider ever unmounts.
+  useEffect(() => () => driverRef.current?.destroy(), []);
+
+  const start = useCallback(() => {
+    if (stepRef.current >= 0) return;
+    try {
+      // Already mid-tour (resuming from storage) — don't restart from 0.
+      if (sessionStorage.getItem(STORAGE_KEY) !== null) return;
+    } catch {
+      // ignore
+    }
+    goTo(0);
+  }, [goTo]);
+
+  const value = useMemo<TourContextValue>(
+    () => ({ start, active: stepIndex >= 0 }),
+    [start, stepIndex]
+  );
+
+  return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
+}
+
+/** Opener/state for the onboarding tour, or null outside the provider. */
+export function useTour(): TourContextValue | null {
+  return useContext(TourContext);
+}

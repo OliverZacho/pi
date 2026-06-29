@@ -1174,7 +1174,7 @@ export default function BrandsExploreClient({
         )
       ) : (
         <>
-          <div className={styles.grid}>
+          <div className={styles.grid} data-tour="brands-grid">
             {brands.map((brand) => (
               <BrandGridCard
                 key={brand.id}

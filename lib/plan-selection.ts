@@ -32,6 +32,25 @@ export async function stampPlanSelected(
 }
 
 /**
+ * Record that the user has finished (or skipped) the onboarding product tour.
+ * Once stamped, the guided walkthrough never auto-starts again. Like
+ * {@link stampPlanSelected} this needs the service-role client. The tour only
+ * auto-starts when this and `plan_selected_at` are both null, so existing
+ * (already plan-stamped) users are never prompted.
+ */
+export async function stampTourCompleted(
+  admin: PirolSupabaseClient,
+  userId: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("user_profiles")
+    .update({ tour_completed_at: now, updated_at: now })
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+/**
  * TEMPORARY launch bridge: grant a free, time-boxed Solo/Team entitlement for
  * the external-test window. No Stripe involved — upsert an `active`
  * subscription row (with no `stripe_subscription_id`); the existing entitlement

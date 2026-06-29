@@ -18,6 +18,7 @@ import {
 import ExploreClient from "@/components/explore/ExploreClient";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
+import TourStarter from "@/components/onboarding/TourStarter";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
@@ -53,9 +54,13 @@ export default async function ExplorePage() {
     // get no Save button.
     let initialSavedIds: string[] = [];
     let savedCount = 0;
-    // A brand-new signup hasn't picked a plan yet (`plan_selected_at` is null).
-    // Force the onboarding choice modal until they do — backfilled existing
-    // users already have a stamp, so only fresh accounts see it.
+    // Onboarding gate for brand-new signups (both flags null until acted on):
+    //   - tour not done yet  → run the guided product tour first; the forced
+    //     plan modal is held back until the tour finishes or is skipped.
+    //   - tour done, no plan → force the "pick a plan" modal.
+    // Backfilled existing users already have a `plan_selected_at` stamp, so
+    // neither ever fires for them.
+    let showTour = false;
     let mustChoosePlan = false;
     if (viewer) {
       try {
@@ -64,13 +69,16 @@ export default async function ExplorePage() {
           countSavedEmails(admin, viewer.userId),
           admin
             .from("user_profiles")
-            .select("plan_selected_at")
+            .select("plan_selected_at, tour_completed_at")
             .eq("user_id", viewer.userId)
             .maybeSingle()
         ]);
         initialSavedIds = Array.from(savedSet);
         savedCount = count;
-        mustChoosePlan = !profile.data?.plan_selected_at;
+        const planChosen = Boolean(profile.data?.plan_selected_at);
+        const tourDone = Boolean(profile.data?.tour_completed_at);
+        showTour = !planChosen && !tourDone;
+        mustChoosePlan = !planChosen && tourDone;
       } catch (err) {
         console.error("Failed to load saved email IDs", err);
       }
@@ -78,6 +86,7 @@ export default async function ExplorePage() {
 
     return (
       <div className={styles.shell}>
+        {showTour ? <TourStarter /> : null}
         {mustChoosePlan ? <PlanChoiceModal /> : null}
         <ExploreSidebar user={await getViewerDisplay()} hasAccess={false} />
 

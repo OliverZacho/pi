@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SITE_URL } from "@/lib/site";
+import UpgradeModalProvider from "@/components/onboarding/UpgradeModalProvider";
+import TourProvider from "@/components/onboarding/TourProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -21,7 +23,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body>
-        {children}
+        <UpgradeModalProvider>
+          <TourProvider>{children}</TourProvider>
+        </UpgradeModalProvider>
         <Analytics />
       </body>
     </html>
