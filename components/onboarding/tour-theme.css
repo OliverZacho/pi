@@ -1,0 +1,111 @@
+/*
+ * Theme overrides for the onboarding tour's driver.js popovers. Scoped to the
+ * `pirol-tour` popoverClass so it can't touch any other driver.js usage. Pulls
+ * the popover toward the app's look: rounded card, Inter, brand-green primary
+ * button (#086e4b — see the brand-button-color note).
+ */
+
+.driver-popover.pirol-tour {
+  --pirol-green: #086e4b;
+  --pirol-green-hover: #065a3c;
+  max-width: 320px;
+  padding: 1.1rem 1.15rem 0.9rem;
+  border-radius: 14px;
+  box-shadow:
+    0 10px 40px rgba(11, 18, 32, 0.28),
+    0 2px 8px rgba(11, 18, 32, 0.12);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+.driver-popover.pirol-tour .driver-popover-title {
+  font-size: 1.02rem;
+  font-weight: 650;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.driver-popover.pirol-tour .driver-popover-description {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+/* Step counter ("3 / 7"), appended to the description as a quiet badge. */
+.driver-popover.pirol-tour .pirol-tour-count {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.driver-popover.pirol-tour .driver-popover-footer {
+  margin-top: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Push the Back / Next cluster to the right; "Skip tour" sits on the left. */
+.driver-popover.pirol-tour .driver-popover-navigation-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.driver-popover.pirol-tour .pirol-tour-skip {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0.3rem 0.1rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #94a3b8;
+  cursor: pointer;
+  text-shadow: none;
+}
+
+.driver-popover.pirol-tour .pirol-tour-skip:hover {
+  color: #475569;
+  text-decoration: underline;
+}
+
+.driver-popover.pirol-tour button.driver-popover-prev-btn,
+.driver-popover.pirol-tour button.driver-popover-next-btn {
+  appearance: none;
+  border-radius: 8px;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-shadow: none;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.driver-popover.pirol-tour button.driver-popover-prev-btn {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.driver-popover.pirol-tour button.driver-popover-prev-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.driver-popover.pirol-tour button.driver-popover-next-btn {
+  background: var(--pirol-green);
+  border: 1px solid var(--pirol-green);
+  color: #fff;
+}
+
+.driver-popover.pirol-tour button.driver-popover-next-btn:hover {
+  background: var(--pirol-green-hover);
+  border-color: var(--pirol-green-hover);
+}

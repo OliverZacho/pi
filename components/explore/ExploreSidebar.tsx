@@ -645,6 +645,7 @@ export default function ExploreSidebar({
                 href={item.href}
                 className={className}
                 aria-current={ariaCurrent}
+                data-tour={`nav-${item.id}`}
               >
                 <span className={styles.navIcon}>{item.icon}</span>
                 <span>{item.label}</span>
@@ -658,6 +659,7 @@ export default function ExploreSidebar({
               className={className}
               tabIndex={-1}
               aria-current={ariaCurrent}
+              data-tour={`nav-${item.id}`}
             >
               <span className={styles.navIcon}>{item.icon}</span>
               <span>{item.label}</span>

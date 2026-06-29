@@ -1036,7 +1036,11 @@ export default function ExploreClient({
 
   return (
     <>
-      <div className={styles.filterRow} ref={filterRowRef}>
+      <div
+        className={styles.filterRow}
+        ref={filterRowRef}
+        data-tour="explore-filters"
+      >
         <label className={styles.searchField}>
           <SearchIcon />
           <input
@@ -1392,7 +1396,7 @@ export default function ExploreClient({
           </div>
         </div>
 
-        <div className={styles.sortWrap}>
+        <div className={styles.sortWrap} data-tour="explore-sort">
           <button
             type="button"
             className={`${styles.filterChip} ${styles.sortChip}${

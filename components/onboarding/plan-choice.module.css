@@ -12,6 +12,7 @@
 }
 
 .modal {
+  position: relative;
   width: 100%;
   max-width: 920px;
   margin: auto;
@@ -19,6 +20,35 @@
   border-radius: 18px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   padding: 2rem 2rem 1.75rem;
+}
+
+.close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.close:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .head {

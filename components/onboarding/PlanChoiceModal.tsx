@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./plan-choice.module.css";
 
@@ -71,18 +71,49 @@ function perMonth(plan: Plan, billing: Billing): number {
 }
 
 /**
- * Forced onboarding choice shown to brand-new signups on /explore. It cannot be
- * dismissed — every new user picks Free, Solo or Team before reaching the app.
- * Free closes the modal in place; Solo/Team currently run the temporary
- * free-grant bridge (see /api/select-plan) and bounce through /explore?upgraded=1.
+ * The plan picker. Two modes share one component:
+ *
+ *  - Onboarding (no `onClose`): the forced choice shown to brand-new signups on
+ *    /explore. It cannot be dismissed — every new user picks Free, Solo or Team
+ *    before reaching the app. Free closes the modal in place by stamping the
+ *    choice and refreshing.
+ *  - Upgrade (with `onClose`): the same cards opened on demand when an existing
+ *    free user clicks any in-app upgrade CTA. It's dismissible (×, Esc, overlay
+ *    click) and the Free card simply closes — the user already has that tier.
+ *
+ * Solo/Team currently run the temporary free-grant bridge (see /api/select-plan)
+ * and bounce through /explore?upgraded=1 in both modes.
  */
-export default function PlanChoiceModal() {
+export default function PlanChoiceModal({
+  onClose
+}: {
+  /** When provided, the modal becomes a dismissible on-demand upgrade prompt. */
+  onClose?: () => void;
+} = {}) {
   const router = useRouter();
   const [billing, setBilling] = useState<Billing>("annual");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const dismissible = typeof onClose === "function";
+
+  // Esc closes the dismissible (upgrade) variant; the forced onboarding variant
+  // ignores it so new signups can't skip the choice.
+  useEffect(() => {
+    if (!dismissible) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && pending === null) onClose?.();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dismissible, onClose, pending]);
+
   async function choose(planId: Plan["id"]) {
+    // In upgrade mode the user is already on Free — just close, no round-trip.
+    if (dismissible && planId === "free") {
+      onClose?.();
+      return;
+    }
     setPending(planId);
     setError(null);
     try {
@@ -115,14 +146,37 @@ export default function PlanChoiceModal() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="plan-choice-title"
+      onClick={
+        dismissible
+          ? (event) => {
+              // Click on the backdrop (not the modal body) closes it.
+              if (event.target === event.currentTarget && pending === null) {
+                onClose?.();
+              }
+            }
+          : undefined
+      }
     >
       <div className={styles.modal}>
+        {dismissible ? (
+          <button
+            type="button"
+            className={styles.close}
+            onClick={() => onClose?.()}
+            disabled={pending !== null}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        ) : null}
         <header className={styles.head}>
           <h2 id="plan-choice-title" className={styles.title}>
-            Welcome to Pirol — pick your plan
+            {dismissible ? "Upgrade your plan" : "Welcome to Pirol — pick your plan"}
           </h2>
           <p className={styles.subtitle}>
-            Choose how you want to start. You can change this anytime.
+            {dismissible
+              ? "Unlock the full archive and every feature. Change or cancel anytime."
+              : "Choose how you want to start. You can change this anytime."}
           </p>
 
           <div className={styles.billingToggle} role="group" aria-label="Billing period">
@@ -190,7 +244,11 @@ export default function PlanChoiceModal() {
                   onClick={() => choose(plan.id)}
                   disabled={pending !== null}
                 >
-                  {isPending ? "One moment…" : plan.cta}
+                  {isPending
+                    ? "One moment…"
+                    : dismissible && plan.id === "free"
+                      ? "Stay on Free"
+                      : plan.cta}
                 </button>
               </div>
             );
