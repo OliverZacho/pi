@@ -32,7 +32,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/explore",
     anchor: '[data-tour="explore-filters"]',
     title: "Browse every recent email",
-    body: "This is your feed of the latest marketing emails. Search, then narrow by brand, category or content type to zero in on what you want to study.",
+    body: "This is your feed of the latest marketing emails — search and filter by brand, category or content type to zero in on what you want. Use Next to walk through Pirol's main areas.",
     side: "bottom",
     align: "start"
   },
@@ -52,7 +52,7 @@ export const TOUR_STEPS: TourStep[] = [
     // so a left tooltip has no room and driver.js would flip it back anyway.
     anchor: '[data-tour="brand-card"]',
     title: "Every sender has a brand page",
-    body: "Open any brand to see its full sending history, cadence and stats in one place.",
+    body: "Each sender has its own brand page — the full sending history, cadence and stats in one place.",
     side: "right",
     align: "start"
   },
@@ -68,7 +68,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/collections",
     anchor: '[data-tour="nav-collections"]',
     title: "Save into collections",
-    body: "Group emails into collections for later. Some build themselves automatically — or make your own.",
+    body: "Collections group emails for later — some build themselves automatically, and you can curate your own.",
     side: "right",
     align: "start"
   },
