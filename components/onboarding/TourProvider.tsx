@@ -182,7 +182,18 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     const step = TOUR_STEPS[stepIndex];
     if (!step) return;
 
-    if (pathname !== step.route) {
+    // Compare against the route's path only — a stop may carry a query string
+    // (e.g. "/brands?q=ARKET" to surface the demo brand) that usePathname drops.
+    const stepPath = step.route.split("?")[0];
+    if (pathname !== stepPath) {
+      // Forward click-through on an interactive stop: the user clicked the
+      // spotlighted link, which navigated to the next stop's route. Advance to
+      // it rather than yanking them back to this one.
+      const next = TOUR_STEPS[stepIndex + 1];
+      if (step.interactive && next && next.route.split("?")[0] === pathname) {
+        goTo(stepIndex + 1);
+        return;
+      }
       router.push(step.route);
       return;
     }
@@ -265,7 +276,7 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       modalObserver?.disconnect();
     };
-  }, [stepIndex, pathname, ensureDriver, destroyDriver, router]);
+  }, [stepIndex, pathname, ensureDriver, destroyDriver, goTo, router]);
 
   // Resume an in-progress tour after a hard refresh (the step was persisted).
   useEffect(() => {

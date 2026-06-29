@@ -22,6 +22,7 @@ import {
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { isBrandFollowed } from "@/lib/follows-db";
+import { DEMO_BRAND_SLUG } from "@/lib/demo";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
@@ -101,6 +102,32 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   // Only light brand identity is fetched (service-role); the heavy analytics
   // (`getBrandPageData`) are skipped entirely.
   if (!viewer || !viewer.hasAccess) {
+    // The onboarding tour's demo brand is the one exception: unpaid users get
+    // its real dashboard (data fetched service-side past RLS) so they can see
+    // what a brand page actually offers. Read-only — no follow / group actions.
+    if (resolved.slug === DEMO_BRAND_SLUG) {
+      const demoData = await getBrandPageData(getSupabaseAdmin(), id, {
+        segmentInboxId
+      });
+      if (demoData) {
+        return (
+          <div className={styles.shell}>
+            <ExploreSidebar
+              user={await getViewerDisplay()}
+              activeId="brands"
+              hasAccess={false}
+            />
+            <BrandDashboard
+              data={demoData}
+              isFollowing={false}
+              groups={[]}
+              groupMembershipIds={[]}
+            />
+          </div>
+        );
+      }
+    }
+
     const admin = getSupabaseAdmin();
     const { data: company } = await admin
       .from("companies")

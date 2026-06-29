@@ -297,7 +297,7 @@ export default function CompareBrandStrip({
   }
 
   return (
-    <header className={styles.compareHeader}>
+    <header className={styles.compareHeader} data-tour="compare-demo">
       <div className={styles.compareHeaderRow}>
         <div className={styles.compareTitle}>
           {editing && setId ? (

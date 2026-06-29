@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { DEMO_COMPARISON_ID } from "@/lib/demo";
 import {
   getCompetitorComparison,
   getCompetitorSetForOwner,
@@ -45,8 +47,54 @@ export default async function CompareSetPage({ params }: PageProps) {
   const supabase = await createClient();
   const viewer = await getViewer();
   // Compare is a paid feature — public (non-admin) users get a subscribe
-  // panel instead of the saved-set dashboard.
+  // panel instead of the saved-set dashboard. The one exception is the
+  // onboarding tour's demo comparison: unpaid users get its real dashboard
+  // (fetched service-side past RLS), read-only (`canEdit=false`).
   if (!viewer || !viewer.hasAccess) {
+    if (id === DEMO_COMPARISON_ID) {
+      const admin = getSupabaseAdmin();
+      const demoSet = await getCompetitorSetForReader(admin, id);
+      if (demoSet && demoSet.brands.length > 0) {
+        const demoComparison = await getCompetitorComparison(
+          admin,
+          demoSet.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
+        );
+        return (
+          <div className={styles.shell}>
+            <ExploreSidebar
+              user={await getViewerDisplay()}
+              activeId={`compare:${demoSet.id}`}
+              hasAccess={false}
+            />
+            <main className={styles.main}>
+              <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+                <Link href="/compare" className={styles.breadcrumbLink}>
+                  <span aria-hidden="true">‹</span>
+                  <span>Comparisons</span>
+                </Link>
+                <span className={styles.breadcrumbSep}>/</span>
+                <span className={styles.breadcrumbCurrent}>{demoSet.name}</span>
+              </nav>
+
+              <CompareBrandStrip
+                brands={demoComparison.brands}
+                setId={demoSet.id}
+                setName={demoSet.name}
+                subtitle={`${demoSet.brands.length} brands · Demo comparison`}
+                canEdit={false}
+                sharedWithTeam={demoSet.sharedWithTeam}
+                canShareWithTeam={false}
+              />
+
+              <CompareDashboard
+                brands={demoComparison.brands}
+                missingIds={demoComparison.missing}
+              />
+            </main>
+          </div>
+        );
+      }
+    }
     return (
       <div className={styles.shell}>
         <ExploreSidebar user={await getViewerDisplay()} activeId="compare" hasAccess={false} />
