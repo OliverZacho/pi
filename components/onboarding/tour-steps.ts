@@ -46,10 +46,14 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     route: "/brands",
-    anchor: '[data-tour="brands-grid"]',
+    // A single card, not the whole grid: highlighting the grid makes a huge
+    // stage that leaves the tooltip floating in the middle and jumping between
+    // steps. `right` is the stable side here — the first card hugs the sidebar,
+    // so a left tooltip has no room and driver.js would flip it back anyway.
+    anchor: '[data-tour="brand-card"]',
     title: "Every sender has a brand page",
     body: "Open any brand to see its full sending history, cadence and stats in one place.",
-    side: "top",
+    side: "right",
     align: "start"
   },
   {

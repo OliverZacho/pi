@@ -1174,11 +1174,12 @@ export default function BrandsExploreClient({
         )
       ) : (
         <>
-          <div className={styles.grid} data-tour="brands-grid">
-            {brands.map((brand) => (
+          <div className={styles.grid}>
+            {brands.map((brand, index) => (
               <BrandGridCard
                 key={brand.id}
                 brand={brand}
+                tourAnchor={index === 0}
                 selectable={!isPublic}
                 selectMode={selectMode}
                 selected={selectedSet.has(brand.id)}
@@ -1226,6 +1227,8 @@ type BrandGridCardProps = {
   selected?: boolean;
   disabled?: boolean;
   onToggle?: (id: string) => void;
+  /** Tags this card as the onboarding tour's "brand page" spotlight anchor. */
+  tourAnchor?: boolean;
 };
 
 function BrandGridCard({
@@ -1234,8 +1237,10 @@ function BrandGridCard({
   selectMode = false,
   selected = false,
   disabled = false,
-  onToggle
+  onToggle,
+  tourAnchor = false
 }: BrandGridCardProps) {
+  const tourAttr = tourAnchor ? "brand-card" : undefined;
   const cardBody = (
     <>
       {selectMode ? (
@@ -1265,6 +1270,7 @@ function BrandGridCard({
         disabled={disabled}
         aria-pressed={selected}
         aria-label={`${selected ? "Unselect" : "Select"} ${brand.name}`}
+        data-tour={tourAttr}
       >
         {cardBody}
       </button>
@@ -1276,6 +1282,7 @@ function BrandGridCard({
       href={`/brands/${brand.slug}`}
       className={`${styles.card} ${styles.cardRich}`}
       aria-label={`Open ${brand.name} dashboard`}
+      data-tour={tourAttr}
     >
       {cardBody}
     </Link>

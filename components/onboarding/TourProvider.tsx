@@ -144,6 +144,9 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     if (driverRef.current) return driverRef.current;
     driverRef.current = driver({
       allowClose: false, // Esc / overlay click don't end the tour — buttons do.
+      // Informational tour: the spotlighted element stays inert, so a click on
+      // (say) a brand card or nav row can't navigate the user out mid-tour.
+      disableActiveInteraction: true,
       overlayColor: "#0b1220",
       overlayOpacity: 0.6,
       stagePadding: 6,
