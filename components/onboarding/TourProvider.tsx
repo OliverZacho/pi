@@ -109,11 +109,18 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     [persist]
   );
 
+  // Tear down the driver overlay AND drop the reference. A destroyed driver
+  // instance can't be reused, so the next highlight must build a fresh one.
+  const destroyDriver = useCallback(() => {
+    driverRef.current?.destroy();
+    driverRef.current = null;
+  }, []);
+
   const endTour = useCallback(() => {
     setStepIndex(-1);
     persist(-1);
-    driverRef.current?.destroy();
-  }, [persist]);
+    destroyDriver();
+  }, [persist, destroyDriver]);
 
   // Finish == skip: in both cases we mark the tour done so it never auto-starts
   // again, then return to /explore where the forced plan modal takes over.
@@ -181,6 +188,60 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    let modalObserver: MutationObserver | null = null;
+
+    const isLast = stepIndex === TOUR_STEPS.length - 1;
+    const showButtons: ("next" | "previous")[] =
+      stepIndex === 0 ? ["next"] : ["previous", "next"];
+
+    const popover = {
+      title: step.title,
+      description: `${step.body}<span class="pirol-tour-count">${
+        stepIndex + 1
+      } / ${TOUR_STEPS.length}</span>`,
+      side: step.side ?? "bottom",
+      align: step.align ?? "start",
+      showButtons,
+      nextBtnText: isLast ? "Choose plan" : "Next",
+      prevBtnText: "Back",
+      onNextClick: () => handlersRef.current.next(),
+      onPrevClick: () => handlersRef.current.prev(),
+      onCloseClick: () => handlersRef.current.skip()
+    };
+
+    // Advance once the user has opened AND closed the full-email preview. The
+    // modal renders below driver's overlay, so we also tear the overlay down on
+    // open — otherwise the preview would sit behind the dark scrim.
+    const watchEmailModal = () => {
+      let everOpened = false;
+      const isModalOpen = () =>
+        Array.from(
+          document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+        ).some((node) => !node.closest(".driver-popover"));
+      modalObserver = new MutationObserver(() => {
+        if (isModalOpen()) {
+          if (!everOpened) {
+            everOpened = true;
+            destroyDriver();
+          }
+        } else if (everOpened) {
+          modalObserver?.disconnect();
+          handlersRef.current.next();
+        }
+      });
+      modalObserver.observe(document.body, { childList: true, subtree: true });
+    };
+
+    if (step.scrollTop) window.scrollTo({ top: 0 });
+
+    // Centered welcome stop: no anchor, no spotlight — just a popover.
+    if (!step.anchor) {
+      ensureDriver().highlight({ popover });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     waitForElement(step.anchor, ANCHOR_TIMEOUT_MS).then((el) => {
       if (cancelled) return;
       if (!el) {
@@ -190,33 +251,21 @@ export default function TourProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const isLast = stepIndex === TOUR_STEPS.length - 1;
-      const showButtons: ("next" | "previous")[] =
-        stepIndex === 0 ? ["next"] : ["previous", "next"];
-
       ensureDriver().highlight({
         element: el,
-        popover: {
-          title: step.title,
-          description: `${step.body}<span class="pirol-tour-count">${
-            stepIndex + 1
-          } / ${TOUR_STEPS.length}</span>`,
-          side: step.side ?? "bottom",
-          align: step.align ?? "start",
-          showButtons,
-          nextBtnText: isLast ? "Choose plan" : "Next",
-          prevBtnText: "Back",
-          onNextClick: () => handlersRef.current.next(),
-          onPrevClick: () => handlersRef.current.prev(),
-          onCloseClick: () => handlersRef.current.skip()
-        }
+        // Interactive stops keep the spotlighted element clickable.
+        disableActiveInteraction: !step.interactive,
+        popover
       });
+
+      if (step.advance === "email-modal") watchEmailModal();
     });
 
     return () => {
       cancelled = true;
+      modalObserver?.disconnect();
     };
-  }, [stepIndex, pathname, ensureDriver, router]);
+  }, [stepIndex, pathname, ensureDriver, destroyDriver, router]);
 
   // Resume an in-progress tour after a hard refresh (the step was persisted).
   useEffect(() => {
@@ -236,7 +285,7 @@ export default function TourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Tear down the driver instance if the provider ever unmounts.
-  useEffect(() => () => driverRef.current?.destroy(), []);
+  useEffect(() => () => destroyDriver(), [destroyDriver]);
 
   const start = useCallback(() => {
     if (stepRef.current >= 0) return;

@@ -1514,7 +1514,7 @@ export default function ExploreClient({
       ) : (
         <div className={isPublic ? publicStyles.gridWrap : undefined}>
           <div className={styles.grid}>
-            {emails.map((email) =>
+            {emails.map((email, index) =>
               isPublic && !allowSave ? (
                 // Logged-out visitor: show the Save button as a conversion
                 // hook, but clicking it nudges them to sign up rather than
@@ -1526,6 +1526,7 @@ export default function ExploreClient({
                   renderUrlBase={renderUrlBase}
                   isSaved={false}
                   onToggleSave={handleLoggedOutSave}
+                  tourAnchor={index === 0}
                 />
               ) : isPublic && allowSave ? (
                 // Signed-in free user: Save enabled, collections withheld
@@ -1537,6 +1538,7 @@ export default function ExploreClient({
                   renderUrlBase={renderUrlBase}
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
+                  tourAnchor={index === 0}
                 />
               ) : (
                 <EmailCard
@@ -1546,6 +1548,7 @@ export default function ExploreClient({
                   renderUrlBase={authedRenderBase}
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
+                  tourAnchor={index === 0}
                   collections={collections}
                   membershipIds={
                     membershipByEmail.get(email.id) ?? EMPTY_ID_SET

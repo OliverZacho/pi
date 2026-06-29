@@ -252,6 +252,7 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
+        data-tour="help-button"
       >
         <svg
           className={styles.triggerIcon}
