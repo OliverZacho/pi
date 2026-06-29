@@ -48,8 +48,10 @@ export type TourStep = {
    */
   interactive?: boolean;
   /**
-   * Auto-advance trigger. `"email-modal"` advances once the user has opened
-   * and closed the full-email preview. Omitted → the Next button advances.
+   * Special handling for the full-email preview. `"email-modal"` drops driver's
+   * overlay while the preview is open (it renders below the scrim) and restores
+   * this stop's spotlight on close. It does NOT auto-advance — the user moves on
+   * with Next. Omitted → no modal handling.
    */
   advance?: "email-modal";
   /** Scroll the window to the top before highlighting (for fixed top-bar UI). */
@@ -84,7 +86,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/explore",
     anchor: '[data-tour="email-card"]',
     title: "Open any email",
-    body: "Go ahead — click a card to read the full email, exactly as it landed in the inbox. Close it when you're done and we'll carry on.",
+    body: "Go ahead — click a card to read the full email, exactly as it landed in the inbox. Close it when you're done, then hit Next.",
     side: "right",
     align: "start",
     interactive: true,
