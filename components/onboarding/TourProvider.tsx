@@ -220,24 +220,33 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       onCloseClick: () => handlersRef.current.skip()
     };
 
-    // Advance once the user has opened AND closed the full-email preview. The
-    // modal renders below driver's overlay, so we also tear the overlay down on
-    // open — otherwise the preview would sit behind the dark scrim.
-    const watchEmailModal = () => {
-      let everOpened = false;
+    const highlightStep = (el: Element) =>
+      ensureDriver().highlight({
+        element: el,
+        // Interactive stops keep the spotlighted element clickable.
+        disableActiveInteraction: !step.interactive,
+        popover
+      });
+
+    // The email-preview modal renders BELOW driver's overlay, so while it's open
+    // we tear the overlay down (revealing the preview) and on close we restore
+    // this step's spotlight. We deliberately do NOT auto-advance — the user
+    // stays on this stop and moves on with Next, so closing the preview never
+    // surprises them by jumping to the next section.
+    const watchEmailModal = (el: Element) => {
+      let open = false;
       const isModalOpen = () =>
         Array.from(
           document.querySelectorAll('[role="dialog"][aria-modal="true"]')
         ).some((node) => !node.closest(".driver-popover"));
       modalObserver = new MutationObserver(() => {
-        if (isModalOpen()) {
-          if (!everOpened) {
-            everOpened = true;
-            destroyDriver();
-          }
-        } else if (everOpened) {
-          modalObserver?.disconnect();
-          handlersRef.current.next();
+        const nowOpen = isModalOpen();
+        if (nowOpen && !open) {
+          open = true;
+          destroyDriver();
+        } else if (!nowOpen && open) {
+          open = false;
+          highlightStep(el);
         }
       });
       modalObserver.observe(document.body, { childList: true, subtree: true });
@@ -262,14 +271,9 @@ export default function TourProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      ensureDriver().highlight({
-        element: el,
-        // Interactive stops keep the spotlighted element clickable.
-        disableActiveInteraction: !step.interactive,
-        popover
-      });
+      highlightStep(el);
 
-      if (step.advance === "email-modal") watchEmailModal();
+      if (step.advance === "email-modal") watchEmailModal(el);
     });
 
     return () => {
