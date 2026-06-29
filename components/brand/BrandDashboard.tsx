@@ -406,7 +406,7 @@ export function KpiGrid({
   esp: BrandPageData["esp"];
 }) {
   return (
-    <section className={styles.kpiGrid}>
+    <section className={styles.kpiGrid} data-tour="brand-stats">
       <KpiTile
         icon={<MailIcon />}
         label="Captured emails"

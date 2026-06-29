@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { DEMO_COLLECTION_ID } from "@/lib/demo";
 import {
   getBrandDiscountBenchmarks,
   getCollectionForOwner,
@@ -49,8 +51,43 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   const viewer = await getViewer();
 
   // Collections is a paid feature — public (non-admin) users get a
-  // subscribe panel instead of the collection detail.
+  // subscribe panel instead of the collection detail. The one exception is the
+  // onboarding tour's demo collection: unpaid users get its real detail view
+  // (fetched service-side past RLS), read-only (`canEdit=false`).
   if (!viewer || !viewer.hasAccess) {
+    if (id === DEMO_COLLECTION_ID) {
+      const admin = getSupabaseAdmin();
+      const demoCollection = await getCollectionForReader(admin, id);
+      if (demoCollection) {
+        const demoFacets = await getExploreFacets(admin).catch(() => ({
+          brands: [],
+          markets: [],
+          categories: [],
+          countries: []
+        }));
+        return (
+          <div className={styles.shell}>
+            <ExploreSidebar
+              user={await getViewerDisplay()}
+              activeId={`collection:${demoCollection.id}`}
+              hasAccess={false}
+            />
+            <main className={styles.main}>
+              <CollectionDetailClient
+                initialCollection={demoCollection}
+                initialSavedIds={[]}
+                initialCollections={[]}
+                facets={demoFacets}
+                brandDiscountBenchmarks={{}}
+                followedCompanyIds={[]}
+                canEdit={false}
+                canShareWithTeam={false}
+              />
+            </main>
+          </div>
+        );
+      }
+    }
     return (
       <div className={styles.shell}>
         <ExploreSidebar user={await getViewerDisplay()} activeId="collections" hasAccess={false} />

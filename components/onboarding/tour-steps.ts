@@ -22,6 +22,12 @@
  */
 
 import type { Side, Alignment } from "driver.js";
+import {
+  DEMO_BRAND_PATH,
+  DEMO_BRAND_SLUG,
+  DEMO_COLLECTION_PATH,
+  DEMO_COMPARISON_PATH
+} from "@/lib/demo";
 
 export type TourStep = {
   /** Route this stop lives on. The controller navigates here first. */
@@ -85,15 +91,24 @@ export const TOUR_STEPS: TourStep[] = [
     advance: "email-modal"
   },
   {
+    // Interactive: spotlight the demo brand's card (anchored by href, so we
+    // grab ARKET specifically, not whichever card happens to be first) and
+    // invite the click. Clicking navigates to its real dashboard — the next
+    // stop — and the tour advances on arrival. Next stays as a fallback.
     route: "/brands",
-    // A single card, not the whole grid: highlighting the grid makes a huge
-    // stage that leaves the tooltip floating in the middle and jumping between
-    // steps. `right` is the stable side here — the first card hugs the sidebar,
-    // so a left tooltip has no room and driver.js would flip it back anyway.
-    anchor: '[data-tour="brand-card"]',
-    title: "Every sender has a brand page",
-    body: "Each sender has its own brand page — the full sending history, cadence and stats in one place.",
+    anchor: `a[href="${DEMO_BRAND_PATH}"]`,
+    title: "Open a brand page",
+    body: `Go ahead — click ${DEMO_BRAND_SLUG.toUpperCase()} to open its brand page. You'll see the real dashboard, free.`,
     side: "right",
+    align: "start",
+    interactive: true
+  },
+  {
+    route: DEMO_BRAND_PATH,
+    anchor: '[data-tour="brand-stats"]',
+    title: "A full brand dashboard",
+    body: "Every brand gets this: send volume, cadence, busiest times, category mix, design and discount patterns — at a glance.",
+    side: "bottom",
     align: "start"
   },
   {
@@ -105,19 +120,21 @@ export const TOUR_STEPS: TourStep[] = [
     align: "start"
   },
   {
-    route: "/collections",
-    anchor: '[data-tour="nav-collections"]',
+    // Drops the user straight into a real demo collection (rendered to unpaid
+    // users only for this one designated id) so they see the actual feature.
+    route: DEMO_COLLECTION_PATH,
+    anchor: '[data-tour="collection-demo"]',
     title: "Save into collections",
-    body: "Collections group emails for later — some build themselves automatically, and you can curate your own.",
-    side: "right",
+    body: "Group emails into collections to study a campaign or theme. This is a real one — every card is a captured send.",
+    side: "bottom",
     align: "start"
   },
   {
-    route: "/compare",
-    anchor: '[data-tour="nav-compare"]',
+    route: DEMO_COMPARISON_PATH,
+    anchor: '[data-tour="compare-demo"]',
     title: "Compare brands side by side",
-    body: "Comparisons put two or more brands head to head, so you can see how their email strategies differ.",
-    side: "right",
+    body: "Put brands head to head to see how their strategies differ. Here's a live comparison to explore.",
+    side: "bottom",
     align: "start"
   },
   {

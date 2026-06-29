@@ -487,7 +487,7 @@ export default function CollectionDetailClient({
         <span className={styles.breadcrumbCurrent}>{collection.name}</span>
       </nav>
 
-      <header className={styles.detailHeader}>
+      <header className={styles.detailHeader} data-tour="collection-demo">
         <div className={styles.detailTitleGroup}>
           <div className={styles.detailTitleRow}>
             {canEdit ? (
