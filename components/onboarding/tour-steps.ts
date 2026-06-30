@@ -56,6 +56,13 @@ export type TourStep = {
   advance?: "email-modal";
   /** Scroll the window to the top before highlighting (for fixed top-bar UI). */
   scrollTop?: boolean;
+  /**
+   * Extra class(es) for this stop's popover. Use to override placement — e.g.
+   * the brand dashboard pins the tooltip to a fixed corner so it stays put
+   * while the user scrolls the (tall, fully-spotlit) page. Include the base
+   * "pirol-tour" class since this replaces the default popover class.
+   */
+  popoverClass?: string;
 };
 
 export const TOUR_STEPS: TourStep[] = [
@@ -106,12 +113,14 @@ export const TOUR_STEPS: TourStep[] = [
     interactive: true
   },
   {
+    // Spotlight the whole dashboard (the <main>) so every chart is lit, and pin
+    // the tooltip to a fixed corner — driver doesn't lock wheel-scroll, so the
+    // user can scroll down through all the graphs while the tooltip stays put.
     route: DEMO_BRAND_PATH,
     anchor: '[data-tour="brand-stats"]',
     title: "A full brand dashboard",
-    body: "Every brand gets this: send volume, cadence, busiest times, category mix, design and discount patterns — at a glance.",
-    side: "bottom",
-    align: "start"
+    body: "Scroll down to explore ARKET's full dashboard — send volume, cadence, busiest times, category mix, design and discount patterns.",
+    popoverClass: "pirol-tour pirol-tour-pinned"
   },
   {
     route: "/following",

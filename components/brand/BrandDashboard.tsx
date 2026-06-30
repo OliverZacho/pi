@@ -154,7 +154,7 @@ export default function BrandDashboard({
   } as CSSProperties;
 
   return (
-    <main className={styles.main} style={accentStyle}>
+    <main className={styles.main} style={accentStyle} data-tour="brand-stats">
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
         <Link href="/explore" className={styles.breadcrumbLink}>
           <ChevronLeftIcon />
@@ -406,7 +406,7 @@ export function KpiGrid({
   esp: BrandPageData["esp"];
 }) {
   return (
-    <section className={styles.kpiGrid} data-tour="brand-stats">
+    <section className={styles.kpiGrid}>
       <KpiTile
         icon={<MailIcon />}
         label="Captured emails"
