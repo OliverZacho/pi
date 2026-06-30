@@ -109,3 +109,21 @@
   background: var(--pirol-green-hover);
   border-color: var(--pirol-green-hover);
 }
+
+/*
+ * Pinned variant: used for the brand-dashboard stop, which spotlights the whole
+ * (tall) page so the user can scroll through every chart. Pin the tooltip to a
+ * fixed corner — overriding driver's inline positioning — so it stays in view
+ * while they scroll, and drop the arrow (it has nothing to point at). Bottom-
+ * right keeps it clear of the sidebar and the top-right "Need help?" panel.
+ */
+.driver-popover.pirol-tour-pinned {
+  position: fixed !important;
+  inset: auto 24px 24px auto !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+.driver-popover.pirol-tour-pinned .driver-popover-arrow {
+  display: none !important;
+}

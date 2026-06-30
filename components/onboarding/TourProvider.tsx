@@ -212,6 +212,7 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       } / ${TOUR_STEPS.length}</span>`,
       side: step.side ?? "bottom",
       align: step.align ?? "start",
+      popoverClass: step.popoverClass,
       showButtons,
       nextBtnText: isLast ? "Choose plan" : "Next",
       prevBtnText: "Back",
