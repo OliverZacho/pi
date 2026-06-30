@@ -615,7 +615,9 @@ export default function CollectionDetailClient({
             </>
           ) : (
             <span className={styles.detailMeta}>
-              Shared with your team · read-only
+              {collection.sharedWithTeam
+                ? "Shared with your team · read-only"
+                : "Read-only"}
             </span>
           )}
         </div>

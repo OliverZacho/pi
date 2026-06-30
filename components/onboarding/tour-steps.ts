@@ -135,8 +135,8 @@ export const TOUR_STEPS: TourStep[] = [
     // users only for this one designated id) so they see the actual feature.
     route: DEMO_COLLECTION_PATH,
     anchor: '[data-tour="collection-demo"]',
-    title: "Save into collections",
-    body: "Group emails into collections to study a campaign or theme. This is a real one — every card is a captured send.",
+    title: "Collections — manual or automatic",
+    body: "Group emails into a collection by hand, or set rules so it auto-catches new sends by search term, content type, or how deep the discount is. This one's real — every card is a captured email.",
     side: "bottom",
     align: "start"
   },
