@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/digest?cadence=daily", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/digest?cadence=weekly", "schedule": "0 7 * * 1" },
+    { "path": "/api/cron/digest?cadence=monthly", "schedule": "0 7 1 * *" }
+  ]
+}

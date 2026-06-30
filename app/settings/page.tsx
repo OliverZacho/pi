@@ -11,6 +11,8 @@ import {
 } from "@/lib/competitor-db";
 import { isConsumerEmailDomain } from "@/lib/email-domains";
 import { getProfile, userHasPassword } from "@/lib/profile-db";
+import { getNotificationPrefs } from "@/lib/notification-prefs-db";
+import { defaultNotificationPrefs } from "@/lib/notification-prefs";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   getTeamContext,
@@ -79,6 +81,14 @@ export default async function SettingsPage() {
     hasPassword = await userHasPassword(supabase);
   } catch (err) {
     console.error("Failed to check password state", err);
+  }
+
+  // Notifications tab: the viewer's saved cadences (defaults if unset).
+  let initialNotificationPrefs = defaultNotificationPrefs();
+  try {
+    initialNotificationPrefs = await getNotificationPrefs(supabase, userId);
+  } catch (err) {
+    console.error("Failed to load notification prefs", err);
   }
 
   // Team tab initial data (admin client — team tables are RLS'd to
@@ -176,6 +186,8 @@ export default async function SettingsPage() {
           seatLimit={TEAM_SEAT_LIMIT}
           teamMembership={teamMembership}
           billing={billing}
+          initialNotificationPrefs={initialNotificationPrefs}
+          notificationsEnabled={hasAccess}
         />
       </main>
     </div>

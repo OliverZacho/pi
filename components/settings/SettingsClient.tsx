@@ -4,6 +4,11 @@ import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TeamView } from "@/lib/teams-db";
+import type {
+  NotificationPrefs,
+  NotificationCadence,
+  NotificationType
+} from "@/lib/notification-prefs";
 import styles from "./settings.module.css";
 
 type TabId = "user" | "notifications" | "team" | "billing";
@@ -96,6 +101,14 @@ type Props = {
   teamMembership: TeamMembershipInfo;
   /** Current subscription state, for the Billing tab. */
   billing: BillingInfo;
+  /** The viewer's saved notification cadences (defaults if never set). */
+  initialNotificationPrefs: NotificationPrefs;
+  /**
+   * Whether the viewer is entitled to digest/alert emails. Digests are a
+   * paid feature, so unpaid users see the controls in a disabled,
+   * upgrade-prompted state.
+   */
+  notificationsEnabled: boolean;
 };
 
 export default function SettingsClient({
@@ -109,7 +122,9 @@ export default function SettingsClient({
   inviteDomainRestricted,
   seatLimit,
   teamMembership,
-  billing
+  billing,
+  initialNotificationPrefs,
+  notificationsEnabled
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("user");
 
@@ -142,7 +157,10 @@ export default function SettingsClient({
             teamMembership={teamMembership}
           />
         ) : activeTab === "notifications" ? (
-          <NotificationsTab />
+          <NotificationsTab
+            initialPrefs={initialNotificationPrefs}
+            enabled={notificationsEnabled}
+          />
         ) : activeTab === "team" ? (
           <TeamTab
             emailDomain={emailDomain}
@@ -575,46 +593,147 @@ function DeleteAccountDialog({
 
 /* =========================================================
    Notification emails tab — when/if to receive emails.
-   Skeleton only: no email-sending infra exists yet.
+
+   The brand-intelligence rows are wired to the user's saved cadences
+   (user_prefs → notification_preferences). Digests are a paid feature,
+   so the controls are disabled with an upgrade prompt for unpaid users.
+   The account-mail rows below are still skeleton (no backend yet).
    ========================================================= */
 
-function NotificationsTab() {
+const LABEL_TO_CADENCE: Record<Frequency, NotificationCadence> = {
+  Instant: "instant",
+  Daily: "daily",
+  Weekly: "weekly",
+  Monthly: "monthly",
+  Off: "off"
+};
+
+const CADENCE_TO_LABEL: Record<NotificationCadence, Frequency> = {
+  instant: "Instant",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  off: "Off"
+};
+
+const BRAND_ROWS: {
+  type: NotificationType;
+  label: string;
+  description: string;
+}[] = [
+  {
+    type: "newEmail",
+    label: "New email from a brand you follow",
+    description: "When a brand you follow sends a new email."
+  },
+  {
+    type: "unusualActivity",
+    label: "Unusual sending activity",
+    description:
+      "When a brand you follow ramps up its sending or suddenly goes quiet."
+  },
+  {
+    type: "seasonalRunup",
+    label: "Seasonal run-up",
+    description:
+      "When a brand you follow starts its run-up to a seasonal event like Black Friday."
+  },
+  {
+    type: "smartCollection",
+    label: "New matches in a smart collection",
+    description: "When a rule-based collection picks up new emails."
+  }
+];
+
+function NotificationsTab({
+  initialPrefs,
+  enabled
+}: {
+  initialPrefs: NotificationPrefs;
+  enabled: boolean;
+}) {
+  const [prefs, setPrefs] = useState<NotificationPrefs>(initialPrefs);
+  const [saved, setSaved] = useState<NotificationPrefs>(initialPrefs);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const dirty = BRAND_ROWS.some((row) => prefs[row.type] !== saved[row.type]);
+
+  function updateRow(type: NotificationType, freq: Frequency) {
+    setError("");
+    setSuccess("");
+    setPrefs((current) => ({ ...current, [type]: LABEL_TO_CADENCE[freq] }));
+  }
+
+  async function handleSave() {
+    setError("");
+    setSuccess("");
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/user-prefs/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prefs)
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        prefs?: NotificationPrefs;
+        error?: string;
+      };
+      if (!response.ok) {
+        setError(body.error ?? "Failed to save your preferences.");
+        return;
+      }
+      const next = body.prefs ?? prefs;
+      setPrefs(next);
+      setSaved(next);
+      setSuccess("Preferences saved.");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className={styles.sections}>
       {/* Brand intelligence — the signals Pirol exists to surface. */}
       <Section>
-        <FrequencyRow
-          label="New email from a brand you follow"
-          description="When a brand you follow sends a new email."
-          value="Instant"
-        />
-        <FrequencyRow
-          label="Unusual sending activity"
-          description="When a brand you follow ramps up its sending or suddenly goes quiet."
-          value="Daily"
-        />
-        <FrequencyRow
-          label="Seasonal run-up"
-          description="When a brand you follow starts its run-up to a seasonal event like Black Friday."
-          value="Weekly"
-        />
-        <FrequencyRow
-          label="New matches in a smart collection"
-          description="When a rule-based collection picks up new emails."
-          value="Daily"
-        />
+        {!enabled ? (
+          <div className={styles.planNotice} role="note">
+            <span className={styles.planNoticeText}>
+              Digest and alert emails are part of a paid plan.
+            </span>
+            <TrackedUpgradeLink
+              source="settings_notifications"
+              className={styles.planNoticeCta}
+            >
+              View plans
+            </TrackedUpgradeLink>
+          </div>
+        ) : null}
+        {BRAND_ROWS.map((row) => (
+          <FrequencyRow
+            key={row.type}
+            label={row.label}
+            description={row.description}
+            selected={CADENCE_TO_LABEL[prefs[row.type]]}
+            onSelect={(freq) => updateRow(row.type, freq)}
+            disabled={!enabled}
+          />
+        ))}
       </Section>
 
-      {/* Account updates. */}
+      {/* Account updates — skeleton, not yet persisted. */}
       <Section>
-        <FrequencyRow
+        <LocalFrequencyRow
           label="Product updates"
           description="New features and notable changes."
           value="Instant"
           options={["Instant", "Off"]}
           warnOnInstant={false}
         />
-        <FrequencyRow
+        <LocalFrequencyRow
           label="Security alerts"
           description="Sign-ins from new devices and other security events."
           value="Instant"
@@ -623,9 +742,25 @@ function NotificationsTab() {
         />
       </Section>
 
+      {error ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className={styles.successNote} role="status">
+          {success}
+        </p>
+      ) : null}
+
       <div className={styles.actions}>
-        <button type="button" className={styles.primaryBtn} disabled>
-          Save preferences
+        <button
+          type="button"
+          className={styles.primaryBtn}
+          onClick={handleSave}
+          disabled={!enabled || !dirty || submitting}
+        >
+          {submitting ? "Saving…" : "Save preferences"}
         </button>
       </div>
     </div>
@@ -1361,19 +1496,23 @@ const FREQUENCIES = ["Instant", "Daily", "Weekly", "Monthly", "Off"] as const;
 type Frequency = (typeof FREQUENCIES)[number];
 
 /**
- * One notification type plus its cadence selector. Skeleton: the highlighted
- * option is purely visual until wired up to the user's saved preferences.
+ * One notification type plus its cadence selector. Controlled: the parent
+ * owns the selected cadence and persists it. `disabled` greys the control
+ * out for unpaid users (digests are a paid feature).
  */
 function FrequencyRow({
   label,
   description,
-  value,
+  selected,
+  onSelect,
   options = FREQUENCIES,
-  warnOnInstant = true
+  warnOnInstant = true,
+  disabled = false
 }: {
   label: string;
   description?: string;
-  value: Frequency;
+  selected: Frequency;
+  onSelect: (value: Frequency) => void;
   /** The cadences offered for this row. Defaults to the full set. */
   options?: readonly Frequency[];
   /**
@@ -1381,9 +1520,8 @@ function FrequencyRow({
    * Off for low-volume account mail (product updates, security alerts).
    */
   warnOnInstant?: boolean;
+  disabled?: boolean;
 }) {
-  const [selected, setSelected] = useState<Frequency>(value);
-
   return (
     <div className={styles.toggleRow}>
       <div className={styles.toggleText}>
@@ -1392,7 +1530,10 @@ function FrequencyRow({
           <span className={styles.toggleDesc}>{description}</span>
         ) : null}
       </div>
-      <div className={styles.frequencyControl}>
+      <div
+        className={styles.frequencyControl}
+        style={disabled ? { opacity: 0.5 } : undefined}
+      >
         <div
           className={styles.segmented}
           role="group"
@@ -1406,7 +1547,8 @@ function FrequencyRow({
                 option === selected ? ` ${styles.segmentActive}` : ""
               }`}
               aria-pressed={option === selected}
-              onClick={() => setSelected(option)}
+              onClick={() => onSelect(option)}
+              disabled={disabled}
             >
               {option}
             </button>
@@ -1429,12 +1571,44 @@ function FrequencyRow({
             <path fill="#fff" d="M11 9h2v6h-2zM11 17h2v2h-2z" />
           </svg>
           <span className={styles.instantTooltip} role="tooltip">
-            Instant sends one email per event — that can add up fast. If they
-            start landing in spam, we'll automatically throttle them.
+            Instant sends one email per event, which can add up fast. If they
+            start landing in spam, we&rsquo;ll automatically throttle them.
           </span>
         </span>
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Self-contained `FrequencyRow` for the account-mail rows that aren't
+ * persisted yet (product updates, security alerts). Holds its own state
+ * so the segmented control still responds; remove once those have a
+ * backend and lift them into the saved prefs like the brand rows.
+ */
+function LocalFrequencyRow({
+  label,
+  description,
+  value,
+  options,
+  warnOnInstant
+}: {
+  label: string;
+  description?: string;
+  value: Frequency;
+  options?: readonly Frequency[];
+  warnOnInstant?: boolean;
+}) {
+  const [selected, setSelected] = useState<Frequency>(value);
+  return (
+    <FrequencyRow
+      label={label}
+      description={description}
+      selected={selected}
+      onSelect={setSelected}
+      options={options}
+      warnOnInstant={warnOnInstant}
+    />
   );
 }

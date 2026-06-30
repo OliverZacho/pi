@@ -104,7 +104,7 @@ function detectPaceSpike(
     brandId: brand.brand.id,
     brandName: brand.brand.name,
     brandIndex: index,
-    message: `${brand.brand.name} sent ${recent} emails in the last ${RECENT_DAYS} days — about ${fmt1(ratio)}× their usual pace.`,
+    message: `${brand.brand.name} sent ${recent} emails in the last ${RECENT_DAYS} days, about ${fmt1(ratio)}× their usual pace.`,
     severity: ratio
   };
 }
@@ -141,7 +141,7 @@ function detectGoneQuiet(
     brandId: brand.brand.id,
     brandName: brand.brand.name,
     brandIndex: index,
-    message: `${brand.brand.name} has gone quiet — ${silentDays} days without a send (they usually send every ${Math.round(typical)} days).`,
+    message: `${brand.brand.name} has gone quiet, ${silentDays} days without a send (they usually send every ${Math.round(typical)} days).`,
     severity: silentDays / Math.max(1, typical)
   };
 }
