@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Caveat } from "next/font/google";
 import styles from "./plan-choice.module.css";
+
+/** Handwritten face for the "2 months free!" annotation by the toggle. */
+const caveat = Caveat({ subsets: ["latin"], weight: "600" });
 
 type Billing = "monthly" | "annual";
 
@@ -179,23 +183,54 @@ export default function PlanChoiceModal({
               : "Choose how you want to start. You can change this anytime."}
           </p>
 
-          <div className={styles.billingToggle} role="group" aria-label="Billing period">
-            <button
-              type="button"
-              className={billing === "monthly" ? styles.billingActive : styles.billingOption}
-              onClick={() => setBilling("monthly")}
-              aria-pressed={billing === "monthly"}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              className={billing === "annual" ? styles.billingActive : styles.billingOption}
-              onClick={() => setBilling("annual")}
-              aria-pressed={billing === "annual"}
-            >
-              Annual <span className={styles.saveTag}>2 months free</span>
-            </button>
+          <div className={styles.billingToggleWrap}>
+            <div className={styles.billingToggle} role="group" aria-label="Billing period">
+              <button
+                type="button"
+                className={billing === "monthly" ? styles.billingActive : styles.billingOption}
+                onClick={() => setBilling("monthly")}
+                aria-pressed={billing === "monthly"}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                className={billing === "annual" ? styles.billingActive : styles.billingOption}
+                onClick={() => setBilling("annual")}
+                aria-pressed={billing === "annual"}
+              >
+                Annual
+                {/* Pill shows on small screens only; on desktop the
+                    handwritten annotation takes over (badge stays for
+                    screen readers). */}
+                <span className={styles.saveTag}>2 months free</span>
+              </button>
+            </div>
+
+            <span className={`${styles.annot} ${caveat.className}`} aria-hidden="true">
+              <svg className={styles.annotArrow} viewBox="0 0 52 46" fill="none">
+                {/* Sweeps from the note down-left, tip pointing down at the
+                    Annual button below. */}
+                <path
+                  d="M48 6 C 32 4, 14 12, 9 36"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M3 29 L9 38 L17 31"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className={styles.annotText}>
+                2 months
+                <br />
+                free!
+              </span>
+            </span>
           </div>
         </header>
 
