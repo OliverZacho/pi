@@ -66,7 +66,7 @@ export default async function CompareSetPage({ params }: PageProps) {
               activeId={`compare:${demoSet.id}`}
               hasAccess={false}
             />
-            <main className={styles.main}>
+            <main className={styles.main} data-tour="compare-demo">
               <nav className={styles.breadcrumb} aria-label="Breadcrumb">
                 <Link href="/compare" className={styles.breadcrumbLink}>
                   <span aria-hidden="true">‹</span>

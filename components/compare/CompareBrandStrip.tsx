@@ -297,7 +297,7 @@ export default function CompareBrandStrip({
   }
 
   return (
-    <header className={styles.compareHeader} data-tour="compare-demo">
+    <header className={styles.compareHeader}>
       <div className={styles.compareHeaderRow}>
         <div className={styles.compareTitle}>
           {editing && setId ? (
@@ -413,7 +413,7 @@ export default function CompareBrandStrip({
         ) : setId && !canEdit ? (
           <div className={styles.compareActions}>
             <span className={styles.compareReadonly}>
-              Shared with your team · read-only
+              {shared ? "Shared with your team · read-only" : "Read-only"}
             </span>
           </div>
         ) : null}

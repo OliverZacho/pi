@@ -72,7 +72,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
               activeId={`collection:${demoCollection.id}`}
               hasAccess={false}
             />
-            <main className={styles.main}>
+            <main className={styles.main} data-tour="collection-demo">
               <CollectionDetailClient
                 initialCollection={demoCollection}
                 initialSavedIds={[]}
