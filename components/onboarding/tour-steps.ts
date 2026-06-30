@@ -136,17 +136,15 @@ export const TOUR_STEPS: TourStep[] = [
     route: DEMO_COLLECTION_PATH,
     anchor: '[data-tour="collection-demo"]',
     title: "Collections — manual or automatic",
-    body: "Group emails into a collection by hand, or set rules so it auto-catches new sends by search term, content type, or how deep the discount is. This one's real — every card is a captured email.",
-    side: "bottom",
-    align: "start"
+    body: "Group emails into a collection by hand, or set rules so it auto-catches new sends by search term, content type, or how deep the discount is. Scroll this real one — every card is a captured email.",
+    popoverClass: "pirol-tour pirol-tour-pinned"
   },
   {
     route: DEMO_COMPARISON_PATH,
     anchor: '[data-tour="compare-demo"]',
     title: "Compare brands side by side",
-    body: "Put brands head to head to see how their strategies differ. Here's a live comparison to explore.",
-    side: "bottom",
-    align: "start"
+    body: "Put brands head to head to see how their strategies differ. Scroll this live comparison — cadence, promo share, design, subject lines and more, brand by brand.",
+    popoverClass: "pirol-tour pirol-tour-pinned"
   },
   {
     route: "/explore",
