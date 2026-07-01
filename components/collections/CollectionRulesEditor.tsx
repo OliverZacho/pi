@@ -143,6 +143,14 @@ export default function CollectionRulesEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Scope + time window collapse behind a one-line summary so the rule
+  // itself leads. Start expanded only when an existing rule already
+  // deviates from the defaults (so those settings stay discoverable).
+  const [settingsOpen, setSettingsOpen] = useState(() =>
+    initialRules
+      ? initialRules.scope !== "all" || initialRules.timeWindow != null
+      : false
+  );
 
   const sortedBrands = useMemo(
     () =>
@@ -246,6 +254,8 @@ export default function CollectionRulesEditor({
     SCOPE_OPTIONS.find((option) => option.value === draft.scope) ??
     SCOPE_OPTIONS[0];
 
+  const windowSummary = describeWindow(draft.timeWindow);
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!isValid || saving) return;
@@ -272,174 +282,41 @@ export default function CollectionRulesEditor({
 
   return (
     <form className={styles.rulesEditor} onSubmit={handleSubmit}>
-      <div className={styles.rulesEditorHeader}>
-        <div>
-          <h2 className={styles.rulesEditorTitle}>Automatic rules</h2>
-          <p className={styles.rulesEditorSubtitle}>
-            Add incoming emails to this collection if…
-          </p>
-        </div>
-        <div className={styles.rulesCombinator}>
-          <CombinatorOption
-            value="AND"
-            active={draft.combinator === "AND"}
+      <div className={styles.rulesLead}>
+        <span className={styles.rulesLeadText}>
+          Add emails to this collection when
+        </span>
+        <div
+          className={styles.matchToggle}
+          role="radiogroup"
+          aria-label="Match all or any of the conditions"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={draft.combinator === "AND"}
             onClick={() => setCombinator("AND")}
-            label="Match all"
-            hint="AND"
-          />
-          <CombinatorOption
-            value="OR"
-            active={draft.combinator === "OR"}
+            title="Match all conditions"
+            className={`${styles.matchToggleOption} ${
+              draft.combinator === "AND" ? styles.matchToggleOptionActive : ""
+            }`}
+          >
+            all
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={draft.combinator === "OR"}
             onClick={() => setCombinator("OR")}
-            label="Match any"
-            hint="OR"
-          />
+            title="Match any condition"
+            className={`${styles.matchToggleOption} ${
+              draft.combinator === "OR" ? styles.matchToggleOptionActive : ""
+            }`}
+          >
+            any
+          </button>
         </div>
-      </div>
-
-      <div className={styles.scopeRow}>
-        <span className={styles.scopeLabel}>Apply to</span>
-        <div
-          className={styles.scopeOptions}
-          role="radiogroup"
-          aria-label="Which emails this rule applies to"
-        >
-          {SCOPE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={draft.scope === option.value}
-              onClick={() => setScope(option.value)}
-              className={`${styles.scopeOption} ${
-                draft.scope === option.value
-                  ? styles.scopeOptionActive
-                  : ""
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <span className={styles.scopeHint}>{activeScope.hint}</span>
-      </div>
-
-      <div className={styles.scopeRow}>
-        <span className={styles.scopeLabel}>Time window</span>
-        <div
-          className={styles.scopeOptions}
-          role="radiogroup"
-          aria-label="Time window applied to matching emails"
-        >
-          {WINDOW_MODES.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={windowMode === option.value}
-              onClick={() => setWindowMode(option.value)}
-              className={`${styles.scopeOption} ${
-                windowMode === option.value ? styles.scopeOptionActive : ""
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <div className={styles.windowControls}>
-          {draft.timeWindow?.type === "rolling" ? (
-            <>
-              <span className={styles.scopeHint}>Last</span>
-              <input
-                type="number"
-                min={1}
-                max={3650}
-                step={1}
-                value={
-                  Number.isFinite(draft.timeWindow.amount)
-                    ? draft.timeWindow.amount
-                    : ""
-                }
-                onChange={(event) => {
-                  const next = event.target.value;
-                  updateTimeWindow({
-                    type: "rolling",
-                    amount: next === "" ? Number.NaN : Number(next),
-                    unit:
-                      draft.timeWindow?.type === "rolling"
-                        ? draft.timeWindow.unit
-                        : "days"
-                  });
-                }}
-                className={styles.ruleNumberInput}
-                aria-label="Window length"
-              />
-              <select
-                className={styles.ruleOperator}
-                value={draft.timeWindow.unit}
-                onChange={(event) =>
-                  updateTimeWindow({
-                    type: "rolling",
-                    amount:
-                      draft.timeWindow?.type === "rolling"
-                        ? draft.timeWindow.amount
-                        : 30,
-                    unit: event.target.value as CollectionRuleWindowUnit
-                  })
-                }
-                aria-label="Window unit"
-              >
-                {WINDOW_UNIT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : draft.timeWindow?.type === "range" ? (
-            <>
-              <input
-                type="date"
-                value={draft.timeWindow.from ?? ""}
-                max={draft.timeWindow.to ?? undefined}
-                onChange={(event) =>
-                  updateTimeWindow({
-                    type: "range",
-                    from: event.target.value || null,
-                    to:
-                      draft.timeWindow?.type === "range"
-                        ? draft.timeWindow.to
-                        : null
-                  })
-                }
-                className={styles.ruleInput}
-                aria-label="From date"
-              />
-              <span className={styles.scopeHint}>to</span>
-              <input
-                type="date"
-                value={draft.timeWindow.to ?? ""}
-                min={draft.timeWindow.from ?? undefined}
-                onChange={(event) =>
-                  updateTimeWindow({
-                    type: "range",
-                    from:
-                      draft.timeWindow?.type === "range"
-                        ? draft.timeWindow.from
-                        : null,
-                    to: event.target.value || null
-                  })
-                }
-                className={styles.ruleInput}
-                aria-label="To date"
-              />
-            </>
-          ) : (
-            <span className={styles.scopeHint}>
-              Match emails received at any time.
-            </span>
-          )}
-        </div>
+        <span className={styles.rulesLeadText}>of these match:</span>
       </div>
 
       <ul className={styles.rulesList}>
@@ -505,24 +382,210 @@ export default function CollectionRulesEditor({
         </div>
       ) : null}
 
-      <div className={styles.rulesActions}>
-        {showCancel && onCancel ? (
+      <div className={styles.scopeSettings}>
+        <div className={styles.scopeFooterRow}>
+          <div className={styles.scopeSummary}>
+          <span className={styles.scopeSummaryText}>
+            Applies to{" "}
+            <span className={styles.scopeSummaryValue}>
+              {activeScope.label.toLowerCase()}
+            </span>
+            ,{" "}
+            <span className={styles.scopeSummaryValue}>{windowSummary}</span>
+          </span>
           <button
             type="button"
-            className={styles.ruleCancelButton}
-            onClick={onCancel}
-            disabled={saving}
+            className={styles.scopeSummaryToggle}
+            onClick={() => setSettingsOpen((open) => !open)}
+            aria-expanded={settingsOpen}
           >
-            Cancel
+            {settingsOpen ? "Done" : "Change"}
+            <span
+              className={`${styles.scopeSummaryCaret} ${
+                settingsOpen ? styles.scopeSummaryCaretOpen : ""
+              }`}
+              aria-hidden="true"
+            >
+              <CaretIcon />
+            </span>
           </button>
+          </div>
+
+          <div className={styles.rulesActions}>
+            {showCancel && onCancel ? (
+              <button
+                type="button"
+                className={styles.ruleCancelButton}
+                onClick={onCancel}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              className={styles.ruleSaveButton}
+              disabled={!isValid || saving}
+            >
+              {saving
+                ? "Saving…"
+                : initialRules
+                  ? "Save rules"
+                  : "Save and apply"}
+            </button>
+          </div>
+        </div>
+
+        {settingsOpen ? (
+          <div className={styles.scopePanel}>
+            <div className={styles.scopeRow}>
+              <span className={styles.scopeLabel}>Apply to</span>
+              <div
+                className={styles.scopeOptions}
+                role="radiogroup"
+                aria-label="Which emails this rule applies to"
+              >
+                {SCOPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.scope === option.value}
+                    onClick={() => setScope(option.value)}
+                    className={`${styles.scopeOption} ${
+                      draft.scope === option.value
+                        ? styles.scopeOptionActive
+                        : ""
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <span className={styles.scopeHint}>{activeScope.hint}</span>
+            </div>
+
+            <div className={styles.scopeRow}>
+              <span className={styles.scopeLabel}>Time window</span>
+              <div
+                className={styles.scopeOptions}
+                role="radiogroup"
+                aria-label="Time window applied to matching emails"
+              >
+                {WINDOW_MODES.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={windowMode === option.value}
+                    onClick={() => setWindowMode(option.value)}
+                    className={`${styles.scopeOption} ${
+                      windowMode === option.value
+                        ? styles.scopeOptionActive
+                        : ""
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.windowControls}>
+                {draft.timeWindow?.type === "rolling" ? (
+                  <>
+                    <span className={styles.scopeHint}>Last</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      step={1}
+                      value={
+                        Number.isFinite(draft.timeWindow.amount)
+                          ? draft.timeWindow.amount
+                          : ""
+                      }
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        updateTimeWindow({
+                          type: "rolling",
+                          amount: next === "" ? Number.NaN : Number(next),
+                          unit:
+                            draft.timeWindow?.type === "rolling"
+                              ? draft.timeWindow.unit
+                              : "days"
+                        });
+                      }}
+                      className={styles.ruleNumberInput}
+                      aria-label="Window length"
+                    />
+                    <select
+                      className={styles.ruleOperator}
+                      value={draft.timeWindow.unit}
+                      onChange={(event) =>
+                        updateTimeWindow({
+                          type: "rolling",
+                          amount:
+                            draft.timeWindow?.type === "rolling"
+                              ? draft.timeWindow.amount
+                              : 30,
+                          unit: event.target.value as CollectionRuleWindowUnit
+                        })
+                      }
+                      aria-label="Window unit"
+                    >
+                      {WINDOW_UNIT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : draft.timeWindow?.type === "range" ? (
+                  <>
+                    <input
+                      type="date"
+                      value={draft.timeWindow.from ?? ""}
+                      max={draft.timeWindow.to ?? undefined}
+                      onChange={(event) =>
+                        updateTimeWindow({
+                          type: "range",
+                          from: event.target.value || null,
+                          to:
+                            draft.timeWindow?.type === "range"
+                              ? draft.timeWindow.to
+                              : null
+                        })
+                      }
+                      className={styles.ruleInput}
+                      aria-label="From date"
+                    />
+                    <span className={styles.scopeHint}>to</span>
+                    <input
+                      type="date"
+                      value={draft.timeWindow.to ?? ""}
+                      min={draft.timeWindow.from ?? undefined}
+                      onChange={(event) =>
+                        updateTimeWindow({
+                          type: "range",
+                          from:
+                            draft.timeWindow?.type === "range"
+                              ? draft.timeWindow.from
+                              : null,
+                          to: event.target.value || null
+                        })
+                      }
+                      className={styles.ruleInput}
+                      aria-label="To date"
+                    />
+                  </>
+                ) : (
+                  <span className={styles.scopeHint}>
+                    Match emails received at any time.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
         ) : null}
-        <button
-          type="submit"
-          className={styles.ruleSaveButton}
-          disabled={!isValid || saving}
-        >
-          {saving ? "Saving…" : initialRules ? "Save rules" : "Save and apply"}
-        </button>
       </div>
     </form>
   );
@@ -687,35 +750,6 @@ function ConditionValueInputs({
   }
 }
 
-function CombinatorOption({
-  value,
-  active,
-  onClick,
-  label,
-  hint
-}: {
-  value: CollectionRuleCombinator;
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`${styles.combinatorOption} ${
-        active ? styles.combinatorOptionActive : ""
-      }`}
-      title={`Match ${value === "AND" ? "all" : "any"} conditions`}
-    >
-      <span>{label}</span>
-      <span className={styles.combinatorHint}>{hint}</span>
-    </button>
-  );
-}
-
 function makeBlankCondition(
   field: CollectionRuleField,
   preserveId?: string
@@ -740,6 +774,41 @@ function makeBlankCondition(
         value: 30
       };
   }
+}
+
+/**
+ * Human-readable one-liner for the collapsed scope summary, e.g.
+ * "any time", "the last 30 days", "2026-01-01 to 2026-03-01". Mirrors
+ * the same wording the expanded controls produce so the summary reads
+ * as the sentence the rule will run with.
+ */
+function describeWindow(window: CollectionRuleTimeWindow | null): string {
+  if (!window) return "any time";
+  if (window.type === "rolling") {
+    if (!Number.isFinite(window.amount)) return "a rolling window";
+    const unit =
+      window.amount === 1 ? window.unit.replace(/s$/, "") : window.unit;
+    return `the last ${window.amount} ${unit}`;
+  }
+  const from = formatDmy(window.from);
+  const to = formatDmy(window.to);
+  if (from && to) return `${from} to ${to}`;
+  if (from) return `from ${from}`;
+  if (to) return `until ${to}`;
+  return "a date range";
+}
+
+/**
+ * Rewrites an ISO `YYYY-MM-DD` (what the native date inputs store) to a
+ * display-friendly `DD-MM-YYYY`. Returns null for empty/unparseable
+ * values so callers can skip them.
+ */
+function formatDmy(iso: string | null): string | null {
+  if (!iso) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  const [, year, month, day] = match;
+  return `${day}-${month}-${year}`;
 }
 
 function isWindowComplete(window: CollectionRuleTimeWindow | null): boolean {
