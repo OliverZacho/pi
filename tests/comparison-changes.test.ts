@@ -89,6 +89,32 @@ describe("pace spike", () => {
     expect(spike?.message).toContain("6× their usual pace");
   });
 
+  it("does not spike on pre-capture zeros for a recently-added brand", () => {
+    // The brand was only captured ~5 weeks ago: ~56 leading zero-days
+    // (before tracking began), then a steady ~8/week, including 8 in the
+    // final 7 days. Counting the phantom zeros would read as a ~4× spike;
+    // against the brand's real history it's flat, so no claim.
+    const counts = [
+      ...new Array(56).fill(0),
+      ...Array.from({ length: 28 }, () => 8 / 7), // ~8/week, real history
+      8, 0, 0, 0, 0, 0, 0
+    ].map((c) => Math.round(c));
+    const changes = detectBrandChanges(makeBrand("Newcomer", { counts }), 0);
+    expect(changes.find((c) => c.kind === "pace_spike")).toBeUndefined();
+  });
+
+  it("still suppresses a brand with too little captured history", () => {
+    // Only ~3 weeks of real sends behind the recent week — not enough
+    // baseline to claim a spike, even though the recent week is busy.
+    const counts = [
+      ...new Array(70).fill(0),
+      ...Array.from({ length: 14 }, (_, i) => (i % 7 === 0 ? 1 : 0)),
+      4, 1, 1, 1, 0, 0, 0
+    ];
+    const changes = detectBrandChanges(makeBrand("Fresh", { counts }), 0);
+    expect(changes.find((c) => c.kind === "pace_spike")).toBeUndefined();
+  });
+
   it("ignores low-volume blips", () => {
     // Baseline ~1/week but only 2 recent sends — 2× ratio, no volume.
     const counts = [

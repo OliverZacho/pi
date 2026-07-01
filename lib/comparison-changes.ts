@@ -60,6 +60,14 @@ function anchorMs(brand: BrandPageData): number | null {
  * Pace spike: the recent week clearly outruns the brand's own 12-week
  * baseline. Requires a real baseline (≥1/week) and real recent volume
  * (≥4 sends) so a 0→2 blip never reads as "2× their usual pace".
+ *
+ * The baseline starts at the brand's first captured send, never
+ * earlier: the timeline is a fixed 365-day window pre-padded with
+ * zeros, so days before we began tracking a brand look identical to
+ * days it stayed silent. Counting those pre-capture zeros would deflate
+ * the "usual pace" of a recently-added brand toward nothing and make a
+ * perfectly normal week read as a multi-× spike. We still require ≥4
+ * weeks of real history behind the recent week before claiming.
  */
 function detectPaceSpike(
   brand: BrandPageData,
@@ -72,10 +80,16 @@ function detectPaceSpike(
     .slice(-RECENT_DAYS)
     .reduce((sum, count) => sum + count, 0);
 
-  const baselineSlice = counts.slice(
-    Math.max(0, counts.length - RECENT_DAYS - BASELINE_DAYS),
-    counts.length - RECENT_DAYS
-  );
+  const baselineStart = Math.max(0, counts.length - RECENT_DAYS - BASELINE_DAYS);
+  const baselineEnd = counts.length - RECENT_DAYS;
+  // Clip leading pre-capture zeros: if the brand's first-ever send falls
+  // inside the baseline window, the window only "counts" from there.
+  // (If it falls before the window, the brand was already active and any
+  // leading zeros are genuine silence, which should count.)
+  const firstSend = counts.findIndex((count) => count > 0);
+  const effectiveStart =
+    firstSend === -1 ? baselineEnd : Math.max(baselineStart, firstSend);
+  const baselineSlice = counts.slice(effectiveStart, baselineEnd);
   if (baselineSlice.length < 28) return null;
   const baselinePerWeek =
     baselineSlice.reduce((sum, count) => sum + count, 0) /
@@ -90,7 +104,7 @@ function detectPaceSpike(
     brandId: brand.brand.id,
     brandName: brand.brand.name,
     brandIndex: index,
-    message: `${brand.brand.name} sent ${recent} emails in the last ${RECENT_DAYS} days — about ${fmt1(ratio)}× their usual pace.`,
+    message: `${brand.brand.name} sent ${recent} emails in the last ${RECENT_DAYS} days, about ${fmt1(ratio)}× their usual pace.`,
     severity: ratio
   };
 }
@@ -127,7 +141,7 @@ function detectGoneQuiet(
     brandId: brand.brand.id,
     brandName: brand.brand.name,
     brandIndex: index,
-    message: `${brand.brand.name} has gone quiet — ${silentDays} days without a send (they usually send every ${Math.round(typical)} days).`,
+    message: `${brand.brand.name} has gone quiet, ${silentDays} days without a send (they usually send every ${Math.round(typical)} days).`,
     severity: silentDays / Math.max(1, typical)
   };
 }

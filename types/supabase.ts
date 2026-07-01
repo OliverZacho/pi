@@ -556,6 +556,42 @@ export type Database = {
         }
         Relationships: []
       }
+      digest_sends: {
+        Row: {
+          brand_count: number
+          cadence: string
+          email_count: number
+          id: string
+          resend_id: string | null
+          sent_at: string
+          user_id: string
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          brand_count?: number
+          cadence: string
+          email_count?: number
+          id?: string
+          resend_id?: string | null
+          sent_at?: string
+          user_id: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          brand_count?: number
+          cadence?: string
+          email_count?: number
+          id?: string
+          resend_id?: string | null
+          sent_at?: string
+          user_id?: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       email_products: {
         Row: {
           bbox: Json | null

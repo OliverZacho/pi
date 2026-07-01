@@ -107,7 +107,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/brands",
     anchor: `a[href="${DEMO_BRAND_PATH}"]`,
     title: "Open a brand page",
-    body: `Go ahead — click ${DEMO_BRAND_SLUG.toUpperCase()} to open its brand page. You'll see the real dashboard, free.`,
+    body: `Go ahead — click ${DEMO_BRAND_SLUG.toUpperCase()} to open its brand page. You'll get a glimpse of everything we track for each brand: send cadence, subject lines, design trends and more.`,
     side: "right",
     align: "start",
     interactive: true
@@ -136,7 +136,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: DEMO_COLLECTION_PATH,
     anchor: '[data-tour="collection-demo"]',
     title: "Collections — manual or automatic",
-    body: "Group emails into a collection by hand, or set rules so it auto-catches new sends by search term, content type, or how deep the discount is. Scroll this real one — every card is a captured email.",
+    body: "Group emails into a collection by hand, or set rules so it auto-catches new sends — by things like search term, content type or discount depth. Scroll this real one — every card is a captured email.",
     popoverClass: "pirol-tour pirol-tour-pinned"
   },
   {
