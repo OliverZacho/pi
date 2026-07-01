@@ -1,16 +1,18 @@
 import type { DigestModel, DigestPick } from "./build";
+import {
+  APP_URL,
+  escapeHtml,
+  overline,
+  renderEmailShell,
+  renderTextShell
+} from "@/lib/notifications/email-shell";
 
 /**
  * Renders the editorial digest model into an email (subject + HTML +
- * text). Table-based, fully inline-styled, no external CSS or web fonts
- * so it survives Gmail / Outlook / Apple Mail. Mirrors the approved
- * mock: a synthesized serif headline, a short "worth a look" list, and a
+ * text) using the shared notification shell. Mirrors the approved mock:
+ * a synthesized serif headline, a short "worth a look" list, and a
  * brand-count tail. Copy is dash-free by house style.
  */
-
-const BRAND_GREEN = "#086e4b";
-const APP_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://pirol.app";
 
 type CadenceCopy = {
   brief: string;
@@ -40,20 +42,14 @@ const CADENCE_COPY: Record<DigestModel["cadence"], CadenceCopy> = {
   }
 };
 
-const KIND_LABEL: Record<DigestPick["kind"], { text: string; bg: string; fg: string }> =
-  {
-    launch: { text: "New launch", bg: "#faeeda", fg: "#854f0b" },
-    sale: { text: "Sale", bg: "#fcebeb", fg: "#a32d2d" },
-    general: { text: "Update", bg: "#f1efe8", fg: "#5f5e5a" }
-  };
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+const KIND_LABEL: Record<
+  DigestPick["kind"],
+  { text: string; bg: string; fg: string }
+> = {
+  launch: { text: "New launch", bg: "#faeeda", fg: "#854f0b" },
+  sale: { text: "Sale", bg: "#fcebeb", fg: "#a32d2d" },
+  general: { text: "Update", bg: "#f1efe8", fg: "#5f5e5a" }
+};
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
@@ -103,26 +99,7 @@ function renderPick(pick: DigestPick): string {
   </tr>`;
 }
 
-function renderTail(model: DigestModel): string {
-  if (model.tail.length === 0) return "";
-  const parts = model.tail
-    .map((entry) => `${escapeHtml(entry.brandName)} (${entry.count})`)
-    .join(", ");
-  return `
-  <tr>
-    <td style="padding:18px 0 0;border-top:1px solid #ece9e1;">
-      <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#888780;">EVERYTHING ELSE</div>
-      <div style="font-size:14px;color:#5f5e5a;line-height:1.6;margin-top:8px;">${parts}.</div>
-    </td>
-  </tr>`;
-}
-
-export function renderDigestEmail(model: DigestModel): {
-  subject: string;
-  html: string;
-  text: string;
-} {
-  const copy = CADENCE_COPY[model.cadence];
+function buildBody(model: DigestModel, copy: CadenceCopy): string {
   const headlineHtml = model.nothingUnusual
     ? `<p style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.45;color:#2c2c2a;margin:0;">${escapeHtml(
         statLine(model, copy)
@@ -134,96 +111,36 @@ export function renderDigestEmail(model: DigestModel): {
          statLine(model, copy)
        )}</p>`;
 
-  const picksHtml =
-    model.picks.length > 0
-      ? `
-  <tr>
-    <td style="padding:24px 0 0;">
+  const sections: string[] = [overline(copy.overline) + headlineHtml];
+
+  if (model.picks.length > 0) {
+    sections.push(`<div style="margin-top:24px;">
       <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#888780;margin-bottom:6px;">WORTH A LOOK</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${model.picks
         .map(renderPick)
         .join("")}</table>
-    </td>
-  </tr>`
-      : "";
+    </div>`);
+  }
 
-  const settingsUrl = `${APP_URL}/settings/notifications`;
-  const followingUrl = `${APP_URL}/following`;
+  if (model.tail.length > 0) {
+    const parts = model.tail
+      .map((entry) => `${escapeHtml(entry.brandName)} (${entry.count})`)
+      .join(", ");
+    sections.push(`<div style="margin-top:18px;padding-top:14px;border-top:1px solid #ece9e1;">
+      <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#888780;margin-bottom:8px;">EVERYTHING ELSE</div>
+      <div style="font-size:14px;color:#5f5e5a;line-height:1.6;">${parts}.</div>
+    </div>`);
+  }
 
-  const html = `<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#f1efe8;">
-<span style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(
-    preheader(model, copy)
-  )}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1efe8;padding:24px 0;">
-  <tr>
-    <td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border:1px solid #ece9e1;border-radius:12px;">
-        <tr>
-          <td style="padding:18px 24px;border-bottom:1px solid #ece9e1;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="font-size:15px;font-weight:500;color:#2c2c2a;">Pirol</td>
-                <td align="right" style="font-size:12px;color:#888780;">${escapeHtml(
-                  copy.brief
-                )}</td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 24px 0;">
-            <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#888780;margin-bottom:10px;">${escapeHtml(
-              copy.overline.toUpperCase()
-            )}</div>
-            ${headlineHtml}
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:0 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${picksHtml}
-              ${renderTail(model)}
-            </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px;">
-            <a href="${followingUrl}" style="display:block;text-align:center;background:${BRAND_GREEN};color:#ffffff;font-size:14px;font-weight:500;text-decoration:none;padding:12px;border-radius:8px;">View all ${
-              model.emailCount
-            } in Pirol</a>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:16px 24px;border-top:1px solid #ece9e1;background:#faf9f5;border-radius:0 0 12px 12px;">
-            <div style="font-size:12px;color:#888780;line-height:1.6;">You're getting this because you follow brands on Pirol. <a href="${settingsUrl}" style="color:#5f5e5a;">Change frequency</a> &middot; <a href="${settingsUrl}" style="color:#5f5e5a;">Unsubscribe</a></div>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-</body>
-</html>`;
-
-  const text = renderText(model, copy, followingUrl, settingsUrl);
-  return { subject: subjectLine(model, copy), html, text };
+  return sections.join("");
 }
 
-function renderText(
-  model: DigestModel,
-  copy: CadenceCopy,
-  followingUrl: string,
-  settingsUrl: string
-): string {
-  const lines: string[] = [`Pirol ${copy.brief}`, ""];
+function buildTextLines(model: DigestModel, copy: CadenceCopy): string[] {
+  const lines: string[] = [];
   if (model.nothingUnusual) {
     lines.push(`${statLine(model, copy)} Nothing out of the ordinary.`);
   } else {
-    lines.push(model.headline.join(" "));
-    lines.push("");
-    lines.push(statLine(model, copy));
+    lines.push(model.headline.join(" "), "", statLine(model, copy));
   }
   if (model.picks.length > 0) {
     lines.push("", "WORTH A LOOK");
@@ -233,10 +150,34 @@ function renderText(
     }
   }
   if (model.tail.length > 0) {
-    const parts = model.tail.map((e) => `${e.brandName} (${e.count})`).join(", ");
+    const parts = model.tail
+      .map((e) => `${e.brandName} (${e.count})`)
+      .join(", ");
     lines.push("", `Everything else: ${parts}.`);
   }
-  lines.push("", `View all ${model.emailCount} in Pirol: ${followingUrl}`);
-  lines.push("", `Change frequency or unsubscribe: ${settingsUrl}`);
-  return lines.join("\n");
+  return lines;
+}
+
+export function renderDigestEmail(model: DigestModel): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const copy = CADENCE_COPY[model.cadence];
+  const cta = {
+    label: `View all ${model.emailCount} in Pirol`,
+    url: `${APP_URL}/following`
+  };
+  const html = renderEmailShell({
+    previewText: preheader(model, copy),
+    headerRight: copy.brief,
+    bodyHtml: buildBody(model, copy),
+    cta
+  });
+  const text = renderTextShell({
+    headerRight: copy.brief,
+    bodyLines: buildTextLines(model, copy),
+    cta
+  });
+  return { subject: subjectLine(model, copy), html, text };
 }
