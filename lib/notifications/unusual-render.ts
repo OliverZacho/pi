@@ -14,9 +14,6 @@ import {
  * dash-free by house style.
  */
 
-const RAMP = { text: "Ramping up", bg: "#faeeda", fg: "#854f0b" };
-const QUIET = { text: "Gone quiet", bg: "#f1efe8", fg: "#5f5e5a" };
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -41,35 +38,25 @@ function leadLine(model: UnusualActivityModel): string {
   )} you follow shifted ${possessive} sending pattern.`;
 }
 
-function renderRow(
-  signal: UnusualSignal,
-  chip: { text: string; bg: string; fg: string }
-): string {
+function renderRow(signal: UnusualSignal): string {
   return `
   <tr>
-    <td style="padding:14px 0;border-top:1px solid #ece9e1;">
-      <span style="display:inline-block;font-size:11px;font-weight:500;color:${chip.fg};background:${chip.bg};padding:2px 8px;border-radius:6px;">${escapeHtml(
-        chip.text
-      )}</span>
-      <div style="font-size:15px;color:#2c2c2a;margin-top:8px;line-height:1.5;">${escapeHtml(
+    <td style="padding:12px 0;border-top:1px solid #ece9e1;">
+      <div style="font-size:15px;color:#2c2c2a;line-height:1.5;">${escapeHtml(
         signal.message
       )}</div>
     </td>
   </tr>`;
 }
 
-function renderSection(
-  title: string,
-  signals: UnusualSignal[],
-  chip: { text: string; bg: string; fg: string }
-): string {
+function renderSection(title: string, signals: UnusualSignal[]): string {
   if (signals.length === 0) return "";
   return `<div style="margin-top:20px;">
     <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#888780;margin-bottom:6px;">${escapeHtml(
       title.toUpperCase()
     )}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${signals
-      .map((s) => renderRow(s, chip))
+      .map((s) => renderRow(s))
       .join("")}</table>
   </div>`;
 }
@@ -84,8 +71,8 @@ export function renderUnusualEmail(model: UnusualActivityModel): {
     `<p style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.45;color:#2c2c2a;margin:0;">${escapeHtml(
       leadLine(model)
     )}</p>` +
-    renderSection("Ramping up", model.ramping, RAMP) +
-    renderSection("Gone quiet", model.quiet, QUIET);
+    renderSection("Ramping up", model.ramping) +
+    renderSection("Gone quiet", model.quiet);
 
   const cta = { label: "Open Pirol", url: `${APP_URL}/following` };
 
