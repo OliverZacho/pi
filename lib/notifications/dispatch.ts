@@ -5,6 +5,10 @@ import { buildContext } from "./shared";
 import { runDigest, type DigestRunSummary } from "@/lib/digest/run";
 import { runUnusualActivity, type UnusualRunSummary } from "./run-unusual";
 import { runSeasonalRunup, type SeasonalRunSummary } from "./run-seasonal";
+import {
+  runSmartCollection,
+  type SmartCollectionRunSummary
+} from "./run-smart-collection";
 
 /**
  * Runs every enabled notification job for one cadence tick. Builds the
@@ -17,6 +21,7 @@ export type NotificationsRunSummary = {
   digest: DigestRunSummary;
   unusualActivity: UnusualRunSummary;
   seasonalRunup: SeasonalRunSummary;
+  smartCollection: SmartCollectionRunSummary;
 };
 
 export async function runNotifications(
@@ -28,6 +33,7 @@ export async function runNotifications(
   const digest = await runDigest(ctx);
   const unusualActivity = await runUnusualActivity(ctx);
   const seasonalRunup = await runSeasonalRunup(ctx);
+  const smartCollection = await runSmartCollection(ctx);
 
-  return { cadence, digest, unusualActivity, seasonalRunup };
+  return { cadence, digest, unusualActivity, seasonalRunup, smartCollection };
 }
