@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDigestCadence } from "@/lib/notification-prefs";
-import { runDigest } from "@/lib/digest/run";
+import { runNotifications } from "@/lib/notifications/dispatch";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,10 +38,10 @@ async function handle(request: Request) {
   }
 
   try {
-    const summary = await runDigest(cadence);
+    const summary = await runNotifications(cadence);
     return NextResponse.json(summary, { status: 200 });
   } catch (error) {
-    console.error("Digest run failed", error);
+    console.error("Notifications run failed", error);
     const message = error instanceof Error ? error.message : "unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

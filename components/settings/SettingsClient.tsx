@@ -616,10 +616,22 @@ const CADENCE_TO_LABEL: Record<NotificationCadence, Frequency> = {
   off: "Off"
 };
 
+// Instant only applies to "new email" (a live per-capture send). The
+// other three are computed on a schedule, so they offer digest cadences
+// only and skip the high-volume Instant warning.
+const SCHEDULED_ONLY: readonly Frequency[] = [
+  "Daily",
+  "Weekly",
+  "Monthly",
+  "Off"
+];
+
 const BRAND_ROWS: {
   type: NotificationType;
   label: string;
   description: string;
+  options?: readonly Frequency[];
+  warnOnInstant?: boolean;
 }[] = [
   {
     type: "newEmail",
@@ -630,18 +642,24 @@ const BRAND_ROWS: {
     type: "unusualActivity",
     label: "Unusual sending activity",
     description:
-      "When a brand you follow ramps up its sending or suddenly goes quiet."
+      "When a brand you follow ramps up its sending or suddenly goes quiet.",
+    options: SCHEDULED_ONLY,
+    warnOnInstant: false
   },
   {
     type: "seasonalRunup",
     label: "Seasonal run-up",
     description:
-      "When a brand you follow starts its run-up to a seasonal event like Black Friday."
+      "When a brand you follow starts its run-up to a seasonal event like Black Friday.",
+    options: SCHEDULED_ONLY,
+    warnOnInstant: false
   },
   {
     type: "smartCollection",
     label: "New matches in a smart collection",
-    description: "When a rule-based collection picks up new emails."
+    description: "When a rule-based collection picks up new emails.",
+    options: SCHEDULED_ONLY,
+    warnOnInstant: false
   }
 ];
 
@@ -719,6 +737,8 @@ function NotificationsTab({
             description={row.description}
             selected={CADENCE_TO_LABEL[prefs[row.type]]}
             onSelect={(freq) => updateRow(row.type, freq)}
+            options={row.options}
+            warnOnInstant={row.warnOnInstant}
             disabled={!enabled}
           />
         ))}

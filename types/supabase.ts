@@ -562,6 +562,7 @@ export type Database = {
           cadence: string
           email_count: number
           id: string
+          notification_type: string
           resend_id: string | null
           sent_at: string
           user_id: string
@@ -573,6 +574,7 @@ export type Database = {
           cadence: string
           email_count?: number
           id?: string
+          notification_type?: string
           resend_id?: string | null
           sent_at?: string
           user_id: string
@@ -584,6 +586,7 @@ export type Database = {
           cadence?: string
           email_count?: number
           id?: string
+          notification_type?: string
           resend_id?: string | null
           sent_at?: string
           user_id?: string
@@ -668,6 +671,38 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      notification_alerts: {
+        Row: {
+          alerted_at: string
+          company_id: string
+          id: string
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          alerted_at?: string
+          company_id: string
+          id?: string
+          kind: string
+          user_id: string
+        }
+        Update: {
+          alerted_at?: string
+          company_id?: string
+          id?: string
+          kind?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rate_limit_counters: {
         Row: {
