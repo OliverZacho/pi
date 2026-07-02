@@ -49,6 +49,10 @@ function leadLine(model: SmartCollectionModel): string {
   )} across ${plural(model.collectionCount, "collection", "collections")} you follow.`;
 }
 
+function collectionUrl(match: CollectionMatch): string {
+  return `${APP_URL}/collections/${encodeURIComponent(match.collectionId)}`;
+}
+
 function renderCollection(match: CollectionMatch): string {
   const samples = match.samples
     .map((s) => {
@@ -61,9 +65,11 @@ function renderCollection(match: CollectionMatch): string {
   return `
   <tr>
     <td style="padding:14px 0;border-top:1px solid #ece9e1;">
-      <div style="font-size:15px;font-weight:500;color:#2c2c2a;">${escapeHtml(
+      <a href="${collectionUrl(
+        match
+      )}" style="display:inline-block;font-size:15px;font-weight:500;color:#2c2c2a;text-decoration:none;">${escapeHtml(
         match.collectionName
-      )}</div>
+      )} <span style="color:#888780;">&rarr;</span></a>
       <div style="font-size:12px;color:#888780;margin-top:2px;">${plural(
         match.newCount,
         "new email",
@@ -118,6 +124,7 @@ export function renderSmartCollectionEmail(model: SmartCollectionModel): {
     for (const s of c.samples) {
       lines.push(`  - ${s.brandName ? `${s.brandName}: ` : ""}${s.subject}`);
     }
+    lines.push(`  ${collectionUrl(c)}`);
   }
   if (model.moreCollections > 0) {
     lines.push(
