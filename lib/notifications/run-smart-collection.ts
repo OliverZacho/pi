@@ -108,11 +108,14 @@ export async function runSmartCollection(
       continue;
     }
 
-    // The user's rule-based ("smart") collections.
+    // The user's rule-based ("smart") collections they opted in to alerts
+    // for. Opt-in is per collection (notify_new_matches), so the cadence
+    // only acts on the ones the user chose.
     const { data: rows } = await admin
       .from("collections")
       .select("id, name, rules")
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("notify_new_matches", true);
     const smart = (rows ?? [])
       .map((row) => ({
         id: row.id,

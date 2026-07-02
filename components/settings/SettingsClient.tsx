@@ -63,6 +63,13 @@ export type TeamMembershipInfo = {
   ownerActive: boolean;
 } | null;
 
+/** One rule-based collection plus its new-match alert opt-in. */
+export type SmartCollectionPref = {
+  id: string;
+  name: string;
+  notifyNewMatches: boolean;
+};
+
 type Props = {
   /** Signed-in user's email — prefilled into the User tab. */
   email: string;
@@ -103,6 +110,8 @@ type Props = {
   billing: BillingInfo;
   /** The viewer's saved notification cadences (defaults if never set). */
   initialNotificationPrefs: NotificationPrefs;
+  /** The viewer's rule-based collections, for the per-collection alert checklist. */
+  smartCollections: SmartCollectionPref[];
   /**
    * Whether the viewer is entitled to digest/alert emails. Digests are a
    * paid feature, so unpaid users see the controls in a disabled,
@@ -124,7 +133,8 @@ export default function SettingsClient({
   teamMembership,
   billing,
   initialNotificationPrefs,
-  notificationsEnabled
+  notificationsEnabled,
+  smartCollections
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("user");
 
@@ -160,6 +170,7 @@ export default function SettingsClient({
           <NotificationsTab
             initialPrefs={initialNotificationPrefs}
             enabled={notificationsEnabled}
+            smartCollections={smartCollections}
           />
         ) : activeTab === "team" ? (
           <TeamTab
@@ -657,16 +668,51 @@ const BRAND_ROWS: {
 
 function NotificationsTab({
   initialPrefs,
-  enabled
+  enabled,
+  smartCollections
 }: {
   initialPrefs: NotificationPrefs;
   enabled: boolean;
+  smartCollections: SmartCollectionPref[];
 }) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(initialPrefs);
   const [saved, setSaved] = useState<NotificationPrefs>(initialPrefs);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Per-collection alert opt-ins (mirrors the toggle on each collection
+  // page; both write the same collections.notify_new_matches flag).
+  const [collections, setCollections] =
+    useState<SmartCollectionPref[]>(smartCollections);
+  const [collectionBusy, setCollectionBusy] = useState<string | null>(null);
+  const [collectionError, setCollectionError] = useState("");
+
+  async function toggleCollection(id: string) {
+    const target = collections.find((c) => c.id === id);
+    if (!target || collectionBusy) return;
+    const next = !target.notifyNewMatches;
+    setCollectionError("");
+    setCollectionBusy(id);
+    setCollections((cur) =>
+      cur.map((c) => (c.id === id ? { ...c, notifyNewMatches: next } : c))
+    );
+    try {
+      const res = await fetch(`/api/collections/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyNewMatches: next })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+    } catch {
+      setCollections((cur) =>
+        cur.map((c) => (c.id === id ? { ...c, notifyNewMatches: !next } : c))
+      );
+      setCollectionError("Could not update that collection. Please try again.");
+    } finally {
+      setCollectionBusy(null);
+    }
+  }
 
   const dirty = BRAND_ROWS.some((row) => prefs[row.type] !== saved[row.type]);
 
@@ -735,6 +781,38 @@ function NotificationsTab({
           />
         ))}
       </Section>
+
+      {/* Which smart collections send match alerts (per-collection opt-in). */}
+      {enabled && collections.length > 0 ? (
+        <Section
+          title="Collections to notify me about"
+          description="You'll get the smart-collection email only for the collections you pick here."
+        >
+          {collections.map((c) => (
+            <label
+              key={c.id}
+              className={styles.toggleRow}
+              style={{ cursor: "pointer" }}
+            >
+              <div className={styles.toggleText}>
+                <span className={styles.toggleLabel}>{c.name}</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={c.notifyNewMatches}
+                onChange={() => toggleCollection(c.id)}
+                disabled={collectionBusy === c.id}
+                aria-label={`Email me new matches in ${c.name}`}
+              />
+            </label>
+          ))}
+          {collectionError ? (
+            <p className={styles.error} role="alert">
+              {collectionError}
+            </p>
+          ) : null}
+        </Section>
+      ) : null}
 
       {/* Account updates — skeleton, not yet persisted. */}
       <Section>

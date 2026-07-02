@@ -634,6 +634,8 @@ export type CollectionDetail = {
   ownerId: string;
   /** Owner has shared this with their team (read-only for co-members). */
   sharedWithTeam: boolean;
+  /** Owner opted in to email alerts when new emails match the rules. */
+  notifyNewMatches: boolean;
   emailCount: number;
   createdAt: string;
   updatedAt: string;
@@ -830,7 +832,7 @@ export async function markCollectionViewed(
  * logo-signing flow used by `listSavedEmails`.
  */
 const COLLECTION_DETAIL_COLUMNS =
-  "id, name, icon, share_slug, user_id, shared_with_team, created_at, updated_at, rules, event_detection";
+  "id, name, icon, share_slug, user_id, shared_with_team, notify_new_matches, created_at, updated_at, rules, event_detection";
 
 type CollectionDetailRow = {
   id: string;
@@ -839,6 +841,7 @@ type CollectionDetailRow = {
   share_slug: string;
   user_id: string;
   shared_with_team: boolean;
+  notify_new_matches: boolean;
   created_at: string;
   updated_at: string;
   rules: Json | null;
@@ -862,6 +865,7 @@ async function buildCollectionDetail(
     shareSlug: data.share_slug,
     ownerId: data.user_id,
     sharedWithTeam: data.shared_with_team,
+    notifyNewMatches: data.notify_new_matches,
     emailCount: emails.length,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
@@ -928,6 +932,62 @@ export async function setCollectionShared(
 
   if (error) throw error;
   return Boolean(data);
+}
+
+/** Owner-only: opt this collection in/out of new-match email alerts. */
+export async function setCollectionNotifyNewMatches(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  notify: boolean
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("collections")
+    .update({ notify_new_matches: notify })
+    .eq("id", collectionId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export type NotifiableSmartCollection = {
+  id: string;
+  name: string;
+  notifyNewMatches: boolean;
+};
+
+/**
+ * The user's rule-based collections (a rule with at least one condition),
+ * with their new-match alert opt-in. Powers the Settings notifications
+ * checklist; manual collections are excluded since they never gain
+ * automatic matches.
+ */
+export async function listNotifiableSmartCollections(
+  supabase: SupabaseClient<Database>,
+  userId: string
+): Promise<NotifiableSmartCollection[]> {
+  const { data, error } = await supabase
+    .from("collections")
+    .select("id, name, rules, notify_new_matches")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  const out: NotifiableSmartCollection[] = [];
+  for (const row of data ?? []) {
+    const rules = parseCollectionRules(row.rules);
+    if (!rules || rules.conditions.length === 0) continue;
+    out.push({
+      id: row.id,
+      name: row.name,
+      notifyNewMatches: row.notify_new_matches
+    });
+  }
+  return out;
 }
 
 /**
