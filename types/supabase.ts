@@ -340,6 +340,7 @@ export type Database = {
           id: string
           last_viewed_at: string | null
           name: string
+          notify_new_matches: boolean
           rules: Json | null
           share_slug: string
           shared_with_team: boolean
@@ -353,6 +354,7 @@ export type Database = {
           id?: string
           last_viewed_at?: string | null
           name: string
+          notify_new_matches?: boolean
           rules?: Json | null
           share_slug: string
           shared_with_team?: boolean
@@ -366,6 +368,7 @@ export type Database = {
           id?: string
           last_viewed_at?: string | null
           name?: string
+          notify_new_matches?: boolean
           rules?: Json | null
           share_slug?: string
           shared_with_team?: boolean

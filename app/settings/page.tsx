@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/access";
 import {
   listCollectionSummaries,
-  type CollectionSummary
+  listNotifiableSmartCollections,
+  type CollectionSummary,
+  type NotifiableSmartCollection
 } from "@/lib/collections-db";
 import {
   listCompetitorSetSummaries,
@@ -69,6 +71,8 @@ export default async function SettingsPage() {
     hasPassword,
     // Notifications tab: the viewer's saved cadences (defaults if unset).
     initialNotificationPrefs,
+    // Notifications tab: the viewer's smart collections, for per-collection alerts.
+    smartCollections,
     // Team tab (admin client — team tables are RLS'd to service_role
     // only; ownership is scoped by userId here).
     initialTeam,
@@ -93,6 +97,9 @@ export default async function SettingsPage() {
     ),
     getNotificationPrefs(supabase, userId).catch(
       logged("Failed to load notification prefs", defaultNotificationPrefs())
+    ),
+    listNotifiableSmartCollections(supabase, userId).catch(
+      logged("Failed to load smart collections", [] as NotifiableSmartCollection[])
     ),
     getTeamForUser(getSupabaseAdmin(), userId).catch(
       logged("Failed to load team", null as TeamView | null)
@@ -177,6 +184,7 @@ export default async function SettingsPage() {
           billing={billing}
           initialNotificationPrefs={initialNotificationPrefs}
           notificationsEnabled={hasAccess}
+          smartCollections={smartCollections}
         />
       </main>
     </div>

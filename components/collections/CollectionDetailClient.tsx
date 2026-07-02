@@ -136,6 +136,7 @@ export default function CollectionDetailClient({
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [sharePending, setSharePending] = useState(false);
+  const [notifyPending, setNotifyPending] = useState(false);
   const [copied, setCopied] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -472,6 +473,32 @@ export default function CollectionDetailClient({
     }
   }
 
+  async function handleToggleNotify() {
+    if (notifyPending) return;
+    const next = !collection.notifyNewMatches;
+    setNotifyPending(true);
+    // Optimistic; roll back on failure.
+    setCollection((current) => ({ ...current, notifyNewMatches: next }));
+    try {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyNewMatches: next })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+    } catch (err) {
+      setCollection((current) => ({ ...current, notifyNewMatches: !next }));
+      setError(
+        err instanceof Error ? err.message : "Failed to update match alerts"
+      );
+    } finally {
+      setNotifyPending(false);
+    }
+  }
+
   return (
     <>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
@@ -584,6 +611,26 @@ export default function CollectionDetailClient({
                   </span>
                 </TeamUpgradeButton>
               )}
+              {isRuleBased ? (
+                <button
+                  type="button"
+                  className={`${styles.detailButton} ${
+                    collection.notifyNewMatches ? styles.detailButtonCopied : ""
+                  }`}
+                  onClick={handleToggleNotify}
+                  disabled={notifyPending}
+                  title={
+                    collection.notifyNewMatches
+                      ? "You're getting email alerts when new emails match. Click to stop."
+                      : "Email me when new emails match these rules"
+                  }
+                >
+                  <BellIcon />
+                  <span>
+                    {collection.notifyNewMatches ? "Alerts on" : "Alert me"}
+                  </span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={`${styles.detailButton} ${
@@ -1078,6 +1125,25 @@ function ExternalIcon() {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }

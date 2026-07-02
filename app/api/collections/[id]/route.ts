@@ -10,6 +10,7 @@ import {
   renameCollection,
   resolveAppliedAt,
   setCollectionIcon,
+  setCollectionNotifyNewMatches,
   setCollectionRules,
   setCollectionShared
 } from "@/lib/collections-db";
@@ -92,12 +93,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   const hasRules = Object.prototype.hasOwnProperty.call(obj, "rules");
   const hasIcon = Object.prototype.hasOwnProperty.call(obj, "icon");
   const hasShared = Object.prototype.hasOwnProperty.call(obj, "sharedWithTeam");
+  const hasNotify = Object.prototype.hasOwnProperty.call(
+    obj,
+    "notifyNewMatches"
+  );
 
-  if (!hasName && !hasRules && !hasIcon && !hasShared) {
+  if (!hasName && !hasRules && !hasIcon && !hasShared && !hasNotify) {
     return NextResponse.json(
       {
         error:
-          "At least one of 'name', 'rules', 'icon' or 'sharedWithTeam' is required"
+          "At least one of 'name', 'rules', 'icon', 'sharedWithTeam' or 'notifyNewMatches' is required"
       },
       { status: 400 }
     );
@@ -106,6 +111,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (hasShared && typeof obj.sharedWithTeam !== "boolean") {
     return NextResponse.json(
       { error: "'sharedWithTeam' must be a boolean" },
+      { status: 400 }
+    );
+  }
+
+  if (hasNotify && typeof obj.notifyNewMatches !== "boolean") {
+    return NextResponse.json(
+      { error: "'notifyNewMatches' must be a boolean" },
       { status: 400 }
     );
   }
@@ -239,6 +251,21 @@ export async function PATCH(request: Request, context: RouteContext) {
         session.user.id,
         id,
         obj.sharedWithTeam as boolean
+      );
+      if (!updated) {
+        return NextResponse.json(
+          { error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (hasNotify) {
+      const updated = await setCollectionNotifyNewMatches(
+        session.supabase,
+        session.user.id,
+        id,
+        obj.notifyNewMatches as boolean
       );
       if (!updated) {
         return NextResponse.json(
