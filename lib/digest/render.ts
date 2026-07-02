@@ -74,6 +74,12 @@ function preheader(model: DigestModel, copy: CadenceCopy): string {
   return statLine(model, copy);
 }
 
+function pickUrl(pick: DigestPick): string {
+  return `${APP_URL}/following?view=emails&email=${encodeURIComponent(
+    pick.emailId
+  )}`;
+}
+
 function renderPick(pick: DigestPick): string {
   const label = KIND_LABEL[pick.kind];
   const why = pick.why
@@ -91,9 +97,11 @@ function renderPick(pick: DigestPick): string {
         label.text
       )}</span>
       <div style="font-size:12px;color:#888780;margin-top:8px;letter-spacing:0.02em;">${meta}</div>
-      <div style="font-size:15px;font-weight:500;color:#2c2c2a;margin-top:2px;">${escapeHtml(
+      <a href="${pickUrl(
+        pick
+      )}" style="display:block;font-size:15px;font-weight:500;color:#2c2c2a;text-decoration:none;margin-top:2px;">${escapeHtml(
         pick.subject
-      )}</div>
+      )} <span style="color:#888780;">&rarr;</span></a>
       ${why}
     </td>
   </tr>`;
@@ -147,6 +155,7 @@ function buildTextLines(model: DigestModel, copy: CadenceCopy): string[] {
     for (const pick of model.picks) {
       lines.push(`- [${pick.brandName}] ${pick.subject}`);
       if (pick.why) lines.push(`  ${pick.why}`);
+      lines.push(`  ${pickUrl(pick)}`);
     }
   }
   if (model.tail.length > 0) {
@@ -166,7 +175,7 @@ export function renderDigestEmail(model: DigestModel): {
   const copy = CADENCE_COPY[model.cadence];
   const cta = {
     label: `View all ${model.emailCount} in Pirol`,
-    url: `${APP_URL}/following`
+    url: `${APP_URL}/following?view=emails`
   };
   const html = renderEmailShell({
     previewText: preheader(model, copy),

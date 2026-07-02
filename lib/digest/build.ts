@@ -24,6 +24,8 @@ export type DigestPick = {
   /** Why it was surfaced — null means the subject stands on its own. */
   why: string | null;
   kind: DigestPickKind;
+  /** Captured email id, for deep-linking the pick straight to the email. */
+  emailId: string;
 };
 
 export type DigestTailEntry = { brandName: string; count: number };
@@ -241,7 +243,8 @@ export function buildDigestModel(input: {
           subject: email.subject,
           day: weekday(email.receivedAt),
           why,
-          kind
+          kind,
+          emailId: email.id
         }
       });
     }

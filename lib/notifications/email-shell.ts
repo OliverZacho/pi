@@ -9,7 +9,7 @@
 
 export const BRAND_GREEN = "#086e4b";
 export const APP_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://pirol.app";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://www.pirol.app";
 
 export function escapeHtml(value: string): string {
   return value
