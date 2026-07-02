@@ -683,17 +683,18 @@ function NotificationsTab({
 
   // Per-collection alert opt-ins (mirrors the toggle on each collection
   // page; both write the same collections.notify_new_matches flag).
+  // Optimistic with rollback: the checkbox flips instantly and stays
+  // interactive while the save runs — no disabled/gray flash. Rapid
+  // re-clicks each send their own PATCH; last write wins.
   const [collections, setCollections] =
     useState<SmartCollectionPref[]>(smartCollections);
-  const [collectionBusy, setCollectionBusy] = useState<string | null>(null);
   const [collectionError, setCollectionError] = useState("");
 
   async function toggleCollection(id: string) {
     const target = collections.find((c) => c.id === id);
-    if (!target || collectionBusy) return;
+    if (!target) return;
     const next = !target.notifyNewMatches;
     setCollectionError("");
-    setCollectionBusy(id);
     setCollections((cur) =>
       cur.map((c) => (c.id === id ? { ...c, notifyNewMatches: next } : c))
     );
@@ -709,8 +710,6 @@ function NotificationsTab({
         cur.map((c) => (c.id === id ? { ...c, notifyNewMatches: !next } : c))
       );
       setCollectionError("Could not update that collection. Please try again.");
-    } finally {
-      setCollectionBusy(null);
     }
   }
 
@@ -797,7 +796,6 @@ function NotificationsTab({
                       type="checkbox"
                       checked={c.notifyNewMatches}
                       onChange={() => toggleCollection(c.id)}
-                      disabled={collectionBusy === c.id}
                       aria-label={`Email me new matches in ${c.name}`}
                     />
                   </label>
