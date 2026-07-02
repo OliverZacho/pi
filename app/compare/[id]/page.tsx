@@ -119,8 +119,14 @@ export default async function CompareSetPage({ params }: PageProps) {
 
   const canEdit = set.ownerId === userId;
 
-  const [collections, sidebarSets, comparison, sectionPrefs, canShareWithTeam] =
-    await Promise.all([
+  const [
+    collections,
+    sidebarSets,
+    comparison,
+    sectionPrefs,
+    viewerDisplay,
+    canShareWithTeam
+  ] = await Promise.all([
       listCollectionSummaries(supabase, userId),
       listCompetitorSetSummaries(supabase, userId),
       getCompetitorComparison(
@@ -128,6 +134,7 @@ export default async function CompareSetPage({ params }: PageProps) {
         set.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
       ),
       getCompareSectionPrefs(supabase, userId),
+      getViewerDisplay(),
       // Team sharing is a Team-plan feature. Owners without it still see the
       // button — rendered as a locked upsell — so resolve entitlement here.
       // Admins always pass; otherwise it's an active "team" subscription.
@@ -148,7 +155,7 @@ export default async function CompareSetPage({ params }: PageProps) {
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId={`compare:${set.id}`}
         collections={collections}
         competitorSets={sidebarSets}

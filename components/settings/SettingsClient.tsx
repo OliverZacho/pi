@@ -782,8 +782,9 @@ function NotificationsTab({
         ))}
       </Section>
 
-      {/* Which smart collections send match alerts (per-collection opt-in). */}
-      {enabled && collections.length > 0 ? (
+      {/* Which smart collections send match alerts (per-collection opt-in).
+          Only shown once the notification is switched on (cadence != off). */}
+      {enabled && prefs.smartCollection !== "off" && collections.length > 0 ? (
         <Section
           title="Collections to notify me about"
           description="You'll get the smart-collection email only for the collections you pick here."
