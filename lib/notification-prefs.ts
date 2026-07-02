@@ -40,7 +40,10 @@ export function isDigestCadence(value: string): value is DigestCadence {
 export const NOTIFICATION_TYPES = [
   { id: "newEmail", default: "instant" },
   { id: "seasonalRunup", default: "weekly" },
-  { id: "smartCollection", default: "daily" }
+  // Off by default: smart-collection alerts are doubly opt-in (turn the
+  // notification on, then pick collections), so the checklist stays
+  // collapsed until the user activates it.
+  { id: "smartCollection", default: "off" }
 ] as const satisfies readonly { id: string; default: NotificationCadence }[];
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]["id"];
