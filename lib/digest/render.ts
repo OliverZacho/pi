@@ -75,9 +75,10 @@ function preheader(model: DigestModel, copy: CadenceCopy): string {
 }
 
 function pickUrl(pick: DigestPick): string {
-  return `${APP_URL}/following?view=emails&email=${encodeURIComponent(
-    pick.emailId
-  )}`;
+  // Deep-link through /explore, not /following: it mounts the email view
+  // directly (no view toggle) and resolves any archive email regardless
+  // of follow state, so the pick always opens.
+  return `${APP_URL}/explore?email=${encodeURIComponent(pick.emailId)}`;
 }
 
 function renderPick(pick: DigestPick): string {
