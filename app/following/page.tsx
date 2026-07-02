@@ -68,27 +68,38 @@ export default async function FollowingPage() {
 
   const userId = viewer.userId;
 
-  const [followed, sidebarCollections, sidebarSets] = await Promise.all([
-    listFollowedBrandCards(supabase, userId).catch((err) => {
-      console.error("Failed to load followed brands", err);
-      return [] as FollowedBrandCard[];
-    }),
-    listCollectionSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load collections", err);
-      return [] as CollectionSummary[];
-    }),
-    listCompetitorSetSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load competitor sets", err);
-      return [] as CompetitorSetSummary[];
-    })
-  ]);
+  // First batch: everything that doesn't need the followed-brand ids —
+  // including the saved-id set and the account row, which would otherwise
+  // wait a round trip for no reason.
+  const [followed, sidebarCollections, sidebarSets, savedIds, viewerDisplay] =
+    await Promise.all([
+      listFollowedBrandCards(supabase, userId).catch((err) => {
+        console.error("Failed to load followed brands", err);
+        return [] as FollowedBrandCard[];
+      }),
+      listCollectionSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load collections", err);
+        return [] as CollectionSummary[];
+      }),
+      listCompetitorSetSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load competitor sets", err);
+        return [] as CompetitorSetSummary[];
+      }),
+      listSavedEmailIds(supabase, userId)
+        .then((set) => Array.from(set))
+        .catch((err) => {
+          console.error("Failed to load saved email IDs", err);
+          return [] as string[];
+        }),
+      getViewerDisplay()
+    ]);
 
   const followedIds = followed.map((brand) => brand.id);
 
   // SSR the follow-scoped email flow + its facets so the Emails tab is
   // hydrated the moment the user switches to it. Skip the work entirely
   // when the user follows nothing — there's nothing to scope to.
-  const [emailResult, emailFacets, savedIds] = await Promise.all([
+  const [emailResult, emailFacets] = await Promise.all([
     followedIds.length > 0
       ? searchExploreEmails(supabase, {
           page: 1,
@@ -119,19 +130,13 @@ export default async function FollowingPage() {
             return EMPTY_FACETS;
           }
         )
-      : Promise.resolve(EMPTY_FACETS),
-    listSavedEmailIds(supabase, userId)
-      .then((set) => Array.from(set))
-      .catch((err) => {
-        console.error("Failed to load saved email IDs", err);
-        return [] as string[];
-      })
+      : Promise.resolve(EMPTY_FACETS)
   ]);
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId="following"
         collections={sidebarCollections}
         competitorSets={sidebarSets}

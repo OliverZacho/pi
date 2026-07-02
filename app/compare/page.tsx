@@ -110,19 +110,22 @@ export default async function ComparePage({ searchParams }: PageProps) {
   let setActivity: Record<string, ComparisonActivity> = {};
   if (sets.length > 0) {
     const setIds = sets.map((s) => s.id);
-    setActivity = await getComparisonActivity(supabase, setIds).catch(
-      (err) => {
+    // Activity chips and preview logos both key off setIds only — fetch
+    // them together rather than serially.
+    const [activity, { data: previewRows }] = await Promise.all([
+      getComparisonActivity(supabase, setIds).catch((err) => {
         console.error("Failed to load comparison activity", err);
-        return {};
-      }
-    );
-    const { data: previewRows } = await supabase
-      .from("competitor_set_members")
-      .select(
-        `set_id, added_at, companies!inner(id, name, markets, logo_storage_path, deleted_at)`
-      )
-      .in("set_id", setIds)
-      .order("added_at", { ascending: true });
+        return {} as Record<string, ComparisonActivity>;
+      }),
+      supabase
+        .from("competitor_set_members")
+        .select(
+          `set_id, added_at, companies!inner(id, name, markets, logo_storage_path, deleted_at)`
+        )
+        .in("set_id", setIds)
+        .order("added_at", { ascending: true })
+    ]);
+    setActivity = activity;
 
     const rows = previewRows ?? [];
     const logoPaths = new Set<string>();

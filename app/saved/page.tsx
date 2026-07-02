@@ -94,29 +94,28 @@ export default async function SavedPage() {
     );
   }
 
-  const { items, total } = await listSavedEmails(supabase, userId);
-
-  let initialCollections: CollectionSummary[] = [];
-  try {
-    initialCollections = await listCollectionSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load collections", err);
-  }
-
-  let initialCompetitorSets: CompetitorSetSummary[] = [];
-  try {
-    initialCompetitorSets = await listCompetitorSetSummaries(
-      supabase,
-      userId
-    );
-  } catch (err) {
-    console.error("Failed to load competitor sets", err);
-  }
+  // All independent — one parallel batch instead of a chain of awaits.
+  // The auxiliary sources swallow their own errors so a broken sidebar
+  // table never takes down the gallery itself.
+  const [savedResult, initialCollections, initialCompetitorSets, viewerDisplay] =
+    await Promise.all([
+      listSavedEmails(supabase, userId),
+      listCollectionSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load collections", err);
+        return [] as CollectionSummary[];
+      }),
+      listCompetitorSetSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load competitor sets", err);
+        return [] as CompetitorSetSummary[];
+      }),
+      getViewerDisplay()
+    ]);
+  const { items, total } = savedResult;
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId="saved"
         collections={initialCollections}
         competitorSets={initialCompetitorSets}

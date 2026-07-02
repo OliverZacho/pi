@@ -129,19 +129,23 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     }
 
     const admin = getSupabaseAdmin();
-    const { data: company } = await admin
-      .from("companies")
-      .select(
-        "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, subscribed_since, deleted_at"
-      )
-      .eq("id", id)
-      .maybeSingle();
+    // Identity, summary, and the sidebar account row are independent —
+    // fetch together. The summary is only wasted on a 404, the rare case.
+    const [{ data: company }, summary, lockedViewerDisplay] = await Promise.all([
+      admin
+        .from("companies")
+        .select(
+          "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, subscribed_since, deleted_at"
+        )
+        .eq("id", id)
+        .maybeSingle(),
+      loadBrandSummary(id, resolved.name),
+      getViewerDisplay()
+    ]);
 
     if (!company || company.deleted_at) {
       notFound();
     }
-
-    const summary = await loadBrandSummary(id, resolved.name);
 
     let logoUrl: string | null = null;
     if (company.logo_storage_path) {
@@ -157,7 +161,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
 
     return (
       <div className={styles.shell}>
-        <ExploreSidebar user={await getViewerDisplay()} activeId="brands" hasAccess={false} />
+        <ExploreSidebar user={lockedViewerDisplay} activeId="brands" hasAccess={false} />
         <BrandLockedDashboard
           brand={{
             name: company.name,
@@ -176,28 +180,28 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
 
   const userId = viewer.userId;
 
-  const data = await getBrandPageData(supabase, id, { segmentInboxId });
-  if (!data) {
-    notFound();
-  }
-
-  let sidebarCollections: CollectionSummary[] = [];
-  try {
-    sidebarCollections = await listCollectionSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load collections", err);
-  }
-  let sidebarSets: CompetitorSetSummary[] = [];
-  try {
-    sidebarSets = await listCompetitorSetSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load competitor sets", err);
-  }
-
-  // Follow status + group memberships are loaded in parallel — both are
-  // tiny lookups and we'd otherwise be paying two extra round trips
-  // serially before the page renders.
-  const [isFollowing, groupMembershipIds] = await Promise.all([
+  // The dashboard payload is the heavy query; the sidebar lists, follow
+  // state, group memberships, and the account row are all independent of
+  // it, so fan everything out together instead of awaiting in a chain.
+  // Each auxiliary source swallows its own error — only a missing
+  // dashboard payload 404s the page.
+  const [
+    data,
+    sidebarCollections,
+    sidebarSets,
+    isFollowing,
+    groupMembershipIds,
+    viewerDisplay
+  ] = await Promise.all([
+    getBrandPageData(supabase, id, { segmentInboxId }),
+    listCollectionSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load collections", err);
+      return [] as CollectionSummary[];
+    }),
+    listCompetitorSetSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load competitor sets", err);
+      return [] as CompetitorSetSummary[];
+    }),
     isBrandFollowed(supabase, userId, id).catch((err) => {
       console.error("Failed to load follow status", err);
       return false;
@@ -205,13 +209,18 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     listSetIdsContainingBrand(supabase, userId, id).catch((err) => {
       console.error("Failed to load group memberships", err);
       return new Set<string>();
-    })
+    }),
+    getViewerDisplay()
   ]);
+
+  if (!data) {
+    notFound();
+  }
 
   return (
     <div className={styles.shell}>
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={viewerDisplay}
         activeId="brands"
         collections={sidebarCollections}
         competitorSets={sidebarSets}
