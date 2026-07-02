@@ -39,7 +39,6 @@ export function isDigestCadence(value: string): value is DigestCadence {
  */
 export const NOTIFICATION_TYPES = [
   { id: "newEmail", default: "instant" },
-  { id: "unusualActivity", default: "daily" },
   { id: "seasonalRunup", default: "weekly" },
   { id: "smartCollection", default: "daily" }
 ] as const satisfies readonly { id: string; default: NotificationCadence }[];

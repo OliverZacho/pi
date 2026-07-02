@@ -639,14 +639,6 @@ const BRAND_ROWS: {
     description: "When a brand you follow sends a new email."
   },
   {
-    type: "unusualActivity",
-    label: "Unusual sending activity",
-    description:
-      "When a brand you follow ramps up its sending or suddenly goes quiet.",
-    options: SCHEDULED_ONLY,
-    warnOnInstant: false
-  },
-  {
     type: "seasonalRunup",
     label: "Seasonal run-up",
     description:

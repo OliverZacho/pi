@@ -2,7 +2,7 @@
  * Shared chrome for Pirol notification emails: the outer document, the
  * "Pirol" header, the CTA button, and the footer with the manage links.
  * Table-based and fully inline-styled so it survives Gmail / Outlook /
- * Apple Mail. Each notification (digest, unusual activity, …) supplies
+ * Apple Mail. Each notification (digest, seasonal run-up, …) supplies
  * only its body; the shell keeps them visually identical. Copy is
  * dash-free by house style.
  */
