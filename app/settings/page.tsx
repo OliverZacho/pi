@@ -22,7 +22,6 @@ import {
   type TeamView
 } from "@/lib/teams-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
-import { getViewerDisplay } from "@/lib/viewer-display";
 import SettingsClient, {
   type BillingInfo,
   type TeamMembershipInfo
@@ -46,122 +45,112 @@ export default async function SettingsPage() {
 
   const { userId, hasAccess } = viewer;
 
-  // The sidebar is shared across the app shell, so fetch the same
-  // collections / competitor sets it renders on every other page.
-  let initialCollections: CollectionSummary[] = [];
-  try {
-    initialCollections = await listCollectionSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load collections", err);
-  }
-
-  let initialCompetitorSets: CompetitorSetSummary[] = [];
-  try {
-    initialCompetitorSets = await listCompetitorSetSummaries(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load competitor sets", err);
-  }
-
   // The Team tab restricts invites to the same email domain, so surface
   // the signed-in user's email/domain to the client.
   const email = viewer.email ?? "";
   const emailDomain = email.includes("@") ? email.split("@")[1] : "";
 
-  // User tab initial data (session client — RLS scopes to the viewer).
-  let initialFullName: string | null = null;
-  try {
-    const profile = await getProfile(supabase, userId);
-    initialFullName = profile?.fullName ?? null;
-  } catch (err) {
-    console.error("Failed to load profile", err);
-  }
+  // Each section degrades independently — a failed query logs and falls
+  // back rather than failing the whole page.
+  const logged = <T,>(label: string, fallbackValue: T) => (err: unknown): T => {
+    console.error(label, err);
+    return fallbackValue;
+  };
 
-  let hasPassword = false;
-  try {
-    hasPassword = await userHasPassword(supabase);
-  } catch (err) {
-    console.error("Failed to check password state", err);
-  }
-
-  // Notifications tab: the viewer's saved cadences (defaults if unset).
-  let initialNotificationPrefs = defaultNotificationPrefs();
-  try {
-    initialNotificationPrefs = await getNotificationPrefs(supabase, userId);
-  } catch (err) {
-    console.error("Failed to load notification prefs", err);
-  }
-
-  // Team tab initial data (admin client — team tables are RLS'd to
-  // service_role only; ownership is scoped by userId here).
-  let initialTeam: TeamView | null = null;
-  try {
-    initialTeam = await getTeamForUser(getSupabaseAdmin(), userId);
-  } catch (err) {
-    console.error("Failed to load team", err);
-  }
+  // None of these queries depend on each other (they all key off userId),
+  // so run them in parallel — sequential awaits here were the reason the
+  // page took seconds to respond.
+  const [
+    // Sidebar: shared across the app shell, same data every page renders.
+    initialCollections,
+    initialCompetitorSets,
+    // User tab (session client — RLS scopes to the viewer).
+    initialFullName,
+    hasPassword,
+    // Notifications tab: the viewer's saved cadences (defaults if unset).
+    initialNotificationPrefs,
+    // Team tab (admin client — team tables are RLS'd to service_role
+    // only; ownership is scoped by userId here).
+    initialTeam,
+    hasTeamPlan,
+    // Team-plan membership context — drives the "managed by …" billing
+    // copy and the profile badge. Session client: the RPC keys off auth.uid().
+    teamContext,
+    // Billing tab: the viewer's own subscription row (RLS self-select).
+    subscriptionRow
+  ] = await Promise.all([
+    listCollectionSummaries(supabase, userId).catch(
+      logged("Failed to load collections", [] as CollectionSummary[])
+    ),
+    listCompetitorSetSummaries(supabase, userId).catch(
+      logged("Failed to load competitor sets", [] as CompetitorSetSummary[])
+    ),
+    getProfile(supabase, userId)
+      .then((profile) => profile?.fullName ?? null)
+      .catch(logged("Failed to load profile", null)),
+    userHasPassword(supabase).catch(
+      logged("Failed to check password state", false)
+    ),
+    getNotificationPrefs(supabase, userId).catch(
+      logged("Failed to load notification prefs", defaultNotificationPrefs())
+    ),
+    getTeamForUser(getSupabaseAdmin(), userId).catch(
+      logged("Failed to load team", null as TeamView | null)
+    ),
+    hasActiveTeamPlan(supabase, userId).catch(
+      logged("Failed to check team plan", false)
+    ),
+    getTeamContext(supabase).catch(
+      logged("Failed to load team context", null)
+    ),
+    supabase
+      .from("subscriptions")
+      .select("status, plan, current_period_end, stripe_customer_id")
+      .eq("user_id", userId)
+      .maybeSingle()
+      // The query builder is a PromiseLike without .catch — reject via
+      // then's second argument instead.
+      .then(({ data }) => data, logged("Failed to load subscription", null))
+  ]);
 
   // Sending invites requires the Team plan (admins bypass); the tab
   // surfaces an upgrade notice instead of the invite form otherwise.
-  let canInviteTeam = viewer.isAdmin;
-  if (!canInviteTeam) {
-    try {
-      canInviteTeam = await hasActiveTeamPlan(supabase, userId);
-    } catch (err) {
-      console.error("Failed to check team plan", err);
-    }
-  }
+  const canInviteTeam = viewer.isAdmin || hasTeamPlan;
 
   // The same-domain invite rule only means something on a company
   // domain; consumer providers (gmail etc.) invite freely.
   const inviteDomainRestricted =
     Boolean(emailDomain) && !isConsumerEmailDomain(emailDomain);
 
-  // Team-plan membership context — drives the "managed by …" billing copy
-  // and the profile badge. Session client: the RPC keys off auth.uid().
-  let teamMembership: TeamMembershipInfo = null;
-  try {
-    const ctx = await getTeamContext(supabase);
-    if (ctx) {
-      teamMembership = {
-        role: ctx.role,
-        teamName: ctx.teamName,
-        ownerName: ctx.ownerName,
-        ownerActive: ctx.ownerActive
-      };
-    }
-  } catch (err) {
-    console.error("Failed to load team context", err);
-  }
+  const teamMembership: TeamMembershipInfo = teamContext
+    ? {
+        role: teamContext.role,
+        teamName: teamContext.teamName,
+        ownerName: teamContext.ownerName,
+        ownerActive: teamContext.ownerActive
+      }
+    : null;
 
-  // Billing tab state — the viewer's own subscription row (RLS self-select).
-  let billing: BillingInfo = {
-    status: "inactive",
-    plan: null,
-    currentPeriodEnd: null,
-    hasBillingAccount: false
-  };
-  try {
-    const { data } = await supabase
-      .from("subscriptions")
-      .select("status, plan, current_period_end, stripe_customer_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (data) {
-      billing = {
-        status: data.status,
-        plan: data.plan,
-        currentPeriodEnd: data.current_period_end,
-        hasBillingAccount: Boolean(data.stripe_customer_id)
+  const billing: BillingInfo = subscriptionRow
+    ? {
+        status: subscriptionRow.status,
+        plan: subscriptionRow.plan,
+        currentPeriodEnd: subscriptionRow.current_period_end,
+        hasBillingAccount: Boolean(subscriptionRow.stripe_customer_id)
+      }
+    : {
+        status: "inactive",
+        plan: null,
+        currentPeriodEnd: null,
+        hasBillingAccount: false
       };
-    }
-  } catch (err) {
-    console.error("Failed to load subscription", err);
-  }
 
   return (
     <div className={styles.shell}>
+      {/* Built from data already fetched above — getViewerDisplay would
+          re-query the profile for the same name/email. */}
       <ExploreSidebar
-        user={await getViewerDisplay()}
+        user={{ name: initialFullName, email }}
         activeId="settings"
         collections={initialCollections}
         competitorSets={initialCompetitorSets}
