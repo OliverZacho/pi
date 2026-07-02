@@ -3,7 +3,6 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { DigestCadence } from "@/lib/notification-prefs";
 import { buildContext } from "./shared";
 import { runDigest, type DigestRunSummary } from "@/lib/digest/run";
-import { runUnusualActivity, type UnusualRunSummary } from "./run-unusual";
 import { runSeasonalRunup, type SeasonalRunSummary } from "./run-seasonal";
 import {
   runSmartCollection,
@@ -19,7 +18,6 @@ import {
 export type NotificationsRunSummary = {
   cadence: DigestCadence;
   digest: DigestRunSummary;
-  unusualActivity: UnusualRunSummary;
   seasonalRunup: SeasonalRunSummary;
   smartCollection: SmartCollectionRunSummary;
 };
@@ -31,9 +29,8 @@ export async function runNotifications(
   const ctx = await buildContext(admin, cadence);
 
   const digest = await runDigest(ctx);
-  const unusualActivity = await runUnusualActivity(ctx);
   const seasonalRunup = await runSeasonalRunup(ctx);
   const smartCollection = await runSmartCollection(ctx);
 
-  return { cadence, digest, unusualActivity, seasonalRunup, smartCollection };
+  return { cadence, digest, seasonalRunup, smartCollection };
 }

@@ -9,8 +9,8 @@ import {
 } from "@/lib/notification-prefs";
 
 /**
- * Shared plumbing for the scheduled notification jobs (digest, unusual
- * activity, …). Each job runs as the service role behind the cron
+ * Shared plumbing for the scheduled notification jobs (digest, seasonal
+ * run-up, …). Each job runs as the service role behind the cron
  * dispatcher; these helpers resolve the paid audience and build the
  * brand data every job reads.
  */
