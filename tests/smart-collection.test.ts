@@ -38,6 +38,10 @@ describe("renderSmartCollectionEmail", () => {
     const { subject, html } = renderSmartCollectionEmail(model);
     expect(subject).toBe('3 new emails in "Black Friday watch"');
     expect(html).toContain("ARKET");
+    // The collection header deep-links to the collection page.
+    expect(html).toContain(
+      `/collections/${encodeURIComponent("id-Black Friday watch")}`
+    );
     expect(html).not.toContain("—");
   });
 
