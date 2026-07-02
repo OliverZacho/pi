@@ -1,7 +1,7 @@
 "use client";
 
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TeamView } from "@/lib/teams-db";
 import type {
@@ -769,51 +769,49 @@ function NotificationsTab({
           </div>
         ) : null}
         {BRAND_ROWS.map((row) => (
-          <FrequencyRow
-            key={row.type}
-            label={row.label}
-            description={row.description}
-            selected={CADENCE_TO_LABEL[prefs[row.type]]}
-            onSelect={(freq) => updateRow(row.type, freq)}
-            options={row.options}
-            warnOnInstant={row.warnOnInstant}
-            disabled={!enabled}
-          />
+          <Fragment key={row.type}>
+            <FrequencyRow
+              label={row.label}
+              description={row.description}
+              selected={CADENCE_TO_LABEL[prefs[row.type]]}
+              onSelect={(freq) => updateRow(row.type, freq)}
+              options={row.options}
+              warnOnInstant={row.warnOnInstant}
+              disabled={!enabled}
+            />
+            {/* The per-collection opt-ins expand right under the row they
+                belong to, so the connection is unmissable. Only rendered
+                once the notification is switched on (cadence != off). */}
+            {row.type === "smartCollection" &&
+            enabled &&
+            prefs.smartCollection !== "off" &&
+            collections.length > 0 ? (
+              <div className={styles.nestedRows}>
+                <p className={styles.nestedHint}>
+                  Which collections should this email cover?
+                </p>
+                {collections.map((c) => (
+                  <label key={c.id} className={styles.nestedRow}>
+                    <span className={styles.nestedLabel}>{c.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={c.notifyNewMatches}
+                      onChange={() => toggleCollection(c.id)}
+                      disabled={collectionBusy === c.id}
+                      aria-label={`Email me new matches in ${c.name}`}
+                    />
+                  </label>
+                ))}
+                {collectionError ? (
+                  <p className={styles.error} role="alert">
+                    {collectionError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </Fragment>
         ))}
       </Section>
-
-      {/* Which smart collections send match alerts (per-collection opt-in).
-          Only shown once the notification is switched on (cadence != off). */}
-      {enabled && prefs.smartCollection !== "off" && collections.length > 0 ? (
-        <Section
-          title="Collections to notify me about"
-          description="You'll get the smart-collection email only for the collections you pick here."
-        >
-          {collections.map((c) => (
-            <label
-              key={c.id}
-              className={styles.toggleRow}
-              style={{ cursor: "pointer" }}
-            >
-              <div className={styles.toggleText}>
-                <span className={styles.toggleLabel}>{c.name}</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={c.notifyNewMatches}
-                onChange={() => toggleCollection(c.id)}
-                disabled={collectionBusy === c.id}
-                aria-label={`Email me new matches in ${c.name}`}
-              />
-            </label>
-          ))}
-          {collectionError ? (
-            <p className={styles.error} role="alert">
-              {collectionError}
-            </p>
-          ) : null}
-        </Section>
-      ) : null}
 
       {/* Account updates — skeleton, not yet persisted. */}
       <Section>

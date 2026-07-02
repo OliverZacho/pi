@@ -261,6 +261,40 @@
   color: #64748b;
 }
 
+/* Indented sub-block nested under a notification row (e.g. the
+   per-collection checklist under "New matches in a smart collection").
+   The left rule visually ties it to the row it expands from. */
+.nestedRows {
+  margin: -0.25rem 0 0.65rem;
+  padding: 0.15rem 0 0.15rem 1rem;
+  border-left: 2px solid #e2e8f0;
+}
+
+.nestedHint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.nestedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+.nestedRow:last-child {
+  border-bottom: none;
+}
+
+.nestedLabel {
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
 /* Wraps the cadence selector + the "Instant" warning to its right. */
 .frequencyControl {
   flex-shrink: 0;
