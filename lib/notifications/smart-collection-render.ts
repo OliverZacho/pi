@@ -102,13 +102,11 @@ export function renderSmartCollectionEmail(model: SmartCollectionModel): {
         : ""
     }`;
 
-  // Single collection deep-links to it; several open the busiest one.
-  const target = model.collections[0];
+  // Each header already deep-links to its collection, so the CTA goes to
+  // the neutral collections overview instead of picking a favorite.
   const cta = {
-    label: "Open in Pirol",
-    url: target
-      ? `${APP_URL}/collections/${target.collectionId}`
-      : `${APP_URL}/following`
+    label: "View your collections",
+    url: `${APP_URL}/collections`
   };
 
   const html = renderEmailShell({
