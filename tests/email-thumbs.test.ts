@@ -1,50 +1,148 @@
 import { describe, expect, it } from "vitest";
-import { chooseHeroImagePath } from "@/lib/notifications/email-thumbs";
+import {
+  heroImageCandidates,
+  parseImageDimensions,
+  passesDensity
+} from "@/lib/notifications/email-thumbs";
 import { renderDigestEmail } from "@/lib/digest/render";
 import type { DigestModel, DigestPick } from "@/lib/digest/build";
 
 const KB = 1024;
 
-describe("chooseHeroImagePath", () => {
-  it("picks the first image above the logo/spacer floor, in document order", () => {
+describe("heroImageCandidates", () => {
+  it("puts the first heavyweight image ahead of larger later ones", () => {
     const sizes = {
       "logo.png": 8 * KB,
       "opening.jpg": 120 * KB,
       "mid-product.jpg": 400 * KB
     };
-    // Not the largest — the first one big enough is the email's visible top.
+    // Document order wins within the heavyweight tier — the first
+    // confidently-hero image is the email's visible top.
     expect(
-      chooseHeroImagePath(["logo.png", "opening.jpg", "mid-product.jpg"], sizes)
-    ).toBe("opening.jpg");
+      heroImageCandidates(["logo.png", "opening.jpg", "mid-product.jpg"], sizes)
+    ).toEqual(["opening.jpg", "mid-product.jpg"]);
   });
 
-  it("returns null when every image is logo-sized", () => {
-    const sizes = { "logo.png": 8 * KB, "pixel.gif": 1 * KB };
-    expect(chooseHeroImagePath(["logo.png", "pixel.gif"], sizes)).toBeNull();
+  it("ranks modest images below heavyweight ones, largest first", () => {
+    const sizes = {
+      "banner.png": 25 * KB,
+      "small-hero.jpg": 45 * KB,
+      "editorial.jpg": 300 * KB
+    };
+    expect(
+      heroImageCandidates(
+        ["banner.png", "small-hero.jpg", "editorial.jpg"],
+        sizes
+      )
+    ).toEqual(["editorial.jpg", "small-hero.jpg", "banner.png"]);
   });
 
-  it("never picks a non-transformable asset", () => {
-    const sizes = { "logo.svg": 900 * KB, "hero.jpg": 200 * KB };
-    expect(chooseHeroImagePath(["logo.svg", "hero.jpg"], sizes)).toBe(
-      "hero.jpg"
-    );
-    expect(chooseHeroImagePath(["logo.svg"], sizes)).toBeNull();
+  it("drops logo-sized and non-transformable assets entirely", () => {
+    const sizes = {
+      "logo.png": 8 * KB,
+      "pixel.gif": 1 * KB,
+      "logo.svg": 900 * KB
+    };
+    expect(
+      heroImageCandidates(["logo.png", "pixel.gif", "logo.svg"], sizes)
+    ).toEqual([]);
   });
 
-  it("only picks a GIF when no static image qualifies", () => {
+  it("ranks GIFs after every static image", () => {
     const sizes = { "anim.gif": 500 * KB, "still.jpg": 100 * KB };
-    expect(chooseHeroImagePath(["anim.gif", "still.jpg"], sizes)).toBe(
-      "still.jpg"
-    );
-    expect(chooseHeroImagePath(["anim.gif"], sizes)).toBe("anim.gif");
+    expect(heroImageCandidates(["anim.gif", "still.jpg"], sizes)).toEqual([
+      "still.jpg",
+      "anim.gif"
+    ]);
   });
 
   it("skips paths with unknown sizes", () => {
     const sizes = { "known.jpg": 200 * KB };
-    expect(chooseHeroImagePath(["unmeasured.jpg", "known.jpg"], sizes)).toBe(
-      "known.jpg"
+    expect(heroImageCandidates(["unmeasured.jpg", "known.jpg"], sizes)).toEqual(
+      ["known.jpg"]
     );
-    expect(chooseHeroImagePath(["unmeasured.jpg"], sizes)).toBeNull();
+  });
+});
+
+describe("parseImageDimensions", () => {
+  it("reads PNG IHDR dimensions", () => {
+    const bytes = new Uint8Array(32);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    new DataView(bytes.buffer).setUint32(16, 1200);
+    new DataView(bytes.buffer).setUint32(20, 800);
+    expect(parseImageDimensions(bytes)).toEqual({
+      width: 1200,
+      height: 800,
+      format: "png"
+    });
+  });
+
+  it("reads GIF logical screen dimensions", () => {
+    const bytes = new Uint8Array(32);
+    bytes.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+    bytes[6] = 600 & 0xff;
+    bytes[7] = 600 >> 8;
+    bytes[8] = 400 & 0xff;
+    bytes[9] = 400 >> 8;
+    expect(parseImageDimensions(bytes)).toEqual({
+      width: 600,
+      height: 400,
+      format: "gif"
+    });
+  });
+
+  it("walks JPEG markers to the SOF frame header", () => {
+    // SOI, then an APP0 segment, then SOF0 with height 900 / width 1200.
+    const bytes = new Uint8Array([
+      0xff, 0xd8,
+      0xff, 0xe0, 0x00, 0x04, 0x00, 0x00,
+      0xff, 0xc0, 0x00, 0x11, 0x08, 0x03, 0x84, 0x04, 0xb0,
+      0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01
+    ]);
+    expect(parseImageDimensions(bytes)).toEqual({
+      width: 1200,
+      height: 900,
+      format: "jpeg"
+    });
+  });
+
+  it("returns null for unknown or truncated data", () => {
+    expect(parseImageDimensions(new Uint8Array(8))).toBeNull();
+    const junk = new Uint8Array(64).fill(0xab);
+    expect(parseImageDimensions(junk)).toBeNull();
+  });
+});
+
+describe("passesDensity", () => {
+  it("rejects flat graphics at production-measured densities", () => {
+    // The Garment monogram: 129KB at 6576x3564 (~0.006 bytes/px).
+    expect(
+      passesDensity(129 * KB, { width: 6576, height: 3564, format: "png" })
+    ).toBe(false);
+    // Søstrene line drawing: 144KB at 3544x3544 (~0.012 bytes/px).
+    expect(
+      passesDensity(144 * KB, { width: 3544, height: 3544, format: "png" })
+    ).toBe(false);
+    // Lalaby wordmark PNG: 133KB at 2000x611 (~0.112 bytes/px) — over the
+    // lossy line, but far under what PNG photography compresses to.
+    expect(
+      passesDensity(133 * KB, { width: 2000, height: 611, format: "png" })
+    ).toBe(false);
+  });
+
+  it("accepts photography at production-measured densities", () => {
+    // Carlsberg hero JPEG: 94KB at 1300x565 (~0.131 bytes/px).
+    expect(
+      passesDensity(94 * KB, { width: 1300, height: 565, format: "jpeg" })
+    ).toBe(true);
+    // Søstrene collage PNG: 803KB at 800x531 (~1.9 bytes/px).
+    expect(
+      passesDensity(803 * KB, { width: 800, height: 531, format: "png" })
+    ).toBe(true);
+  });
+
+  it("accepts unknown dimensions rather than over-rejecting", () => {
+    expect(passesDensity(20 * KB, null)).toBe(true);
   });
 });
 
