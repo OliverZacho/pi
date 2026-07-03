@@ -91,33 +91,30 @@ function renderPick(pick: DigestPick): string {
   const meta = [escapeHtml(pick.brandName.toUpperCase()), escapeHtml(pick.day)]
     .filter(Boolean)
     .join(" &middot; ");
-  const thumb = pick.thumbnailUrl
-    ? `<td width="110" valign="top" align="right" style="padding-left:14px;"><a href="${pickUrl(
+  // The preview sits under the copy as a full-width banner: the top slice
+  // of the email's opening image (fixed 2.5:1 aspect via the CDN crop),
+  // framed like a card so it reads as "the email", not a loose photo.
+  const preview = pick.thumbnailUrl
+    ? `<a href="${pickUrl(
         pick
-      )}"><img src="${escapeHtml(
+      )}" style="display:block;margin-top:10px;"><img src="${escapeHtml(
         pick.thumbnailUrl
-      )}" width="96" height="128" alt="" style="display:block;width:96px;height:128px;object-fit:cover;object-position:top;border:1px solid #ece9e1;border-radius:8px;background:#faf9f5;" /></a></td>`
+      )}" width="552" alt="" style="display:block;width:100%;height:auto;border:1px solid #ece9e1;border-radius:8px;background:#faf9f5;" /></a>`
     : "";
   return `
   <tr>
     <td style="padding:14px 0;border-top:1px solid #ece9e1;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td valign="top">
-            <span style="display:inline-block;font-size:11px;font-weight:500;color:${label.fg};background:${label.bg};padding:2px 8px;border-radius:6px;">${escapeHtml(
-              label.text
-            )}</span>
-            <div style="font-size:12px;color:#888780;margin-top:8px;letter-spacing:0.02em;">${meta}</div>
-            <a href="${pickUrl(
-              pick
-            )}" style="display:block;font-size:15px;font-weight:500;color:#2c2c2a;text-decoration:none;margin-top:2px;">${escapeHtml(
-              pick.subject
-            )} <span style="color:#888780;">&rarr;</span></a>
-            ${why}
-          </td>
-          ${thumb}
-        </tr>
-      </table>
+      <span style="display:inline-block;font-size:11px;font-weight:500;color:${label.fg};background:${label.bg};padding:2px 8px;border-radius:6px;">${escapeHtml(
+        label.text
+      )}</span>
+      <div style="font-size:12px;color:#888780;margin-top:8px;letter-spacing:0.02em;">${meta}</div>
+      <a href="${pickUrl(
+        pick
+      )}" style="display:block;font-size:15px;font-weight:500;color:#2c2c2a;text-decoration:none;margin-top:2px;">${escapeHtml(
+        pick.subject
+      )} <span style="color:#888780;">&rarr;</span></a>
+      ${why}
+      ${preview}
     </td>
   </tr>`;
 }

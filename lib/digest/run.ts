@@ -11,6 +11,7 @@ import {
 } from "@/lib/notifications/shared";
 import { APP_URL } from "@/lib/notifications/email-shell";
 import { fetchEmailThumbnails } from "@/lib/notifications/email-thumbs";
+import { EMAIL_PREVIEW_BANNER_TRANSFORM } from "@/lib/storage";
 import { buildDigestModel } from "./build";
 import { renderDigestEmail } from "./render";
 
@@ -135,7 +136,8 @@ export async function runDigest(
     if (model.picks.length > 0) {
       const thumbs = await fetchEmailThumbnails(
         admin,
-        model.picks.map((p) => p.emailId)
+        model.picks.map((p) => p.emailId),
+        EMAIL_PREVIEW_BANNER_TRANSFORM
       );
       for (const pick of model.picks) {
         pick.thumbnailUrl = thumbs.get(pick.emailId) ?? null;

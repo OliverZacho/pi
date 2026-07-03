@@ -111,10 +111,10 @@ function cloudflareImageUrl(path: string, transform: ImageTransform): string {
   const opts = [`width=${transform.width}`, `fit=${fit}`, "format=auto"];
   if (transform.height) opts.push(`height=${transform.height}`);
   if (transform.quality) opts.push(`quality=${transform.quality}`);
-  // Cover crops anchor to the top edge ("0.5x0" = horizontal center,
-  // vertical top): email hero images carry their subject up top, and the
-  // bottom is usually footer/legal filler.
-  if (fit === "cover") opts.push("gravity=0.5x0");
+  // Crops anchor to the top edge ("0.5x0" = horizontal center, vertical
+  // top): email hero images carry their subject up top, and the bottom
+  // is usually footer/legal filler.
+  if (fit === "cover" || fit === "crop") opts.push("gravity=0.5x0");
   return `${PUBLIC_ASSET_CDN_BASE_URL}/cdn-cgi/image/${opts.join(
     ","
   )}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
@@ -126,12 +126,13 @@ export type ImageTransform = {
   quality?: number;
   /**
    * Cloudflare fit mode. Omitted = "scale-down" (resize within the box,
-   * never upscale, aspect preserved). "cover" crops to exactly
-   * `width`x`height`, anchored to the top of the image — every output has
-   * identical dimensions, which fixed-size `<img>` slots (notification
-   * email thumbnails) rely on.
+   * never upscale, aspect preserved). "cover" fills exactly
+   * `width`x`height` (upscaling if needed); "crop" takes the same aspect
+   * but never enlarges, so a 600px-wide source yields a 600px-wide crop.
+   * Both anchor to the top of the image. Used for the fixed-aspect email
+   * previews in notification emails.
    */
-  fit?: "cover";
+  fit?: "cover" | "crop";
 };
 
 /**
@@ -159,17 +160,29 @@ export const CARD_IMAGE_TRANSFORM: ImageTransform = {
 };
 
 /**
- * Cover crop for the small email previews embedded in notification emails
- * (digest picks, smart-collection samples). Portrait 3:4 cropped from the
- * top of the hero image so every thumbnail reads like a consistent little
- * card next to the copy. 240x320 covers the largest slot (96x128 CSS px)
- * at 2x.
+ * Wide banner crop for the digest "worth a look" previews: the top slice
+ * of the email's opening image, rendered full-width (552 CSS px) under
+ * the pick's copy so it reads like the email's own header. `crop` keeps
+ * the 2.5:1 aspect without upscaling narrow sources; 1104 wide covers
+ * the slot at 2x.
  */
-export const EMAIL_THUMB_TRANSFORM: ImageTransform = {
-  width: 240,
-  height: 320,
+export const EMAIL_PREVIEW_BANNER_TRANSFORM: ImageTransform = {
+  width: 1104,
+  height: 440,
   quality: 70,
-  fit: "cover"
+  fit: "crop"
+};
+
+/**
+ * Small square crop for compact preview thumbnails (smart-collection
+ * sample rows). Top-anchored like the banner; 240 covers the 48 CSS px
+ * slot at well past 2x.
+ */
+export const EMAIL_PREVIEW_THUMB_TRANSFORM: ImageTransform = {
+  width: 240,
+  height: 240,
+  quality: 70,
+  fit: "crop"
 };
 
 export type MirroredImage = {

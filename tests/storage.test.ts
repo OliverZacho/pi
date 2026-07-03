@@ -322,19 +322,19 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     expect(createSignedUrlMock).not.toHaveBeenCalled();
   });
 
-  it("emits a top-anchored cover crop for fit=cover transforms", async () => {
+  it("emits a top-anchored crop for fit=crop transforms", async () => {
     process.env.NEXT_PUBLIC_ASSET_CDN_URL = "https://cdn.pirol.app";
     process.env.CF_IMAGE_RESIZE = "1";
     const storage = await import("@/lib/storage");
 
     const map = await storage.getSignedAssets(["email-1/hero.jpg"], {
-      transform: { width: 240, height: 320, quality: 70, fit: "cover" }
+      transform: { width: 1104, height: 440, quality: 70, fit: "crop" }
     });
 
-    // Exact output dimensions for fixed-size thumbnail slots, cropped
-    // from the top of the image (gravity 0.5x0 = center top).
+    // Fixed-aspect region for the notification preview slots, taken from
+    // the top of the image (gravity 0.5x0 = center top), never enlarged.
     expect(map["email-1/hero.jpg"]).toBe(
-      "https://cdn.pirol.app/cdn-cgi/image/width=240,fit=cover,format=auto,height=320,quality=70,gravity=0.5x0/storage/v1/object/public/email-assets/email-1/hero.jpg"
+      "https://cdn.pirol.app/cdn-cgi/image/width=1104,fit=crop,format=auto,height=440,quality=70,gravity=0.5x0/storage/v1/object/public/email-assets/email-1/hero.jpg"
     );
   });
 

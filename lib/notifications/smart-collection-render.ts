@@ -64,9 +64,9 @@ function renderSample(sample: CollectionSample): string {
   const url = sampleUrl(sample);
   const brand = sample.brandName ? `${escapeHtml(sample.brandName)}: ` : "";
   const thumb = sample.thumbnailUrl
-    ? `<td width="58" valign="top" style="padding-right:10px;"><a href="${url}"><img src="${escapeHtml(
+    ? `<td width="58" valign="middle" style="padding-right:10px;"><a href="${url}"><img src="${escapeHtml(
         sample.thumbnailUrl
-      )}" width="48" height="64" alt="" style="display:block;width:48px;height:64px;object-fit:cover;object-position:top;border:1px solid #ece9e1;border-radius:6px;background:#faf9f5;" /></a></td>`
+      )}" width="48" height="48" alt="" style="display:block;width:48px;height:48px;object-fit:cover;object-position:top;border:1px solid #ece9e1;border-radius:6px;background:#faf9f5;" /></a></td>`
     : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
     <tr>
