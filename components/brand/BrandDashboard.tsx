@@ -18,6 +18,7 @@ import BrandDiscountTimeline, {
 import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
 import BrandSeasonalRunup from "./BrandSeasonalRunup";
+import { brandUrlHref, brandUrlLabel } from "@/lib/brand-url";
 import styles from "./brand.module.css";
 
 /**
@@ -311,12 +312,12 @@ function Hero({
           <div className={styles.heroMeta}>
             {brand.domain ? (
               <a
-                href={`https://${brand.domain}`}
+                href={brandUrlHref(brand.domain)}
                 target="_blank"
                 rel="noreferrer"
                 className={styles.heroDomain}
               >
-                {brand.domain}
+                {brandUrlLabel(brand.domain)}
               </a>
             ) : null}
             {brand.markets.length > 0 ? (

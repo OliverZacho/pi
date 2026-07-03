@@ -2,15 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/access";
 import {
-  listCollectionSummaries,
   listNotifiableSmartCollections,
-  type CollectionSummary,
   type NotifiableSmartCollection
 } from "@/lib/collections-db";
-import {
-  listCompetitorSetSummaries,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
 import { isConsumerEmailDomain } from "@/lib/email-domains";
 import { getProfile, userHasPassword } from "@/lib/profile-db";
 import { getNotificationPrefs } from "@/lib/notification-prefs-db";
@@ -23,7 +17,6 @@ import {
   TEAM_SEAT_LIMIT,
   type TeamView
 } from "@/lib/teams-db";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import SettingsClient, {
   type BillingInfo,
   type TeamMembershipInfo
@@ -37,7 +30,7 @@ export const metadata = {
 export default async function SettingsPage() {
   // Settings stays open to any signed-in user so an unpaid visitor can
   // manage their account and reach billing to subscribe — only logged-out
-  // visitors are bounced. `hasAccess` just tunes the shared sidebar.
+  // visitors are bounced.
   const supabase = await createClient();
   const viewer = await getViewer();
 
@@ -63,9 +56,6 @@ export default async function SettingsPage() {
   // so run them in parallel — sequential awaits here were the reason the
   // page took seconds to respond.
   const [
-    // Sidebar: shared across the app shell, same data every page renders.
-    initialCollections,
-    initialCompetitorSets,
     // User tab (session client — RLS scopes to the viewer).
     initialFullName,
     hasPassword,
@@ -83,12 +73,6 @@ export default async function SettingsPage() {
     // Billing tab: the viewer's own subscription row (RLS self-select).
     subscriptionRow
   ] = await Promise.all([
-    listCollectionSummaries(supabase, userId).catch(
-      logged("Failed to load collections", [] as CollectionSummary[])
-    ),
-    listCompetitorSetSummaries(supabase, userId).catch(
-      logged("Failed to load competitor sets", [] as CompetitorSetSummary[])
-    ),
     getProfile(supabase, userId)
       .then((profile) => profile?.fullName ?? null)
       .catch(logged("Failed to load profile", null)),
@@ -153,40 +137,28 @@ export default async function SettingsPage() {
       };
 
   return (
-    <div className={styles.shell}>
-      {/* Built from data already fetched above — getViewerDisplay would
-          re-query the profile for the same name/email. */}
-      <ExploreSidebar
-        user={{ name: initialFullName, email }}
-        activeId="settings"
-        collections={initialCollections}
-        competitorSets={initialCompetitorSets}
-        hasAccess={hasAccess}
+    <main className={styles.main}>
+      <header className={styles.heading}>
+        <h1>Settings</h1>
+        <p>Manage your account, notifications, team, and billing.</p>
+      </header>
+
+      <SettingsClient
+        email={email}
+        emailDomain={emailDomain}
+        viewerId={userId}
+        initialFullName={initialFullName}
+        hasPassword={hasPassword}
+        initialTeam={initialTeam}
+        canInviteTeam={canInviteTeam}
+        inviteDomainRestricted={inviteDomainRestricted}
+        seatLimit={TEAM_SEAT_LIMIT}
+        teamMembership={teamMembership}
+        billing={billing}
+        initialNotificationPrefs={initialNotificationPrefs}
+        notificationsEnabled={hasAccess}
+        smartCollections={smartCollections}
       />
-
-      <main className={styles.main}>
-        <header className={styles.heading}>
-          <h1>Settings</h1>
-          <p>Manage your account, notifications, team, and billing.</p>
-        </header>
-
-        <SettingsClient
-          email={email}
-          emailDomain={emailDomain}
-          viewerId={userId}
-          initialFullName={initialFullName}
-          hasPassword={hasPassword}
-          initialTeam={initialTeam}
-          canInviteTeam={canInviteTeam}
-          inviteDomainRestricted={inviteDomainRestricted}
-          seatLimit={TEAM_SEAT_LIMIT}
-          teamMembership={teamMembership}
-          billing={billing}
-          initialNotificationPrefs={initialNotificationPrefs}
-          notificationsEnabled={hasAccess}
-          smartCollections={smartCollections}
-        />
-      </main>
-    </div>
+    </main>
   );
 }

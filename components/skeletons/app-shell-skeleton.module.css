@@ -1,30 +1,15 @@
 /*
- * Self-contained loading skeleton for the app shell (sidebar + main grid).
+ * Self-contained loading skeleton for the app pages' main column. The
+ * sidebar and shell wrapper come from the shared `(app)` layout, which
+ * persists across navigations — the skeleton only fills the page slot.
  *
  * Kept independent of the per-page CSS modules (explore / brands /
  * compare) on purpose: `loading.tsx` renders the instant Next streams the
  * navigation — before the page's own server fetch resolves — so it must
  * not depend on anything the page provides. The layout dimensions mirror
- * `explore.module.css` (.shell / .sidebar / .main / .grid) closely enough
- * that the real page swaps in without a jarring shift.
+ * `explore.module.css` (.main / .grid) closely enough that the real page
+ * swaps in without a jarring shift.
  */
-
-.shell {
-  display: flex;
-  min-height: 100vh;
-  background: var(--page-bg);
-}
-
-.sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  background: var(--sidebar-bg);
-  border-right: 1px solid #d3e3ee;
-  box-shadow: 4px 0 16px rgba(15, 23, 42, 0.06);
-  height: 100vh;
-  position: sticky;
-  top: 0;
-}
 
 .main {
   flex: 1;

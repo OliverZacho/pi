@@ -13,10 +13,6 @@ import {
 } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
 import {
-  listCollectionSummaries,
-  type CollectionSummary
-} from "@/lib/collections-db";
-import {
   listCompetitorSetSummaries,
   listSetIdsContainingBrand,
   type CompetitorSetSummary
@@ -24,9 +20,6 @@ import {
 import { isBrandFollowed } from "@/lib/follows-db";
 import { DEMO_BRAND_SLUG } from "@/lib/demo";
 import BrandDashboard from "@/components/brand/BrandDashboard";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
-import { getViewerDisplay } from "@/lib/viewer-display";
-import styles from "@/components/brand/brand.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -111,27 +104,20 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
       });
       if (demoData) {
         return (
-          <div className={styles.shell}>
-            <ExploreSidebar
-              user={await getViewerDisplay()}
-              activeId="brands"
-              hasAccess={false}
-            />
-            <BrandDashboard
-              data={demoData}
-              isFollowing={false}
-              groups={[]}
-              groupMembershipIds={[]}
-            />
-          </div>
+          <BrandDashboard
+            data={demoData}
+            isFollowing={false}
+            groups={[]}
+            groupMembershipIds={[]}
+          />
         );
       }
     }
 
     const admin = getSupabaseAdmin();
-    // Identity, summary, and the sidebar account row are independent —
-    // fetch together. The summary is only wasted on a 404, the rare case.
-    const [{ data: company }, summary, lockedViewerDisplay] = await Promise.all([
+    // Identity and summary are independent — fetch together. The summary
+    // is only wasted on a 404, the rare case.
+    const [{ data: company }, summary] = await Promise.all([
       admin
         .from("companies")
         .select(
@@ -139,8 +125,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
         )
         .eq("id", id)
         .maybeSingle(),
-      loadBrandSummary(id, resolved.name),
-      getViewerDisplay()
+      loadBrandSummary(id, resolved.name)
     ]);
 
     if (!company || company.deleted_at) {
@@ -160,44 +145,30 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     }
 
     return (
-      <div className={styles.shell}>
-        <ExploreSidebar user={lockedViewerDisplay} activeId="brands" hasAccess={false} />
-        <BrandLockedDashboard
-          brand={{
-            name: company.name,
-            domain: company.domain ?? null,
-            markets: normalizeCompanyMarkets(company.markets),
-            primaryMarketCountry: company.primary_market_country ?? null,
-            isGlobal: Boolean(company.is_global),
-            logoUrl,
-            subscribedSince: company.subscribed_since ?? null
-          }}
-          summary={summary?.paragraph ?? null}
-        />
-      </div>
+      <BrandLockedDashboard
+        brand={{
+          name: company.name,
+          domain: company.domain ?? null,
+          markets: normalizeCompanyMarkets(company.markets),
+          primaryMarketCountry: company.primary_market_country ?? null,
+          isGlobal: Boolean(company.is_global),
+          logoUrl,
+          subscribedSince: company.subscribed_since ?? null
+        }}
+        summary={summary?.paragraph ?? null}
+      />
     );
   }
 
   const userId = viewer.userId;
 
-  // The dashboard payload is the heavy query; the sidebar lists, follow
-  // state, group memberships, and the account row are all independent of
-  // it, so fan everything out together instead of awaiting in a chain.
-  // Each auxiliary source swallows its own error — only a missing
-  // dashboard payload 404s the page.
-  const [
-    data,
-    sidebarCollections,
-    sidebarSets,
-    isFollowing,
-    groupMembershipIds,
-    viewerDisplay
-  ] = await Promise.all([
+  // The dashboard payload is the heavy query; the comparison groups,
+  // follow state, and group memberships are all independent of it, so
+  // fan everything out together instead of awaiting in a chain. Each
+  // auxiliary source swallows its own error — only a missing dashboard
+  // payload 404s the page.
+  const [data, groups, isFollowing, groupMembershipIds] = await Promise.all([
     getBrandPageData(supabase, id, { segmentInboxId }),
-    listCollectionSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load collections", err);
-      return [] as CollectionSummary[];
-    }),
     listCompetitorSetSummaries(supabase, userId).catch((err) => {
       console.error("Failed to load competitor sets", err);
       return [] as CompetitorSetSummary[];
@@ -209,8 +180,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     listSetIdsContainingBrand(supabase, userId, id).catch((err) => {
       console.error("Failed to load group memberships", err);
       return new Set<string>();
-    }),
-    getViewerDisplay()
+    })
   ]);
 
   if (!data) {
@@ -218,19 +188,11 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   }
 
   return (
-    <div className={styles.shell}>
-      <ExploreSidebar
-        user={viewerDisplay}
-        activeId="brands"
-        collections={sidebarCollections}
-        competitorSets={sidebarSets}
-      />
-      <BrandDashboard
-        data={data}
-        isFollowing={isFollowing}
-        groups={sidebarSets}
-        groupMembershipIds={Array.from(groupMembershipIds)}
-      />
-    </div>
+    <BrandDashboard
+      data={data}
+      isFollowing={isFollowing}
+      groups={groups}
+      groupMembershipIds={Array.from(groupMembershipIds)}
+    />
   );
 }
