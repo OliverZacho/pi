@@ -7,6 +7,7 @@ import { extractImageUrlsFromHtml } from "./email-utils";
 import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
 import { extractImagePaletteForEmail } from "./extract-image-palette";
+import { buildImageStats } from "./image-stats";
 import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
@@ -337,6 +338,8 @@ async function ingestEmailReceivedEvent(
     return acc;
   }, {});
 
+  const imageStats = buildImageStats(mirror.stored);
+
   const enrichmentMetadata = {
     link_domains: metadata.link_domains,
     utm_index: metadata.utm_index,
@@ -347,6 +350,7 @@ async function ingestEmailReceivedEvent(
     has_amp_html: metadata.has_amp_html,
     esp_candidates: espResult.candidates,
     image_mirror_map: imageMirrorMap,
+    image_stats: imageStats,
     palette_colors: metadata.palette_colors,
     image_palette: imagePalette,
     font_families: metadata.font_families

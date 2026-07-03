@@ -194,6 +194,12 @@ describe("processNextBatch", () => {
     expect(storeArgs.enrichment.metadata.image_mirror_map).toEqual({
       "https://cdn.example.com/banner.png": "abc.png"
     });
+    expect(storeArgs.enrichment.metadata.image_stats).toEqual({
+      total_bytes: 100,
+      image_count: 1,
+      formats: { png: { count: 1, bytes: 100 } },
+      assets: [{ path: "abc.png", bytes: 100, format: "png" }]
+    });
 
     expect(mocks.updateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "processed", last_error: null })

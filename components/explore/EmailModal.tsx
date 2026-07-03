@@ -13,6 +13,12 @@ import type { CollectionSummary } from "@/lib/collections-db";
 import { countryFlag, countryName } from "@/lib/country";
 import { formatFullDateTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import {
+  formatBytes,
+  imageFormatLabel,
+  type EmailImageStats,
+  type ImageFormat
+} from "@/lib/image-stats";
 import AddToCollectionButton from "./AddToCollectionButton";
 import { LOCKED_EMAIL_EVENT, LOCKED_EMAIL_FLAG } from "./SidebarNotices";
 import styles from "./explore.module.css";
@@ -607,6 +613,26 @@ function InfoPanel({
               : "—"
           }
         />
+        <Stat
+          label="Image weight"
+          value={
+            detail?.imageStats
+              ? formatBytes(detail.imageStats.total_bytes)
+              : detailLoading
+              ? "…"
+              : "—"
+          }
+        />
+        <Stat
+          label="Formats"
+          value={
+            detail?.imageStats
+              ? formatMixLabel(detail.imageStats)
+              : detailLoading
+              ? "…"
+              : "—"
+          }
+        />
       </div>
 
       <Accordion title="Addresses">
@@ -669,6 +695,41 @@ function InfoPanel({
           <div className={styles.accordionEmpty}>No design data captured.</div>
         ) : null}
       </Accordion>
+
+      {detail?.imageStats && detail.imageStats.image_count > 0 ? (
+        <Accordion title="Images">
+          <div className={styles.pillRow}>
+            {sortedFormatEntries(detail.imageStats).map(([format, bucket]) => (
+              <Pill key={format} tone="neutral">
+                {bucket.count} {imageFormatLabel(format)}
+              </Pill>
+            ))}
+          </div>
+          {detail.imageStats.assets.map((asset) => {
+            const signedUrl = detail.imageSignedUrls.find(
+              (item) => item.storagePath === asset.path
+            )?.signedUrl;
+            return (
+              <div key={asset.path} className={styles.imageAssetRow}>
+                {signedUrl ? (
+                  <img
+                    src={signedUrl}
+                    alt=""
+                    loading="lazy"
+                    className={styles.imageAssetThumb}
+                  />
+                ) : (
+                  <span className={styles.imageAssetThumbFallback} aria-hidden="true" />
+                )}
+                <span className={styles.imageAssetSize}>
+                  {formatBytes(asset.bytes)}
+                </span>
+                <Pill tone="neutral">{imageFormatLabel(asset.format)}</Pill>
+              </div>
+            );
+          })}
+        </Accordion>
+      ) : null}
 
       {detail?.authResults ? (
         <Accordion title="Authentication">
@@ -1169,10 +1230,25 @@ function complianceLabel(
   }
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+/** Format buckets sorted by usage, heaviest-used first. */
+function sortedFormatEntries(
+  stats: EmailImageStats
+): [ImageFormat, { count: number; bytes: number }][] {
+  return (
+    Object.entries(stats.formats) as [
+      ImageFormat,
+      { count: number; bytes: number }
+    ][]
+  ).sort((a, b) => b[1].count - a[1].count);
+}
+
+/** Compact mix for the stat tile: "JPEG, PNG +1". */
+function formatMixLabel(stats: EmailImageStats): string {
+  const entries = sortedFormatEntries(stats);
+  if (entries.length === 0) return "—";
+  const top = entries.slice(0, 2).map(([format]) => imageFormatLabel(format));
+  const rest = entries.length - top.length;
+  return rest > 0 ? `${top.join(", ")} +${rest}` : top.join(", ");
 }
 
 function formatLongDate(value: string): string {

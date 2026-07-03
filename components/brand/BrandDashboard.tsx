@@ -8,6 +8,7 @@ import {
   formatRelativeDate as formatRelativeDateZoned,
   formatShortDate as formatShortDateZoned
 } from "@/lib/datetime";
+import { formatBytes, imageFormatLabel } from "@/lib/image-stats";
 import { hasAnySeasonalMentions } from "@/lib/seasonal-events";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
@@ -976,7 +977,41 @@ export function DesignCard({
               : "—"}
           </span>
         </span>
+        <span className={styles.flag}>
+          <span className={styles.flagDot} />
+          <span>Avg image weight</span>
+          <span className={styles.flagShare}>
+            {design.images.avgBytesPerEmail !== null
+              ? formatBytes(Math.round(design.images.avgBytesPerEmail))
+              : "—"}
+          </span>
+        </span>
+        <span className={styles.flag}>
+          <span className={styles.flagDot} />
+          <span>Images per email</span>
+          <span className={styles.flagShare}>
+            {design.images.avgImagesPerEmail !== null
+              ? design.images.avgImagesPerEmail.toFixed(1)
+              : "—"}
+          </span>
+        </span>
       </div>
+
+      {design.images.formats.length > 0 ? (
+        <div className={styles.dnaSection}>
+          <span className={styles.dnaTitle}>Image formats</span>
+          <div className={styles.flagsRow}>
+            {design.images.formats.map((entry) => (
+              <span key={entry.format} className={styles.flag}>
+                <span>{imageFormatLabel(entry.format)}</span>
+                <span className={styles.flagShare}>
+                  {Math.round(entry.share * 100)}%
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {subjects.samples.length > 0 ? (
         <div className={styles.dnaSection}>

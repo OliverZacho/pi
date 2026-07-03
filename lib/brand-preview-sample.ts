@@ -116,7 +116,18 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
       { family: "Georgia", count: 96 }
     ],
     gifShare: 0.38,
-    darkModeShare: 0.21
+    darkModeShare: 0.21,
+    images: {
+      emailsMeasured: 412,
+      avgBytesPerEmail: 486_000,
+      avgBytesPerImage: 64_800,
+      avgImagesPerEmail: 7.5,
+      formats: [
+        { format: "jpeg", count: 2210, share: 0.71 },
+        { format: "png", count: 640, share: 0.21 },
+        { format: "gif", count: 250, share: 0.08 }
+      ]
+    }
   },
   subjects: {
     avgLength: 41,

@@ -23,6 +23,7 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
+import { parseImageStats, type ImageFormat } from "./image-stats";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -185,6 +186,21 @@ export type BrandPageData = {
     fonts: { family: string; count: number }[];
     gifShare: number;
     darkModeShare: number;
+    /**
+     * Image weight and format habits, aggregated from each sampled email's
+     * `metadata.image_stats` (written at ingest, backfilled for older rows).
+     * Rows without stats are excluded from every denominator, so a brand
+     * whose sample predates the tracking reports `emailsMeasured: 0` and
+     * null averages rather than skewed ones. `share` in `formats` is the
+     * format's fraction of all measured images.
+     */
+    images: {
+      emailsMeasured: number;
+      avgBytesPerEmail: number | null;
+      avgBytesPerImage: number | null;
+      avgImagesPerEmail: number | null;
+      formats: { format: ImageFormat; count: number; share: number }[];
+    };
   };
   subjects: {
     avgLength: number | null;
@@ -1185,10 +1201,27 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   const fonts = new Map<string, number>();
   let gif = 0;
   let dark = 0;
+  let emailsMeasured = 0;
+  let imageBytes = 0;
+  let imageCount = 0;
+  const formatCounts = new Map<ImageFormat, number>();
 
   for (const row of rows) {
     if (row.has_gif) gif += 1;
     if (row.has_dark_mode) dark += 1;
+
+    const imageStats = parseImageStats(row.metadata);
+    if (imageStats) {
+      emailsMeasured += 1;
+      imageBytes += imageStats.total_bytes;
+      imageCount += imageStats.image_count;
+      for (const [format, bucket] of Object.entries(imageStats.formats)) {
+        formatCounts.set(
+          format as ImageFormat,
+          (formatCounts.get(format as ImageFormat) ?? 0) + bucket.count
+        );
+      }
+    }
 
     const meta =
       row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
@@ -1256,7 +1289,20 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
       .sort((a, b) => b.count - a.count)
       .slice(0, 4),
     gifShare: rows.length > 0 ? gif / rows.length : 0,
-    darkModeShare: rows.length > 0 ? dark / rows.length : 0
+    darkModeShare: rows.length > 0 ? dark / rows.length : 0,
+    images: {
+      emailsMeasured,
+      avgBytesPerEmail: emailsMeasured > 0 ? imageBytes / emailsMeasured : null,
+      avgBytesPerImage: imageCount > 0 ? imageBytes / imageCount : null,
+      avgImagesPerEmail: emailsMeasured > 0 ? imageCount / emailsMeasured : null,
+      formats: Array.from(formatCounts.entries())
+        .map(([format, count]) => ({
+          format,
+          count,
+          share: imageCount > 0 ? count / imageCount : 0
+        }))
+        .sort((a, b) => b.count - a.count)
+    }
   };
 }
 
