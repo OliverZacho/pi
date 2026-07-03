@@ -107,9 +107,14 @@ function publicAssetUrl(path: string): string {
  * free. So cost tracks unique images *viewed* per month, not requests.
  */
 function cloudflareImageUrl(path: string, transform: ImageTransform): string {
-  const opts = [`width=${transform.width}`, "fit=scale-down", "format=auto"];
+  const fit = transform.fit ?? "scale-down";
+  const opts = [`width=${transform.width}`, `fit=${fit}`, "format=auto"];
   if (transform.height) opts.push(`height=${transform.height}`);
   if (transform.quality) opts.push(`quality=${transform.quality}`);
+  // Cover crops anchor to the top edge ("0.5x0" = horizontal center,
+  // vertical top): email hero images carry their subject up top, and the
+  // bottom is usually footer/legal filler.
+  if (fit === "cover") opts.push("gravity=0.5x0");
   return `${PUBLIC_ASSET_CDN_BASE_URL}/cdn-cgi/image/${opts.join(
     ","
   )}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
@@ -119,6 +124,14 @@ export type ImageTransform = {
   width: number;
   height?: number;
   quality?: number;
+  /**
+   * Cloudflare fit mode. Omitted = "scale-down" (resize within the box,
+   * never upscale, aspect preserved). "cover" crops to exactly
+   * `width`x`height`, anchored to the top of the image — every output has
+   * identical dimensions, which fixed-size `<img>` slots (notification
+   * email thumbnails) rely on.
+   */
+  fit?: "cover";
 };
 
 /**
@@ -143,6 +156,20 @@ export const BRAND_LOGO_TRANSFORM: ImageTransform = {
 export const CARD_IMAGE_TRANSFORM: ImageTransform = {
   width: 600,
   quality: 70
+};
+
+/**
+ * Cover crop for the small email previews embedded in notification emails
+ * (digest picks, smart-collection samples). Portrait 3:4 cropped from the
+ * top of the hero image so every thumbnail reads like a consistent little
+ * card next to the copy. 240x320 covers the largest slot (96x128 CSS px)
+ * at 2x.
+ */
+export const EMAIL_THUMB_TRANSFORM: ImageTransform = {
+  width: 240,
+  height: 320,
+  quality: 70,
+  fit: "cover"
 };
 
 export type MirroredImage = {
@@ -182,7 +209,8 @@ function signedUrlCacheKey(
   if (!transform) return `${bucket}|${path}`;
   const h = transform.height ?? "";
   const q = transform.quality ?? "";
-  return `${bucket}|${path}|w=${transform.width}|h=${h}|q=${q}`;
+  const f = transform.fit ?? "";
+  return `${bucket}|${path}|w=${transform.width}|h=${h}|q=${q}|f=${f}`;
 }
 
 function readCachedSignedUrl(key: string): string | null {
@@ -352,7 +380,7 @@ const MIN_RESIZE_BYTES = 100 * 1024;
  */
 const NON_TRANSFORMABLE_EXTENSIONS = new Set([".svg", ".ico", ".bin"]);
 
-function isTransformablePath(path: string): boolean {
+export function isTransformablePath(path: string): boolean {
   const dot = path.lastIndexOf(".");
   if (dot < 0) return true;
   const ext = path.slice(dot).toLowerCase();

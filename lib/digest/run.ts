@@ -10,6 +10,7 @@ import {
   type SupabaseAdmin
 } from "@/lib/notifications/shared";
 import { APP_URL } from "@/lib/notifications/email-shell";
+import { fetchEmailThumbnails } from "@/lib/notifications/email-thumbs";
 import { buildDigestModel } from "./build";
 import { renderDigestEmail } from "./render";
 
@@ -127,6 +128,18 @@ export async function runDigest(
     if (model.emailCount === 0) {
       summary.skippedEmpty += 1;
       continue;
+    }
+
+    // Hero previews for the final picks only (at most MAX_PICKS lookups).
+    // Best effort: a pick without a usable hero image renders text-only.
+    if (model.picks.length > 0) {
+      const thumbs = await fetchEmailThumbnails(
+        admin,
+        model.picks.map((p) => p.emailId)
+      );
+      for (const pick of model.picks) {
+        pick.thumbnailUrl = thumbs.get(pick.emailId) ?? null;
+      }
     }
 
     const { subject, html, text } = renderDigestEmail(model);

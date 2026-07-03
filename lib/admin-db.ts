@@ -206,7 +206,7 @@ export type GetEmailDetailOptions = {
  * than breaking — the gate is a cost optimisation, not correctness. The RPC
  * name is cast because it post-dates the generated `Database` types.
  */
-async function fetchEmailAssetSizes(
+export async function fetchEmailAssetSizes(
   supabase: PirolDb,
   paths: string[]
 ): Promise<Record<string, number> | undefined> {

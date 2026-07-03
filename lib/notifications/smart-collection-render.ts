@@ -1,6 +1,7 @@
 import type {
   SmartCollectionModel,
-  CollectionMatch
+  CollectionMatch,
+  CollectionSample
 } from "./smart-collection-build";
 import {
   APP_URL,
@@ -53,15 +54,32 @@ function collectionUrl(match: CollectionMatch): string {
   return `${APP_URL}/collections/${encodeURIComponent(match.collectionId)}`;
 }
 
+function sampleUrl(sample: CollectionSample): string {
+  // Same deep link the digest picks use: /explore mounts the email view
+  // directly and resolves any archive email regardless of follow state.
+  return `${APP_URL}/explore?email=${encodeURIComponent(sample.emailId)}`;
+}
+
+function renderSample(sample: CollectionSample): string {
+  const url = sampleUrl(sample);
+  const brand = sample.brandName ? `${escapeHtml(sample.brandName)}: ` : "";
+  const thumb = sample.thumbnailUrl
+    ? `<td width="58" valign="top" style="padding-right:10px;"><a href="${url}"><img src="${escapeHtml(
+        sample.thumbnailUrl
+      )}" width="48" height="64" alt="" style="display:block;width:48px;height:64px;object-fit:cover;object-position:top;border:1px solid #ece9e1;border-radius:6px;background:#faf9f5;" /></a></td>`
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
+    <tr>
+      ${thumb}
+      <td valign="middle"><a href="${url}" style="font-size:13px;color:#5f5e5a;text-decoration:none;">${brand}${escapeHtml(
+        sample.subject
+      )} <span style="color:#888780;">&rarr;</span></a></td>
+    </tr>
+  </table>`;
+}
+
 function renderCollection(match: CollectionMatch): string {
-  const samples = match.samples
-    .map((s) => {
-      const brand = s.brandName ? `${escapeHtml(s.brandName)}: ` : "";
-      return `<div style="font-size:13px;color:#5f5e5a;margin-top:4px;">${brand}${escapeHtml(
-        s.subject
-      )}</div>`;
-    })
-    .join("");
+  const samples = match.samples.map(renderSample).join("");
   return `
   <tr>
     <td style="padding:14px 0;border-top:1px solid #ece9e1;">

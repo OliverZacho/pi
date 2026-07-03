@@ -26,6 +26,12 @@ export type DigestPick = {
   kind: DigestPickKind;
   /** Captured email id, for deep-linking the pick straight to the email. */
   emailId: string;
+  /**
+   * Small hero-image preview (CDN cover crop); null renders text-only.
+   * Always null out of the pure builder — the run job resolves it for the
+   * final picks only, so the 500-row brand samples never carry image data.
+   */
+  thumbnailUrl: string | null;
 };
 
 export type DigestTailEntry = { brandName: string; count: number };
@@ -244,7 +250,8 @@ export function buildDigestModel(input: {
           day: weekday(email.receivedAt),
           why,
           kind,
-          emailId: email.id
+          emailId: email.id,
+          thumbnailUrl: null
         }
       });
     }

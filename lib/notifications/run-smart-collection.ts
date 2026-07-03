@@ -13,9 +13,11 @@ import {
   type SupabaseAdmin
 } from "./shared";
 import { APP_URL } from "./email-shell";
+import { fetchEmailThumbnails } from "./email-thumbs";
 import {
   buildSmartCollectionModel,
-  type CollectionMatch
+  type CollectionMatch,
+  type CollectionSample
 } from "./smart-collection-build";
 import { renderSmartCollectionEmail } from "./smart-collection-render";
 
@@ -65,14 +67,14 @@ async function windowStartFor(
   return new Date(now.getTime() - CADENCE_MS[cadence]);
 }
 
-async function sampleSubjects(
+async function sampleEmails(
   admin: SupabaseAdmin,
   ids: string[]
-): Promise<{ subject: string; brandName: string | null }[]> {
+): Promise<CollectionSample[]> {
   if (ids.length === 0) return [];
   const { data } = await admin
     .from("captured_emails")
-    .select("subject, companies(name)")
+    .select("id, subject, companies(name)")
     .in("id", ids)
     .order("received_at", { ascending: false })
     .limit(SAMPLE_COUNT);
@@ -80,7 +82,12 @@ async function sampleSubjects(
     const company = Array.isArray(row.companies)
       ? row.companies[0]
       : row.companies;
-    return { subject: row.subject, brandName: company?.name ?? null };
+    return {
+      emailId: row.id,
+      subject: row.subject,
+      brandName: company?.name ?? null,
+      thumbnailUrl: null
+    };
   });
 }
 
@@ -145,13 +152,25 @@ export async function runSmartCollection(
           collectionId: collection.id,
           collectionName: collection.name,
           newCount: ids.length,
-          samples: await sampleSubjects(admin, ids.slice(0, SAMPLE_COUNT))
+          samples: await sampleEmails(admin, ids.slice(0, SAMPLE_COUNT))
         });
       } catch (err) {
         console.error(
           `smart collection: rule eval failed for ${collection.id}`,
           err
         );
+      }
+    }
+
+    // One thumbnail lookup across every sample in the user's collections.
+    // Best effort: samples without a usable hero image render text-only.
+    const thumbs = await fetchEmailThumbnails(
+      admin,
+      matches.flatMap((m) => m.samples.map((s) => s.emailId))
+    );
+    for (const m of matches) {
+      for (const s of m.samples) {
+        s.thumbnailUrl = thumbs.get(s.emailId) ?? null;
       }
     }
 
