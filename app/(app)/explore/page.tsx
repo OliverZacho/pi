@@ -11,15 +11,9 @@ import {
   listCollectionSummaries,
   type CollectionSummary
 } from "@/lib/collections-db";
-import {
-  listCompetitorSetSummaries,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
 import ExploreClient from "@/components/explore/ExploreClient";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
 import TourStarter from "@/components/onboarding/TourStarter";
-import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
 export const metadata = {
@@ -85,11 +79,9 @@ export default async function ExplorePage() {
     }
 
     return (
-      <div className={styles.shell}>
+      <>
         {showTour ? <TourStarter /> : null}
         {mustChoosePlan ? <PlanChoiceModal /> : null}
-        <ExploreSidebar user={await getViewerDisplay()} hasAccess={false} />
-
         <main className={styles.main}>
           <header className={styles.heading}>
             <h1>Explore</h1>
@@ -112,7 +104,7 @@ export default async function ExplorePage() {
             defaultSort="recommended"
           />
         </main>
-      </div>
+      </>
     );
   }
 
@@ -128,65 +120,44 @@ export default async function ExplorePage() {
   //     cards already know their saved state (just UUIDs — a few hundred KB
   //     even for thousands of saves).
   //   - collections: feeds the "Add to collection" popover on every card.
-  //   - competitor sets: feeds the sidebar's "Your competitors" section.
-  //   - viewer display: the sidebar account row.
   // The per-source `.catch`es swallow errors so a single broken table
-  // (saves / collections / sets) never takes down Explore itself.
-  const [
-    initialResult,
-    facets,
-    savedSet,
-    initialCollections,
-    initialCompetitorSets,
-    viewerDisplay
-  ] = await Promise.all([
-    searchExploreEmails(supabase, {
-      page: 1,
-      pageSize: EXPLORE_PAGE_SIZE,
-      sort: "recommended"
-    }),
-    getExploreFacets(supabase),
-    listSavedEmailIds(supabase, userId).catch((err) => {
-      console.error("Failed to load saved email IDs", err);
-      return new Set<string>();
-    }),
-    listCollectionSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load collections", err);
-      return [] as CollectionSummary[];
-    }),
-    listCompetitorSetSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load competitor sets", err);
-      return [] as CompetitorSetSummary[];
-    }),
-    getViewerDisplay()
-  ]);
+  // (saves / collections) never takes down Explore itself.
+  const [initialResult, facets, savedSet, initialCollections] =
+    await Promise.all([
+      searchExploreEmails(supabase, {
+        page: 1,
+        pageSize: EXPLORE_PAGE_SIZE,
+        sort: "recommended"
+      }),
+      getExploreFacets(supabase),
+      listSavedEmailIds(supabase, userId).catch((err) => {
+        console.error("Failed to load saved email IDs", err);
+        return new Set<string>();
+      }),
+      listCollectionSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load collections", err);
+        return [] as CollectionSummary[];
+      })
+    ]);
   const initialSavedIds = Array.from(savedSet);
 
   return (
-    <div className={styles.shell}>
-      <ExploreSidebar
-        user={viewerDisplay}
-        collections={initialCollections}
-        competitorSets={initialCompetitorSets}
+    <main className={styles.main}>
+      <header className={styles.heading}>
+        <h1>Explore</h1>
+        <p>Browse marketing emails from competing brands</p>
+      </header>
+
+      <ExploreClient
+        initialEmails={initialResult.items}
+        initialHasMore={initialResult.hasMore}
+        pageSize={EXPLORE_PAGE_SIZE}
+        facets={facets}
+        initialSavedIds={initialSavedIds}
+        initialCollections={initialCollections}
+        defaultSort="recommended"
+        isAdmin={viewer.isAdmin}
       />
-
-      <main className={styles.main}>
-        <header className={styles.heading}>
-          <h1>Explore</h1>
-          <p>Browse marketing emails from competing brands</p>
-        </header>
-
-        <ExploreClient
-          initialEmails={initialResult.items}
-          initialHasMore={initialResult.hasMore}
-          pageSize={EXPLORE_PAGE_SIZE}
-          facets={facets}
-          initialSavedIds={initialSavedIds}
-          initialCollections={initialCollections}
-          defaultSort="recommended"
-          isAdmin={viewer.isAdmin}
-        />
-      </main>
-    </div>
+    </main>
   );
 }

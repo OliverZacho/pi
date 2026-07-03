@@ -21,8 +21,6 @@ import {
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
-import { getViewerDisplay } from "@/lib/viewer-display";
 import FollowingClient from "@/components/following/FollowingClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
@@ -57,42 +55,38 @@ export default async function FollowingPage() {
   // browsable directory to follow from — locked for public users.
   if (!viewer || !viewer.hasAccess) {
     return (
-      <div className={styles.shell}>
-        <ExploreSidebar user={await getViewerDisplay()} activeId="following" hasAccess={false} />
-        <main className={styles.main}>
-          <LockedFeature variant="following" />
-        </main>
-      </div>
+      <main className={styles.main}>
+        <LockedFeature variant="following" />
+      </main>
     );
   }
 
   const userId = viewer.userId;
 
   // First batch: everything that doesn't need the followed-brand ids —
-  // including the saved-id set and the account row, which would otherwise
-  // wait a round trip for no reason.
-  const [followed, sidebarCollections, sidebarSets, savedIds, viewerDisplay] =
-    await Promise.all([
-      listFollowedBrandCards(supabase, userId).catch((err) => {
-        console.error("Failed to load followed brands", err);
-        return [] as FollowedBrandCard[];
-      }),
-      listCollectionSummaries(supabase, userId).catch((err) => {
-        console.error("Failed to load collections", err);
-        return [] as CollectionSummary[];
-      }),
-      listCompetitorSetSummaries(supabase, userId).catch((err) => {
-        console.error("Failed to load competitor sets", err);
-        return [] as CompetitorSetSummary[];
-      }),
-      listSavedEmailIds(supabase, userId)
-        .then((set) => Array.from(set))
-        .catch((err) => {
-          console.error("Failed to load saved email IDs", err);
-          return [] as string[];
-        }),
-      getViewerDisplay()
-    ]);
+  // including the saved-id set, which would otherwise wait a round trip
+  // for no reason. Collections feed the "Add to collection" popover and
+  // comparisons the batch bar's "Add to comparison" action.
+  const [followed, collections, comparisons, savedIds] = await Promise.all([
+    listFollowedBrandCards(supabase, userId).catch((err) => {
+      console.error("Failed to load followed brands", err);
+      return [] as FollowedBrandCard[];
+    }),
+    listCollectionSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load collections", err);
+      return [] as CollectionSummary[];
+    }),
+    listCompetitorSetSummaries(supabase, userId).catch((err) => {
+      console.error("Failed to load competitor sets", err);
+      return [] as CompetitorSetSummary[];
+    }),
+    listSavedEmailIds(supabase, userId)
+      .then((set) => Array.from(set))
+      .catch((err) => {
+        console.error("Failed to load saved email IDs", err);
+        return [] as string[];
+      })
+  ]);
 
   const followedIds = followed.map((brand) => brand.id);
 
@@ -134,37 +128,28 @@ export default async function FollowingPage() {
   ]);
 
   return (
-    <div className={styles.shell}>
-      <ExploreSidebar
-        user={viewerDisplay}
-        activeId="following"
-        collections={sidebarCollections}
-        competitorSets={sidebarSets}
+    <main className={styles.main}>
+      <header className={styles.heading}>
+        <h1>Following</h1>
+        <p>
+          {followed.length === 0
+            ? "Brands you follow will show up here."
+            : `${followed.length} ${
+                followed.length === 1 ? "brand" : "brands"
+              } you follow.`}
+        </p>
+      </header>
+
+      <FollowingClient
+        brands={followed}
+        initialEmails={emailResult.items}
+        initialHasMore={emailResult.hasMore}
+        emailPageSize={EXPLORE_PAGE_SIZE}
+        emailFacets={emailFacets}
+        initialSavedIds={savedIds}
+        initialCollections={collections}
+        comparisons={comparisons}
       />
-
-      <main className={styles.main}>
-        <header className={styles.heading}>
-          <h1>Following</h1>
-          <p>
-            {followed.length === 0
-              ? "Brands you follow will show up here."
-              : `${followed.length} ${
-                  followed.length === 1 ? "brand" : "brands"
-                } you follow.`}
-          </p>
-        </header>
-
-        <FollowingClient
-          brands={followed}
-          initialEmails={emailResult.items}
-          initialHasMore={emailResult.hasMore}
-          emailPageSize={EXPLORE_PAGE_SIZE}
-          emailFacets={emailFacets}
-          initialSavedIds={savedIds}
-          initialCollections={sidebarCollections}
-          comparisons={sidebarSets}
-        />
-      </main>
-    </div>
+    </main>
   );
 }

@@ -10,13 +10,10 @@ import {
   type CompetitorSetBrand,
   type TeamSharedSet
 } from "@/lib/competitor-db";
-import { listCollectionSummaries } from "@/lib/collections-db";
 import { getCompareSectionPrefs } from "@/lib/user-prefs-db";
 import { getViewer } from "@/lib/access";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import LockedFeature from "@/components/access/LockedFeature";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
-import { getViewerDisplay } from "@/lib/viewer-display";
 import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
 import CompareLandingClient from "@/components/compare/CompareLandingClient";
@@ -57,12 +54,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
   // panel instead of the comparison tools.
   if (!viewer || !viewer.hasAccess) {
     return (
-      <div className={styles.shell}>
-        <ExploreSidebar user={await getViewerDisplay()} activeId="compare" hasAccess={false} />
-        <main className={styles.main}>
-          <LockedFeature variant="compare" />
-        </main>
-      </div>
+      <main className={styles.main}>
+        <LockedFeature variant="compare" />
+      </main>
     );
   }
 
@@ -79,28 +73,25 @@ export default async function ComparePage({ searchParams }: PageProps) {
   ).slice(0, MAX_BRANDS_PER_COMPARISON);
 
   // Parallelise everything the landing needs that doesn't depend on
-  // another result: saved sets, collections (sidebar), the full comparison
-  // payload (only when brands are deep-linked — otherwise we skip the
-  // `getBrandPageData` fan-out), section prefs, the team-shared list, and
-  // the viewer display row. The picker searches the brand directory on
-  // demand via `/api/brands/list`, so we no longer prefetch the catalogue.
-  // `teamShared` swallows its own error so a missing table can't break the
-  // page. (`setPreviews`/`setActivity` below still run after this batch —
-  // they depend on the resolved `sets`.)
-  const [sets, collections, comparison, sectionPrefs, teamShared, viewerDisplay] =
-    await Promise.all([
-      listCompetitorSetSummaries(supabase, userId),
-      listCollectionSummaries(supabase, userId),
-      requestedBrandIds.length > 0
-        ? getCompetitorComparison(supabase, requestedBrandIds)
-        : Promise.resolve({ brands: [], missing: [] }),
-      getCompareSectionPrefs(supabase, userId),
-      listTeamSharedSets(supabase, getSupabaseAdmin(), userId).catch((err) => {
-        console.error("Failed to load team-shared comparisons", err);
-        return [] as TeamSharedSet[];
-      }),
-      getViewerDisplay()
-    ]);
+  // another result: saved sets, the full comparison payload (only when
+  // brands are deep-linked — otherwise we skip the `getBrandPageData`
+  // fan-out), section prefs, and the team-shared list. The picker
+  // searches the brand directory on demand via `/api/brands/list`, so we
+  // no longer prefetch the catalogue. `teamShared` swallows its own error
+  // so a missing table can't break the page. (`setPreviews`/`setActivity`
+  // below still run after this batch — they depend on the resolved
+  // `sets`.)
+  const [sets, comparison, sectionPrefs, teamShared] = await Promise.all([
+    listCompetitorSetSummaries(supabase, userId),
+    requestedBrandIds.length > 0
+      ? getCompetitorComparison(supabase, requestedBrandIds)
+      : Promise.resolve({ brands: [], missing: [] }),
+    getCompareSectionPrefs(supabase, userId),
+    listTeamSharedSets(supabase, getSupabaseAdmin(), userId).catch((err) => {
+      console.error("Failed to load team-shared comparisons", err);
+      return [] as TeamSharedSet[];
+    })
+  ]);
 
   // Preview brands for each saved set — used by the grid card to show
   // 4 stacked logos. Fetched as a single bulk query so we don't fan
@@ -187,75 +178,66 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const showDashboard = dashboardBrands.length > 0;
 
   return (
-    <div className={styles.shell}>
-      <ExploreSidebar
-        user={viewerDisplay}
-        activeId="compare"
-        collections={collections}
-        competitorSets={sets}
+    <main className={styles.main}>
+      <header className={styles.heading}>
+        <div>
+          <h1>Comparisons</h1>
+          <p>
+            Put a group of brands side by side — cadence, promo intensity,
+            category mix, design tells, and the voice of their CTAs. Select
+            brands on the Brands page and save the groups you revisit.
+          </p>
+        </div>
+      </header>
+
+      <CompareLandingClient
+        sets={sets}
+        initialBrandIds={requestedBrandIds}
+        initialBrandOptions={initialBrandOptions}
+        setPreviews={setPreviews}
+        setActivity={setActivity}
       />
 
-      <main className={styles.main}>
-        <header className={styles.heading}>
-          <div>
-            <h1>Comparisons</h1>
-            <p>
-              Put a group of brands side by side — cadence, promo intensity,
-              category mix, design tells, and the voice of their CTAs. Select
-              brands on the Brands page and save the groups you revisit.
-            </p>
+      {showDashboard ? (
+        <section style={{ marginTop: "2rem" }}>
+          <CompareBrandStrip
+            brands={dashboardBrands}
+            setId={null}
+            setName={`Comparing ${dashboardBrands.length} brand${
+              dashboardBrands.length === 1 ? "" : "s"
+            }`}
+            subtitle="Ad-hoc comparison — save it above to keep this group."
+          />
+          <CompareDashboard
+            brands={dashboardBrands}
+            missingIds={comparison.missing}
+            sectionPrefs={sectionPrefs}
+          />
+        </section>
+      ) : null}
+
+      {teamShared.length > 0 ? (
+        <section className={shared.section}>
+          <h2 className={shared.title}>Shared with your team</h2>
+          <p className={shared.subtitle}>
+            Comparisons teammates have shared. You can view and copy them.
+          </p>
+          <div className={shared.grid}>
+            {teamShared.map((s) => (
+              <TeamSharedCard
+                key={s.id}
+                type="comparison"
+                id={s.id}
+                href={`/compare/${s.id}`}
+                name={s.name}
+                meta={`${s.brandCount} brand${
+                  s.brandCount === 1 ? "" : "s"
+                } · Shared by ${s.ownerName ?? "a teammate"}`}
+              />
+            ))}
           </div>
-        </header>
-
-        <CompareLandingClient
-          sets={sets}
-          initialBrandIds={requestedBrandIds}
-          initialBrandOptions={initialBrandOptions}
-          setPreviews={setPreviews}
-          setActivity={setActivity}
-        />
-
-        {showDashboard ? (
-          <section style={{ marginTop: "2rem" }}>
-            <CompareBrandStrip
-              brands={dashboardBrands}
-              setId={null}
-              setName={`Comparing ${dashboardBrands.length} brand${
-                dashboardBrands.length === 1 ? "" : "s"
-              }`}
-              subtitle="Ad-hoc comparison — save it above to keep this group."
-            />
-            <CompareDashboard
-              brands={dashboardBrands}
-              missingIds={comparison.missing}
-              sectionPrefs={sectionPrefs}
-            />
-          </section>
-        ) : null}
-
-        {teamShared.length > 0 ? (
-          <section className={shared.section}>
-            <h2 className={shared.title}>Shared with your team</h2>
-            <p className={shared.subtitle}>
-              Comparisons teammates have shared. You can view and copy them.
-            </p>
-            <div className={shared.grid}>
-              {teamShared.map((s) => (
-                <TeamSharedCard
-                  key={s.id}
-                  type="comparison"
-                  id={s.id}
-                  href={`/compare/${s.id}`}
-                  name={s.name}
-                  meta={`${s.brandCount} brand${
-                    s.brandCount === 1 ? "" : "s"
-                  } · Shared by ${s.ownerName ?? "a teammate"}`}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-      </main>
-    </div>
+        </section>
+      ) : null}
+    </main>
   );
 }

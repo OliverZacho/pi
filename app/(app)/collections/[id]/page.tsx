@@ -10,10 +10,6 @@ import {
   markCollectionViewed,
   type CollectionSummary
 } from "@/lib/collections-db";
-import {
-  listCompetitorSetSummaries,
-  type CompetitorSetSummary
-} from "@/lib/competitor-db";
 import { isDiscountFigureEligible } from "@/lib/collection-event-shared";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listFollowedBrandIds } from "@/lib/follows-db";
@@ -22,8 +18,6 @@ import { hasActiveTeamPlan } from "@/lib/teams-db";
 import { getViewer } from "@/lib/access";
 import LockedFeature from "@/components/access/LockedFeature";
 import CollectionDetailClient from "@/components/collections/CollectionDetailClient";
-import ExploreSidebar from "@/components/explore/ExploreSidebar";
-import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
 const UUID_PATTERN =
@@ -66,35 +60,25 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           countries: []
         }));
         return (
-          <div className={styles.shell}>
-            <ExploreSidebar
-              user={await getViewerDisplay()}
-              activeId={`collection:${demoCollection.id}`}
-              hasAccess={false}
+          <main className={styles.main} data-tour="collection-demo">
+            <CollectionDetailClient
+              initialCollection={demoCollection}
+              initialSavedIds={[]}
+              initialCollections={[]}
+              facets={demoFacets}
+              brandDiscountBenchmarks={{}}
+              followedCompanyIds={[]}
+              canEdit={false}
+              canShareWithTeam={false}
             />
-            <main className={styles.main} data-tour="collection-demo">
-              <CollectionDetailClient
-                initialCollection={demoCollection}
-                initialSavedIds={[]}
-                initialCollections={[]}
-                facets={demoFacets}
-                brandDiscountBenchmarks={{}}
-                followedCompanyIds={[]}
-                canEdit={false}
-                canShareWithTeam={false}
-              />
-            </main>
-          </div>
+          </main>
         );
       }
     }
     return (
-      <div className={styles.shell}>
-        <ExploreSidebar user={await getViewerDisplay()} activeId="collections" hasAccess={false} />
-        <main className={styles.main}>
-          <LockedFeature variant="collections" />
-        </main>
-      </div>
+      <main className={styles.main}>
+        <LockedFeature variant="collections" />
+      </main>
     );
   }
 
@@ -143,9 +127,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     followedSet,
     savedSet,
     collections,
-    competitorSets,
     facets,
-    viewerDisplay,
     canShareWithTeam
   ] = await Promise.all([
     // Fire-and-forget view marker; owners only.
@@ -184,10 +166,6 @@ export default async function CollectionDetailPage({ params }: PageProps) {
       console.error("Failed to load collections", err);
       return [] as CollectionSummary[];
     }),
-    listCompetitorSetSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load competitor sets", err);
-      return [] as CompetitorSetSummary[];
-    }),
     // Canonical brands / markets / categories for the rules editor dropdowns.
     getExploreFacets(supabase).catch((err) => {
       console.error("Failed to load explore facets", err);
@@ -198,7 +176,6 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         countries: []
       } as ExploreFacets;
     }),
-    getViewerDisplay(),
     // Team sharing is a Team-plan feature. Owners without it still see the
     // button — rendered as a locked upsell — so resolve entitlement here.
     // Admins always pass; otherwise it's an active "team" subscription.
@@ -216,26 +193,17 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   const savedIds = Array.from(savedSet);
 
   return (
-    <div className={styles.shell}>
-      <ExploreSidebar
-        user={viewerDisplay}
-        activeId={`collection:${collection.id}`}
-        collections={collections}
-        competitorSets={competitorSets}
+    <main className={styles.main}>
+      <CollectionDetailClient
+        initialCollection={collection}
+        initialSavedIds={savedIds}
+        initialCollections={collections}
+        facets={facets}
+        brandDiscountBenchmarks={brandDiscountBenchmarks}
+        followedCompanyIds={followedCompanyIds}
+        canEdit={canEdit}
+        canShareWithTeam={canShareWithTeam}
       />
-
-      <main className={styles.main}>
-        <CollectionDetailClient
-          initialCollection={collection}
-          initialSavedIds={savedIds}
-          initialCollections={collections}
-          facets={facets}
-          brandDiscountBenchmarks={brandDiscountBenchmarks}
-          followedCompanyIds={followedCompanyIds}
-          canEdit={canEdit}
-          canShareWithTeam={canShareWithTeam}
-        />
-      </main>
-    </div>
+    </main>
   );
 }

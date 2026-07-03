@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
@@ -29,21 +29,14 @@ type NavItem = {
   href?: string;
 };
 
+type ActiveId =
+  | NavId
+  | "settings"
+  | `collection:${string}`
+  | `compare:${string}`
+  | null;
+
 type Props = {
-  /**
-   * Which nav row should render as selected. The sidebar is shared
-   * across Explore (`/explore`), Saved (`/saved`), Brands, Collections,
-   * and Compare; each page passes an explicit `activeId` so the
-   * highlight tracks the page the user is actually on. A specific
-   * collection id can also be passed in (e.g. `"collection:<uuid>"`)
-   * so the matching row in the Collections section highlights. Same
-   * trick for saved competitor sets via `"compare:<uuid>"`.
-   */
-  activeId?:
-    | NavId
-    | "settings"
-    | `collection:${string}`
-    | `compare:${string}`;
   /**
    * User's collections fetched server-side by the page. We render the
    * top few in the section and link "View all" to `/collections`.
@@ -86,6 +79,37 @@ const SECTION_FOLD_OUT_LIMIT = 10;
 // `collections` prop (e.g. /brands).
 const EMPTY_COLLECTIONS: CollectionSummary[] = [];
 const EMPTY_COMPETITOR_SETS: CompetitorSetSummary[] = [];
+
+/**
+ * Which nav row should highlight, derived from the current URL. The
+ * sidebar lives in the shared `(app)` layout (mounted once, persisting
+ * across navigations), so it can't be told by each page which row is
+ * active — it reads the pathname instead. Detail routes map to their
+ * specific row (`/collections/<id>` → `collection:<id>`, `/compare/<id>`
+ * → `compare:<id>`); brand detail pages keep the Brands row lit.
+ */
+function activeIdFromPathname(pathname: string | null): ActiveId {
+  if (!pathname) return null;
+  const [, first, second] = pathname.split("/");
+  switch (first) {
+    case "explore":
+      return "explore";
+    case "saved":
+      return "saved";
+    case "brands":
+      return "brands";
+    case "following":
+      return "following";
+    case "settings":
+      return "settings";
+    case "collections":
+      return second ? `collection:${second}` : "collections";
+    case "compare":
+      return second ? `compare:${second}` : "compare";
+    default:
+      return null;
+  }
+}
 
 function CompassIcon() {
   return (
@@ -519,13 +543,14 @@ function AccountRow({
 }
 
 export default function ExploreSidebar({
-  activeId = "explore",
   collections = EMPTY_COLLECTIONS,
   competitorSets = EMPTY_COMPETITOR_SETS,
   hasAccess = true,
   user = null
 }: Props = {}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const activeId = activeIdFromPathname(pathname);
   const [items, setItems] = useState<CollectionSummary[]>(collections);
   const [sets, setSets] = useState<CompetitorSetSummary[]>(competitorSets);
   const [collectionsExpanded, setCollectionsExpanded] = useState(false);
@@ -560,11 +585,11 @@ export default function ExploreSidebar({
     typeof activeId === "string" && activeId.startsWith("compare:")
       ? activeId.slice("compare:".length)
       : null;
-  const activeRowId: NavId = activeCollectionId
+  const activeRowId: NavId | null = activeCollectionId
     ? "collections"
     : activeCompetitorSetId
       ? "compare"
-      : (activeId as NavId);
+      : (activeId as NavId | null);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -16,6 +16,7 @@ import {
   DesignCard,
   CtaCloudCard
 } from "./BrandDashboard";
+import { brandUrlLabel } from "@/lib/brand-url";
 import styles from "./brand.module.css";
 import locked from "./brand-locked.module.css";
 
@@ -95,7 +96,9 @@ export default function BrandLockedDashboard({
             <h1 className={styles.heroName}>{brand.name}</h1>
             <div className={styles.heroMeta}>
               {brand.domain ? (
-                <span className={styles.heroDomain}>{brand.domain}</span>
+                <span className={styles.heroDomain}>
+                  {brandUrlLabel(brand.domain)}
+                </span>
               ) : null}
               {brand.markets.length > 0 ? (
                 <>
