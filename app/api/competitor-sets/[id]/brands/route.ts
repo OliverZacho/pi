@@ -5,6 +5,7 @@ import {
   parseMemberInputs,
   MAX_BRANDS_PER_COMPARISON
 } from "@/lib/competitor-db";
+import { competitorSetWriteFailure } from "@/lib/competitor-set-api";
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -47,7 +48,7 @@ export async function POST(request: Request, context: RouteContext) {
       members
     );
     if (result.status === "missing") {
-      return NextResponse.json({ error: "Set not found" }, { status: 404 });
+      return competitorSetWriteFailure(session.supabase, id);
     }
     if (result.status === "full") {
       return NextResponse.json(

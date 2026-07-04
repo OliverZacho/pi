@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { getViewer } from "@/lib/access";
 import { hasActiveTeamPlan } from "@/lib/teams-db";
@@ -22,6 +24,38 @@ const UUID_PATTERN =
 const MAX_NAME_LENGTH = 120;
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/**
+ * An owner-scoped write matched no rows. Team-shared collections are
+ * readable by non-owners, so for them "not found" is misleading; check
+ * whether the viewer can at least read the row (RLS-scoped, so this
+ * never reveals collections the viewer couldn't already see) and
+ * answer 403 read-only instead of 404.
+ */
+async function ownerWriteFailure(
+  supabase: SupabaseClient<Database>,
+  collectionId: string
+) {
+  try {
+    const { data } = await supabase
+      .from("collections")
+      .select("id")
+      .eq("id", collectionId)
+      .maybeSingle();
+    if (data) {
+      return NextResponse.json(
+        {
+          error:
+            "This collection is shared with you as read-only. Only its owner can edit it."
+        },
+        { status: 403 }
+      );
+    }
+  } catch (error) {
+    console.error("Failed to check collection readability", error);
+  }
+  return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+}
 
 /**
  * GET `/api/collections/[id]` — owner-side detail: the collection meta
@@ -190,10 +224,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           id
         );
         if (!existingDetail) {
-          return NextResponse.json(
-            { error: "Collection not found" },
-            { status: 404 }
-          );
+          return ownerWriteFailure(session.supabase, id);
         }
         rules = {
           ...rules,
@@ -208,10 +239,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         rules
       );
       if (!ok) {
-        return NextResponse.json(
-          { error: "Collection not found" },
-          { status: 404 }
-        );
+        return ownerWriteFailure(session.supabase, id);
       }
     }
 
@@ -223,10 +251,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         obj.name as string
       );
       if (!updated) {
-        return NextResponse.json(
-          { error: "Collection not found" },
-          { status: 404 }
-        );
+        return ownerWriteFailure(session.supabase, id);
       }
     }
 
@@ -238,10 +263,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         isCollectionIcon(obj.icon) ? obj.icon : null
       );
       if (!updated) {
-        return NextResponse.json(
-          { error: "Collection not found" },
-          { status: 404 }
-        );
+        return ownerWriteFailure(session.supabase, id);
       }
     }
 
@@ -253,10 +275,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         obj.sharedWithTeam as boolean
       );
       if (!updated) {
-        return NextResponse.json(
-          { error: "Collection not found" },
-          { status: 404 }
-        );
+        return ownerWriteFailure(session.supabase, id);
       }
     }
 
@@ -268,10 +287,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         obj.notifyNewMatches as boolean
       );
       if (!updated) {
-        return NextResponse.json(
-          { error: "Collection not found" },
-          { status: 404 }
-        );
+        return ownerWriteFailure(session.supabase, id);
       }
     }
 
@@ -322,10 +338,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       id
     );
     if (!removed) {
-      return NextResponse.json(
-        { error: "Collection not found" },
-        { status: 404 }
-      );
+      return ownerWriteFailure(session.supabase, id);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
