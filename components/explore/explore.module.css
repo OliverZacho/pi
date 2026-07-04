@@ -188,6 +188,21 @@
   white-space: nowrap;
 }
 
+/* Small two-person badge on the right of rows shared from a teammate.
+ * Sits after the ellipsized label; flex-shrink 0 keeps it visible even
+ * when the name is clipped. */
+.navTeamBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.navItem.active .navTeamBadge {
+  color: #64748b;
+}
+
 .sidebarEmpty {
   padding: 0.4rem 0.6rem 0.5rem;
   font-size: 0.78rem;

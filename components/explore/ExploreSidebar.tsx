@@ -211,6 +211,30 @@ function BrandsIcon() {
   );
 }
 
+function TeamIcon() {
+  // Two-person silhouette — marks sidebar rows owned by a teammate
+  // (shared with the team) rather than the viewer. Rendered at 12px so
+  // it reads as a badge, not a second row icon.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20" />
+      <path d="M16 5a3.5 3.5 0 0 1 0 6.8" />
+      <path d="M17.8 13.4a5.5 5.5 0 0 1 2.7 5.1V20" />
+    </svg>
+  );
+}
+
 function MoreIcon() {
   return (
     <svg
@@ -785,6 +809,24 @@ export default function ExploreSidebar({
                 ) : null}
               </span>
               <span className={styles.navItemLabel}>{collection.name}</span>
+              {collection.sharedByTeam ? (
+                <span
+                  className={styles.navTeamBadge}
+                  role="img"
+                  aria-label={
+                    collection.teamOwnerName
+                      ? `Shared by ${collection.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                  title={
+                    collection.teamOwnerName
+                      ? `Shared by ${collection.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                >
+                  <TeamIcon />
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -850,6 +892,24 @@ export default function ExploreSidebar({
                 <CompareIcon />
               </span>
               <span className={styles.navItemLabel}>{set.name}</span>
+              {set.sharedByTeam ? (
+                <span
+                  className={styles.navTeamBadge}
+                  role="img"
+                  aria-label={
+                    set.teamOwnerName
+                      ? `Shared by ${set.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                  title={
+                    set.teamOwnerName
+                      ? `Shared by ${set.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                >
+                  <TeamIcon />
+                </span>
+              ) : null}
             </Link>
           );
         })}
