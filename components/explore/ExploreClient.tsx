@@ -1527,6 +1527,7 @@ export default function ExploreClient({
                   isSaved={false}
                   onToggleSave={handleLoggedOutSave}
                   tourAnchor={index === 0}
+                  enterDelayMs={Math.min(index % pageSize, 16) * 30}
                 />
               ) : isPublic && allowSave ? (
                 // Signed-in free user: Save enabled, collections withheld
@@ -1539,6 +1540,7 @@ export default function ExploreClient({
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
                   tourAnchor={index === 0}
+                  enterDelayMs={Math.min(index % pageSize, 16) * 30}
                 />
               ) : (
                 <EmailCard
@@ -1549,6 +1551,7 @@ export default function ExploreClient({
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
                   tourAnchor={index === 0}
+                  enterDelayMs={Math.min(index % pageSize, 16) * 30}
                   collections={collections}
                   membershipIds={
                     membershipByEmail.get(email.id) ?? EMPTY_ID_SET

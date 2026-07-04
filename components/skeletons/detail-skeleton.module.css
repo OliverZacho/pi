@@ -1,0 +1,214 @@
+/*
+ * Shimmer bars for the detail-page skeletons (/collections/[id] and
+ * /compare/[id]). Unlike the shell pages, these skeletons borrow their
+ * STRUCTURAL boxes (breadcrumb, header, section panels) straight from
+ * the pages' own CSS modules so the box model can't drift; this file
+ * only sizes the shimmer stand-ins that fill them. Bar heights are the
+ * measured line boxes of the real text under the app font stack.
+ */
+
+/* The real breadcrumb links' line boxes make the nav 24px tall — the
+   4px margins pad the 16px bar out to the same row height. */
+.crumbBar {
+  height: 16px;
+  margin: 4px 0;
+  width: 13rem;
+  border-radius: 4px;
+}
+
+/* Collection detail: the lg icon-picker badge + 1.6rem/1.2 title line. */
+.titleIcon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+/* The real `.detailTitle` h1 keeps its default browser margins (no
+   reset in the module), so the title row is 65px, not 36px — the bar
+   mirrors line box + margins. */
+.titleBar {
+  height: 30.75px;
+  margin: 17.1px 0;
+  width: 16rem;
+  border-radius: 6px;
+}
+
+.metaBar {
+  height: 16px;
+  width: 12rem;
+  border-radius: 4px;
+}
+
+/* Rounded action button (`.detailButton`): 0.55rem × 2 padding around
+   a 16px text/icon line. */
+.actionPill {
+  height: 33.6px;
+  width: 6.5rem;
+  border-radius: 999px;
+}
+
+/* Compare header: 1.4rem title line + 0.85rem sub line. */
+.cmpTitleBar {
+  height: 27px;
+  width: 14rem;
+  border-radius: 6px;
+}
+
+.cmpSubBar {
+  height: 16px;
+  width: 11rem;
+  border-radius: 4px;
+}
+
+/* `.iconButton`: 0.5rem × 2 padding around a 16px icon. */
+.iconPill {
+  height: 32px;
+  width: 3.1rem;
+  border-radius: 999px;
+}
+
+/* `.brandStripItem`: 0.45rem × 2 padding around the 1.7rem logo box. */
+.stripPill {
+  height: 41.6px;
+  width: 9.5rem;
+  border-radius: 999px;
+}
+
+/* Brand hero (`.hero` in brand.module.css): 3.6rem avatar, 1.5rem/1.15
+   name line, meta pill row. */
+.heroAvatar {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.heroNameBar {
+  height: 27.6px;
+  width: 13rem;
+  border-radius: 6px;
+}
+
+.heroMetaBar {
+  height: 21px;
+  width: 22rem;
+  border-radius: 999px;
+}
+
+/* KPI tile innards: 1.7rem icon head row, 1.7rem/1.05 value line,
+   0.78rem hint row. */
+.kpiHeadBar {
+  height: 1.7rem;
+  width: 60%;
+  border-radius: 8px;
+}
+
+.kpiValueBar {
+  height: 28.6px;
+  width: 45%;
+  border-radius: 6px;
+}
+
+.kpiHintBar {
+  height: 16.85px;
+  width: 75%;
+  border-radius: 4px;
+}
+
+/* Big white dashboard panel stand-in (calendar / heatmap / cards). */
+.panelBlock {
+  height: 320px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: var(--panel-shadow);
+  padding: 1.3rem 1.4rem;
+}
+
+.panelBlockShort {
+  height: 260px;
+}
+
+/* Generic dashboard section innards (eyebrow / title / sub / chart). */
+.eyebrowBar {
+  height: 12px;
+  width: 5rem;
+  border-radius: 4px;
+}
+
+.sectionTitleBar {
+  height: 24px;
+  width: 15rem;
+  border-radius: 5px;
+  margin-top: 0.5rem;
+}
+
+.sectionSubBar {
+  height: 16px;
+  width: 22rem;
+  border-radius: 4px;
+  margin-top: 0.45rem;
+}
+
+.sectionContent {
+  height: 240px;
+  border-radius: 12px;
+  margin-top: 1.1rem;
+}
+
+.crumbBar,
+.titleIcon,
+.titleBar,
+.metaBar,
+.actionPill,
+.cmpTitleBar,
+.cmpSubBar,
+.iconPill,
+.stripPill,
+.heroAvatar,
+.heroNameBar,
+.heroMetaBar,
+.kpiHeadBar,
+.kpiValueBar,
+.kpiHintBar,
+.eyebrowBar,
+.sectionTitleBar,
+.sectionSubBar,
+.sectionContent {
+  background: linear-gradient(90deg, #f8fafc 0%, #eef2f7 50%, #f8fafc 100%);
+  background-size: 200% 100%;
+  animation: detailShimmer 1.6s linear infinite;
+}
+
+@keyframes detailShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crumbBar,
+  .titleIcon,
+  .titleBar,
+  .metaBar,
+  .actionPill,
+  .cmpTitleBar,
+  .cmpSubBar,
+  .iconPill,
+  .stripPill,
+  .heroAvatar,
+  .heroNameBar,
+  .heroMetaBar,
+  .kpiHeadBar,
+  .kpiValueBar,
+  .kpiHintBar,
+  .eyebrowBar,
+  .sectionTitleBar,
+  .sectionSubBar,
+  .sectionContent {
+    animation: none;
+  }
+}

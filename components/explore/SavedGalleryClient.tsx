@@ -428,7 +428,7 @@ export default function SavedGalleryClient({
         <p className={styles.empty}>No saved emails match your search.</p>
       ) : (
         <div className={styles.grid}>
-          {visibleEmails.map((email) =>
+          {visibleEmails.map((email, index) =>
             publicView ? (
               // Free view: public render endpoint, Save toggle (unsave)
               // kept, collections withheld.
@@ -439,6 +439,7 @@ export default function SavedGalleryClient({
                 renderUrlBase="/api/explore/emails"
                 isSaved={savedIds.has(email.id)}
                 onToggleSave={handleToggleSave}
+                enterDelayMs={Math.min(index, 16) * 30}
               />
             ) : (
               <EmailCard
@@ -452,6 +453,7 @@ export default function SavedGalleryClient({
                 onToggleCollection={handleToggleCollection}
                 onCreateCollection={handleCreateCollection}
                 onRequestMemberships={requestMemberships}
+                enterDelayMs={Math.min(index, 16) * 30}
               />
             )
           )}

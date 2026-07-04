@@ -223,7 +223,7 @@ export default function CompareLandingClient({
             <span className={styles.cmpNewTileLabel}>New comparison</span>
           </button>
 
-          {sets.map((set) => {
+          {sets.map((set, index) => {
             const preview = setPreviews[set.id] ?? [];
             // Always lay out four mosaic slots so cards stay the same
             // height; empty slots get a subtle placeholder tile.
@@ -233,7 +233,12 @@ export default function CompareLandingClient({
               <Link
                 key={set.id}
                 href={`/compare/${set.id}`}
-                className={styles.cmpCard}
+                className={`${styles.cmpCard} ${styles.cardEnter}`}
+                style={
+                  index > 0
+                    ? { animationDelay: `${Math.min(index, 16) * 30}ms` }
+                    : undefined
+                }
               >
                 <div className={styles.cmpMosaic} aria-hidden="true">
                   {slots.map((brand, index) => {

@@ -430,23 +430,6 @@
   background: #f1f5f9;
 }
 
-.toggleRow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.3rem 0.1rem;
-  font-size: 0.86rem;
-  color: #0f172a;
-  cursor: pointer;
-}
-
-.toggleRow input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #0f172a;
-  cursor: pointer;
-}
-
 .dateRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -622,11 +605,7 @@
   border-top: 1px solid #f1f5f9;
 }
 
-/* ---------- Cadence range slider panel ---------- */
-
-.cadencePanel {
-  width: 320px;
-}
+/* ---------- Cadence range slider (inside More filters) ---------- */
 
 .cadencePanelHead {
   display: flex;
@@ -1070,6 +1049,26 @@
   position: relative;
   display: flex;
   min-width: 0;
+}
+
+/* Newly arrived cards fade in with a per-card delay (set inline) so the
+   grid reads as populating rather than landing in one block. `backwards`
+   keeps a delayed card invisible until its slot in the cascade. */
+.cardEnter {
+  animation: cardEnter 260ms ease backwards;
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardEnter {
+    animation: none;
+  }
 }
 
 .cardWrap .card {

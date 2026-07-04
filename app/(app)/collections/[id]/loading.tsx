@@ -1,5 +1,5 @@
-import AppShellSkeleton from "@/components/skeletons/AppShellSkeleton";
+import CollectionDetailSkeleton from "@/components/skeletons/CollectionDetailSkeleton";
 
 export default function Loading() {
-  return <AppShellSkeleton title="Collection" />;
+  return <CollectionDetailSkeleton />;
 }

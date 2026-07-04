@@ -187,10 +187,11 @@ export default function CollectionsGridClient({
           </button>
         )}
 
-        {filtered.map((collection) => (
+        {filtered.map((collection, index) => (
           <CollectionCard
             key={collection.id}
             collection={collection}
+            enterDelayMs={Math.min(index, 16) * 30}
             renderUrlFor={(emailId) =>
               `/api/explore/emails/${emailId}/render?preview=1`
             }

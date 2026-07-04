@@ -5,6 +5,8 @@ export default function Loading() {
     <AppShellSkeleton
       title="Brands"
       subtitle="Search every tracked brand and filter by what we know."
+      toolbar
+      variant="brand"
     />
   );
 }

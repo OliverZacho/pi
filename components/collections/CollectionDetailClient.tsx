@@ -924,11 +924,12 @@ export default function CollectionDetailClient({
 
       {!rulesEditorOpen && emails.length > 0 ? (
         <div className={exploreStyles.grid}>
-          {emails.map((email) => (
+          {emails.map((email, index) => (
             <EmailCard
               key={email.id}
               email={email}
               onOpen={handleOpenEmail}
+              enterDelayMs={Math.min(index, 16) * 30}
               renderUrlBase="/api/explore/emails"
               isSaved={savedIds.has(email.id)}
               onToggleSave={handleToggleSave}

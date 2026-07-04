@@ -4,7 +4,13 @@ export default function Loading() {
   return (
     <AppShellSkeleton
       title="Collections"
-      subtitle="Group emails into themed collections and share them with a link."
+      // Subtitle is dynamic ("N collections.") — shimmer instead of
+      // static copy that would flash and then change.
+      subtitleBar
+      // Collections' filter row is a lone search field.
+      toolbar={{ chips: 0, sort: false }}
+      newTile
+      variant="collection"
       cards={6}
     />
   );

@@ -523,6 +523,27 @@
   cursor: progress;
 }
 
+/* Newly arrived tiles / sections fade in with a per-block delay (set
+   inline) so the dashboard reads as populating rather than landing in
+   one block. `backwards` keeps a delayed block invisible until its
+   slot in the cascade. */
+.cardEnter {
+  animation: cardEnter 260ms ease backwards;
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardEnter {
+    animation: none;
+  }
+}
+
 /* ---------- KPI tiles ---------- */
 
 .kpiGrid {

@@ -136,9 +136,21 @@ export default function CompareSectionRail({ sections, initialPrefs }: Props) {
           </span>
         );
 
+        // Sections cascade in on first mount (same entrance the grid
+        // cards use, chunkier stagger for the bigger blocks). Reorder /
+        // hide keep their DOM nodes, so the animation never replays.
+        const enterStyle =
+          idx > 0
+            ? { animationDelay: `${Math.min(idx, 8) * 60}ms` }
+            : undefined;
+
         if (isHidden) {
           return (
-            <div key={id} className={styles.railCollapsed}>
+            <div
+              key={id}
+              className={`${styles.railCollapsed} ${styles.cardEnter}`}
+              style={enterStyle}
+            >
               <span className={styles.railCollapsedTitle}>{title}</span>
               {controls}
             </div>
@@ -146,7 +158,11 @@ export default function CompareSectionRail({ sections, initialPrefs }: Props) {
         }
 
         return (
-          <div key={id} className={styles.railShell}>
+          <div
+            key={id}
+            className={`${styles.railShell} ${styles.cardEnter}`}
+            style={enterStyle}
+          >
             {controls}
             {section.content}
           </div>

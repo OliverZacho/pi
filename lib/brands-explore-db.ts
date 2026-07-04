@@ -80,7 +80,6 @@ export type BrandsSearchParams = {
   cadenceMaxDays?: number | null;
   activity?: BrandsActivityWindow | null;
   minEmailCount?: number | null;
-  hasLogo?: boolean;
   subscribedAfter?: string | null;
   subscribedBefore?: string | null;
   sort?: BrandsSortKey;
@@ -214,9 +213,6 @@ export async function searchBrands(
   // category all searchable.
   const searchTerm = (params.query ?? "").trim().toLowerCase();
 
-  if (params.hasLogo) {
-    query = query.not("logo_storage_path", "is", null);
-  }
   if (params.subscribedAfter) {
     query = query.gte("subscribed_since", params.subscribedAfter);
   }
