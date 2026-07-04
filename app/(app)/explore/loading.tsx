@@ -5,6 +5,7 @@ export default function Loading() {
     <AppShellSkeleton
       title="Explore"
       subtitle="Browse marketing emails from competing brands"
+      toolbar
     />
   );
 }

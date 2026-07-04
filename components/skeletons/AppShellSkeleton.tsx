@@ -7,7 +7,23 @@ type Props = {
   subtitle?: string;
   /** How many shimmer cards to lay out in the grid. */
   cards?: number;
+  /**
+   * Render a placeholder search pill + filter chips + sort chip above the
+   * grid, matching the real filter row's box exactly — pages that have a
+   * toolbar must show it here too, or the grid jumps down when the real
+   * page streams in.
+   */
+  toolbar?: boolean;
+  /**
+   * Card shape. "preview" is the tall email-preview square (Explore et
+   * al.); "brand" mirrors the shorter brand stat card used by /brands so
+   * the real cards land exactly on top of their placeholders.
+   */
+  variant?: "preview" | "brand";
 };
+
+/** Varied chip widths so the placeholder row reads as distinct filters. */
+const CHIP_WIDTHS = ["8.5rem", "5.2rem", "4.4rem", "6.4rem", "6.8rem"];
 
 /**
  * Instant loading state for the app shell pages (Explore, Brands,
@@ -22,7 +38,9 @@ type Props = {
 export default function AppShellSkeleton({
   title,
   subtitle,
-  cards = 8
+  cards = 8,
+  toolbar = false,
+  variant = "preview"
 }: Props) {
   return (
     <main className={styles.main}>
@@ -30,12 +48,45 @@ export default function AppShellSkeleton({
         <h1>{title}</h1>
         {subtitle ? <p>{subtitle}</p> : null}
       </header>
-      <div className={styles.grid} aria-hidden>
-        {Array.from({ length: cards }).map((_, i) => (
-          <div key={i} className={styles.card}>
-            <div className={styles.cardPreview} />
-          </div>
-        ))}
+
+      {toolbar ? (
+        <div className={styles.toolbar} aria-hidden>
+          <div className={styles.searchPill} />
+          {CHIP_WIDTHS.map((width, i) => (
+            <div key={i} className={styles.chip} style={{ width }} />
+          ))}
+          <div className={styles.sortPill} />
+        </div>
+      ) : null}
+
+      <div
+        className={`${styles.grid}${
+          variant === "brand" ? ` ${styles.gridBrand}` : ""
+        }${toolbar ? ` ${styles.gridAfterToolbar}` : ""}`}
+        aria-hidden
+      >
+        {Array.from({ length: cards }).map((_, i) =>
+          variant === "brand" ? (
+            <div key={i} className={styles.brandCard}>
+              <div className={styles.brandHead}>
+                <div className={styles.brandAvatar} />
+                <div className={styles.brandHeadText}>
+                  <div className={styles.brandLine} />
+                  <div className={styles.brandLineSub} />
+                </div>
+              </div>
+              <div className={styles.brandStats}>
+                <div className={styles.brandStat} />
+                <div className={styles.brandStat} />
+              </div>
+              <div className={styles.brandFoot} />
+            </div>
+          ) : (
+            <div key={i} className={styles.card}>
+              <div className={styles.cardPreview} />
+            </div>
+          )
+        )}
       </div>
     </main>
   );

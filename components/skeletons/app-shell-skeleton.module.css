@@ -34,11 +34,57 @@
   color: #64748b;
 }
 
+/* ---------- Toolbar placeholder ----------
+   Mirrors the real filter row (`.filterRow` in brands-explore /
+   explore modules): same margins, pill heights and search width, so
+   the interactive toolbar streams in exactly on top of it. */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.5rem 0 2rem;
+  flex-wrap: wrap;
+}
+
+.searchPill {
+  width: 100%;
+  max-width: 320px;
+  height: 2.15rem;
+}
+
+.chip {
+  height: 2rem;
+}
+
+.sortPill {
+  margin-left: auto;
+  width: 8.5rem;
+  height: 2rem;
+}
+
+.searchPill,
+.chip,
+.sortPill {
+  border-radius: 999px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 1.25rem;
   margin-top: 2rem;
+}
+
+/* The toolbar row already carries the 2rem gap above the grid. */
+.gridAfterToolbar {
+  margin-top: 0;
+}
+
+/* Brand-card grid metrics (`.grid` in brands-explore.module.css). */
+.gridBrand {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.1rem;
 }
 
 @media (min-width: 1100px) {
@@ -57,6 +103,83 @@
 .cardPreview {
   width: 100%;
   aspect-ratio: 1 / 1.05;
+}
+
+/* ---------- Brand card placeholder ----------
+   Same box model as the real `.cardRich` brand stat card (avatar head,
+   two-column stat strip, tracked-since footer) so the swap is 1:1. */
+
+.brandCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.1rem 0.95rem;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+  min-width: 0;
+}
+
+.brandHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.brandAvatar {
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+
+.brandHeadText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.brandLine {
+  height: 0.8rem;
+  width: 62%;
+  border-radius: 4px;
+}
+
+.brandLineSub {
+  height: 0.6rem;
+  width: 84%;
+  border-radius: 4px;
+}
+
+.brandStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.brandStat {
+  height: 3.05rem;
+  border-radius: 10px;
+}
+
+.brandFoot {
+  height: 0.85rem;
+  width: 58%;
+  border-radius: 4px;
+}
+
+/* Shared shimmer surface for every placeholder block. */
+.cardPreview,
+.searchPill,
+.chip,
+.sortPill,
+.brandAvatar,
+.brandLine,
+.brandLineSub,
+.brandStat,
+.brandFoot {
   background: linear-gradient(90deg, #f8fafc 0%, #eef2f7 50%, #f8fafc 100%);
   background-size: 200% 100%;
   animation: skeletonShimmer 1.6s linear infinite;
@@ -73,7 +196,15 @@
 
 /* Respect users who'd rather not see the looping shimmer. */
 @media (prefers-reduced-motion: reduce) {
-  .cardPreview {
+  .cardPreview,
+  .searchPill,
+  .chip,
+  .sortPill,
+  .brandAvatar,
+  .brandLine,
+  .brandLineSub,
+  .brandStat,
+  .brandFoot {
     animation: none;
   }
 }

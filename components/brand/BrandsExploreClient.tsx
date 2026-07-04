@@ -1180,6 +1180,9 @@ export default function BrandsExploreClient({
                 key={brand.id}
                 brand={brand}
                 tourAnchor={index === 0}
+                // Stagger within the freshly loaded page (existing cards
+                // keep their DOM nodes, so only new arrivals cascade in).
+                enterDelayMs={Math.min(index % pageSize, 16) * 30}
                 selectable={!isPublic}
                 selectMode={selectMode}
                 selected={selectedSet.has(brand.id)}
@@ -1229,6 +1232,9 @@ type BrandGridCardProps = {
   onToggle?: (id: string) => void;
   /** Tags this card as the onboarding tour's "brand page" spotlight anchor. */
   tourAnchor?: boolean;
+  /** Entrance-animation delay so grid cards cascade in instead of
+      appearing as one block. */
+  enterDelayMs?: number;
 };
 
 function BrandGridCard({
@@ -1238,9 +1244,12 @@ function BrandGridCard({
   selected = false,
   disabled = false,
   onToggle,
-  tourAnchor = false
+  tourAnchor = false,
+  enterDelayMs = 0
 }: BrandGridCardProps) {
   const tourAttr = tourAnchor ? "brand-card" : undefined;
+  const enterStyle: CSSProperties | undefined =
+    enterDelayMs > 0 ? { animationDelay: `${enterDelayMs}ms` } : undefined;
   const cardBody = (
     <>
       {selectMode ? (
@@ -1258,22 +1267,30 @@ function BrandGridCard({
     </>
   );
 
+  // The entrance animation lives on this always-present wrapper, not the
+  // card itself: toggling select mode swaps the card's element type
+  // (Link ↔ button), which remounts it — animating the stable wrapper
+  // keeps the cascade to genuinely new cards only.
+  const wrapClassName = `${styles.cardWrap} ${styles.cardEnter}`;
+
   if (selectMode) {
     const className = `${styles.card} ${styles.cardRich} ${styles.cardSelectable} ${styles.cardSelectableButton}${
       selected ? ` ${styles.cardSelected}` : ""
     }`;
     return (
-      <button
-        type="button"
-        className={className}
-        onClick={() => onToggle?.(brand.id)}
-        disabled={disabled}
-        aria-pressed={selected}
-        aria-label={`${selected ? "Unselect" : "Select"} ${brand.name}`}
-        data-tour={tourAttr}
-      >
-        {cardBody}
-      </button>
+      <div className={wrapClassName} style={enterStyle}>
+        <button
+          type="button"
+          className={className}
+          onClick={() => onToggle?.(brand.id)}
+          disabled={disabled}
+          aria-pressed={selected}
+          aria-label={`${selected ? "Unselect" : "Select"} ${brand.name}`}
+          data-tour={tourAttr}
+        >
+          {cardBody}
+        </button>
+      </div>
     );
   }
 
@@ -1289,14 +1306,18 @@ function BrandGridCard({
   );
 
   if (!selectable) {
-    return link;
+    return (
+      <div className={wrapClassName} style={enterStyle}>
+        {link}
+      </div>
+    );
   }
 
   // Outside select mode the card stays a plain link, with a checkbox
   // revealed on hover (always visible on touch) as the entry point
   // into selection — no need to find the toolbar toggle first.
   return (
-    <div className={styles.cardWrap}>
+    <div className={wrapClassName} style={enterStyle}>
       {link}
       <button
         type="button"
