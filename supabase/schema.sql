@@ -413,6 +413,27 @@ group by company_id;
 grant select on public.company_email_stats to authenticated;
 grant select on public.company_email_stats to service_role;
 
+-- Per-brand ESP + cadence aggregates for the Brands explorer. The mean of
+-- consecutive send gaps telescopes to (max - min) / (count - 1), so this is
+-- a plain GROUP BY. mode() ignores NULL esp_provider rows.
+create or replace view public.brand_send_stats
+with (security_invoker = true) as
+select
+  company_id,
+  count(*)::int as email_count,
+  mode() within group (order by esp_provider) as primary_esp,
+  case
+    when count(*) >= 2 then
+      (extract(epoch from (max(received_at) - min(received_at)))
+        / 86400.0 / (count(*) - 1))::double precision
+  end as avg_days_between
+from public.captured_emails
+where company_id is not null
+group by company_id;
+
+grant select on public.brand_send_stats to authenticated;
+grant select on public.brand_send_stats to service_role;
+
 create table if not exists public.suggestion_skips (
   id uuid primary key default gen_random_uuid(),
   domain text not null,
