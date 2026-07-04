@@ -1116,7 +1116,9 @@ function countEmoji(text: string): number {
   }
   let count = 0;
   for (const ch of text) {
-    if (/\p{Extended_Pictographic}/u.test(ch)) {
+    // Extended_Pictographic includes the typographic signs © ® ™,
+    // which brands use as plain text ("FREDERICIA®") — not emoji use.
+    if (/\p{Extended_Pictographic}/u.test(ch) && !/[©®™]/.test(ch)) {
       count += 1;
     }
   }

@@ -1089,6 +1089,10 @@ function computePromo(
  * Picks `\p{Extended_Pictographic}` over `\p{Emoji}` because the
  * latter also matches plain digits and the `#` / `*` keycaps, which
  * would let "Save 20% off" register as an "emoji email".
+ *
+ * `Extended_Pictographic` still includes the legacy typographic signs
+ * © ® ™ (even with a trailing U+FE0F emoji presentation selector), so
+ * "FREDERICIA®" would read as emoji use — exclude those outright.
  */
 function computeEmojis(rows: EmailRow[]): BrandPageData["emojis"] {
   if (rows.length === 0) {
@@ -1103,6 +1107,7 @@ function computeEmojis(rows: EmailRow[]): BrandPageData["emojis"] {
 
   const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
   const pictographic = /\p{Extended_Pictographic}/u;
+  const typographicSigns = /^[©®™]$/;
   // Variation selector (U+FE0F) and zero-width joiner can hang on the
   // tail of an emoji sequence after segmentation in edge cases; strip
   // any trailing combiners before we use the cluster as a Map key so
@@ -1124,6 +1129,7 @@ function computeEmojis(rows: EmailRow[]): BrandPageData["emojis"] {
       const grapheme = seg.segment;
       if (!pictographic.test(grapheme)) continue;
       const key = grapheme.replace(trailingFormatters, "") || grapheme;
+      if (typographicSigns.test(key)) continue;
       counts.set(key, (counts.get(key) ?? 0) + 1);
       perEmail += 1;
     }
