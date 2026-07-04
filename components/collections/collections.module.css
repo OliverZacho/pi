@@ -528,20 +528,6 @@
   background: #fef2f2;
 }
 
-/* Owner without a Team plan: the share button becomes an upsell. Still
-   clickable (it funnels to /pricing), but muted with a lock to read as
-   "available on a higher plan" rather than an active toggle. */
-.detailButtonLocked {
-  color: #475569;
-}
-
-.detailLockIcon {
-  display: inline-flex;
-  align-items: center;
-  margin-left: -0.15rem;
-  color: #94a3b8;
-}
-
 .detailButtonCopied {
   background: #16a34a;
   border-color: #16a34a;
@@ -551,6 +537,73 @@
 .detailButtonCopied:hover {
   background: #15803d;
   border-color: #15803d;
+}
+
+/* ---------- Share dropdown ---------- */
+
+.shareMenuWrap {
+  position: relative;
+}
+
+.shareChevron {
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  margin-left: -0.1rem;
+}
+
+.shareMenu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 14rem;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 0.4rem;
+  box-shadow: var(--card-shadow), 0 18px 44px -16px rgba(15, 23, 42, 0.28);
+  z-index: 40;
+}
+
+.shareMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.shareMenuItem:hover {
+  background: var(--on-blue-hover);
+  color: #0f172a;
+}
+
+.shareMenuItem:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.shareMenuCheck {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  color: #086e4b;
+}
+
+.shareMenuLock {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  color: #94a3b8;
 }
 
 /* ---------- Rule-based collection editor ---------- */
