@@ -23,6 +23,10 @@ import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
 import CollectionEventInsights from "./CollectionEventInsights";
 import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
+import InlineRenameForm, {
+  PencilIcon,
+  RenameButton
+} from "@/components/common/InlineRenameForm";
 import CollectionIconPicker from "./CollectionIconPicker";
 import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
@@ -132,19 +136,11 @@ export default function CollectionDetailClient({
 
   // Header controls
   const [renaming, setRenaming] = useState(false);
-  const [nameDraft, setNameDraft] = useState(initialCollection.name);
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [sharePending, setSharePending] = useState(false);
   const [notifyPending, setNotifyPending] = useState(false);
   const [copied, setCopied] = useState(false);
-  const renameInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (renaming) {
-      requestAnimationFrame(() => renameInputRef.current?.focus());
-    }
-  }, [renaming]);
 
   const shareUrl =
     typeof window !== "undefined"
@@ -393,10 +389,8 @@ export default function CollectionDetailClient({
     }
   }
 
-  async function handleRename(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleRename(name: string) {
     if (renamePending) return;
-    const name = nameDraft.trim();
     if (!name || name === collection.name) {
       setRenaming(false);
       return;
@@ -412,7 +406,6 @@ export default function CollectionDetailClient({
       if (!res.ok) throw new Error(`Failed (${res.status})`);
       const body = (await res.json()) as { collection: CollectionDetail };
       applyDetailResponse(body.collection);
-      setNameDraft(body.collection.name);
       setRenaming(false);
       router.refresh();
     } catch (err) {
@@ -526,40 +519,22 @@ export default function CollectionDetailClient({
               />
             ) : null}
             {canEdit && renaming ? (
-              <form onSubmit={handleRename}>
-                <input
-                  ref={renameInputRef}
-                  type="text"
-                  value={nameDraft}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  onBlur={() => {
-                    if (!renamePending) {
-                      setNameDraft(collection.name);
-                      setRenaming(false);
-                    }
-                  }}
-                  maxLength={120}
-                  className={styles.detailTitleInput}
-                  aria-label="Rename collection"
-                  disabled={renamePending}
-                />
-              </form>
+              <InlineRenameForm
+                initialValue={collection.name}
+                ariaLabel="Collection name"
+                pending={renamePending}
+                inputClassName={styles.detailTitleInput}
+                onSave={handleRename}
+                onCancel={() => setRenaming(false)}
+              />
             ) : (
               <h1 className={styles.detailTitle}>
                 {collection.name}
                 {canEdit ? (
-                  <button
-                    type="button"
-                    className={styles.detailEditIcon}
-                    onClick={() => {
-                      setNameDraft(collection.name);
-                      setRenaming(true);
-                    }}
-                    aria-label="Rename collection"
-                    title="Rename"
-                  >
-                    <PencilIcon />
-                  </button>
+                  <RenameButton
+                    onClick={() => setRenaming(true)}
+                    label="Rename collection"
+                  />
                 ) : null}
               </h1>
             )}
@@ -1006,25 +981,6 @@ function SparkleIcon() {
       <path d="M16.3 16.3l2.1 2.1" />
       <path d="M5.6 18.4l2.1-2.1" />
       <path d="M16.3 7.7l2.1-2.1" />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
     </svg>
   );
 }

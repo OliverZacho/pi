@@ -9,6 +9,9 @@ import BrandSearchPicker, {
 } from "./BrandSearchPicker";
 import MemberListSelect from "./MemberListSelect";
 import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
+import InlineRenameForm, {
+  RenameButton
+} from "@/components/common/InlineRenameForm";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -145,11 +148,12 @@ export default function CompareBrandStrip({
     return top;
   }, [brands]);
 
-  async function handleRename(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleRename(next: string) {
     if (!setId || pending) return;
-    const next = name.trim();
-    if (!next) return;
+    if (next === name) {
+      setEditing(false);
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -160,6 +164,7 @@ export default function CompareBrandStrip({
         body: JSON.stringify({ name: next })
       });
       if (!res.ok) throw new Error(`Failed (${res.status})`);
+      setName_(next);
       setEditing(false);
       router.refresh();
     } catch (err) {
@@ -301,50 +306,34 @@ export default function CompareBrandStrip({
       <div className={styles.compareHeaderRow}>
         <div className={styles.compareTitle}>
           {editing && setId ? (
-            <form
-              onSubmit={handleRename}
-              className={styles.pickerSearchRow}
-              style={{ marginBottom: 0 }}
-            >
-              <input
-                type="text"
-                value={name}
-                maxLength={120}
-                onChange={(e) => setName_(e.target.value)}
-                className={styles.pickerSearch}
-                aria-label="Comparison name"
-                disabled={pending}
-                autoFocus
-              />
-              <button
-                type="submit"
-                className={styles.pickerCompare}
-                disabled={pending || name.trim().length === 0}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className={styles.pickerSecondary}
-                disabled={pending}
-                onClick={() => {
-                  setEditing(false);
-                  setName_(setName);
-                  setError(null);
-                }}
-              >
-                Cancel
-              </button>
-              {error ? (
-                <span className={styles.saveError}>{error}</span>
-              ) : null}
-            </form>
+            <InlineRenameForm
+              initialValue={name}
+              ariaLabel="Comparison name"
+              pending={pending}
+              inputClassName={styles.compareTitleRename}
+              onSave={handleRename}
+              onCancel={() => {
+                setEditing(false);
+                setError(null);
+              }}
+            />
           ) : (
-            <>
-              <h1>{name}</h1>
-              <p>{subtitle}</p>
-            </>
+            <h1>
+              {name}
+              {setId && canEdit ? (
+                <RenameButton
+                  onClick={() => setEditing(true)}
+                  label="Rename comparison"
+                />
+              ) : null}
+            </h1>
           )}
+          <p>{subtitle}</p>
+          {error ? (
+            <span className={styles.saveError} role="alert">
+              {error}
+            </span>
+          ) : null}
         </div>
 
         {setId && canEdit ? (
@@ -393,14 +382,6 @@ export default function CompareBrandStrip({
                 </span>
               </TeamUpgradeButton>
             )}
-            <button
-              type="button"
-              className={styles.iconButton}
-              onClick={() => setEditing((v) => !v)}
-              disabled={pending}
-            >
-              {editing ? "Close" : "Rename"}
-            </button>
             <button
               type="button"
               className={`${styles.iconButton} ${styles.iconButton_danger}`}
