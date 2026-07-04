@@ -648,20 +648,34 @@ export default function ExploreSidebar({
 
   // A section with fewer than SECTION_FOLD_OUT_LIMIT items folds open in
   // place via the "View all" toggle; at or above that count it keeps the
-  // existing behaviour of linking out to the full page.
-  const collectionsCanFoldOut = items.length < SECTION_FOLD_OUT_LIMIT;
+  // existing behaviour of linking out to the full page. Only the viewer's
+  // own rows count toward the preview slice — team-shared rows (appended
+  // by the layout, usually just a few) always render, otherwise a viewer
+  // with 4+ collections of their own would never see them here.
+  const ownCollections = items.filter((c) => !c.sharedByTeam);
+  const teamCollections = items.filter((c) => c.sharedByTeam);
+  const collectionsCanFoldOut = ownCollections.length < SECTION_FOLD_OUT_LIMIT;
   const collectionsAreExpanded = collectionsCanFoldOut && collectionsExpanded;
-  const visibleCollections = collectionsAreExpanded
-    ? items
-    : items.slice(0, COLLECTION_PREVIEW_COUNT);
-  const showCollectionsViewAll = items.length > COLLECTION_PREVIEW_COUNT;
+  const visibleCollections = [
+    ...(collectionsAreExpanded
+      ? ownCollections
+      : ownCollections.slice(0, COLLECTION_PREVIEW_COUNT)),
+    ...teamCollections
+  ];
+  const showCollectionsViewAll =
+    ownCollections.length > COLLECTION_PREVIEW_COUNT;
 
-  const comparisonsCanFoldOut = sets.length < SECTION_FOLD_OUT_LIMIT;
+  const ownSets = sets.filter((s) => !s.sharedByTeam);
+  const teamSets = sets.filter((s) => s.sharedByTeam);
+  const comparisonsCanFoldOut = ownSets.length < SECTION_FOLD_OUT_LIMIT;
   const comparisonsAreExpanded = comparisonsCanFoldOut && comparisonsExpanded;
-  const visibleSets = comparisonsAreExpanded
-    ? sets
-    : sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT);
-  const showComparisonsViewAll = sets.length > COMPETITOR_SET_PREVIEW_COUNT;
+  const visibleSets = [
+    ...(comparisonsAreExpanded
+      ? ownSets
+      : ownSets.slice(0, COMPETITOR_SET_PREVIEW_COUNT)),
+    ...teamSets
+  ];
+  const showComparisonsViewAll = ownSets.length > COMPETITOR_SET_PREVIEW_COUNT;
 
   return (
     <>
