@@ -75,6 +75,60 @@
   border-radius: 999px;
 }
 
+/* Brand hero (`.hero` in brand.module.css): 3.6rem avatar, 1.5rem/1.15
+   name line, meta pill row. */
+.heroAvatar {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.heroNameBar {
+  height: 27.6px;
+  width: 13rem;
+  border-radius: 6px;
+}
+
+.heroMetaBar {
+  height: 21px;
+  width: 22rem;
+  border-radius: 999px;
+}
+
+/* KPI tile innards: 1.7rem icon head row, 1.7rem/1.05 value line,
+   0.78rem hint row. */
+.kpiHeadBar {
+  height: 1.7rem;
+  width: 60%;
+  border-radius: 8px;
+}
+
+.kpiValueBar {
+  height: 28.6px;
+  width: 45%;
+  border-radius: 6px;
+}
+
+.kpiHintBar {
+  height: 16.85px;
+  width: 75%;
+  border-radius: 4px;
+}
+
+/* Big white dashboard panel stand-in (calendar / heatmap / cards). */
+.panelBlock {
+  height: 320px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: var(--panel-shadow);
+  padding: 1.3rem 1.4rem;
+}
+
+.panelBlockShort {
+  height: 260px;
+}
+
 /* Generic dashboard section innards (eyebrow / title / sub / chart). */
 .eyebrowBar {
   height: 12px;
@@ -111,6 +165,12 @@
 .cmpSubBar,
 .iconPill,
 .stripPill,
+.heroAvatar,
+.heroNameBar,
+.heroMetaBar,
+.kpiHeadBar,
+.kpiValueBar,
+.kpiHintBar,
 .eyebrowBar,
 .sectionTitleBar,
 .sectionSubBar,
@@ -139,6 +199,12 @@
   .cmpSubBar,
   .iconPill,
   .stripPill,
+  .heroAvatar,
+  .heroNameBar,
+  .heroMetaBar,
+  .kpiHeadBar,
+  .kpiValueBar,
+  .kpiHintBar,
   .eyebrowBar,
   .sectionTitleBar,
   .sectionSubBar,

@@ -202,14 +202,22 @@ export default function BrandDashboard({
         </div>
       ) : (
         <>
-          <section className={styles.recentSection}>
+          {/* Sections cascade in below the KPI row — same entrance the
+              grid cards use, chunkier stagger for the bigger blocks. */}
+          <section
+            className={`${styles.recentSection} ${styles.cardEnter}`}
+            style={{ animationDelay: "160ms" }}
+          >
             <BrandActivityCalendar
               brandName={brand.name}
               calendar={calendar}
             />
           </section>
 
-          <section className={styles.recentSection}>
+          <section
+            className={`${styles.recentSection} ${styles.cardEnter}`}
+            style={{ animationDelay: "220ms" }}
+          >
             <BrandClockHeatmap
               brandName={brand.name}
               hourly={cadence.hourly}
@@ -217,7 +225,10 @@ export default function BrandDashboard({
           </section>
 
           {hasAnySeasonalMentions(data.seasonalSample) && (
-            <section className={styles.recentSection}>
+            <section
+              className={`${styles.recentSection} ${styles.cardEnter}`}
+              style={{ animationDelay: "280ms" }}
+            >
               <BrandSeasonalRunup
                 brand={{
                   id: brand.id,
@@ -232,16 +243,25 @@ export default function BrandDashboard({
             </section>
           )}
 
-          <section className={styles.sectionGrid}>
+          <section
+            className={`${styles.sectionGrid} ${styles.cardEnter}`}
+            style={{ animationDelay: "340ms" }}
+          >
             <CadenceCard cadence={cadence} totals={totals} />
             <CategoryCard categories={categories} sample={totals.sampleSize} />
           </section>
 
-          <section className={styles.recentSection}>
+          <section
+            className={`${styles.recentSection} ${styles.cardEnter}`}
+            style={{ animationDelay: "400ms" }}
+          >
             <DesignCard design={design} subjects={subjects} />
           </section>
 
-          <section className={styles.sectionGrid}>
+          <section
+            className={`${styles.sectionGrid} ${styles.cardEnter}`}
+            style={{ animationDelay: "460ms" }}
+          >
             <PromoCard
               promo={promo}
               sample={totals.sampleSize}
@@ -259,11 +279,17 @@ export default function BrandDashboard({
             <EmojiCard emojis={emojis} sample={totals.sampleSize} />
           </section>
 
-          <section className={styles.recentSection}>
+          <section
+            className={`${styles.recentSection} ${styles.cardEnter}`}
+            style={{ animationDelay: "520ms" }}
+          >
             <CtaCloudCard ctas={ctas} sample={totals.sampleSize} />
           </section>
 
-          <section className={styles.recentSection}>
+          <section
+            className={`${styles.recentSection} ${styles.cardEnter}`}
+            style={{ animationDelay: "580ms" }}
+          >
             <header className={styles.recentHeader}>
               <div className={styles.recentTitleGroup}>
                 <h2>Recent campaigns</h2>
@@ -420,6 +446,7 @@ export function KpiGrid({
         }
       />
       <KpiTile
+        enterDelayMs={40}
         icon={<ClockIcon />}
         label="Send cadence"
         value={
@@ -434,6 +461,7 @@ export function KpiGrid({
         }
       />
       <KpiTile
+        enterDelayMs={80}
         icon={<TagIcon />}
         label="Sale frequency"
         value={
@@ -449,6 +477,7 @@ export function KpiGrid({
         trendTone={promo.saleShare >= 0.4 ? "warn" : "good"}
       />
       <KpiTile
+        enterDelayMs={120}
         icon={<StackIcon />}
         label="Email platform"
         value={esp.primary ? esp.primary.label : "Unknown"}
@@ -467,16 +496,24 @@ function KpiTile({
   label,
   value,
   hint,
-  trendTone
+  trendTone,
+  enterDelayMs = 0
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint: string;
   trendTone?: "good" | "warn";
+  /** Entrance-animation delay so the tiles cascade in left to right. */
+  enterDelayMs?: number;
 }) {
   return (
-    <article className={styles.kpiTile}>
+    <article
+      className={`${styles.kpiTile} ${styles.cardEnter}`}
+      style={
+        enterDelayMs > 0 ? { animationDelay: `${enterDelayMs}ms` } : undefined
+      }
+    >
       <div className={styles.kpiHead}>
         <span className={styles.kpiIcon}>{icon}</span>
         <span className={styles.kpiLabel}>{label}</span>
