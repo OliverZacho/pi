@@ -35,6 +35,42 @@
   color: #64748b;
 }
 
+/* Shimmer stand-in for a dynamic one-line subtitle ("12 collections.")
+   — same box as the real `.heading p` line so nothing below moves.
+   17px = the 0.92rem line's measured box under the app font stack. */
+.subtitleBar {
+  margin-top: 0.35rem;
+  height: 17px;
+  width: 11rem;
+  border-radius: 4px;
+}
+
+/* ---------- Section head ----------
+   Real text (h2 + sub line), mirroring /compare's `.sectionHead` — the
+   section title is static copy, so rendering it beats a shimmer bar. */
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2rem 0 0.85rem;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: #0f172a;
+}
+
+.sectionHead p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
 /* ---------- View-toggle placeholder ----------
    Stand-in for /following's segmented Brands ⇄ Emails toggle
    (`.viewToggle` in brands-explore): the 1.25rem count badge sets the
@@ -65,12 +101,13 @@
   flex-wrap: wrap;
 }
 
-/* 2.1rem = the real search field's 0.55rem × 2 padding around its
-   16px icon — the tallest thing in the row, so it sets row height. */
+/* 34.6px = the real search field's measured box under the app font
+   stack: 0.55rem × 2 padding around the input's 17px text line (taller
+   than the 16px icon). Tallest thing in the row, so it sets row height. */
 .searchPill {
   width: 100%;
   max-width: 320px;
-  height: 2.1rem;
+  height: 34.6px;
 }
 
 .chip {
@@ -116,6 +153,11 @@
 
 /* The toolbar row already carries the 2rem gap above the grid. */
 .gridAfterToolbar {
+  margin-top: 0;
+}
+
+/* Ditto for the section head's 0.85rem bottom margin. */
+.gridAfterSection {
   margin-top: 0;
 }
 
@@ -176,6 +218,91 @@
   width: 30%;
   border-radius: 4px;
   margin-top: 0.45rem;
+}
+
+/* ---------- Mosaic card placeholder ----------
+   Mirrors the collection / comparison tiles: a 2×2 preview mosaic
+   (aspect 1/1, 1px gaps) over a meta footer — two lines for a
+   collection (name + count), three for a comparison (name + meta line
+   + activity chip). */
+
+.mosaic {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.mosaicMeta,
+.mosaicMetaWide {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.9rem 0.95rem;
+}
+
+.mosaicMeta {
+  gap: 0.15rem;
+}
+
+.mosaicMetaWide {
+  gap: 0.2rem;
+}
+
+/* Measured line boxes of the real meta rows (0.95rem lh 1.3 title,
+   0.75/0.76rem sub lines) under the app font stack. */
+.mosaicTitle {
+  height: 19.8px;
+  width: 60%;
+  border-radius: 4px;
+}
+
+.mosaicLine {
+  height: 15px;
+  width: 40%;
+  border-radius: 4px;
+}
+
+.mosaicChip {
+  height: 15px;
+  width: 52%;
+  border-radius: 4px;
+}
+
+/* ---------- "New …" tile placeholder ----------
+   The dashed create tile that leads the /collections and /compare
+   grids. Static (no shimmer): the real tile is instant chrome, not
+   loading content, so the placeholder just holds its outline. Real
+   tile has `min-height: 100%` and stretches to the row the mosaic
+   cards set — mirror that. */
+
+.newTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 100%;
+  aspect-ratio: 1 / 1.18;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.newTileIcon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+}
+
+.newTileLabel {
+  width: 6.5rem;
+  height: 0.85rem;
+  border-radius: 4px;
+  background: #eef2f7;
 }
 
 /* ---------- Brand card placeholder ----------
@@ -250,12 +377,17 @@
 .cardPreview,
 .viewToggle,
 .countBar,
+.subtitleBar,
 .searchPill,
 .chip,
 .sortPill,
 .emailLineBrand,
 .emailLineSubject,
 .emailLineReceived,
+.mosaicCell,
+.mosaicTitle,
+.mosaicLine,
+.mosaicChip,
 .brandAvatar,
 .brandLine,
 .brandLineSub,
@@ -280,12 +412,17 @@
   .cardPreview,
   .viewToggle,
   .countBar,
+  .subtitleBar,
   .searchPill,
   .chip,
   .sortPill,
   .emailLineBrand,
   .emailLineSubject,
   .emailLineReceived,
+  .mosaicCell,
+  .mosaicTitle,
+  .mosaicLine,
+  .mosaicChip,
   .brandAvatar,
   .brandLine,
   .brandLineSub,

@@ -29,6 +29,9 @@ type Props = {
    * in that variant — every card simply navigates by anchor).
    */
   openHref: string;
+  /** Entrance-animation delay so grid cards cascade in instead of
+      appearing as one block. */
+  enterDelayMs?: number;
 };
 
 /**
@@ -42,7 +45,8 @@ export default function CollectionCard({
   collection,
   renderUrlFor,
   shareUrl,
-  openHref
+  openHref,
+  enterDelayMs = 0
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -148,7 +152,12 @@ export default function CollectionCard({
   }
 
   return (
-    <article className={styles.card}>
+    <article
+      className={`${styles.card} ${styles.cardEnter}`}
+      style={
+        enterDelayMs > 0 ? { animationDelay: `${enterDelayMs}ms` } : undefined
+      }
+    >
       <Link href={openHref} className={styles.cardLink} aria-label={collection.name}>
         <div
           ref={mosaicRef}

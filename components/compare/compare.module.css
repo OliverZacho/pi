@@ -123,6 +123,26 @@
   }
 }
 
+/* Newly arrived cards fade in with a per-card delay (set inline) so the
+   grid reads as populating rather than landing in one block. `backwards`
+   keeps a delayed card invisible until its slot in the cascade. */
+.cardEnter {
+  animation: cardEnter 260ms ease backwards;
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardEnter {
+    animation: none;
+  }
+}
+
 .cmpCard {
   position: relative;
   display: flex;
