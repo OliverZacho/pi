@@ -62,7 +62,6 @@ export async function GET(request: Request) {
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),
     activity,
     minEmailCount: parseNonNegativeInt(params.get("minEmails")),
-    hasLogo: params.get("hasLogo") === "1",
     subscribedAfter: params.get("after") ?? null,
     subscribedBefore: params.get("before") ?? null,
     sort,

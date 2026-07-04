@@ -89,7 +89,6 @@ type PopoverName =
   | "markets"
   | "region"
   | "esp"
-  | "cadence"
   | "more"
   | "sort"
   | null;
@@ -142,7 +141,6 @@ export default function BrandsExploreClient({
 
   const [activity, setActivity] = useState<BrandsActivityWindow | null>(null);
   const [minEmailsInput, setMinEmailsInput] = useState("");
-  const [hasLogo, setHasLogo] = useState(false);
   const [subscribedAfter, setSubscribedAfter] = useState("");
   const [subscribedBefore, setSubscribedBefore] = useState("");
   const [sort, setSort] = useState<BrandsSortKey>("most_active");
@@ -272,8 +270,6 @@ export default function BrandsExploreClient({
     const minEmails = sp.get("minEmails");
     if (minEmails) setMinEmailsInput(minEmails);
 
-    if (sp.get("logo") === "1") setHasLogo(true);
-
     const from = sp.get("from");
     if (from) setSubscribedAfter(from);
     const to = sp.get("to");
@@ -309,7 +305,6 @@ export default function BrandsExploreClient({
     if (parsedMinEmails !== null) {
       params.set("minEmails", String(parsedMinEmails));
     }
-    if (hasLogo) params.set("logo", "1");
     if (subscribedAfter) params.set("from", subscribedAfter);
     if (subscribedBefore) params.set("to", subscribedBefore);
     if (sort !== "most_active") params.set("sort", sort);
@@ -330,7 +325,6 @@ export default function BrandsExploreClient({
     cadenceRange,
     activity,
     parsedMinEmails,
-    hasLogo,
     subscribedAfter,
     subscribedBefore,
     sort
@@ -352,8 +346,6 @@ export default function BrandsExploreClient({
       if (parsedMinEmails !== null) {
         params.set("minEmails", String(parsedMinEmails));
       }
-      if (hasLogo) params.set("hasLogo", "1");
-
       if (subscribedAfter) {
         const anchor = parseDayKey(subscribedAfter);
         if (anchor) {
@@ -382,7 +374,6 @@ export default function BrandsExploreClient({
       cadenceRange,
       activity,
       parsedMinEmails,
-      hasLogo,
       subscribedAfter,
       subscribedBefore,
       sort,
@@ -505,7 +496,7 @@ export default function BrandsExploreClient({
   const moreFiltersCount =
     (activity ? 1 : 0) +
     (parsedMinEmails !== null ? 1 : 0) +
-    (hasLogo ? 1 : 0) +
+    (cadenceActive ? 1 : 0) +
     (subscribedAfter ? 1 : 0) +
     (subscribedBefore ? 1 : 0);
 
@@ -530,7 +521,7 @@ export default function BrandsExploreClient({
   function clearMoreFilters() {
     setActivity(null);
     setMinEmailsInput("");
-    setHasLogo(false);
+    setCadenceRange([0, facets.cadenceMaxDays]);
     setSubscribedAfter("");
     setSubscribedBefore("");
   }
@@ -589,7 +580,6 @@ export default function BrandsExploreClient({
     selectedCountry !== null ||
     selectedGlobal ||
     selectedEsps.size > 0 ||
-    cadenceActive ||
     moreFiltersCount > 0 ||
     debouncedQuery.length > 0;
 
@@ -882,81 +872,6 @@ export default function BrandsExploreClient({
             <button
               type="button"
               className={`${styles.filterChip}${
-                cadenceActive ? ` ${styles.filterChipActive}` : ""
-              }${openPopover === "cadence" ? ` ${styles.filterChipOpen}` : ""}`}
-              onClick={() => togglePopover("cadence")}
-              aria-haspopup="dialog"
-              aria-expanded={openPopover === "cadence"}
-            >
-              <ClockIcon />
-              <span>
-                Cadence
-                {cadenceActive ? (
-                  <>
-                    : {formatDaysShort(cadenceRange[0])}–
-                    {formatDaysShort(cadenceRange[1])}
-                  </>
-                ) : null}
-              </span>
-            </button>
-            {openPopover === "cadence" ? (
-              <div
-                className={`${styles.popover} ${styles.popoverPanel} ${styles.cadencePanel}`}
-                role="dialog"
-                aria-label="Send cadence range"
-              >
-                <div className={styles.panelGroup}>
-                  <div className={styles.cadencePanelHead}>
-                    <div className={styles.panelLabel}>Send cadence</div>
-                    <div className={styles.cadencePanelValue}>
-                      {formatDaysLong(cadenceRange[0])} –{" "}
-                      {formatDaysLong(cadenceRange[1])}
-                    </div>
-                  </div>
-                  <RangeSlider
-                    min={0}
-                    max={facets.cadenceMaxDays}
-                    step={CADENCE_STEP}
-                    value={cadenceRange}
-                    onChange={setCadenceRange}
-                  />
-                  <div className={styles.cadenceAxis}>
-                    <span>0 days</span>
-                    <span>{facets.cadenceMaxDays} days</span>
-                  </div>
-                  <p className={styles.cadenceHelp}>
-                    Average days between consecutive sends. Brands with fewer
-                    than two captured emails are excluded while this filter is
-                    active.
-                  </p>
-                </div>
-                <div className={styles.panelFooter}>
-                  <button
-                    type="button"
-                    className={styles.popoverClear}
-                    onClick={() =>
-                      setCadenceRange([0, facets.cadenceMaxDays])
-                    }
-                    disabled={!cadenceActive}
-                  >
-                    Reset
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.panelApply}
-                    onClick={() => setOpenPopover(null)}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className={styles.filterChipWrap}>
-            <button
-              type="button"
-              className={`${styles.filterChip}${
                 moreFiltersCount > 0 ? ` ${styles.filterChipActive}` : ""
               }${openPopover === "more" ? ` ${styles.filterChipOpen}` : ""}`}
               onClick={() => togglePopover("more")}
@@ -1019,14 +934,34 @@ export default function BrandsExploreClient({
                       emails captured or more
                     </span>
                   </div>
-                  <label className={styles.toggleRow}>
-                    <input
-                      type="checkbox"
-                      checked={hasLogo}
-                      onChange={(event) => setHasLogo(event.target.checked)}
-                    />
-                    <span>Has logo</span>
-                  </label>
+                </div>
+
+                <div className={styles.panelDivider} />
+
+                <div className={styles.panelGroup}>
+                  <div className={styles.cadencePanelHead}>
+                    <div className={styles.panelLabel}>Send cadence</div>
+                    <div className={styles.cadencePanelValue}>
+                      {formatDaysLong(cadenceRange[0])} –{" "}
+                      {formatDaysLong(cadenceRange[1])}
+                    </div>
+                  </div>
+                  <RangeSlider
+                    min={0}
+                    max={facets.cadenceMaxDays}
+                    step={CADENCE_STEP}
+                    value={cadenceRange}
+                    onChange={setCadenceRange}
+                  />
+                  <div className={styles.cadenceAxis}>
+                    <span>0 days</span>
+                    <span>{facets.cadenceMaxDays} days</span>
+                  </div>
+                  <p className={styles.cadenceHelp}>
+                    Average days between consecutive sends. Brands with fewer
+                    than two captured emails are excluded while this filter is
+                    active.
+                  </p>
                 </div>
 
                 <div className={styles.panelDivider} />
@@ -1427,17 +1362,6 @@ function formatNumber(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
-/** Compact form used inside chips and on the card. */
-function formatDaysShort(days: number): string {
-  if (days < 1) {
-    return `${(days * 24).toFixed(1)}h`;
-  }
-  if (days < 10) {
-    return `${days.toFixed(1)}d`;
-  }
-  return `${Math.round(days)}d`;
-}
-
 /** Long form used inside the cadence panel header. */
 function formatDaysLong(days: number): string {
   if (days < 1) {
@@ -1566,25 +1490,6 @@ function PlusIcon() {
     >
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="13"
-      height="13"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 16 14" />
     </svg>
   );
 }
