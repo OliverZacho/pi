@@ -606,6 +606,30 @@
   color: #94a3b8;
 }
 
+/* ---------- Alert frequency dropdown ---------- */
+
+/* The green "alerts on" pill inverts the label; soften the chevron with it. */
+.detailButtonCopied .shareChevron {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.alertMenuHint {
+  margin: 0;
+  padding: 0.4rem 0.7rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.alertMenuFootnote {
+  margin: 0.25rem 0 0;
+  padding: 0.45rem 0.7rem 0.3rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
 /* ---------- Rule-based collection editor ---------- */
 
 .rulesEditor {

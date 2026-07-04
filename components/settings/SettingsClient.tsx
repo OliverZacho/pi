@@ -1641,16 +1641,14 @@ function FrequencyRow({
             </button>
           ))}
         </div>
-        {/* Always rendered so it reserves its width — the segments don't
-            shift when the warning toggles. Hidden unless Instant is chosen. */}
-        {warnOnInstant ? (
+        {/* Only rendered while Instant is chosen: the warning slides in to
+            the right of the segments and pushes them left, rather than
+            permanently reserving its width. */}
+        {warnOnInstant && selected === "Instant" ? (
         <span
-          className={`${styles.instantWarning}${
-            selected === "Instant" ? "" : ` ${styles.instantWarningHidden}`
-          }`}
-          tabIndex={selected === "Instant" ? 0 : -1}
+          className={styles.instantWarning}
+          tabIndex={0}
           role="note"
-          aria-hidden={selected !== "Instant"}
           aria-label="Instant delivery can send a lot of email. If your messages start landing in spam, we'll automatically throttle them."
         >
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">

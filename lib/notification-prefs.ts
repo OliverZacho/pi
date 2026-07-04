@@ -34,15 +34,12 @@ export function isDigestCadence(value: string): value is DigestCadence {
 
 /**
  * One entry per notification type, with its out-of-the-box cadence.
- * Defaults mirror the Settings screen: a brand's new emails arrive
- * instantly, the analytical signals are batched.
+ * Everything starts off: notification email is strictly opt-in, so new
+ * users only receive what they've explicitly switched on in Settings.
  */
 export const NOTIFICATION_TYPES = [
-  { id: "newEmail", default: "instant" },
-  { id: "seasonalRunup", default: "weekly" },
-  // Off by default: smart-collection alerts are doubly opt-in (turn the
-  // notification on, then pick collections), so the checklist stays
-  // collapsed until the user activates it.
+  { id: "newEmail", default: "off" },
+  { id: "seasonalRunup", default: "off" },
   { id: "smartCollection", default: "off" }
 ] as const satisfies readonly { id: string; default: NotificationCadence }[];
 

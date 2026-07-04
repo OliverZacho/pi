@@ -312,13 +312,6 @@
   cursor: help;
 }
 
-/* Kept in the layout (so the segments don't shift) but invisible and
-   non-interactive when the row isn't set to Instant. */
-.instantWarningHidden {
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .instantWarning svg {
   display: block;
 }

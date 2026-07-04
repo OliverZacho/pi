@@ -13,6 +13,11 @@ import {
 import { isDiscountFigureEligible } from "@/lib/collection-event-shared";
 import { getExploreFacets, type ExploreFacets } from "@/lib/explore-db";
 import { listFollowedBrandIds } from "@/lib/follows-db";
+import {
+  defaultNotificationPrefs,
+  type NotificationPrefs
+} from "@/lib/notification-prefs";
+import { getNotificationPrefs } from "@/lib/notification-prefs-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
 import { hasActiveTeamPlan } from "@/lib/teams-db";
 import { getViewer } from "@/lib/access";
@@ -56,6 +61,7 @@ async function demoCollectionView() {
         followedCompanyIds={[]}
         canEdit={false}
         canShareWithTeam={false}
+        initialNotificationPrefs={defaultNotificationPrefs()}
       />
     </main>
   );
@@ -147,7 +153,8 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     savedSet,
     collections,
     facets,
-    canShareWithTeam
+    canShareWithTeam,
+    notificationPrefs
   ] = await Promise.all([
     // Fire-and-forget view marker; owners only.
     canEdit
@@ -205,7 +212,17 @@ export default async function CollectionDetailPage({ params }: PageProps) {
             console.error("Failed to check team plan for collection", err);
             return false;
           })
-      : Promise.resolve(false)
+      : Promise.resolve(false),
+    // Current notification cadences — the collection's "Alert me" dropdown
+    // reads and updates the smart-collection cadence (the same value shown
+    // in Settings → Notifications). Owners only; read-only viewers never
+    // see the button.
+    canEdit
+      ? getNotificationPrefs(supabase, userId).catch((err) => {
+          console.error("Failed to load notification prefs", err);
+          return defaultNotificationPrefs();
+        })
+      : Promise.resolve<NotificationPrefs>(defaultNotificationPrefs())
   ]);
 
   const followedCompanyIds = Array.from(followedSet);
@@ -222,6 +239,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         followedCompanyIds={followedCompanyIds}
         canEdit={canEdit}
         canShareWithTeam={canShareWithTeam}
+        initialNotificationPrefs={notificationPrefs}
       />
     </main>
   );

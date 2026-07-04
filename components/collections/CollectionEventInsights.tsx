@@ -40,6 +40,13 @@ import styles from "./collections.module.css";
 type Props = {
   collectionId: string;
   initialDetection: CollectionEventDetection | null;
+  /**
+   * False for read-only viewers of a team-shared collection. The
+   * detection endpoints are owner-scoped (they 404 for everyone else),
+   * so read-only views never trigger a detection run and only show
+   * insights the owner has already confirmed.
+   */
+  canEdit: boolean;
   emails: ExploreEmailCard[];
   /**
    * Deepest discount per brand (by company name) over the trailing 12
@@ -110,6 +117,7 @@ function needsDetectionRun(
 export default function CollectionEventInsights({
   collectionId,
   initialDetection,
+  canEdit,
   emails,
   brandDiscountBenchmarks,
   followedCompanyIds,
@@ -121,8 +129,8 @@ export default function CollectionEventInsights({
   );
   // Lazily seeded so the "checking…" hint renders on the very first
   // paint, without a setState call inside the effect below.
-  const [analyzing, setAnalyzing] = useState(() =>
-    needsDetectionRun(initialDetection, emails)
+  const [analyzing, setAnalyzing] = useState(
+    () => canEdit && needsDetectionRun(initialDetection, emails)
   );
   const [responding, setResponding] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
@@ -132,6 +140,7 @@ export default function CollectionEventInsights({
   // collection qualifies and we either have nothing cached or the cache
   // has gone stale. Dismissals are final — never re-ask.
   useEffect(() => {
+    if (!canEdit) return;
     if (requestedRef.current) return;
     if (!needsDetectionRun(detection, emails)) return;
 
@@ -152,7 +161,7 @@ export default function CollectionEventInsights({
         /* silent — the page works fine without insights */
       })
       .finally(() => setAnalyzing(false));
-  }, [collectionId, detection, emails]);
+  }, [canEdit, collectionId, detection, emails]);
 
   async function respond(confirmed: boolean) {
     if (!detection || responding) return;
@@ -192,6 +201,10 @@ export default function CollectionEventInsights({
   }
 
   if (detection.confirmed === false) return null;
+
+  // Read-only viewers can't answer the confirm banner (the PATCH is
+  // owner-scoped), so they only ever see owner-confirmed insights.
+  if (!canEdit && detection.confirmed !== true) return null;
 
   const detectedEvents = resolveCollectionEvents(
     detection,

@@ -8,6 +8,7 @@ import {
   renameCompetitorSet,
   setCompetitorSetShared
 } from "@/lib/competitor-db";
+import { competitorSetWriteFailure } from "@/lib/competitor-set-api";
 
 const UUID_PATTERN =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -139,7 +140,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         obj.name as string
       );
       if (!renamed) {
-        return NextResponse.json({ error: "Set not found" }, { status: 404 });
+        return competitorSetWriteFailure(session.supabase, id);
       }
     }
 
@@ -151,7 +152,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         obj.sharedWithTeam as boolean
       );
       if (!updated) {
-        return NextResponse.json({ error: "Set not found" }, { status: 404 });
+        return competitorSetWriteFailure(session.supabase, id);
       }
     }
 
@@ -195,7 +196,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       id
     );
     if (!removed) {
-      return NextResponse.json({ error: "Set not found" }, { status: 404 });
+      return competitorSetWriteFailure(session.supabase, id);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
