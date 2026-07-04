@@ -29,7 +29,10 @@ export default function CollectionsGridClient({
   initialCollections
 }: Props) {
   const router = useRouter();
-  const [collections] = useState<CollectionCardData[]>(initialCollections);
+  // Read straight from props (no state snapshot) so `router.refresh()`
+  // elsewhere on the page — e.g. after copying a team-shared collection —
+  // immediately surfaces new rows in this grid.
+  const collections = initialCollections;
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
