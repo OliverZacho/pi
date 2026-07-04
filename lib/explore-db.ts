@@ -494,12 +494,26 @@ export async function getSearchFacets(
   };
 }
 
+/** Payload shape produced by the `explore_facets` RPC. */
+type ExploreFacetsRpcPayload = {
+  brands?: { id: string; name: string; markets: string[]; isCurated: boolean }[];
+  markets?: string[];
+  categories?: string[];
+  countries?: string[];
+};
+
 /**
  * Returns every brand / market / category currently present in the
  * Explore data set so the filter dropdowns can show all options
  * regardless of which page of results is currently loaded. Brands whose
  * companies have no captured emails yet are excluded — there's nothing
  * to filter to.
+ *
+ * The heavy lifting (dedup across every captured email, joined to
+ * companies) happens in the `explore_facets` RPC so only the final
+ * facet lists cross the wire. Facet entries deliberately carry no
+ * logo URLs: the dropdown can render hundreds of brands and the grid
+ * cards already bring their own logos from `searchExploreEmails`.
  */
 export async function getExploreFacets(
   supabase: SupabaseClient<Database>,
@@ -511,73 +525,32 @@ export async function getExploreFacets(
     return { brands: [], markets: [], categories: [], countries: [] };
   }
 
-  // We join through `captured_emails` so the facet list only contains
-  // companies that actually have at least one email. The same query
-  // gives us markets at no extra cost.
-  let facetQuery = supabase
-    .from("captured_emails")
-    // `logo_storage_path` deliberately omitted: facets don't render
-    // logos, so we save the DB round-trip column and the downstream
-    // signed-URL fan-out.
-    .select("category, segment_category, detected_country, company_id, companies!inner(id, name, markets, is_curated)")
-    .limit(10000);
+  const { data, error } = await supabase.rpc("explore_facets", {
+    restrict_ids: options.restrictBrandIds ?? undefined
+  });
 
-  if (options.restrictBrandIds) {
-    facetQuery = facetQuery.in("company_id", options.restrictBrandIds);
-  }
+  if (error) throw error;
 
-  const { data: emailRows, error: emailError } = await facetQuery;
+  const payload = (data ?? {}) as ExploreFacetsRpcPayload;
 
-  if (emailError) throw emailError;
+  const brands: ExploreBrandFacet[] = (payload.brands ?? [])
+    .map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      markets: normalizeCompanyMarkets(brand.markets),
+      logoUrl: null,
+      isCurated: Boolean(brand.isCurated)
+    }))
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
 
-  const brandMap = new Map<string, ExploreBrandFacet>();
-  const marketSet = new Set<string>();
-  const categorySet = new Set<string>();
-  const countrySet = new Set<string>();
-
-  for (const row of emailRows ?? []) {
-    if (row.category) categorySet.add(row.category);
-    // Per-email detected origin (ISO alpha-2). Normalised to upper-case so a
-    // mixed-case row can't split one country into two facet entries.
-    if (row.detected_country && /^[A-Za-z]{2}$/.test(row.detected_country)) {
-      countrySet.add(row.detected_country.toUpperCase());
-    }
-    // Segment categories share the markets vocabulary and feed the same
-    // product-line filter, so surface them in the markets facet even if no
-    // brand happens to carry the tag at the company level.
-    if (row.segment_category) marketSet.add(row.segment_category);
-    const company = pickCompany(row.companies);
-    if (company) {
-      const companyMarkets = normalizeCompanyMarkets(company.markets);
-      for (const market of companyMarkets) marketSet.add(market);
-      if (!brandMap.has(company.id)) {
-        // We deliberately do NOT resolve logo signed URLs for facet
-        // entries. The facet dropdown can render hundreds of brands;
-        // batch-signing every one of them issues a signed URL (and a
-        // resulting Storage GET when the user opens the dropdown) for
-        // logos the user may never actually see. The grid cards
-        // already carry their own logo URLs from `searchExploreEmails`,
-        // which is the only place a logo actually renders today.
-        brandMap.set(company.id, {
-          id: company.id,
-          name: company.name,
-          markets: companyMarkets,
-          logoUrl: null,
-          isCurated: Boolean(company.is_curated)
-        });
-      }
-    }
-  }
-
-  const brands: ExploreBrandFacet[] = Array.from(brandMap.values()).sort(
-    (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-  );
-
-  const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
-  const categories = Array.from(categorySet).sort((a, b) => a.localeCompare(b));
-  const countries = Array.from(countrySet).sort((a, b) => a.localeCompare(b));
-
-  return { brands, markets, categories, countries };
+  return {
+    brands,
+    markets: payload.markets ?? [],
+    categories: payload.categories ?? [],
+    countries: payload.countries ?? []
+  };
 }
 
 /**

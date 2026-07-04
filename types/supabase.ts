@@ -1264,6 +1264,23 @@ export type Database = {
       }
     }
     Views: {
+      brand_send_stats: {
+        Row: {
+          avg_days_between: number | null
+          company_id: string | null
+          email_count: number | null
+          primary_esp: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captured_emails_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_email_stats: {
         Row: {
           company_id: string | null
@@ -1323,6 +1340,7 @@ export type Database = {
           size: number
         }[]
       }
+      explore_facets: { Args: { restrict_ids?: string[] | null }; Returns: Json }
       get_team_context: {
         Args: never
         Returns: {

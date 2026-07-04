@@ -82,13 +82,17 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
 
   // The path segment may be a slug or a legacy UUID; resolve to the real id
   // up front so both the locked and unlocked paths below work either way.
-  const resolved = await resolveHandle(handle);
+  // Handle resolution (service-role) and viewer auth are independent, so
+  // they run together — serially they'd add a full DB round-trip each to
+  // every brand page view.
+  const [resolved, viewer] = await Promise.all([
+    resolveHandle(handle),
+    getViewer()
+  ]);
   if (!resolved) {
     notFound();
   }
   const id = resolved.id;
-
-  const viewer = await getViewer();
 
   // Logged-out / unpaid viewers see the brand page with full structure —
   // hero + every section heading — but the data locked behind upgrade CTAs.

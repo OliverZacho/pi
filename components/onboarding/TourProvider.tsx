@@ -1,7 +1,6 @@
 "use client";
 
-import { driver, type Driver, type PopoverDOM } from "driver.js";
-import "driver.js/dist/driver.css";
+import type { Driver, PopoverDOM } from "driver.js";
 import "./tour-theme.css";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -163,7 +162,18 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     handlersRef.current.skip = () => finish();
   }, [finish, goTo]);
 
-  const ensureDriver = useCallback((): Driver => {
+  // driver.js is dynamically imported so it (and its stylesheet) stay out of
+  // the initial bundle — the root layout mounts this provider on every page,
+  // but only a brand-new signup ever runs the tour. The import resolves in
+  // well under a step's anchor wait, and subsequent calls hit the module
+  // cache. After the await, the ref is re-checked so a concurrent call can't
+  // construct a second overlay instance.
+  const ensureDriver = useCallback(async (): Promise<Driver> => {
+    if (driverRef.current) return driverRef.current;
+    const [{ driver }] = await Promise.all([
+      import("driver.js"),
+      import("driver.js/dist/driver.css")
+    ]);
     if (driverRef.current) return driverRef.current;
     driverRef.current = driver({
       allowClose: false, // Esc / overlay click don't end the tour — buttons do.
@@ -241,13 +251,17 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       onCloseClick: () => handlersRef.current.skip()
     };
 
-    const highlightStep = (el: Element) =>
-      ensureDriver().highlight({
-        element: el,
-        // Interactive stops keep the spotlighted element clickable.
-        disableActiveInteraction: !step.interactive,
-        popover
+    const highlightStep = (el: Element) => {
+      void ensureDriver().then((d) => {
+        if (cancelled) return;
+        d.highlight({
+          element: el,
+          // Interactive stops keep the spotlighted element clickable.
+          disableActiveInteraction: !step.interactive,
+          popover
+        });
       });
+    };
 
     // The email-preview modal renders BELOW driver's overlay, so while it's open
     // we tear the overlay down (revealing the preview) and on close we restore
@@ -277,7 +291,9 @@ export default function TourProvider({ children }: { children: ReactNode }) {
 
     // Centered welcome stop: no anchor, no spotlight — just a popover.
     if (!step.anchor) {
-      ensureDriver().highlight({ popover });
+      void ensureDriver().then((d) => {
+        if (!cancelled) d.highlight({ popover });
+      });
       return () => {
         cancelled = true;
       };

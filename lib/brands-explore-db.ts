@@ -119,19 +119,6 @@ export type BrandsFacets = {
 export const BRANDS_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 96;
 
-/**
- * Cap on captured-email rows pulled in for the per-brand aggregation
- * pass. We only need (company_id, received_at, esp_provider) so each
- * row is tiny; 20k rows is comfortably in the dozens of milliseconds
- * to fetch + aggregate even for the largest dataset we expect.
- *
- * When dataset growth pushes us past this, the right move is a
- * Postgres view (or materialised view) that pre-computes one row per
- * brand with `primary_esp`, `avg_days_between`, etc.; the function
- * shape here would not change.
- */
-const BRAND_AGG_ROW_CAP = 20_000;
-
 /** Smallest acceptable upper bound for the cadence slider, in days. */
 const CADENCE_MIN_MAX = 7;
 /** Hard upper bound for the slider so a single outlier doesn't push it absurd. */
@@ -176,14 +163,13 @@ function relationFirst<T>(value: T | T[] | null | undefined): T | null {
  * Two-pass design:
  *  1. Pull non-deleted companies + the `company_email_stats` view (so
  *     activity / volume filters and sorts can run on cheap counters).
- *  2. Pull a slim slice of captured emails to derive per-brand ESP +
- *     cadence in JS. The aggregates are folded into each candidate
- *     row, then ESP / cadence filters are applied and pagination is
- *     finalised in memory.
+ *  2. Pull one row per brand from the `brand_send_stats` view (ESP +
+ *     cadence, aggregated in the DB). The aggregates are folded into
+ *     each candidate row, then ESP / cadence filters are applied and
+ *     pagination is finalised in memory.
  *
  * The in-memory finish keeps the code straightforward at the brand
- * counts we expect today (low hundreds). See {@link BRAND_AGG_ROW_CAP}
- * for the migration trigger.
+ * counts we expect today (low hundreds).
  */
 export async function searchBrands(
   supabase: SupabaseClient<Database>,
@@ -425,87 +411,45 @@ export async function searchBrands(
 }
 
 /**
- * Walks captured emails (capped at {@link BRAND_AGG_ROW_CAP}) and
- * returns, for each brand, its modal ESP and the mean days between
- * sends. Returned alongside is the set of ESPs that appear at least
- * once and the largest observed cadence — both used by the facets
- * endpoint to seed the filter UI.
+ * Reads the `brand_send_stats` view (one row per brand: modal ESP and
+ * mean days between sends, aggregated in the DB) and returns the
+ * per-brand map. Returned alongside is the set of primary ESPs in use
+ * and the largest observed cadence — both used by the facets endpoint
+ * to seed the filter UI. The ESP menu is seeded from *primary* ESPs
+ * only, since the ESP filter matches a brand's primary; an ESP that is
+ * nobody's primary would be a dead filter option.
  */
 export async function computeBrandAggregates(
   supabase: SupabaseClient<Database>,
   companyIds?: string[]
 ): Promise<AggregateResult> {
-  let emailQuery = supabase
-    .from("captured_emails")
-    .select("company_id, received_at, esp_provider")
-    .not("company_id", "is", null);
+  let statsQuery = supabase
+    .from("brand_send_stats")
+    .select("company_id, primary_esp, avg_days_between");
 
   // When the caller only needs a known set of brands (e.g. the user's
-  // follow list), scope the sweep to those companies so we read a tiny
-  // slice instead of the full capped window.
+  // follow list), scope to those companies.
   if (companyIds && companyIds.length > 0) {
-    emailQuery = emailQuery.in("company_id", companyIds);
+    statsQuery = statsQuery.in("company_id", companyIds);
   }
 
-  const { data, error } = await emailQuery
-    .order("received_at", { ascending: false })
-    .limit(BRAND_AGG_ROW_CAP);
-
+  const { data, error } = await statsQuery;
   if (error) throw error;
 
-  type BrandBucket = {
-    times: number[];
-    esp: Map<EspProvider, number>;
-  };
-  const buckets = new Map<string, BrandBucket>();
+  const perBrand = new Map<string, BrandAggregate>();
   const espIdsInUse = new Set<EspProvider>();
+  let cadenceMaxObserved = 0;
 
   for (const row of data ?? []) {
     if (!row.company_id) continue;
-    const t = new Date(row.received_at).getTime();
-    if (Number.isNaN(t)) continue;
-    let bucket = buckets.get(row.company_id);
-    if (!bucket) {
-      bucket = { times: [], esp: new Map() };
-      buckets.set(row.company_id, bucket);
+    const primaryEsp = (row.primary_esp as EspProvider | null) ?? null;
+    if (primaryEsp) espIdsInUse.add(primaryEsp);
+    const avgDaysBetween =
+      typeof row.avg_days_between === "number" ? row.avg_days_between : null;
+    if (avgDaysBetween !== null && avgDaysBetween > cadenceMaxObserved) {
+      cadenceMaxObserved = avgDaysBetween;
     }
-    bucket.times.push(t);
-    if (row.esp_provider) {
-      const id = row.esp_provider as EspProvider;
-      bucket.esp.set(id, (bucket.esp.get(id) ?? 0) + 1);
-      espIdsInUse.add(id);
-    }
-  }
-
-  const perBrand = new Map<string, BrandAggregate>();
-  let cadenceMaxObserved = 0;
-
-  for (const [brandId, bucket] of buckets) {
-    let primaryEsp: EspProvider | null = null;
-    let bestCount = 0;
-    for (const [id, count] of bucket.esp) {
-      if (count > bestCount) {
-        bestCount = count;
-        primaryEsp = id;
-      }
-    }
-
-    let avgDaysBetween: number | null = null;
-    if (bucket.times.length >= 2) {
-      // Times come in descending order from the query above; sort
-      // ascending so consecutive diffs are positive.
-      const sorted = bucket.times.slice().sort((a, b) => a - b);
-      let totalMs = 0;
-      for (let i = 1; i < sorted.length; i++) {
-        totalMs += sorted[i] - sorted[i - 1];
-      }
-      avgDaysBetween = totalMs / (sorted.length - 1) / 86_400_000;
-      if (avgDaysBetween > cadenceMaxObserved) {
-        cadenceMaxObserved = avgDaysBetween;
-      }
-    }
-
-    perBrand.set(brandId, { primaryEsp, avgDaysBetween });
+    perBrand.set(row.company_id, { primaryEsp, avgDaysBetween });
   }
 
   return { perBrand, espIdsInUse, cadenceMaxObserved };
