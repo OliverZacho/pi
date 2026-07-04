@@ -163,7 +163,9 @@ export async function POST(request: Request) {
     const { origin } = new URL(request.url);
     const { error: sendError } = await admin.auth.admin.inviteUserByEmail(
       email,
-      { redirectTo: `${origin}/auth/callback?next=/settings` }
+      // `next` is only the fallback — when the callback actually claims the
+      // invite it overrides to /explore?team_welcome=1 (the welcome modal).
+      { redirectTo: `${origin}/auth/callback?next=/explore` }
     );
 
     if (sendError) {

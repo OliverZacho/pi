@@ -11,8 +11,10 @@ import {
   listCollectionSummaries,
   type CollectionSummary
 } from "@/lib/collections-db";
+import { getTeamContext } from "@/lib/teams-db";
 import ExploreClient from "@/components/explore/ExploreClient";
 import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
+import TeamWelcomeModal from "@/components/onboarding/TeamWelcomeModal";
 import TourStarter from "@/components/onboarding/TourStarter";
 import styles from "@/components/explore/explore.module.css";
 
@@ -20,9 +22,16 @@ export const metadata = {
   title: "Explore — Pirol"
 };
 
-export default async function ExplorePage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ExplorePage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const viewer = await getViewer();
+  // One-shot flag set by the auth callback right after a team invite is
+  // claimed — the welcome modal below only renders on that landing.
+  const teamWelcome = (await searchParams).team_welcome === "1";
 
   // Logged-out / unpaid viewers get the interactive teaser: the real
   // Explore UI (search / filter / sort) capped to PUBLIC_EXPLORE_LIMIT with
@@ -122,7 +131,7 @@ export default async function ExplorePage() {
   //   - collections: feeds the "Add to collection" popover on every card.
   // The per-source `.catch`es swallow errors so a single broken table
   // (saves / collections) never takes down Explore itself.
-  const [initialResult, facets, savedSet, initialCollections] =
+  const [initialResult, facets, savedSet, initialCollections, teamCtx] =
     await Promise.all([
       searchExploreEmails(supabase, {
         page: 1,
@@ -137,27 +146,44 @@ export default async function ExplorePage() {
       listCollectionSummaries(supabase, userId).catch((err) => {
         console.error("Failed to load collections", err);
         return [] as CollectionSummary[];
-      })
+      }),
+      // Team name + who added them, for the invited-member welcome modal.
+      // Only fetched on the one-shot welcome landing; a failure just means
+      // no modal, never a broken Explore.
+      teamWelcome
+        ? getTeamContext(supabase).catch((err) => {
+            console.error("Failed to load team context for welcome", err);
+            return null;
+          })
+        : Promise.resolve(null)
     ]);
   const initialSavedIds = Array.from(savedSet);
 
   return (
-    <main className={styles.main}>
-      <header className={styles.heading}>
-        <h1>Explore</h1>
-        <p>Browse marketing emails from competing brands</p>
-      </header>
+    <>
+      {teamCtx && teamCtx.role === "member" ? (
+        <TeamWelcomeModal
+          teamName={teamCtx.teamName}
+          ownerName={teamCtx.ownerName}
+        />
+      ) : null}
+      <main className={styles.main}>
+        <header className={styles.heading}>
+          <h1>Explore</h1>
+          <p>Browse marketing emails from competing brands</p>
+        </header>
 
-      <ExploreClient
-        initialEmails={initialResult.items}
-        initialHasMore={initialResult.hasMore}
-        pageSize={EXPLORE_PAGE_SIZE}
-        facets={facets}
-        initialSavedIds={initialSavedIds}
-        initialCollections={initialCollections}
-        defaultSort="recommended"
-        isAdmin={viewer.isAdmin}
-      />
-    </main>
+        <ExploreClient
+          initialEmails={initialResult.items}
+          initialHasMore={initialResult.hasMore}
+          pageSize={EXPLORE_PAGE_SIZE}
+          facets={facets}
+          initialSavedIds={initialSavedIds}
+          initialCollections={initialCollections}
+          defaultSort="recommended"
+          isAdmin={viewer.isAdmin}
+        />
+      </main>
+    </>
   );
 }
