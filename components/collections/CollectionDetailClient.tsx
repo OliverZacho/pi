@@ -655,12 +655,12 @@ export default function CollectionDetailClient({
         <RulesSummary
           rules={collection.rules as CollectionRules}
           facets={facets}
-          onEdit={() => setRulesEditorOpen(true)}
-          onClear={handleClearRules}
+          onEdit={canEdit ? () => setRulesEditorOpen(true) : undefined}
+          onClear={canEdit ? handleClearRules : undefined}
         />
       ) : null}
 
-      {rulesEditorOpen ? (
+      {canEdit && rulesEditorOpen ? (
         <CollectionRulesEditor
           initialRules={collection.rules}
           facets={facets}
@@ -751,8 +751,10 @@ export default function CollectionDetailClient({
 
 /**
  * Read-only summary of the active rule set. Renders each condition as
- * a chip joined by the combinator, plus Edit / Clear actions. Lives
- * directly above the email grid when a collection is rule-based.
+ * a chip joined by the combinator, plus Edit / Clear actions when the
+ * viewer owns the collection (omit the callbacks for read-only
+ * viewers). Lives directly above the email grid when a collection is
+ * rule-based.
  */
 function RulesSummary({
   rules,
@@ -762,8 +764,8 @@ function RulesSummary({
 }: {
   rules: CollectionRules;
   facets: ExploreFacets;
-  onEdit: () => void;
-  onClear: () => Promise<void> | void;
+  onEdit?: () => void;
+  onClear?: () => Promise<void> | void;
 }) {
   const brandsById = useMemo(() => {
     const map = new Map<string, string>();
@@ -817,24 +819,30 @@ function RulesSummary({
           </li>
         ))}
       </ul>
-      <div className={styles.rulesSummaryActions}>
-        <button
-          type="button"
-          className={styles.rulesSummaryButton}
-          onClick={onEdit}
-        >
-          <PencilIcon /> Edit rules
-        </button>
-        <button
-          type="button"
-          className={`${styles.rulesSummaryButton} ${styles.rulesSummaryButtonDanger}`}
-          onClick={() => {
-            void onClear();
-          }}
-        >
-          Clear
-        </button>
-      </div>
+      {onEdit || onClear ? (
+        <div className={styles.rulesSummaryActions}>
+          {onEdit ? (
+            <button
+              type="button"
+              className={styles.rulesSummaryButton}
+              onClick={onEdit}
+            >
+              <PencilIcon /> Edit rules
+            </button>
+          ) : null}
+          {onClear ? (
+            <button
+              type="button"
+              className={`${styles.rulesSummaryButton} ${styles.rulesSummaryButtonDanger}`}
+              onClick={() => {
+                void onClear();
+              }}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
