@@ -14,6 +14,12 @@ import type { Json } from "@/types/supabase";
  * marketing mail.
  */
 
+/** Private bucket holding downloaded attachment bytes (see the migration). */
+export const SUPPORT_ATTACHMENT_BUCKET = "support-attachments";
+
+/** Skip anything above the bucket's 25 MB object cap. */
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
 type ResendInboundEvent = {
   type: string;
   created_at: string;
@@ -127,5 +133,111 @@ export async function ingestSupportEmail(
     throw new Error(`store_support_email: ${insertError?.message ?? "no row"}`);
   }
 
+  await ingestSupportAttachments(resend, inserted.id, full.id, full.attachments ?? []);
+
   return { id: inserted.id, deduplicated: false };
+}
+
+type InboundAttachmentMeta = {
+  id: string;
+  filename: string | null;
+  size: number;
+  content_type: string;
+  content_id: string | null;
+  content_disposition: string | null;
+};
+
+/** Storage-safe object name: keep letters/digits/dot/dash, cap the length. */
+function safeFilename(value: string | null): string {
+  const cleaned = (value ?? "attachment")
+    .replace(/[^\w.\-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+  return cleaned.length > 0 ? cleaned : "attachment";
+}
+
+/**
+ * Copies each attachment out of Resend into the private
+ * `support-attachments` bucket and records it in `support_email_attachments`.
+ *
+ * Resend's download URLs are short-lived, so this runs at ingest time — the
+ * storage copy is what the admin UI serves later. Best-effort per attachment:
+ * a failed download logs and moves on rather than failing the whole message
+ * (the webhook would otherwise retry and duplicate nothing but still mark the
+ * event failed).
+ */
+async function ingestSupportAttachments(
+  resend: Resend,
+  supportEmailId: string,
+  resendEmailId: string,
+  attachments: readonly InboundAttachmentMeta[]
+): Promise<void> {
+  if (attachments.length === 0) {
+    return;
+  }
+  const supabaseAdmin = getSupabaseAdmin();
+
+  for (const attachment of attachments) {
+    try {
+      if (attachment.size > MAX_ATTACHMENT_BYTES) {
+        console.warn("Skipping oversized support attachment", {
+          supportEmailId,
+          attachmentId: attachment.id,
+          size: attachment.size
+        });
+        continue;
+      }
+
+      const { data: signed, error: signedError } =
+        await resend.emails.receiving.attachments.get({
+          emailId: resendEmailId,
+          id: attachment.id
+        });
+      if (signedError || !signed?.download_url) {
+        throw new Error(signedError?.message ?? "no download_url");
+      }
+
+      const response = await fetch(signed.download_url);
+      if (!response.ok) {
+        throw new Error(`download failed: HTTP ${response.status}`);
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+
+      const contentType = attachment.content_type || "application/octet-stream";
+      const storagePath = `${supportEmailId}/${attachment.id}/${safeFilename(
+        attachment.filename
+      )}`;
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(SUPPORT_ATTACHMENT_BUCKET)
+        .upload(storagePath, bytes, { contentType, upsert: true });
+      if (uploadError) {
+        throw new Error(`upload failed: ${uploadError.message}`);
+      }
+
+      const { error: rowError } = await supabaseAdmin
+        .from("support_email_attachments")
+        .insert({
+          support_email_id: supportEmailId,
+          resend_attachment_id: attachment.id,
+          filename: attachment.filename,
+          content_type: contentType,
+          size_bytes: bytes.byteLength,
+          content_id: attachment.content_id,
+          is_inline: attachment.content_disposition === "inline",
+          storage_path: storagePath
+        });
+      if (rowError) {
+        throw new Error(`row insert failed: ${rowError.message}`);
+      }
+    } catch (error) {
+      console.error("Support attachment ingest failed", {
+        supportEmailId,
+        resendEmailId,
+        attachmentId: attachment.id,
+        filename: attachment.filename,
+        error
+      });
+    }
+  }
 }

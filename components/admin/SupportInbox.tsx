@@ -26,7 +26,25 @@ type SupportReply = {
   created_at: string;
 };
 
+type SupportAttachment = {
+  id: string;
+  filename: string | null;
+  content_type: string;
+  size_bytes: number;
+  is_inline: boolean;
+};
+
 type SupportDetail = SupportListItem & { html: string | null };
+
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${bytes} B`;
+}
 
 type StatusFilter = "active" | "archived" | "all";
 
@@ -79,6 +97,7 @@ export default function SupportInbox() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SupportDetail | null>(null);
   const [replies, setReplies] = useState<SupportReply[]>([]);
+  const [attachments, setAttachments] = useState<SupportAttachment[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
@@ -121,6 +140,7 @@ export default function SupportInbox() {
     setSelectedId(id);
     setDetail(null);
     setReplies([]);
+    setAttachments([]);
     setReplyText("");
     setReplyError("");
     setDetailError("");
@@ -130,6 +150,7 @@ export default function SupportInbox() {
       const data = (await response.json()) as {
         email?: SupportDetail;
         replies?: SupportReply[];
+        attachments?: SupportAttachment[];
         error?: string;
       };
       if (!response.ok || !data.email) {
@@ -138,6 +159,7 @@ export default function SupportInbox() {
       }
       setDetail(data.email);
       setReplies(data.replies ?? []);
+      setAttachments(data.attachments ?? []);
       // The server marks an opened message read — mirror that locally.
       setEmails((current) =>
         current.map((item) =>
@@ -385,6 +407,48 @@ export default function SupportInbox() {
                   <p className="support-empty">This message has no body.</p>
                 )}
               </div>
+
+              {attachments.length > 0 ? (
+                <div className="support-attachments">
+                  <h4>Attachments</h4>
+                  <div className="support-attachment-grid">
+                    {attachments.map((attachment) => {
+                      const url = `/api/admin/support/${detail.id}/attachments/${attachment.id}`;
+                      return attachment.content_type.startsWith("image/") ? (
+                        <a
+                          key={attachment.id}
+                          className="support-attachment-image"
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- admin-gated API route, not a static asset */}
+                          <img
+                            src={url}
+                            alt={attachment.filename ?? "Attached image"}
+                            loading="lazy"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          key={attachment.id}
+                          className="support-attachment-file"
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span className="support-attachment-name">
+                            {attachment.filename ?? "Attachment"}
+                          </span>
+                          <span className="support-attachment-size">
+                            {formatSize(attachment.size_bytes)}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
               {replies.length > 0 ? (
                 <div className="support-thread">

@@ -49,6 +49,17 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 
+  const { data: attachments, error: attachmentsError } = await session.supabase
+    .from("support_email_attachments")
+    .select("id, filename, content_type, size_bytes, is_inline")
+    .eq("support_email_id", id)
+    .order("created_at", { ascending: true });
+
+  if (attachmentsError) {
+    console.error("Failed to load support attachments", attachmentsError);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
+
   let status = email.status;
   if (status === "unread") {
     const { error: markError } = await session.supabase
@@ -63,7 +74,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   return NextResponse.json({
     email: { ...email, status },
-    replies: replies ?? []
+    replies: replies ?? [],
+    attachments: attachments ?? []
   });
 }
 
