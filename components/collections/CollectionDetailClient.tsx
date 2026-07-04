@@ -16,6 +16,10 @@ import type {
   CollectionSummary
 } from "@/lib/collections-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
+import type {
+  DigestCadence,
+  NotificationPrefs
+} from "@/lib/notification-prefs";
 import { countryLabel } from "@/lib/country";
 import type { CollectionIcon } from "@/lib/collection-icons";
 import EmailCard from "../explore/EmailCard";
@@ -32,6 +36,17 @@ import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
 
 const EMPTY_ID_SET = new Set<string>();
+
+/**
+ * Frequencies the "Alert me" dropdown offers — the digest cadences, same
+ * as the smart-collection row in Settings → Notifications (alerts are
+ * computed on a schedule, so no Instant).
+ */
+const ALERT_CADENCES = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" }
+] as const satisfies readonly { value: DigestCadence; label: string }[];
 
 type Props = {
   initialCollection: CollectionDetail;
@@ -67,6 +82,12 @@ type Props = {
    * funnels to `/pricing` instead of toggling sharing.
    */
   canShareWithTeam: boolean;
+  /**
+   * The viewer's notification cadences from Settings → Notifications.
+   * The "Alert me" dropdown reads and writes the `smartCollection`
+   * cadence, so the frequency picked here is the one Settings shows.
+   */
+  initialNotificationPrefs: NotificationPrefs;
 };
 
 /**
@@ -84,7 +105,8 @@ export default function CollectionDetailClient({
   brandDiscountBenchmarks,
   followedCompanyIds,
   canEdit,
-  canShareWithTeam
+  canShareWithTeam,
+  initialNotificationPrefs
 }: Props) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail>(
@@ -143,6 +165,11 @@ export default function CollectionDetailClient({
   const [copied, setCopied] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const shareMenuRef = useRef<HTMLDivElement | null>(null);
+  const [alertMenuOpen, setAlertMenuOpen] = useState(false);
+  const alertMenuRef = useRef<HTMLDivElement | null>(null);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(
+    initialNotificationPrefs
+  );
 
   // Close the Share menu on outside click / Escape (same pattern as the
   // sidebar account menu).
@@ -163,6 +190,25 @@ export default function CollectionDetailClient({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [shareMenuOpen]);
+
+  // Same treatment for the "Alert me" frequency menu.
+  useEffect(() => {
+    if (!alertMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!alertMenuRef.current?.contains(e.target as Node)) {
+        setAlertMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAlertMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [alertMenuOpen]);
 
   const shareUrl =
     typeof window !== "undefined"
@@ -488,24 +534,60 @@ export default function CollectionDetailClient({
     }
   }
 
-  async function handleToggleNotify() {
+  /**
+   * Turn alerts on for this collection at the chosen frequency: flips
+   * `notifyNewMatches` on and writes the frequency to the shared
+   * smart-collection cadence in Settings → Notifications. Two writes, so
+   * a failure rolls back both locally (the server may keep one — the
+   * next selection or the Settings screen straightens it out).
+   */
+  async function handleSelectAlertCadence(cadence: DigestCadence) {
+    setAlertMenuOpen(false);
     if (notifyPending) return;
-    const next = !collection.notifyNewMatches;
+    const prevNotify = collection.notifyNewMatches;
+    const prevPrefs = notifPrefs;
+    if (prevNotify && prevPrefs.smartCollection === cadence) return;
     setNotifyPending(true);
     // Optimistic; roll back on failure.
-    setCollection((current) => ({ ...current, notifyNewMatches: next }));
+    setCollection((current) => ({ ...current, notifyNewMatches: true }));
+    setNotifPrefs((current) => ({ ...current, smartCollection: cadence }));
     try {
-      const res = await fetch(`/api/collections/${collection.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notifyNewMatches: next })
-      });
-      if (!res.ok) throw new Error(`Failed (${res.status})`);
-      const body = (await res.json()) as { collection: CollectionDetail };
-      applyDetailResponse(body.collection);
+      const [collectionRes, prefsRes] = await Promise.all([
+        prevNotify
+          ? Promise.resolve<Response | null>(null)
+          : fetch(`/api/collections/${collection.id}`, {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ notifyNewMatches: true })
+            }),
+        prevPrefs.smartCollection === cadence
+          ? Promise.resolve<Response | null>(null)
+          : fetch("/api/user-prefs/notifications", {
+              method: "PUT",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              // The PUT replaces the whole prefs object and fills gaps
+              // with defaults — send the other cadences along unchanged
+              // so they aren't reset.
+              body: JSON.stringify({ ...prevPrefs, smartCollection: cadence })
+            })
+      ]);
+      if (collectionRes && !collectionRes.ok) {
+        throw new Error(`Failed (${collectionRes.status})`);
+      }
+      if (prefsRes && !prefsRes.ok) {
+        throw new Error(`Failed (${prefsRes.status})`);
+      }
+      if (collectionRes) {
+        const body = (await collectionRes.json()) as {
+          collection: CollectionDetail;
+        };
+        applyDetailResponse(body.collection);
+      }
     } catch (err) {
-      setCollection((current) => ({ ...current, notifyNewMatches: !next }));
+      setCollection((current) => ({ ...current, notifyNewMatches: prevNotify }));
+      setNotifPrefs(prevPrefs);
       setError(
         err instanceof Error ? err.message : "Failed to update match alerts"
       );
@@ -513,6 +595,40 @@ export default function CollectionDetailClient({
       setNotifyPending(false);
     }
   }
+
+  /** Stop alerts for this collection only; the Settings cadence stays. */
+  async function handleTurnOffAlerts() {
+    setAlertMenuOpen(false);
+    if (notifyPending || !collection.notifyNewMatches) return;
+    setNotifyPending(true);
+    // Optimistic; roll back on failure.
+    setCollection((current) => ({ ...current, notifyNewMatches: false }));
+    try {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyNewMatches: false })
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+    } catch (err) {
+      setCollection((current) => ({ ...current, notifyNewMatches: true }));
+      setError(
+        err instanceof Error ? err.message : "Failed to update match alerts"
+      );
+    } finally {
+      setNotifyPending(false);
+    }
+  }
+
+  // Alerts count as "on" when the collection opts in AND the shared
+  // cadence in Settings would actually send something.
+  const activeAlertCadence = collection.notifyNewMatches
+    ? (ALERT_CADENCES.find((c) => c.value === notifPrefs.smartCollection) ??
+      null)
+    : null;
 
   return (
     <>
@@ -653,24 +769,72 @@ export default function CollectionDetailClient({
                 ) : null}
               </div>
               {isRuleBased ? (
-                <button
-                  type="button"
-                  className={`${styles.detailButton} ${
-                    collection.notifyNewMatches ? styles.detailButtonCopied : ""
-                  }`}
-                  onClick={handleToggleNotify}
-                  disabled={notifyPending}
-                  title={
-                    collection.notifyNewMatches
-                      ? "You're getting email alerts when new emails match. Click to stop."
-                      : "Email me when new emails match these rules"
-                  }
-                >
-                  <BellIcon />
-                  <span>
-                    {collection.notifyNewMatches ? "Alerts on" : "Alert me"}
-                  </span>
-                </button>
+                <div className={styles.shareMenuWrap} ref={alertMenuRef}>
+                  <button
+                    type="button"
+                    className={`${styles.detailButton} ${
+                      activeAlertCadence ? styles.detailButtonCopied : ""
+                    }`}
+                    onClick={() => setAlertMenuOpen((v) => !v)}
+                    disabled={notifyPending}
+                    aria-haspopup="menu"
+                    aria-expanded={alertMenuOpen}
+                    title={
+                      activeAlertCadence
+                        ? `You're getting ${activeAlertCadence.label.toLowerCase()} email alerts when new emails match. Click to adjust.`
+                        : "Email me when new emails match these rules"
+                    }
+                  >
+                    <BellIcon />
+                    <span>
+                      {activeAlertCadence
+                        ? `Alerts: ${activeAlertCadence.label}`
+                        : "Alert me"}
+                    </span>
+                    <span className={styles.shareChevron}>
+                      <ChevronDownIcon />
+                    </span>
+                  </button>
+                  {alertMenuOpen ? (
+                    <div className={styles.shareMenu} role="menu">
+                      <p className={styles.alertMenuHint}>
+                        How often should we email you new matches?
+                      </p>
+                      {ALERT_CADENCES.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={styles.shareMenuItem}
+                          role="menuitem"
+                          onClick={() => handleSelectAlertCadence(option.value)}
+                          disabled={notifyPending}
+                        >
+                          <span>{option.label}</span>
+                          {activeAlertCadence?.value === option.value ? (
+                            <span className={styles.shareMenuCheck}>
+                              <CheckIcon />
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                      {collection.notifyNewMatches ? (
+                        <button
+                          type="button"
+                          className={styles.shareMenuItem}
+                          role="menuitem"
+                          onClick={handleTurnOffAlerts}
+                          disabled={notifyPending}
+                        >
+                          <span>Turn off alerts</span>
+                        </button>
+                      ) : null}
+                      <p className={styles.alertMenuFootnote}>
+                        The frequency applies to alerts on all your
+                        collections. You can also change it in Settings.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
               <button
                 type="button"
@@ -722,6 +886,7 @@ export default function CollectionDetailClient({
         <CollectionEventInsights
           collectionId={collection.id}
           initialDetection={collection.eventDetection}
+          canEdit={canEdit}
           emails={emails}
           brandDiscountBenchmarks={brandDiscountBenchmarks}
           followedCompanyIds={followedCompanyIds}
