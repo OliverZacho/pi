@@ -27,6 +27,40 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+/**
+ * The onboarding tour's demo collection, rendered read-only via the
+ * service-role client (past RLS). Served to unpaid users in place of the
+ * locked upsell, and to paid users who don't own it (invited team members
+ * on the tour). Null when the seeded row is missing.
+ */
+async function demoCollectionView() {
+  const admin = getSupabaseAdmin();
+  const demoCollection = await getCollectionForReader(admin, DEMO_COLLECTION_ID);
+  if (!demoCollection) {
+    return null;
+  }
+  const demoFacets = await getExploreFacets(admin).catch(() => ({
+    brands: [],
+    markets: [],
+    categories: [],
+    countries: []
+  }));
+  return (
+    <main className={styles.main} data-tour="collection-demo">
+      <CollectionDetailClient
+        initialCollection={demoCollection}
+        initialSavedIds={[]}
+        initialCollections={[]}
+        facets={demoFacets}
+        brandDiscountBenchmarks={{}}
+        followedCompanyIds={[]}
+        canEdit={false}
+        canShareWithTeam={false}
+      />
+    </main>
+  );
+}
+
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   return {
@@ -50,30 +84,8 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   // (fetched service-side past RLS), read-only (`canEdit=false`).
   if (!viewer || !viewer.hasAccess) {
     if (id === DEMO_COLLECTION_ID) {
-      const admin = getSupabaseAdmin();
-      const demoCollection = await getCollectionForReader(admin, id);
-      if (demoCollection) {
-        const demoFacets = await getExploreFacets(admin).catch(() => ({
-          brands: [],
-          markets: [],
-          categories: [],
-          countries: []
-        }));
-        return (
-          <main className={styles.main} data-tour="collection-demo">
-            <CollectionDetailClient
-              initialCollection={demoCollection}
-              initialSavedIds={[]}
-              initialCollections={[]}
-              facets={demoFacets}
-              brandDiscountBenchmarks={{}}
-              followedCompanyIds={[]}
-              canEdit={false}
-              canShareWithTeam={false}
-            />
-          </main>
-        );
-      }
+      const demo = await demoCollectionView();
+      if (demo) return demo;
     }
     return (
       <main className={styles.main}>
@@ -91,6 +103,13 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     collection = await getCollectionForReader(supabase, id);
   }
   if (!collection) {
+    // Paid viewers who don't own the tour's demo collection (e.g. an invited
+    // team member walking the tour) would otherwise 404 here — RLS doesn't
+    // share it. Give them the same read-only demo view unpaid users get.
+    if (id === DEMO_COLLECTION_ID) {
+      const demo = await demoCollectionView();
+      if (demo) return demo;
+    }
     notFound();
   }
 

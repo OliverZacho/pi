@@ -2,12 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/access";
 import {
   listCollectionSummaries,
+  listTeamSharedCollections,
   type CollectionSummary
 } from "@/lib/collections-db";
 import {
   listCompetitorSetSummaries,
+  listTeamSharedSets,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
@@ -40,17 +43,55 @@ export default async function AppShellLayout({
 
   if (viewer && hasAccess) {
     const supabase = await createClient();
-    [collections, competitorSets, user] = await Promise.all([
-      listCollectionSummaries(supabase, viewer.userId).catch((err) => {
-        console.error("Failed to load sidebar collections", err);
-        return [] as CollectionSummary[];
-      }),
-      listCompetitorSetSummaries(supabase, viewer.userId).catch((err) => {
-        console.error("Failed to load sidebar competitor sets", err);
-        return [] as CompetitorSetSummary[];
-      }),
-      getViewerDisplay()
-    ]);
+    // Team-shared rows (owned by co-members, read-only for the viewer)
+    // ride along in the same sections, appended after the viewer's own
+    // rows and flagged so the sidebar can badge them.
+    let teamCollections: CollectionSummary[] = [];
+    let teamSets: CompetitorSetSummary[] = [];
+    [collections, competitorSets, teamCollections, teamSets, user] =
+      await Promise.all([
+        listCollectionSummaries(supabase, viewer.userId).catch((err) => {
+          console.error("Failed to load sidebar collections", err);
+          return [] as CollectionSummary[];
+        }),
+        listCompetitorSetSummaries(supabase, viewer.userId).catch((err) => {
+          console.error("Failed to load sidebar competitor sets", err);
+          return [] as CompetitorSetSummary[];
+        }),
+        listTeamSharedCollections(supabase, getSupabaseAdmin(), viewer.userId)
+          .then((shared) =>
+            shared.map((c) => ({
+              id: c.id,
+              name: c.name,
+              icon: c.icon,
+              shareSlug: c.shareSlug,
+              sharedByTeam: true,
+              teamOwnerName: c.ownerName
+            }))
+          )
+          .catch((err) => {
+            console.error("Failed to load sidebar team collections", err);
+            return [] as CollectionSummary[];
+          }),
+        listTeamSharedSets(supabase, getSupabaseAdmin(), viewer.userId)
+          .then((shared) =>
+            shared.map((s) => ({
+              id: s.id,
+              name: s.name,
+              brandCount: s.brandCount,
+              updatedAt: s.updatedAt,
+              sharedByTeam: true,
+              teamOwnerName: s.ownerName
+            }))
+          )
+          .catch((err) => {
+            console.error("Failed to load sidebar team comparisons", err);
+            return [] as CompetitorSetSummary[];
+          }),
+        getViewerDisplay()
+      ]);
+    collections = [...collections, ...teamCollections];
+    competitorSets = [...competitorSets, ...teamSets];
   } else {
     // Locked-out viewers (logged-out or unpaid) own no collections or
     // sets; only the account row needs data.

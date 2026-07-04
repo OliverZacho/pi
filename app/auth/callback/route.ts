@@ -54,9 +54,10 @@ export async function GET(request: Request) {
 
   if (user) {
     const admin = getSupabaseAdmin();
+    let joinedTeam = false;
     if (user.email) {
       try {
-        await claimPendingInvites(admin, user.id, user.email);
+        joinedTeam = await claimPendingInvites(admin, user.id, user.email);
       } catch (err) {
         console.error("Failed to claim team invites", err);
       }
@@ -72,6 +73,13 @@ export async function GET(request: Request) {
       }
     } catch (err) {
       console.error("Failed to resolve team gate", err);
+    }
+
+    // Just joined a team via invite: land on Explore with the one-shot
+    // welcome modal (who added them, what the seat unlocks, offer the tour)
+    // instead of whatever `next` the link carried.
+    if (joinedTeam) {
+      return NextResponse.redirect(`${origin}/explore?team_welcome=1`);
     }
 
     return NextResponse.redirect(`${origin}${next}`);

@@ -91,6 +91,16 @@ function renderPick(pick: DigestPick): string {
   const meta = [escapeHtml(pick.brandName.toUpperCase()), escapeHtml(pick.day)]
     .filter(Boolean)
     .join(" &middot; ");
+  // The preview sits under the copy as a full-width banner: the top slice
+  // of the email's opening image (fixed 2.5:1 aspect via the CDN crop),
+  // framed like a card so it reads as "the email", not a loose photo.
+  const preview = pick.thumbnailUrl
+    ? `<a href="${pickUrl(
+        pick
+      )}" style="display:block;margin-top:10px;"><img src="${escapeHtml(
+        pick.thumbnailUrl
+      )}" width="552" alt="" style="display:block;width:100%;height:auto;border:1px solid #ece9e1;border-radius:8px;background:#faf9f5;" /></a>`
+    : "";
   return `
   <tr>
     <td style="padding:14px 0;border-top:1px solid #ece9e1;">
@@ -104,6 +114,7 @@ function renderPick(pick: DigestPick): string {
         pick.subject
       )} <span style="color:#888780;">&rarr;</span></a>
       ${why}
+      ${preview}
     </td>
   </tr>`;
 }

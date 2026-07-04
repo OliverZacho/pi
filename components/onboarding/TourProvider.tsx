@@ -33,11 +33,20 @@ import { TOUR_STEPS } from "./tour-steps";
  */
 
 const STORAGE_KEY = "pirol.tour.v1";
+const VARIANT_KEY = "pirol.tour.v1.variant";
 const ANCHOR_TIMEOUT_MS = 8000;
+
+/**
+ * Who the tour is running for. Default (null) is the brand-new signup flow,
+ * where finishing hands over to the forced plan-choice modal — so the last
+ * stop's button reads "Choose plan". A "member" run (invited team member,
+ * seat already covered) has no plan step, so it just says "Finish".
+ */
+type TourVariant = "member" | null;
 
 type TourContextValue = {
   /** Begin the tour from the first stop (no-op if already running). */
-  start: () => void;
+  start: (opts?: { variant?: "member" }) => void;
   active: boolean;
 };
 
@@ -91,10 +100,17 @@ export default function TourProvider({ children }: { children: ReactNode }) {
     skip: () => {}
   });
 
+  // Which flavour of tour is running (see TourVariant). Ref, not state: it's
+  // only read inside the imperative highlight effect, and it never changes
+  // mid-run.
+  const variantRef = useRef<TourVariant>(null);
+
   const persist = useCallback((index: number) => {
     try {
-      if (index < 0) sessionStorage.removeItem(STORAGE_KEY);
-      else sessionStorage.setItem(STORAGE_KEY, String(index));
+      if (index < 0) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(VARIANT_KEY);
+      } else sessionStorage.setItem(STORAGE_KEY, String(index));
     } catch {
       // Private-mode / storage-disabled: the tour still works for this page
       // session, it just won't resume across a hard refresh.
@@ -214,7 +230,11 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       align: step.align ?? "start",
       popoverClass: step.popoverClass,
       showButtons,
-      nextBtnText: isLast ? "Choose plan" : "Next",
+      nextBtnText: isLast
+        ? variantRef.current === "member"
+          ? "Finish"
+          : "Choose plan"
+        : "Next",
       prevBtnText: "Back",
       onNextClick: () => handlersRef.current.next(),
       onPrevClick: () => handlersRef.current.prev(),
@@ -290,6 +310,8 @@ export default function TourProvider({ children }: { children: ReactNode }) {
       if (raw === null) return;
       const n = Number(raw);
       if (Number.isInteger(n) && n >= 0 && n < TOUR_STEPS.length) {
+        variantRef.current =
+          sessionStorage.getItem(VARIANT_KEY) === "member" ? "member" : null;
         // Mount-time read of persisted state; can't be a lazy initializer
         // because sessionStorage isn't available during SSR.
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -303,16 +325,26 @@ export default function TourProvider({ children }: { children: ReactNode }) {
   // Tear down the driver instance if the provider ever unmounts.
   useEffect(() => () => destroyDriver(), [destroyDriver]);
 
-  const start = useCallback(() => {
-    if (stepRef.current >= 0) return;
-    try {
-      // Already mid-tour (resuming from storage) — don't restart from 0.
-      if (sessionStorage.getItem(STORAGE_KEY) !== null) return;
-    } catch {
-      // ignore
-    }
-    goTo(0);
-  }, [goTo]);
+  const start = useCallback(
+    (opts?: { variant?: "member" }) => {
+      if (stepRef.current >= 0) return;
+      try {
+        // Already mid-tour (resuming from storage) — don't restart from 0.
+        if (sessionStorage.getItem(STORAGE_KEY) !== null) return;
+      } catch {
+        // ignore
+      }
+      variantRef.current = opts?.variant ?? null;
+      try {
+        if (opts?.variant) sessionStorage.setItem(VARIANT_KEY, opts.variant);
+        else sessionStorage.removeItem(VARIANT_KEY);
+      } catch {
+        // ignore — the variant just won't survive a hard refresh
+      }
+      goTo(0);
+    },
+    [goTo]
+  );
 
   const value = useMemo<TourContextValue>(
     () => ({ start, active: stepIndex >= 0 }),

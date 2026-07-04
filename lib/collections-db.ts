@@ -623,6 +623,14 @@ export type CollectionSummary = {
    * matching email arrived after the owner last opened the collection.
    */
   hasNewEmails?: boolean;
+  /**
+   * True when the row belongs to a teammate who shared it with the
+   * team (read-only for the viewer). The sidebar marks these rows with
+   * a small team badge.
+   */
+  sharedByTeam?: boolean;
+  /** Display name of the teammate who owns the shared row, if resolved. */
+  teamOwnerName?: string | null;
 };
 
 export type CollectionDetail = {

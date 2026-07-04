@@ -39,8 +39,14 @@ export async function GET(request: Request) {
       ? (sortRaw as ExploreSortKey)
       : "recommended";
 
+  // Explicit id lookups power deep links (notification emails open
+  // `/explore?email=<id>`); without this the fallback fetch silently
+  // returned the first recommended email instead of the linked one.
+  const emailIds = params.getAll("id").filter(Boolean);
+
   const search: ExploreSearchParams = {
     query: params.get("q") ?? undefined,
+    emailIds: emailIds.length > 0 ? emailIds : undefined,
     brandIds: params.getAll("brand").filter(Boolean),
     markets: params.getAll("market").filter(Boolean),
     categories: params.getAll("category").filter(Boolean),

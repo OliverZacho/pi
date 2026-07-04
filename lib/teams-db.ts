@@ -588,13 +588,14 @@ export async function revokeInvite(
  * Claim pending invites for a freshly authenticated user, matched by
  * email. Joins the oldest invite's team; any other pending invites for
  * the email are revoked (one team per user). Idempotent — safe to run on
- * every auth callback.
+ * every auth callback. Returns true only when the user actually joined a
+ * team on this call (so the caller can route them to the team welcome).
  */
 export async function claimPendingInvites(
   admin: PirolSupabaseClient,
   userId: string,
   email: string
-): Promise<void> {
+): Promise<boolean> {
   const normalized = email.trim().toLowerCase();
 
   const { data: invites, error } = await admin
@@ -609,7 +610,7 @@ export async function claimPendingInvites(
   }
 
   if (!invites || invites.length === 0) {
-    return;
+    return false;
   }
 
   const [oldest, ...rest] = invites;
@@ -639,6 +640,8 @@ export async function claimPendingInvites(
       throw new Error(`Failed to revoke stale invites: ${revokeError.message}`);
     }
   }
+
+  return outcome === "added";
 }
 
 /**

@@ -23,6 +23,10 @@ import EmailModal from "../explore/EmailModal";
 import exploreStyles from "../explore/explore.module.css";
 import CollectionEventInsights from "./CollectionEventInsights";
 import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
+import InlineRenameForm, {
+  PencilIcon,
+  RenameButton
+} from "@/components/common/InlineRenameForm";
 import CollectionIconPicker from "./CollectionIconPicker";
 import CollectionRulesEditor from "./CollectionRulesEditor";
 import styles from "./collections.module.css";
@@ -132,19 +136,33 @@ export default function CollectionDetailClient({
 
   // Header controls
   const [renaming, setRenaming] = useState(false);
-  const [nameDraft, setNameDraft] = useState(initialCollection.name);
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [sharePending, setSharePending] = useState(false);
   const [notifyPending, setNotifyPending] = useState(false);
   const [copied, setCopied] = useState(false);
-  const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Close the Share menu on outside click / Escape (same pattern as the
+  // sidebar account menu).
   useEffect(() => {
-    if (renaming) {
-      requestAnimationFrame(() => renameInputRef.current?.focus());
-    }
-  }, [renaming]);
+    if (!shareMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!shareMenuRef.current?.contains(e.target as Node)) {
+        setShareMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShareMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [shareMenuOpen]);
 
   const shareUrl =
     typeof window !== "undefined"
@@ -393,10 +411,8 @@ export default function CollectionDetailClient({
     }
   }
 
-  async function handleRename(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleRename(name: string) {
     if (renamePending) return;
-    const name = nameDraft.trim();
     if (!name || name === collection.name) {
       setRenaming(false);
       return;
@@ -412,7 +428,6 @@ export default function CollectionDetailClient({
       if (!res.ok) throw new Error(`Failed (${res.status})`);
       const body = (await res.json()) as { collection: CollectionDetail };
       applyDetailResponse(body.collection);
-      setNameDraft(body.collection.name);
       setRenaming(false);
       router.refresh();
     } catch (err) {
@@ -526,40 +541,22 @@ export default function CollectionDetailClient({
               />
             ) : null}
             {canEdit && renaming ? (
-              <form onSubmit={handleRename}>
-                <input
-                  ref={renameInputRef}
-                  type="text"
-                  value={nameDraft}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  onBlur={() => {
-                    if (!renamePending) {
-                      setNameDraft(collection.name);
-                      setRenaming(false);
-                    }
-                  }}
-                  maxLength={120}
-                  className={styles.detailTitleInput}
-                  aria-label="Rename collection"
-                  disabled={renamePending}
-                />
-              </form>
+              <InlineRenameForm
+                initialValue={collection.name}
+                ariaLabel="Collection name"
+                pending={renamePending}
+                inputClassName={styles.detailTitleInput}
+                onSave={handleRename}
+                onCancel={() => setRenaming(false)}
+              />
             ) : (
               <h1 className={styles.detailTitle}>
                 {collection.name}
                 {canEdit ? (
-                  <button
-                    type="button"
-                    className={styles.detailEditIcon}
-                    onClick={() => {
-                      setNameDraft(collection.name);
-                      setRenaming(true);
-                    }}
-                    aria-label="Rename collection"
-                    title="Rename"
-                  >
-                    <PencilIcon />
-                  </button>
+                  <RenameButton
+                    onClick={() => setRenaming(true)}
+                    label="Rename collection"
+                  />
                 ) : null}
               </h1>
             )}
@@ -576,41 +573,85 @@ export default function CollectionDetailClient({
         <div className={styles.detailActions}>
           {canEdit ? (
             <>
-              {canShareWithTeam ? (
+              <div className={styles.shareMenuWrap} ref={shareMenuRef}>
                 <button
                   type="button"
-                  className={`${styles.detailButton} ${
-                    collection.sharedWithTeam ? styles.detailButtonCopied : ""
-                  }`}
-                  onClick={handleToggleShare}
-                  disabled={sharePending}
-                  title={
-                    collection.sharedWithTeam
-                      ? "Your team can view this collection. Click to stop sharing."
-                      : "Let your team view this collection"
-                  }
+                  className={styles.detailButton}
+                  onClick={() => setShareMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={shareMenuOpen}
                 >
-                  <TeamIcon />
-                  <span>
-                    {collection.sharedWithTeam
-                      ? "Shared with team"
-                      : "Share with team"}
+                  <ShareIcon />
+                  <span>Share</span>
+                  <span className={styles.shareChevron}>
+                    <ChevronDownIcon />
                   </span>
                 </button>
-              ) : (
-                <TeamUpgradeButton
-                  source="collection_share_team"
-                  className={`${styles.detailButton} ${styles.detailButtonLocked}`}
-                  title="Sharing collections with your team is a Team plan feature. Upgrade to enable it."
-                  onError={setError}
-                >
-                  <TeamIcon />
-                  <span>Share with team</span>
-                  <span className={styles.detailLockIcon}>
-                    <LockIcon />
-                  </span>
-                </TeamUpgradeButton>
-              )}
+                {shareMenuOpen ? (
+                  <div className={styles.shareMenu} role="menu">
+                    {canShareWithTeam ? (
+                      <button
+                        type="button"
+                        className={styles.shareMenuItem}
+                        role="menuitem"
+                        onClick={handleToggleShare}
+                        disabled={sharePending}
+                        title={
+                          collection.sharedWithTeam
+                            ? "Your team can view this collection. Click to stop sharing."
+                            : "Let your team view this collection"
+                        }
+                      >
+                        <TeamIcon />
+                        <span>Share with team</span>
+                        {collection.sharedWithTeam ? (
+                          <span className={styles.shareMenuCheck}>
+                            <CheckIcon />
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : (
+                      <TeamUpgradeButton
+                        source="collection_share_team"
+                        className={styles.shareMenuItem}
+                        title="Sharing collections with your team is a Team plan feature. Upgrade to enable it."
+                        onError={setError}
+                      >
+                        <TeamIcon />
+                        <span>Share with team</span>
+                        <span className={styles.shareMenuLock}>
+                          <LockIcon />
+                        </span>
+                      </TeamUpgradeButton>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.shareMenuItem}
+                      role="menuitem"
+                      onClick={handleCopyShare}
+                    >
+                      <ShareIcon />
+                      <span>{copied ? "Link copied" : "Copy public link"}</span>
+                      {copied ? (
+                        <span className={styles.shareMenuCheck}>
+                          <CheckIcon />
+                        </span>
+                      ) : null}
+                    </button>
+                    <a
+                      href={`/c/${collection.shareSlug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.shareMenuItem}
+                      role="menuitem"
+                      onClick={() => setShareMenuOpen(false)}
+                    >
+                      <ExternalIcon />
+                      <span>Preview public page</span>
+                    </a>
+                  </div>
+                ) : null}
+              </div>
               {isRuleBased ? (
                 <button
                   type="button"
@@ -631,25 +672,6 @@ export default function CollectionDetailClient({
                   </span>
                 </button>
               ) : null}
-              <button
-                type="button"
-                className={`${styles.detailButton} ${
-                  copied ? styles.detailButtonCopied : ""
-                }`}
-                onClick={handleCopyShare}
-              >
-                <ShareIcon />
-                <span>{copied ? "Link copied" : "Share link"}</span>
-              </button>
-              <a
-                href={`/c/${collection.shareSlug}`}
-                target="_blank"
-                rel="noreferrer"
-                className={styles.detailButton}
-              >
-                <ExternalIcon />
-                <span>Preview public</span>
-              </a>
               <button
                 type="button"
                 className={`${styles.detailButton} ${styles.detailButtonDanger}`}
@@ -680,12 +702,12 @@ export default function CollectionDetailClient({
         <RulesSummary
           rules={collection.rules as CollectionRules}
           facets={facets}
-          onEdit={() => setRulesEditorOpen(true)}
-          onClear={handleClearRules}
+          onEdit={canEdit ? () => setRulesEditorOpen(true) : undefined}
+          onClear={canEdit ? handleClearRules : undefined}
         />
       ) : null}
 
-      {rulesEditorOpen ? (
+      {canEdit && rulesEditorOpen ? (
         <CollectionRulesEditor
           initialRules={collection.rules}
           facets={facets}
@@ -776,8 +798,10 @@ export default function CollectionDetailClient({
 
 /**
  * Read-only summary of the active rule set. Renders each condition as
- * a chip joined by the combinator, plus Edit / Clear actions. Lives
- * directly above the email grid when a collection is rule-based.
+ * a chip joined by the combinator, plus Edit / Clear actions when the
+ * viewer owns the collection (omit the callbacks for read-only
+ * viewers). Lives directly above the email grid when a collection is
+ * rule-based.
  */
 function RulesSummary({
   rules,
@@ -787,8 +811,8 @@ function RulesSummary({
 }: {
   rules: CollectionRules;
   facets: ExploreFacets;
-  onEdit: () => void;
-  onClear: () => Promise<void> | void;
+  onEdit?: () => void;
+  onClear?: () => Promise<void> | void;
 }) {
   const brandsById = useMemo(() => {
     const map = new Map<string, string>();
@@ -842,24 +866,30 @@ function RulesSummary({
           </li>
         ))}
       </ul>
-      <div className={styles.rulesSummaryActions}>
-        <button
-          type="button"
-          className={styles.rulesSummaryButton}
-          onClick={onEdit}
-        >
-          <PencilIcon /> Edit rules
-        </button>
-        <button
-          type="button"
-          className={`${styles.rulesSummaryButton} ${styles.rulesSummaryButtonDanger}`}
-          onClick={() => {
-            void onClear();
-          }}
-        >
-          Clear
-        </button>
-      </div>
+      {onEdit || onClear ? (
+        <div className={styles.rulesSummaryActions}>
+          {onEdit ? (
+            <button
+              type="button"
+              className={styles.rulesSummaryButton}
+              onClick={onEdit}
+            >
+              <PencilIcon /> Edit rules
+            </button>
+          ) : null}
+          {onClear ? (
+            <button
+              type="button"
+              className={`${styles.rulesSummaryButton} ${styles.rulesSummaryButtonDanger}`}
+              onClick={() => {
+                void onClear();
+              }}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1010,25 +1040,6 @@ function SparkleIcon() {
   );
 }
 
-function PencilIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
-    </svg>
-  );
-}
-
 function ChevronLeftIcon() {
   return (
     <svg
@@ -1086,6 +1097,42 @@ function TeamIcon() {
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }

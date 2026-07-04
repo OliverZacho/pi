@@ -18,6 +18,7 @@ import {
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { LOGO_REVIEW_MAX_CONFIDENCE } from "./extract-logo";
+import { buildImageStatsFromSizes, parseImageStats } from "./image-stats";
 import {
   BRAND_LOGO_TRANSFORM,
   getSignedAssets,
@@ -206,7 +207,7 @@ export type GetEmailDetailOptions = {
  * than breaking — the gate is a cost optimisation, not correctness. The RPC
  * name is cast because it post-dates the generated `Database` types.
  */
-async function fetchEmailAssetSizes(
+export async function fetchEmailAssetSizes(
   supabase: PirolDb,
   paths: string[]
 ): Promise<Record<string, number> | undefined> {
@@ -250,19 +251,25 @@ export async function getEmailDetailFromDb(
 
   const company = relationFirst(data.companies);
   const imagePaths: string[] = data.image_urls ?? [];
+  const storedImageStats = parseImageStats(data.metadata);
 
   // Asset sizes drive the ≥100KB resize gate (don't spend a Cloudflare
   // transformation on tiny logos/icons). Only needed on the preview render
-  // (the modal has no transform). Run the lookup *in parallel* with the
-  // other render queries so it adds no serial latency — building the signed
-  // URLs afterwards is a cheap string concat on the CDN path.
+  // (the modal has no transform) — plus as the image-stats fallback for rows
+  // that predate `metadata.image_stats`. Run the lookup *in parallel* with
+  // the other render queries so it adds no serial latency — building the
+  // signed URLs afterwards is a cheap string concat on the CDN path.
   const [htmlSignedUrl, sizesByPath, sentToLists] = await Promise.all([
     data.html_storage_path ? getSignedHtml(data.html_storage_path) : Promise.resolve(null),
-    options.imageTransform && imagePaths.length > 0
+    (options.imageTransform || !storedImageStats) && imagePaths.length > 0
       ? fetchEmailAssetSizes(supabase, imagePaths)
       : Promise.resolve(undefined),
     loadSentToLists(supabase, data.id, data.duplicate_of ?? null)
   ]);
+
+  const imageStats =
+    storedImageStats ??
+    (sizesByPath ? buildImageStatsFromSizes(imagePaths, sizesByPath) : null);
 
   const signedAssets = await getSignedAssets(imagePaths, {
     transform: options.imageTransform,
@@ -309,6 +316,7 @@ export async function getEmailDetailFromDb(
     listHeaders: parseListHeaders(data.list_headers),
     paletteColors: parsePaletteColors(data.metadata),
     fontFamilies: parseFontFamilies(data.metadata),
+    imageStats,
     metadata: parseMetadata(data.metadata),
     detectedCountry: data.detected_country ?? null,
     countryConfidence:

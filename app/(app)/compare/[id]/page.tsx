@@ -26,6 +26,51 @@ type PageProps = {
 };
 
 /**
+ * The onboarding tour's demo comparison, rendered read-only via the
+ * service-role client (past RLS). Served to unpaid users in place of the
+ * locked upsell, and to paid users who don't own it (invited team members
+ * on the tour). Null when the seeded row is missing or empty.
+ */
+async function demoComparisonView() {
+  const admin = getSupabaseAdmin();
+  const demoSet = await getCompetitorSetForReader(admin, DEMO_COMPARISON_ID);
+  if (!demoSet || demoSet.brands.length === 0) {
+    return null;
+  }
+  const demoComparison = await getCompetitorComparison(
+    admin,
+    demoSet.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
+  );
+  return (
+    <main className={styles.main} data-tour="compare-demo">
+      <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+        <Link href="/compare" className={styles.breadcrumbLink}>
+          <span aria-hidden="true">‹</span>
+          <span>Comparisons</span>
+        </Link>
+        <span className={styles.breadcrumbSep}>/</span>
+        <span className={styles.breadcrumbCurrent}>{demoSet.name}</span>
+      </nav>
+
+      <CompareBrandStrip
+        brands={demoComparison.brands}
+        setId={demoSet.id}
+        setName={demoSet.name}
+        subtitle={`${demoSet.brands.length} brands · Demo comparison`}
+        canEdit={false}
+        sharedWithTeam={demoSet.sharedWithTeam}
+        canShareWithTeam={false}
+      />
+
+      <CompareDashboard
+        brands={demoComparison.brands}
+        missingIds={demoComparison.missing}
+      />
+    </main>
+  );
+}
+
+/**
  * `/compare/[id]` — saved comparison dashboard.
  *
  * Resolves the set (owner-scoped), loads each member brand's full
@@ -48,41 +93,8 @@ export default async function CompareSetPage({ params }: PageProps) {
   // (fetched service-side past RLS), read-only (`canEdit=false`).
   if (!viewer || !viewer.hasAccess) {
     if (id === DEMO_COMPARISON_ID) {
-      const admin = getSupabaseAdmin();
-      const demoSet = await getCompetitorSetForReader(admin, id);
-      if (demoSet && demoSet.brands.length > 0) {
-        const demoComparison = await getCompetitorComparison(
-          admin,
-          demoSet.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
-        );
-        return (
-          <main className={styles.main} data-tour="compare-demo">
-            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-              <Link href="/compare" className={styles.breadcrumbLink}>
-                <span aria-hidden="true">‹</span>
-                <span>Comparisons</span>
-              </Link>
-              <span className={styles.breadcrumbSep}>/</span>
-              <span className={styles.breadcrumbCurrent}>{demoSet.name}</span>
-            </nav>
-
-            <CompareBrandStrip
-              brands={demoComparison.brands}
-              setId={demoSet.id}
-              setName={demoSet.name}
-              subtitle={`${demoSet.brands.length} brands · Demo comparison`}
-              canEdit={false}
-              sharedWithTeam={demoSet.sharedWithTeam}
-              canShareWithTeam={false}
-            />
-
-            <CompareDashboard
-              brands={demoComparison.brands}
-              missingIds={demoComparison.missing}
-            />
-          </main>
-        );
-      }
+      const demo = await demoComparisonView();
+      if (demo) return demo;
     }
     return (
       <main className={styles.main}>
@@ -100,6 +112,13 @@ export default async function CompareSetPage({ params }: PageProps) {
     set = await getCompetitorSetForReader(supabase, id);
   }
   if (!set) {
+    // Paid viewers who don't own the tour's demo comparison (e.g. an invited
+    // team member walking the tour) would otherwise 404 here — RLS doesn't
+    // share it. Give them the same read-only demo view unpaid users get.
+    if (id === DEMO_COMPARISON_ID) {
+      const demo = await demoComparisonView();
+      if (demo) return demo;
+    }
     notFound();
   }
 

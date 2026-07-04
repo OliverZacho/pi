@@ -1,0 +1,97 @@
+/* Shared inline title-rename form (collections + comparisons).
+ * Input sizing is driven by custom properties so each context can scale
+ * it to its own title without overriding the base rule:
+ *   --rename-font-size, --rename-min-width
+ */
+
+.form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.input {
+  font: inherit;
+  font-size: var(--rename-font-size, 1.05rem);
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.2rem 0.55rem;
+  outline: none;
+  min-width: var(--rename-min-width, 12rem);
+}
+
+.input:focus {
+  border-color: #086e4b;
+}
+
+.save {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
+  background: #086e4b;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.save:hover {
+  background: #065a3c;
+}
+
+.save:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.cancel {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: 0;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--pill-shadow);
+  transition: box-shadow 0.15s ease;
+}
+
+.cancel:hover {
+  box-shadow: var(--pill-shadow-hover);
+}
+
+.cancel:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* Pencil trigger that sits next to the title text. */
+.editIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.editIcon:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}

@@ -211,6 +211,30 @@ function BrandsIcon() {
   );
 }
 
+function TeamIcon() {
+  // Two-person silhouette — marks sidebar rows owned by a teammate
+  // (shared with the team) rather than the viewer. Rendered at 12px so
+  // it reads as a badge, not a second row icon.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20" />
+      <path d="M16 5a3.5 3.5 0 0 1 0 6.8" />
+      <path d="M17.8 13.4a5.5 5.5 0 0 1 2.7 5.1V20" />
+    </svg>
+  );
+}
+
 function MoreIcon() {
   return (
     <svg
@@ -624,20 +648,34 @@ export default function ExploreSidebar({
 
   // A section with fewer than SECTION_FOLD_OUT_LIMIT items folds open in
   // place via the "View all" toggle; at or above that count it keeps the
-  // existing behaviour of linking out to the full page.
-  const collectionsCanFoldOut = items.length < SECTION_FOLD_OUT_LIMIT;
+  // existing behaviour of linking out to the full page. Only the viewer's
+  // own rows count toward the preview slice — team-shared rows (appended
+  // by the layout, usually just a few) always render, otherwise a viewer
+  // with 4+ collections of their own would never see them here.
+  const ownCollections = items.filter((c) => !c.sharedByTeam);
+  const teamCollections = items.filter((c) => c.sharedByTeam);
+  const collectionsCanFoldOut = ownCollections.length < SECTION_FOLD_OUT_LIMIT;
   const collectionsAreExpanded = collectionsCanFoldOut && collectionsExpanded;
-  const visibleCollections = collectionsAreExpanded
-    ? items
-    : items.slice(0, COLLECTION_PREVIEW_COUNT);
-  const showCollectionsViewAll = items.length > COLLECTION_PREVIEW_COUNT;
+  const visibleCollections = [
+    ...(collectionsAreExpanded
+      ? ownCollections
+      : ownCollections.slice(0, COLLECTION_PREVIEW_COUNT)),
+    ...teamCollections
+  ];
+  const showCollectionsViewAll =
+    ownCollections.length > COLLECTION_PREVIEW_COUNT;
 
-  const comparisonsCanFoldOut = sets.length < SECTION_FOLD_OUT_LIMIT;
+  const ownSets = sets.filter((s) => !s.sharedByTeam);
+  const teamSets = sets.filter((s) => s.sharedByTeam);
+  const comparisonsCanFoldOut = ownSets.length < SECTION_FOLD_OUT_LIMIT;
   const comparisonsAreExpanded = comparisonsCanFoldOut && comparisonsExpanded;
-  const visibleSets = comparisonsAreExpanded
-    ? sets
-    : sets.slice(0, COMPETITOR_SET_PREVIEW_COUNT);
-  const showComparisonsViewAll = sets.length > COMPETITOR_SET_PREVIEW_COUNT;
+  const visibleSets = [
+    ...(comparisonsAreExpanded
+      ? ownSets
+      : ownSets.slice(0, COMPETITOR_SET_PREVIEW_COUNT)),
+    ...teamSets
+  ];
+  const showComparisonsViewAll = ownSets.length > COMPETITOR_SET_PREVIEW_COUNT;
 
   return (
     <>
@@ -785,6 +823,24 @@ export default function ExploreSidebar({
                 ) : null}
               </span>
               <span className={styles.navItemLabel}>{collection.name}</span>
+              {collection.sharedByTeam ? (
+                <span
+                  className={styles.navTeamBadge}
+                  role="img"
+                  aria-label={
+                    collection.teamOwnerName
+                      ? `Shared by ${collection.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                  title={
+                    collection.teamOwnerName
+                      ? `Shared by ${collection.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                >
+                  <TeamIcon />
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -850,6 +906,24 @@ export default function ExploreSidebar({
                 <CompareIcon />
               </span>
               <span className={styles.navItemLabel}>{set.name}</span>
+              {set.sharedByTeam ? (
+                <span
+                  className={styles.navTeamBadge}
+                  role="img"
+                  aria-label={
+                    set.teamOwnerName
+                      ? `Shared by ${set.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                  title={
+                    set.teamOwnerName
+                      ? `Shared by ${set.teamOwnerName}`
+                      : "Shared with your team"
+                  }
+                >
+                  <TeamIcon />
+                </span>
+              ) : null}
             </Link>
           );
         })}

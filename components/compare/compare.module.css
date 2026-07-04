@@ -821,6 +821,16 @@
   font-size: 1.4rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Sizing hook for the shared InlineRenameForm input — custom properties
+ * only, the base look lives in components/common/inline-rename.module.css. */
+.compareTitleRename {
+  --rename-font-size: 1.35rem;
+  --rename-min-width: 16rem;
 }
 
 .compareTitle p {

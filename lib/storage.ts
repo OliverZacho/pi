@@ -107,9 +107,14 @@ function publicAssetUrl(path: string): string {
  * free. So cost tracks unique images *viewed* per month, not requests.
  */
 function cloudflareImageUrl(path: string, transform: ImageTransform): string {
-  const opts = [`width=${transform.width}`, "fit=scale-down", "format=auto"];
+  const fit = transform.fit ?? "scale-down";
+  const opts = [`width=${transform.width}`, `fit=${fit}`, "format=auto"];
   if (transform.height) opts.push(`height=${transform.height}`);
   if (transform.quality) opts.push(`quality=${transform.quality}`);
+  // Crops anchor to the top edge ("0.5x0" = horizontal center, vertical
+  // top): email hero images carry their subject up top, and the bottom
+  // is usually footer/legal filler.
+  if (fit === "cover" || fit === "crop") opts.push("gravity=0.5x0");
   return `${PUBLIC_ASSET_CDN_BASE_URL}/cdn-cgi/image/${opts.join(
     ","
   )}/storage/v1/object/public/${EMAIL_ASSETS_BUCKET}/${path}`;
@@ -119,6 +124,15 @@ export type ImageTransform = {
   width: number;
   height?: number;
   quality?: number;
+  /**
+   * Cloudflare fit mode. Omitted = "scale-down" (resize within the box,
+   * never upscale, aspect preserved). "cover" fills exactly
+   * `width`x`height` (upscaling if needed); "crop" takes the same aspect
+   * but never enlarges, so a 600px-wide source yields a 600px-wide crop.
+   * Both anchor to the top of the image. Used for the fixed-aspect email
+   * previews in notification emails.
+   */
+  fit?: "cover" | "crop";
 };
 
 /**
@@ -143,6 +157,32 @@ export const BRAND_LOGO_TRANSFORM: ImageTransform = {
 export const CARD_IMAGE_TRANSFORM: ImageTransform = {
   width: 600,
   quality: 70
+};
+
+/**
+ * Wide banner crop for the digest "worth a look" previews: the top slice
+ * of the email's opening image, rendered full-width (552 CSS px) under
+ * the pick's copy so it reads like the email's own header. `crop` keeps
+ * the 2.5:1 aspect without upscaling narrow sources; 1104 wide covers
+ * the slot at 2x.
+ */
+export const EMAIL_PREVIEW_BANNER_TRANSFORM: ImageTransform = {
+  width: 1104,
+  height: 440,
+  quality: 70,
+  fit: "crop"
+};
+
+/**
+ * Small square crop for compact preview thumbnails (smart-collection
+ * sample rows). Top-anchored like the banner; 240 covers the 48 CSS px
+ * slot at well past 2x.
+ */
+export const EMAIL_PREVIEW_THUMB_TRANSFORM: ImageTransform = {
+  width: 240,
+  height: 240,
+  quality: 70,
+  fit: "crop"
 };
 
 export type MirroredImage = {
@@ -182,7 +222,8 @@ function signedUrlCacheKey(
   if (!transform) return `${bucket}|${path}`;
   const h = transform.height ?? "";
   const q = transform.quality ?? "";
-  return `${bucket}|${path}|w=${transform.width}|h=${h}|q=${q}`;
+  const f = transform.fit ?? "";
+  return `${bucket}|${path}|w=${transform.width}|h=${h}|q=${q}|f=${f}`;
 }
 
 function readCachedSignedUrl(key: string): string | null {
@@ -352,7 +393,7 @@ const MIN_RESIZE_BYTES = 100 * 1024;
  */
 const NON_TRANSFORMABLE_EXTENSIONS = new Set([".svg", ".ico", ".bin"]);
 
-function isTransformablePath(path: string): boolean {
+export function isTransformablePath(path: string): boolean {
   const dot = path.lastIndexOf(".");
   if (dot < 0) return true;
   const ext = path.slice(dot).toLowerCase();

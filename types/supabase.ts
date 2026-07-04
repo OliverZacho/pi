@@ -888,6 +888,53 @@ export type Database = {
         }
         Relationships: []
       }
+      support_email_attachments: {
+        Row: {
+          content_id: string | null
+          content_type: string
+          created_at: string
+          filename: string | null
+          id: string
+          is_inline: boolean
+          resend_attachment_id: string
+          size_bytes: number
+          storage_path: string
+          support_email_id: string
+        }
+        Insert: {
+          content_id?: string | null
+          content_type?: string
+          created_at?: string
+          filename?: string | null
+          id?: string
+          is_inline?: boolean
+          resend_attachment_id: string
+          size_bytes?: number
+          storage_path: string
+          support_email_id: string
+        }
+        Update: {
+          content_id?: string | null
+          content_type?: string
+          created_at?: string
+          filename?: string | null
+          id?: string
+          is_inline?: boolean
+          resend_attachment_id?: string
+          size_bytes?: number
+          storage_path?: string
+          support_email_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_email_attachments_support_email_id_fkey"
+            columns: ["support_email_id"]
+            isOneToOne: false
+            referencedRelation: "support_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_email_replies: {
         Row: {
           body: string
@@ -1018,33 +1065,6 @@ export type Database = {
           },
         ]
       }
-      team_notices: {
-        Row: {
-          created_at: string
-          id: string
-          seen_at: string | null
-          team_name: string
-          type: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          seen_at?: string | null
-          team_name: string
-          type: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          seen_at?: string | null
-          team_name?: string
-          type?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       team_members: {
         Row: {
           created_at: string
@@ -1073,6 +1093,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_notices: {
+        Row: {
+          created_at: string
+          id: string
+          seen_at: string | null
+          team_name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seen_at?: string | null
+          team_name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seen_at?: string | null
+          team_name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       teams: {
         Row: {
@@ -1269,20 +1316,26 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      email_asset_sizes: {
+        Args: { p_paths: string[] }
+        Returns: {
+          name: string
+          size: number
+        }[]
+      }
       get_team_context: {
         Args: never
         Returns: {
+          owner_active: boolean
+          owner_name: string
+          owner_user_id: string
+          role: string
           team_id: string
           team_name: string
-          role: string
-          owner_user_id: string
-          owner_name: string | null
-          owner_active: boolean
         }[]
       }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       has_archive_access: { Args: never; Returns: boolean }
-      same_team_as: { Args: { p_other: string }; Returns: boolean }
       pirol_admin_category_country_frequency: { Args: never; Returns: Json }
       pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }
@@ -1304,6 +1357,7 @@ export type Database = {
         Args: { p_path?: string; p_source: string }
         Returns: undefined
       }
+      same_team_as: { Args: { p_other: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       slugify: { Args: { value: string }; Returns: string }

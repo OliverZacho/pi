@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSmartCollectionModel,
-  type CollectionMatch
+  type CollectionMatch,
+  type CollectionSample
 } from "@/lib/notifications/smart-collection-build";
 import { renderSmartCollectionEmail } from "@/lib/notifications/smart-collection-render";
+
+function sample(
+  subject: string,
+  brandName: string | null,
+  thumbnailUrl: string | null = null
+): CollectionSample {
+  return { emailId: `email-${subject}`, subject, brandName, thumbnailUrl };
+}
 
 function match(
   name: string,
   newCount: number,
-  samples: { subject: string; brandName: string | null }[] = []
+  samples: CollectionSample[] = []
 ): CollectionMatch {
   return { collectionId: `id-${name}`, collectionName: name, newCount, samples };
 }
@@ -31,9 +40,7 @@ describe("buildSmartCollectionModel", () => {
 describe("renderSmartCollectionEmail", () => {
   it("names the single collection in the subject", () => {
     const model = buildSmartCollectionModel("weekly", [
-      match("Black Friday watch", 3, [
-        { subject: "Up to 50% off", brandName: "ARKET" }
-      ])
+      match("Black Friday watch", 3, [sample("Up to 50% off", "ARKET")])
     ]);
     const { subject, html } = renderSmartCollectionEmail(model);
     expect(subject).toBe('3 new emails in "Black Friday watch"');
@@ -43,6 +50,25 @@ describe("renderSmartCollectionEmail", () => {
       `/collections/${encodeURIComponent("id-Black Friday watch")}`
     );
     expect(html).not.toContain("—");
+  });
+
+  it("deep-links each sample and renders its preview thumbnail", () => {
+    const model = buildSmartCollectionModel("daily", [
+      match("Launches", 2, [
+        sample("New drop", "ARKET", "https://cdn.example/thumb.avif"),
+        sample("Plain text update", "COS")
+      ])
+    ]);
+    const { html } = renderSmartCollectionEmail(model);
+    expect(html).toContain(
+      `/explore?email=${encodeURIComponent("email-New drop")}`
+    );
+    expect(html).toContain('src="https://cdn.example/thumb.avif"');
+    // The sample without a hero image renders text-only: exactly one <img>.
+    expect(html.match(/<img /g)).toHaveLength(1);
+    expect(html).toContain(
+      `/explore?email=${encodeURIComponent("email-Plain text update")}`
+    );
   });
 
   it("summarizes across several collections", () => {

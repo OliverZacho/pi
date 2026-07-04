@@ -7,13 +7,22 @@ import type { DigestCadence } from "@/lib/notification-prefs";
  * gathers the raw matches and this module only shapes them for the email.
  */
 
+export type CollectionSample = {
+  /** Captured email id, for deep-linking the sample straight to the email. */
+  emailId: string;
+  subject: string;
+  brandName: string | null;
+  /** Small hero-image preview (CDN cover crop); null renders text-only. */
+  thumbnailUrl: string | null;
+};
+
 export type CollectionMatch = {
   collectionId: string;
   collectionName: string;
   /** New matching emails since the last send. */
   newCount: number;
   /** A few recent examples for the email body. */
-  samples: { subject: string; brandName: string | null }[];
+  samples: CollectionSample[];
 };
 
 /** Collection blocks shown in the email; the rest collapse to a count. */

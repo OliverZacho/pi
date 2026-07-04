@@ -188,6 +188,21 @@
   white-space: nowrap;
 }
 
+/* Small two-person badge on the right of rows shared from a teammate.
+ * Sits after the ellipsized label; flex-shrink 0 keeps it visible even
+ * when the name is clipped. */
+.navTeamBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.navItem.active .navTeamBadge {
+  color: #64748b;
+}
+
 .sidebarEmpty {
   padding: 0.4rem 0.6rem 0.5rem;
   font-size: 0.78rem;
@@ -2246,6 +2261,34 @@ div.infoBrandRow {
 .accordionEmpty {
   font-size: 0.8rem;
   color: #94a3b8;
+}
+
+/* ---- Images accordion (per-asset weight + format rows) ---- */
+
+.imageAssetRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.imageAssetThumb,
+.imageAssetThumbFallback {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  background: #fafafa;
+  object-fit: cover;
+}
+
+.imageAssetSize {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
 }
 
 .infoRow {

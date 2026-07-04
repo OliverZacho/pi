@@ -219,8 +219,11 @@ export async function searchExploreEmails(
   // the in-view brand / market chips still narrow *within* the curated
   // set and `/following` composes correctly (curated ∩ followed). An
   // empty curated set short-circuits to zero results — the UI shows its
-  // empty state rather than silently widening to every brand.
-  if (sort === "recommended") {
+  // empty state rather than silently widening to every brand. An explicit
+  // id lookup (`?email=` deep link) skips the allowlist entirely: it's a
+  // point query for one known email, and confining it to curated brands
+  // would make deep links to non-curated emails resolve to nothing.
+  if (sort === "recommended" && !(params.emailIds && params.emailIds.length > 0)) {
     const { data, error } = await supabase
       .from("companies")
       .select("id")

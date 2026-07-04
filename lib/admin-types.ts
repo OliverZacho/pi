@@ -1,3 +1,5 @@
+import type { EmailImageStats } from "./image-stats";
+
 export type EmailCategory =
   | "sale"
   | "product_launch"
@@ -435,6 +437,13 @@ export type CapturedEmailDetail = CapturedEmail & {
   listHeaders: ListHeaders | null;
   paletteColors: PaletteColor[];
   fontFamilies: FontFamily[];
+  /**
+   * Image weight and format breakdown for the mirrored assets. Read from
+   * `metadata.image_stats` (written at ingest / backfilled), with a live
+   * `email_asset_sizes` fallback for rows that predate both. `null` when
+   * the email has no measurable images and no stored stats.
+   */
+  imageStats: EmailImageStats | null;
   metadata: Record<string, unknown> | null;
   /**
    * The country this individual email was detected as addressed to (ISO
