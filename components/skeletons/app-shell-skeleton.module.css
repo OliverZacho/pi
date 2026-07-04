@@ -105,6 +105,41 @@
   aspect-ratio: 1 / 1.05;
 }
 
+/* ---------- Email card placeholder ----------
+   Mirrors Explore's `.cardMeta` footer (brand / subject / received) so
+   the email cards land on placeholders of the same height. Bar heights
+   match the measured line boxes of the real text rows. */
+
+.emailPreview {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.emailMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem 0.9rem;
+}
+
+.emailLineBrand {
+  height: 0.95rem;
+  width: 38%;
+  border-radius: 4px;
+}
+
+.emailLineSubject {
+  height: 1.15rem;
+  width: 85%;
+  border-radius: 4px;
+}
+
+.emailLineReceived {
+  height: 0.8rem;
+  width: 30%;
+  border-radius: 4px;
+  margin-top: 0.45rem;
+}
+
 /* ---------- Brand card placeholder ----------
    Same box model as the real `.cardRich` brand stat card (avatar head,
    two-column stat strip, tracked-since footer) so the swap is 1:1. */
@@ -175,6 +210,9 @@
 .searchPill,
 .chip,
 .sortPill,
+.emailLineBrand,
+.emailLineSubject,
+.emailLineReceived,
 .brandAvatar,
 .brandLine,
 .brandLineSub,
@@ -200,6 +238,9 @@
   .searchPill,
   .chip,
   .sortPill,
+  .emailLineBrand,
+  .emailLineSubject,
+  .emailLineReceived,
   .brandAvatar,
   .brandLine,
   .brandLineSub,

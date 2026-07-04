@@ -6,6 +6,7 @@ export default function Loading() {
       title="Explore"
       subtitle="Browse marketing emails from competing brands"
       toolbar
+      variant="email"
     />
   );
 }

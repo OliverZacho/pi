@@ -15,11 +15,13 @@ type Props = {
    */
   toolbar?: boolean;
   /**
-   * Card shape. "preview" is the tall email-preview square (Explore et
-   * al.); "brand" mirrors the shorter brand stat card used by /brands so
-   * the real cards land exactly on top of their placeholders.
+   * Card shape. "preview" is the bare preview square (generic default);
+   * "email" adds the meta footer (brand / subject / received) under the
+   * preview to mirror Explore's email cards; "brand" mirrors the shorter
+   * brand stat card used by /brands. Matching the real card means it
+   * lands exactly on top of its placeholder.
    */
-  variant?: "preview" | "brand";
+  variant?: "preview" | "brand" | "email";
 };
 
 /** Varied chip widths so the placeholder row reads as distinct filters. */
@@ -80,6 +82,15 @@ export default function AppShellSkeleton({
                 <div className={styles.brandStat} />
               </div>
               <div className={styles.brandFoot} />
+            </div>
+          ) : variant === "email" ? (
+            <div key={i} className={styles.card}>
+              <div className={`${styles.cardPreview} ${styles.emailPreview}`} />
+              <div className={styles.emailMeta}>
+                <div className={styles.emailLineBrand} />
+                <div className={styles.emailLineSubject} />
+                <div className={styles.emailLineReceived} />
+              </div>
             </div>
           ) : (
             <div key={i} className={styles.card}>

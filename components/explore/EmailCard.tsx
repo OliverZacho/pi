@@ -78,6 +78,9 @@ type Props = {
   onToggleRecommended?: (companyId: string, next: boolean) => Promise<void> | void;
   /** Tags this card as the onboarding tour's "open an email" spotlight anchor. */
   tourAnchor?: boolean;
+  /** Entrance-animation delay so grid cards cascade in instead of
+      appearing as one block. */
+  enterDelayMs?: number;
 };
 
 /**
@@ -106,7 +109,8 @@ export default function EmailCard({
   isAdmin = false,
   isRecommended = false,
   onToggleRecommended,
-  tourAnchor = false
+  tourAnchor = false,
+  enterDelayMs = 0
 }: Props) {
   const saveEnabled = !readOnly && typeof onToggleSave === "function";
   // Admins get the recommend star whenever the email is matched to a
@@ -237,7 +241,10 @@ export default function EmailCard({
   // so they don't double-trigger the open action.
   return (
     <article
-      className={styles.card}
+      className={`${styles.card} ${styles.cardEnter}`}
+      style={
+        enterDelayMs > 0 ? { animationDelay: `${enterDelayMs}ms` } : undefined
+      }
       data-tour={tourAnchor ? "email-card" : undefined}
       role="button"
       tabIndex={0}
