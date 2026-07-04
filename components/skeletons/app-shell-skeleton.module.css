@@ -18,20 +18,38 @@
   overflow-x: hidden;
 }
 
+/* No font-family override: the real pages' headings inherit the global
+   body font, and a different stack here renders the title 1px taller —
+   which pushes every row below it off its real position. */
 .heading h1 {
   margin: 0;
   font-size: 1.55rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
 }
 
 .heading p {
   margin: 0.35rem 0 0;
   font-size: 0.92rem;
   color: #64748b;
+}
+
+/* ---------- View-toggle placeholder ----------
+   Stand-in for /following's segmented Brands ⇄ Emails toggle
+   (`.viewToggle` in brands-explore): the 1.25rem count badge sets the
+   tab-item height (1.25rem + 2 × 0.5rem padding), and the track adds
+   2 × 0.3rem padding + 1px borders. The real toggle is inline-flex, so
+   its 0.5rem bottom margin stacks (never collapses) with the filter
+   row's 1.5rem top margin into a 2rem gap; this block-level stand-in
+   gets a 2rem bottom margin that collapses with the toolbar's 1.5rem
+   to that same gap. */
+
+.viewToggle {
+  margin: 1.5rem 0 2rem;
+  width: 14.75rem;
+  height: calc(2.85rem + 2px);
+  border-radius: 999px;
 }
 
 /* ---------- Toolbar placeholder ----------
@@ -47,10 +65,12 @@
   flex-wrap: wrap;
 }
 
+/* 2.1rem = the real search field's 0.55rem × 2 padding around its
+   16px icon — the tallest thing in the row, so it sets row height. */
 .searchPill {
   width: 100%;
   max-width: 320px;
-  height: 2.15rem;
+  height: 2.1rem;
 }
 
 .chip {
@@ -67,6 +87,24 @@
 .chip,
 .sortPill {
   border-radius: 999px;
+}
+
+/* ---------- Result-count placeholder ----------
+   Reserves the "N brands" line's box (`.resultCount`: 0.82rem text,
+   margin -0.6rem 0 1rem) so the grid doesn't ride up when the real
+   line streams in. 15px = the text row's measured line box. */
+
+.countLine {
+  display: flex;
+  align-items: center;
+  margin: -0.6rem 0 1rem;
+  height: 15px;
+}
+
+.countBar {
+  width: 5.5rem;
+  height: 0.6rem;
+  border-radius: 4px;
 }
 
 .grid {
@@ -194,19 +232,24 @@
   gap: 0.5rem;
 }
 
+/* Measured boxes of the real stat tile and tracked-since footer — the
+   pair was 1px over at rem sizes, nudging every grid row after the
+   first off its real position. */
 .brandStat {
-  height: 3.05rem;
+  height: 48.4px;
   border-radius: 10px;
 }
 
 .brandFoot {
-  height: 0.85rem;
+  height: 13px;
   width: 58%;
   border-radius: 4px;
 }
 
 /* Shared shimmer surface for every placeholder block. */
 .cardPreview,
+.viewToggle,
+.countBar,
 .searchPill,
 .chip,
 .sortPill,
@@ -235,6 +278,8 @@
 /* Respect users who'd rather not see the looping shimmer. */
 @media (prefers-reduced-motion: reduce) {
   .cardPreview,
+  .viewToggle,
+  .countBar,
   .searchPill,
   .chip,
   .sortPill,

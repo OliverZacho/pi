@@ -15,6 +15,16 @@ type Props = {
    */
   toolbar?: boolean;
   /**
+   * Render a pill-track placeholder between the heading and the toolbar,
+   * matching the segmented Brands ⇄ Emails view toggle on /following.
+   */
+  viewToggle?: boolean;
+  /**
+   * Reserve the "N brands" result-count line between the toolbar and the
+   * grid (/following shows one; /brands does not).
+   */
+  resultCount?: boolean;
+  /**
    * Card shape. "preview" is the bare preview square (generic default);
    * "email" adds the meta footer (brand / subject / received) under the
    * preview to mirror Explore's email cards; "brand" mirrors the shorter
@@ -42,6 +52,8 @@ export default function AppShellSkeleton({
   subtitle,
   cards = 8,
   toolbar = false,
+  viewToggle = false,
+  resultCount = false,
   variant = "preview"
 }: Props) {
   return (
@@ -51,6 +63,8 @@ export default function AppShellSkeleton({
         {subtitle ? <p>{subtitle}</p> : null}
       </header>
 
+      {viewToggle ? <div className={styles.viewToggle} aria-hidden /> : null}
+
       {toolbar ? (
         <div className={styles.toolbar} aria-hidden>
           <div className={styles.searchPill} />
@@ -58,6 +72,12 @@ export default function AppShellSkeleton({
             <div key={i} className={styles.chip} style={{ width }} />
           ))}
           <div className={styles.sortPill} />
+        </div>
+      ) : null}
+
+      {resultCount ? (
+        <div className={styles.countLine} aria-hidden>
+          <div className={styles.countBar} />
         </div>
       ) : null}
 
