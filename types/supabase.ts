@@ -1340,6 +1340,7 @@ export type Database = {
           size: number
         }[]
       }
+      explore_facets: { Args: { restrict_ids?: string[] | null }; Returns: Json }
       get_team_context: {
         Args: never
         Returns: {
