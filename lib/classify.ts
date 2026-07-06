@@ -1,5 +1,6 @@
 import { EMAIL_CATEGORIES, type EmailCategory } from "./admin-types";
 import { recordAnthropicUsage } from "./anthropic-usage";
+import { PLATFORM_TIMEZONE, formatDayKey } from "./datetime";
 import { classifyFromRules } from "./email-utils";
 
 const DEFAULT_MODEL = "claude-haiku-4-5";
@@ -19,6 +20,9 @@ const LLM_TIMEOUT_MS = 15_000;
 // the "real signal" requirement in resolveDetectedCountry — this just trims the
 // genuinely shaky picks.
 const COUNTRY_CONFIDENCE_THRESHOLD = 0.6;
+// A stated offer deadline further out than this from the send date is almost
+// certainly a hallucinated or misparsed year — drop it rather than store it.
+const OFFER_END_MAX_DAYS = 120;
 
 const CATEGORY_VALUES: EmailCategory[] = [...EMAIL_CATEGORIES];
 
@@ -32,6 +36,13 @@ export type ClassifierInput = {
    * `.co.uk`) that we pass to the model as a supporting region signal.
    */
   senderDomain?: string;
+  /**
+   * ISO timestamp of the send. Given to the model so relative deadline copy
+   * ("ends Sunday", "48 hours only") can resolve to an absolute date. When
+   * absent, `offerEndsOn` is never extracted — a relative deadline without an
+   * anchor would be a guess.
+   */
+  sentAt?: string;
 };
 
 /**
@@ -60,6 +71,14 @@ export type ClassificationResult = {
   discountAmount?: number | null;
   currency?: string | null;
   promoCode?: string | null;
+  /**
+   * Last calendar day (`YYYY-MM-DD`) the email states its offer is valid,
+   * resolved against {@link ClassifierInput.sentAt}. Null when no deadline is
+   * stated — never inferred from urgency language alone.
+   */
+  offerEndsOn?: string | null;
+  /** True when the copy explicitly announces an extension of an earlier deadline. */
+  offerIsExtension?: boolean | null;
   primaryCtaText?: string | null;
   primaryCtaUrlHint?: string | null;
   /**
@@ -80,6 +99,8 @@ type LlmExtraction = {
   discountAmount: number | null;
   currency: string | null;
   promoCode: string | null;
+  offerEndsOn: string | null;
+  offerIsExtension: boolean | null;
   primaryCtaText: string | null;
   primaryCtaUrlHint: string | null;
   country: string | null;
@@ -106,6 +127,8 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
       discountAmount: null,
       currency: null,
       promoCode: null,
+      offerEndsOn: null,
+      offerIsExtension: null,
       primaryCtaText: null,
       primaryCtaUrlHint: null,
       detectedCountry: null,
@@ -133,6 +156,8 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
       discountAmount: null,
       currency: null,
       promoCode: null,
+      offerEndsOn: null,
+      offerIsExtension: null,
       primaryCtaText: null,
       primaryCtaUrlHint: null,
       detectedCountry: null,
@@ -164,6 +189,8 @@ export async function classifyEmail(input: ClassifierInput): Promise<Classificat
     discountAmount: llm.discountAmount,
     currency: llm.currency,
     promoCode: llm.promoCode,
+    offerEndsOn: llm.offerEndsOn,
+    offerIsExtension: llm.offerIsExtension,
     primaryCtaText: llm.primaryCtaText,
     primaryCtaUrlHint: llm.primaryCtaUrlHint,
     detectedCountry,
@@ -214,6 +241,9 @@ async function classifyWithAnthropic(
   const fullText = input.plainText ?? stripHtml(input.html);
   const promptText = buildPromptText(fullText);
   const tldHint = countryCodeTld(input.senderDomain);
+  const sentLine = sentAtPromptLine(input.sentAt);
+  // Everything the model was actually shown, for verifying verbatim quotes.
+  const evidenceCorpus = `${input.subject}\n${promptText}`;
 
   const body = {
     model: getModel(),
@@ -244,6 +274,10 @@ async function classifyWithAnthropic(
       "discount_amount: a fixed-amount discount in the email's currency, null if not a fixed amount. " +
       "currency: 3-letter ISO code (e.g. USD, EUR, GBP, DKK) when an amount or price is shown, else null. " +
       "promo_code: the literal promo/coupon code (e.g. SPRING25), null if none. " +
+      "offer_ends_on: the LAST calendar day the email's offer is stated to be valid, formatted YYYY-MM-DD. Resolve relative deadline copy against the send date shown above the body: 'ends Sunday' means that week's Sunday, '48 hours only' / 'kun i 48 timer' means the send day plus 2, 'midnight tonight' / 'kun i dag' means the send day itself, 'through July 6' / 'til og med 6. juli' means that date. Only return a date the email explicitly states or that follows from an explicitly stated duration. Return null when no deadline is stated, when the urgency is vague ('for a limited time', 'while stocks last', 'ending soon'), or when no send date was provided. NEVER infer a deadline from the mere presence of a discount, the season, or the campaign theme. " +
+      "offer_end_evidence: the VERBATIM phrase from the email text that states the deadline (e.g. 'Offer valid through 11:59 p.m. PT July 6' or 'kun i 48 timer'), copied character-for-character so it can be found in the text again. REQUIRED whenever offer_ends_on is not null; if you cannot point to such a phrase, offer_ends_on must be null. " +
+      "offer_is_extension: true ONLY when the copy explicitly announces that an earlier deadline was extended or the sale prolonged ('extended', 'sale extended', 'forlænget', 'still on — 2 more days', 'you asked, we listened'). Use false for a normal offer without extension language, and null when the email carries no offer at all. " +
+      "offer_extension_evidence: the VERBATIM phrase announcing the extension, copied character-for-character. REQUIRED whenever offer_is_extension is true; without it, answer false. " +
       "primary_cta_text: the visible label of the email's main call-to-action — the link or button the brand most wants the reader to click. This is usually a short imperative phrase ('Shop now', 'Explore Hippo Chair', 'Find resellers', 'Explore our Instagram', 'Read the story', 'Sign me up'). Pick the most prominent action link even when the email is editorial or content-focused and the link is styled as plain text rather than a button — if the email has any clear action target, return its label rather than null. Return null only when the email truly has no action link (e.g. a pure visual teaser). " +
       "primary_cta_url_hint: the destination URL (or domain) that the CTA points to when visible in the email body. Return the destination link as it appears in the body even when the brand also routes clicks through a tracking redirect; null when no destination is shown. " +
       "Region detection — determine which single country this email is primarily ADDRESSED TO (the audience), not where the brand happens to be incorporated. Weigh these signals, strongest first: " +
@@ -296,6 +330,21 @@ async function classifyWithAnthropic(
               type: ["string", "null"],
               maxLength: 64
             },
+            offer_ends_on: {
+              type: ["string", "null"],
+              maxLength: 10
+            },
+            offer_end_evidence: {
+              type: ["string", "null"],
+              maxLength: 200
+            },
+            offer_is_extension: {
+              type: ["boolean", "null"]
+            },
+            offer_extension_evidence: {
+              type: ["string", "null"],
+              maxLength: 200
+            },
             primary_cta_text: {
               type: ["string", "null"],
               maxLength: 120
@@ -334,6 +383,7 @@ async function classifyWithAnthropic(
         role: "user",
         content:
           `Subject: ${input.subject}\n\n` +
+          (sentLine ? `${sentLine}\n\n` : "") +
           (tldHint ? `Sender domain TLD hint: .${tldHint}\n\n` : "") +
           `Body:\n${promptText}`
       }
@@ -405,6 +455,14 @@ async function classifyWithAnthropic(
     discountAmount: clampNumberInRange(candidate.discount_amount, 0, 1_000_000),
     currency: normalizeCurrency(candidate.currency),
     promoCode: normalizeShortString(candidate.promo_code, 64),
+    offerEndsOn: quoteAppearsIn(candidate.offer_end_evidence, evidenceCorpus)
+      ? normalizeOfferEndsOn(candidate.offer_ends_on, input.sentAt)
+      : null,
+    offerIsExtension: normalizeOfferIsExtension(
+      candidate.offer_is_extension,
+      candidate.offer_extension_evidence,
+      evidenceCorpus
+    ),
     primaryCtaText: normalizeShortString(candidate.primary_cta_text, 120),
     primaryCtaUrlHint: normalizeShortString(candidate.primary_cta_url_hint, 500),
     country: normalizeCountryCode(candidate.country),
@@ -445,6 +503,98 @@ function normalizeShortString(value: unknown, maxLen: number): string | null {
     return null;
   }
   return trimmed.slice(0, maxLen);
+}
+
+/**
+ * The send-date line fed to the model so relative deadlines resolve. Includes
+ * the weekday (platform zone) because "ends Sunday" is unresolvable without
+ * knowing which day the email landed on.
+ */
+function sentAtPromptLine(sentAt: string | undefined): string | null {
+  if (!sentAt) return null;
+  const instant = new Date(sentAt);
+  if (!Number.isFinite(instant.getTime())) return null;
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    timeZone: PLATFORM_TIMEZONE
+  }).format(instant);
+  return `Sent: ${weekday} ${formatDayKey(instant, PLATFORM_TIMEZONE)}`;
+}
+
+const DAY_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Noon-UTC epoch for a day key; NaN when the key names an impossible date. */
+function dayKeyToUtcNoon(dayKey: string): number {
+  const match = DAY_KEY_RE.exec(dayKey);
+  if (!match) return NaN;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const ms = Date.UTC(year, month - 1, day, 12);
+  const roundTrip = new Date(ms);
+  // Reject overflow dates (2026-02-30 silently becomes March 2 otherwise).
+  if (
+    roundTrip.getUTCFullYear() !== year ||
+    roundTrip.getUTCMonth() + 1 !== month ||
+    roundTrip.getUTCDate() !== day
+  ) {
+    return NaN;
+  }
+  return ms;
+}
+
+/**
+ * Whether a model-returned "verbatim" quote really occurs in the text the
+ * model was shown, after collapsing whitespace and case. This is the guard
+ * against invented deadlines: the model must point at the phrase that states
+ * the claim, and a fabricated phrase won't be found. Quotes shorter than a
+ * few characters are rejected — they'd match almost anything.
+ */
+function quoteAppearsIn(quote: unknown, corpus: string): boolean {
+  if (typeof quote !== "string") return false;
+  const normalize = (text: string) =>
+    text.toLowerCase().replace(/\s+/g, " ").trim();
+  const needle = normalize(quote);
+  if (needle.length < 4) return false;
+  return normalize(corpus).includes(needle);
+}
+
+/**
+ * An extension claim is only trusted with a verifiable quote; an unsupported
+ * `true` collapses to `false` (i.e. "offer, but no extension language") so a
+ * hallucinated extension can never paint the dashed segment.
+ */
+function normalizeOfferIsExtension(
+  value: unknown,
+  evidence: unknown,
+  corpus: string
+): boolean | null {
+  if (typeof value !== "boolean") return null;
+  if (value && !quoteAppearsIn(evidence, corpus)) return false;
+  return value;
+}
+
+/**
+ * Accepts a model-returned offer end date only when it is a real calendar
+ * day anchored by a known send date, is not in the send date's past, and sits
+ * within {@link OFFER_END_MAX_DAYS}. Everything else is stored as "no stated
+ * deadline" — a wrong window is worse than none. (The verbatim-evidence gate
+ * in the caller runs on top of this.)
+ */
+function normalizeOfferEndsOn(
+  value: unknown,
+  sentAt: string | undefined
+): string | null {
+  if (typeof value !== "string" || !sentAt) return null;
+  const trimmed = value.trim();
+  const endMs = dayKeyToUtcNoon(trimmed);
+  if (!Number.isFinite(endMs)) return null;
+  const sentInstant = new Date(sentAt);
+  if (!Number.isFinite(sentInstant.getTime())) return null;
+  const sentDayMs = dayKeyToUtcNoon(formatDayKey(sentInstant, PLATFORM_TIMEZONE));
+  const diffDays = Math.round((endMs - sentDayMs) / 86_400_000);
+  if (diffDays < 0 || diffDays > OFFER_END_MAX_DAYS) return null;
+  return trimmed;
 }
 
 function normalizeCountryCode(value: unknown): string | null {

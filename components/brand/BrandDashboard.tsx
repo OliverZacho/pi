@@ -255,7 +255,11 @@ export default function BrandDashboard({
             className={`${styles.recentSection} ${styles.cardEnter}`}
             style={{ animationDelay: "400ms" }}
           >
-            <DesignCard design={design} subjects={subjects} />
+            <DesignCard
+              design={design}
+              subjects={subjects}
+              brand={{ name: brand.name, logoUrl: brand.logoUrl }}
+            />
           </section>
 
           <section
@@ -811,6 +815,32 @@ export function PromoCard({
             {formatNumber(promo.discountEmails)}
           </span>
         </div>
+        {/* Deadline behaviour tiles appear once the sample contains offers
+            whose emails stated an end date (the offer_ends_on signal only
+            exists on rows captured after it shipped, so older brands keep
+            the classic three-tile strip). */}
+        {promo.offersWithDeadline > 0 || promo.offersExtended > 0 ? (
+          <>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Stated deadlines</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersWithDeadline)}
+              </span>
+            </div>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Ended on time</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersEndedOnTime)}
+              </span>
+            </div>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Extended</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersExtended)}
+              </span>
+            </div>
+          </>
+        ) : null}
       </div>
     </article>
   );
@@ -914,11 +944,102 @@ export function EmojiCard({
 
 export function DesignCard({
   design,
-  subjects
+  subjects,
+  brand
 }: {
   design: BrandPageData["design"];
   subjects: BrandPageData["subjects"];
+  /** Sender identity for the inbox mock — the "from" column of each row. */
+  brand: { name: string; logoUrl: string | null };
 }) {
+  // The signal pills, rendered either stacked beside the inbox mock (the
+  // usual case) or as the old wrapping row when there are no subject
+  // samples to build the inbox from.
+  const flags = (
+    <>
+      <span className={styles.flag}>
+        <span
+          className={`${styles.flagDot}${
+            design.gifShare > 0 ? ` ${styles.flagDot_on}` : ""
+          }`}
+        />
+        <span>Uses GIFs</span>
+        <span className={styles.flagShare}>
+          {Math.round(design.gifShare * 100)}%
+        </span>
+      </span>
+      <span className={styles.flag}>
+        <span
+          className={`${styles.flagDot}${
+            design.darkModeShare > 0 ? ` ${styles.flagDot_on}` : ""
+          }`}
+        />
+        <span>Dark-mode aware</span>
+        <span className={styles.flagShare}>
+          {Math.round(design.darkModeShare * 100)}%
+        </span>
+      </span>
+      {design.preheaderPadding.measured > 0 ? (
+        <span
+          className={`${styles.flag} ${styles.flagWithTip}`}
+          tabIndex={0}
+          role="note"
+          aria-label="Preview padding: the share of this brand's emails that follow their preview text with invisible characters, so inboxes show only the teaser the sender wrote."
+        >
+          <span
+            className={`${styles.flagDot}${
+              design.preheaderPadding.share > 0 ? ` ${styles.flagDot_on}` : ""
+            }`}
+          />
+          <span>Preview padding</span>
+          <span className={styles.flagShare}>
+            {Math.round(design.preheaderPadding.share * 100)}%
+          </span>
+          <span className={styles.flagTooltip} role="tooltip">
+            {design.preheaderPadding.padded} of{" "}
+            {design.preheaderPadding.measured} recent emails follow their
+            preview text with a run of{" "}
+            <strong>invisible characters</strong>, so the inbox preview
+            shows only the teaser the sender wrote.{" "}
+            <Link
+              href="/learn/preheader-padding-trick"
+              className={styles.flagTooltipLink}
+            >
+              Read how the trick works
+            </Link>
+          </span>
+        </span>
+      ) : null}
+      <span className={styles.flag}>
+        <span className={styles.flagDot} />
+        <span>Avg subject</span>
+        <span className={styles.flagShare}>
+          {subjects.avgLength !== null
+            ? `${Math.round(subjects.avgLength)} chars`
+            : "—"}
+        </span>
+      </span>
+      <span className={styles.flag}>
+        <span className={styles.flagDot} />
+        <span>Avg image weight</span>
+        <span className={styles.flagShare}>
+          {design.images.avgBytesPerEmail !== null
+            ? formatBytes(Math.round(design.images.avgBytesPerEmail))
+            : "—"}
+        </span>
+      </span>
+      <span className={styles.flag}>
+        <span className={styles.flagDot} />
+        <span>Images per email</span>
+        <span className={styles.flagShare}>
+          {design.images.avgImagesPerEmail !== null
+            ? design.images.avgImagesPerEmail.toFixed(1)
+            : "—"}
+        </span>
+      </span>
+    </>
+  );
+
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -982,57 +1103,9 @@ export function DesignCard({
         </div>
       </div>
 
-      <div className={styles.flagsRow}>
-        <span className={styles.flag}>
-          <span
-            className={`${styles.flagDot}${
-              design.gifShare > 0 ? ` ${styles.flagDot_on}` : ""
-            }`}
-          />
-          <span>Uses GIFs</span>
-          <span className={styles.flagShare}>
-            {Math.round(design.gifShare * 100)}%
-          </span>
-        </span>
-        <span className={styles.flag}>
-          <span
-            className={`${styles.flagDot}${
-              design.darkModeShare > 0 ? ` ${styles.flagDot_on}` : ""
-            }`}
-          />
-          <span>Dark-mode aware</span>
-          <span className={styles.flagShare}>
-            {Math.round(design.darkModeShare * 100)}%
-          </span>
-        </span>
-        <span className={styles.flag}>
-          <span className={styles.flagDot} />
-          <span>Avg subject</span>
-          <span className={styles.flagShare}>
-            {subjects.avgLength !== null
-              ? `${Math.round(subjects.avgLength)} chars`
-              : "—"}
-          </span>
-        </span>
-        <span className={styles.flag}>
-          <span className={styles.flagDot} />
-          <span>Avg image weight</span>
-          <span className={styles.flagShare}>
-            {design.images.avgBytesPerEmail !== null
-              ? formatBytes(Math.round(design.images.avgBytesPerEmail))
-              : "—"}
-          </span>
-        </span>
-        <span className={styles.flag}>
-          <span className={styles.flagDot} />
-          <span>Images per email</span>
-          <span className={styles.flagShare}>
-            {design.images.avgImagesPerEmail !== null
-              ? design.images.avgImagesPerEmail.toFixed(1)
-              : "—"}
-          </span>
-        </span>
-      </div>
+      {subjects.samples.length === 0 ? (
+        <div className={styles.flagsRow}>{flags}</div>
+      ) : null}
 
       {design.images.formats.length > 0 ? (
         <div className={styles.dnaSection}>
@@ -1052,14 +1125,67 @@ export function DesignCard({
 
       {subjects.samples.length > 0 ? (
         <div className={styles.dnaSection}>
-          <span className={styles.dnaTitle}>Recent subject lines</span>
-          <div className={styles.subjectList}>
-            {subjects.samples.map((subject) => (
-              <div key={subject} className={styles.subjectRow}>
-                <span className={styles.subjectText}>{subject}</span>
-                <span className={styles.subjectMeta}>{subject.length} characters</span>
-              </div>
-            ))}
+          <span className={styles.dnaTitle}>In the inbox</span>
+          <div className={styles.inboxSplit}>
+            {/*
+              Recent sends rendered the way a mailbox list shows them:
+              sender, subject, then the grey preview text. Padded sends end
+              their preview exactly where the sender cut it off, unpadded
+              ones trail off into body copy.
+            */}
+            <div className={styles.inboxList}>
+              {subjects.samples.map((sample) => (
+                <div key={sample.subject} className={styles.inboxRow}>
+                  <span className={styles.inboxAvatar} aria-hidden="true">
+                    {brand.logoUrl ? (
+                      <img
+                        src={brand.logoUrl}
+                        alt=""
+                        className={styles.inboxAvatarLogo}
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      brand.name.charAt(0).toUpperCase()
+                    )}
+                  </span>
+                  <div className={styles.inboxBody}>
+                    <div className={styles.inboxTopline}>
+                      <span className={styles.inboxFrom}>{brand.name}</span>
+                      {sample.padded !== null ? (
+                        <span
+                          className={`${styles.inboxPadTag}${
+                            sample.padded ? ` ${styles.inboxPadTag_on}` : ""
+                          }`}
+                          title={
+                            sample.padded
+                              ? "This email follows its preview text with invisible characters, so the inbox shows only the teaser you see here."
+                              : "No invisible padding after the preview text, so the inbox keeps reading into the email's body copy."
+                          }
+                        >
+                          {sample.padded ? "Preview padded" : "No padding"}
+                        </span>
+                      ) : null}
+                      <span className={styles.inboxDate}>
+                        {formatShortDateZoned(sample.receivedAt)}
+                      </span>
+                    </div>
+                    <span className={styles.inboxLine}>
+                      <span className={styles.inboxSubject}>
+                        {sample.subject}
+                      </span>
+                      {sample.preheader ? (
+                        <span className={styles.inboxPreview}>
+                          {" "}
+                          &mdash; {sample.preheader}
+                          {sample.padded === false ? " …" : null}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={styles.inboxFacts}>{flags}</div>
           </div>
         </div>
       ) : null}

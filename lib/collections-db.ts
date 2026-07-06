@@ -6,6 +6,7 @@ import {
   type CollectionEventDetection
 } from "./collection-event-shared";
 import { type CollectionIcon, isCollectionIcon } from "./collection-icons";
+import { cleanPreheaderText } from "./extract-metadata";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import type { Database, Json } from "@/types/supabase";
@@ -1877,7 +1878,7 @@ function ruleRowToCard(
   return {
     id: row.id,
     subject: row.subject,
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     companyId: company?.id ?? null,
     companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",
@@ -2116,7 +2117,7 @@ function toExploreCard(
   return {
     id: email.id,
     subject: email.subject,
-    preheader: email.preheader ?? null,
+    preheader: cleanPreheaderText(email.preheader),
     companyId: company?.id ?? null,
     companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",

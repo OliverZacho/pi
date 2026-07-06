@@ -171,7 +171,11 @@ export default function BrandLockedDashboard({
           </section>
 
           <section className={styles.recentSection}>
-            <DesignCard design={sample.design} subjects={sample.subjects} />
+            <DesignCard
+              design={sample.design}
+              subjects={sample.subjects}
+              brand={{ name: brand.name, logoUrl: brand.logoUrl }}
+            />
           </section>
 
           <section className={styles.sectionGrid}>

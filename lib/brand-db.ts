@@ -23,7 +23,9 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
+import { cleanPreheaderText } from "./extract-metadata";
 import { parseImageStats, type ImageFormat } from "./image-stats";
+import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -157,6 +159,18 @@ export type BrandPageData = {
      * agrees with the orange Sale cells on the send calendar.
      */
     saleShare: number;
+    /**
+     * Deadline behaviour, counted in offer *episodes* (discount emails
+     * grouped by promo code / depth proximity — see lib/offer-episodes), not
+     * in emails. Only offers whose copy stated an explicit end date are
+     * judged. All three stay 0 while a brand's sample predates the
+     * `offer_ends_on` signal, and the promo card hides the tiles then.
+     */
+    offersWithDeadline: number;
+    /** Stated deadline passed with no extension signal observed. */
+    offersEndedOnTime: number;
+    /** Offers extended past their original stated deadline. */
+    offersExtended: number;
   };
   /**
    * Emoji usage signal computed across the brand's recent subject lines
@@ -187,6 +201,14 @@ export type BrandPageData = {
     gifShare: number;
     darkModeShare: number;
     /**
+     * How much of the sample uses the preheader padding trick — invisible
+     * characters after the hidden preview teaser so inbox previews stop
+     * before the body text (see /learn/preheader-padding-trick). Rows whose
+     * flag is still `null` (pre-backfill) are excluded from `measured`, so
+     * the share never mixes "not padded" with "not yet checked".
+     */
+    preheaderPadding: { measured: number; padded: number; share: number };
+    /**
      * Image weight and format habits, aggregated from each sampled email's
      * `metadata.image_stats` (written at ingest, backfilled for older rows).
      * Rows without stats are excluded from every denominator, so a brand
@@ -204,7 +226,20 @@ export type BrandPageData = {
   };
   subjects: {
     avgLength: number | null;
-    samples: string[];
+    /**
+     * Up to five recent sends, deduped by subject, carrying everything the
+     * dashboard's inbox mock needs to render each one the way a mailbox
+     * would: the subject, the preview text that follows it, whether the
+     * sender cut the preview off with the padding trick
+     * (see /learn/preheader-padding-trick; `null` = not yet measured),
+     * and when it landed.
+     */
+    samples: {
+      subject: string;
+      preheader: string | null;
+      padded: boolean | null;
+      receivedAt: string;
+    }[];
   };
   /**
    * The most-used primary call-to-action labels for this brand. We
@@ -268,6 +303,14 @@ export type BrandPageData = {
     hasDarkMode: boolean;
     discountPercent: number | null;
     promoCode: string | null;
+    /**
+     * `YYYY-MM-DD` last day the email states its offer is valid, or null
+     * when no deadline was stated (or the row predates the signal). The
+     * discount timeline only draws a validity bar when this is present.
+     */
+    offerEndsOn: string | null;
+    /** True when the email explicitly announced a deadline extension. */
+    offerIsExtension: boolean | null;
   }[];
 };
 
@@ -332,6 +375,7 @@ type EmailRow = {
   id: string;
   subject: string;
   preheader: string | null;
+  preheader_padded: boolean | null;
   received_at: string;
   sent_at: string | null;
   category: string;
@@ -340,6 +384,8 @@ type EmailRow = {
   has_dark_mode: boolean | null;
   discount_percent: number | string | null;
   promo_code: string | null;
+  offer_ends_on: string | null;
+  offer_is_extension: boolean | null;
   primary_cta_text: string | null;
   primary_cta_url: string | null;
   esp_provider: string | null;
@@ -539,7 +585,7 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
+      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, metadata"
     )
     .eq("company_id", companyId);
   if (scoped) {
@@ -597,7 +643,7 @@ export async function getBrandPageData(
   const seasonalSample = emailRows.map((row) => ({
     id: row.id,
     subject: row.subject,
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     receivedAt: row.received_at,
     category: row.category,
     hasGif: row.has_gif ?? false,
@@ -606,7 +652,9 @@ export async function getBrandPageData(
       row.discount_percent === null || row.discount_percent === undefined
         ? null
         : Number(row.discount_percent),
-    promoCode: row.promo_code ?? null
+    promoCode: row.promo_code ?? null,
+    offerEndsOn: row.offer_ends_on ?? null,
+    offerIsExtension: row.offer_is_extension ?? null
   }));
   const accent =
     design.palette.length > 0
@@ -717,7 +765,9 @@ export async function getBrandSummary(
   const [emailsResult, statsResult] = await Promise.all([
     supabase
       .from("captured_emails")
-      .select("received_at, category, discount_percent")
+      .select(
+        "id, received_at, category, discount_percent, promo_code, offer_ends_on, offer_is_extension"
+      )
       .eq("company_id", companyId)
       .is("duplicate_of", null)
       .order("received_at", { ascending: false })
@@ -732,7 +782,13 @@ export async function getBrandSummary(
   if (emailsResult.error) throw emailsResult.error;
   const rows = (emailsResult.data ?? []) as Pick<
     EmailRow,
-    "received_at" | "category" | "discount_percent"
+    | "id"
+    | "received_at"
+    | "category"
+    | "discount_percent"
+    | "promo_code"
+    | "offer_ends_on"
+    | "offer_is_extension"
   >[];
   if (rows.length === 0) return null;
 
@@ -1030,7 +1086,16 @@ function computeCadence(
 }
 
 function computePromo(
-  rows: Pick<EmailRow, "discount_percent" | "received_at" | "category">[]
+  rows: Pick<
+    EmailRow,
+    | "id"
+    | "discount_percent"
+    | "received_at"
+    | "category"
+    | "promo_code"
+    | "offer_ends_on"
+    | "offer_is_extension"
+  >[]
 ): BrandPageData["promo"] {
   let discountEmails = 0;
   let discountSum = 0;
@@ -1066,6 +1131,24 @@ function computePromo(
     }
   }
 
+  // Deadline behaviour, judged per offer episode rather than per email so a
+  // three-reminder sale counts once. Uses the same pure grouping as the
+  // discount timeline, so the tiles can never disagree with the chart.
+  const episodes = buildOfferEpisodes(
+    rows.map((row) => ({
+      id: row.id,
+      receivedAt: row.received_at,
+      discountPercent:
+        row.discount_percent === null || row.discount_percent === undefined
+          ? null
+          : Number(row.discount_percent),
+      promoCode: row.promo_code,
+      offerEndsOn: row.offer_ends_on,
+      offerIsExtension: row.offer_is_extension
+    }))
+  );
+  const deadlines = summarizeOfferDeadlines(episodes, formatDayKey(new Date()));
+
   return {
     discountEmails,
     discountShare: rows.length > 0 ? discountEmails / rows.length : 0,
@@ -1073,7 +1156,10 @@ function computePromo(
     maxDiscount: discountMax,
     maxDiscountAt: discountMaxAt,
     saleEmails,
-    saleShare: rows.length > 0 ? saleEmails / rows.length : 0
+    saleShare: rows.length > 0 ? saleEmails / rows.length : 0,
+    offersWithDeadline: deadlines.withDeadline,
+    offersEndedOnTime: deadlines.endedOnTime,
+    offersExtended: deadlines.extended
   };
 }
 
@@ -1207,6 +1293,8 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   const fonts = new Map<string, number>();
   let gif = 0;
   let dark = 0;
+  let paddingMeasured = 0;
+  let padded = 0;
   let emailsMeasured = 0;
   let imageBytes = 0;
   let imageCount = 0;
@@ -1215,6 +1303,10 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   for (const row of rows) {
     if (row.has_gif) gif += 1;
     if (row.has_dark_mode) dark += 1;
+    if (row.preheader_padded !== null && row.preheader_padded !== undefined) {
+      paddingMeasured += 1;
+      if (row.preheader_padded) padded += 1;
+    }
 
     const imageStats = parseImageStats(row.metadata);
     if (imageStats) {
@@ -1296,6 +1388,11 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
       .slice(0, 4),
     gifShare: rows.length > 0 ? gif / rows.length : 0,
     darkModeShare: rows.length > 0 ? dark / rows.length : 0,
+    preheaderPadding: {
+      measured: paddingMeasured,
+      padded,
+      share: paddingMeasured > 0 ? padded / paddingMeasured : 0
+    },
     images: {
       emailsMeasured,
       avgBytesPerEmail: emailsMeasured > 0 ? imageBytes / emailsMeasured : null,
@@ -1319,7 +1416,7 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
   let total = 0;
   let counted = 0;
   const seen = new Set<string>();
-  const samples: string[] = [];
+  const samples: BrandPageData["subjects"]["samples"] = [];
   for (const row of rows) {
     const subject = (row.subject ?? "").trim();
     if (subject) {
@@ -1331,7 +1428,12 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
       const key = subject.toLowerCase();
       if (!seen.has(key) && samples.length < 5) {
         seen.add(key);
-        samples.push(subject);
+        samples.push({
+          subject,
+          preheader: cleanPreheaderText(row.preheader),
+          padded: row.preheader_padded ?? null,
+          receivedAt: row.received_at
+        });
       }
     }
   }
@@ -1408,7 +1510,7 @@ function mapRecentEmails(
   return rows.map((row) => ({
     id: row.id,
     subject: row.subject,
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     companyId: brand.companyId,
     companySlug: brand.companySlug,
     companyName: brand.companyName,

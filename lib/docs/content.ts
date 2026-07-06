@@ -774,6 +774,104 @@ export const DOC_CATEGORIES: DocCategory[] = [
     ]
   },
   {
+    id: "email-craft",
+    title: "Email craft",
+    blurb: "How marketing emails are actually built, from the preview line down.",
+    articles: [
+      {
+        slug: "preheader-padding-trick",
+        title: "Why email previews show &#8199;&#847; (the preheader padding trick)",
+        description:
+          "Ever seen a string of &#8199;&#847; codes in an email preview? That is preheader padding, an invisible-character trick nearly every major brand uses to control the inbox preview line. Here is how it works, why it exists, and how to use it without it backfiring.",
+        readingTime: "7 min read",
+        sections: [
+          {
+            id: "what-is-a-preheader",
+            heading: "What is an email preheader?",
+            body: [
+              "The preheader is the snippet of text an inbox shows after the subject line, the grey line in Gmail, Apple Mail and Outlook that gives a campaign its second sentence. Technically it is nothing special: mailbox providers simply take the first readable text they find in the body of the email and print it next to the subject.",
+              "That mechanical behaviour is the whole problem. Left alone, the preview line fills with whatever happens to sit at the top of the message, which is rarely what the sender would choose. \"View this email in your browser\" has sold very few products, yet it has opened millions of campaigns."
+            ]
+          },
+          {
+            id: "the-invisible-trick",
+            heading: "What is the preheader padding trick?",
+            body: [
+              "To control the preview, email designers place their chosen teaser in a hidden element at the very top of the HTML, then pad the end of it with dozens or hundreds of invisible characters. The inbox reads the teaser, runs into the wall of invisible padding, and never reaches the body text behind it. The sender gets a preview line that says exactly what they wrote and nothing more.",
+              "The padding itself is a repeating pair of obscure Unicode characters, most often written as the HTML entities &#8199; and &#847;. The first is a figure space, a blank exactly as wide as a digit. The second is a combining grapheme joiner, a character with no width and no appearance at all. Alternated a few hundred times they form a string that renders as pure nothing, yet counts as real text to the software deciding what to show. Older templates use zero-width non-joiners or plain non-breaking spaces for the same purpose.",
+              "This is not a fringe hack. It ships in the default templates of most major email platforms, which is why, once you know to look for it, you find it in the source of nearly every marketing email in your inbox."
+            ]
+          },
+          {
+            id: "why-brands-do-it",
+            heading: "Why do brands pad their preview text?",
+            body: [
+              "Because the preview line is prime real estate, and without padding the sender does not own it. The subject and preheader together are the entire pitch a subscriber sees before deciding whether to open, and studies of open behaviour consistently rank the preview line just behind the sender name and subject in influence.",
+              "Padding solves a specific failure: a short teaser followed by leaked body text. Write a crisp six-word preheader without padding and the inbox will happily append the navigation links, the \"shop now\" button text, or the legal footer to fill the space. The invisible characters act as a buffer that keeps the line clean, so a deliberate ellipsis or elegant silence follows the teaser instead of \"Unsubscribe | View in browser\".",
+              "Some brands take the silence all the way. Zara Home, for instance, hides nothing but its own name in front of the padding wall, so the inbox shows the subject line and then a blank preview. An empty preview line is itself a choice: it concentrates the whole pitch into the subject and trusts the sender name to carry the rest, which only works for brands confident the name alone earns the open.",
+              "Read competitively, a padded preheader is also a small tell of operational maturity. Brands running serious programmes on serious platforms pad by default; a preview line that bleeds raw body text usually signals a hand-built template or a team not yet sweating the details. It is one of the quieter signals worth noting in a [competitor email teardown](/learn/competitor-email-teardown)."
+            ]
+          },
+          {
+            id: "how-to-do-it",
+            heading: "How do you pad a preheader properly?",
+            body: [
+              "The standard implementation is a single hidden element placed immediately after the opening body tag, before any visible content. It contains your teaser sentence followed by the repeating invisible pair, and it is hidden with the belt-and-braces stack email clients respect: display none, zero font size, zero line height, zero max-height, and mso-hide for Outlook.",
+              "Keep the visible part of the teaser to roughly 40 to 90 characters. Inboxes truncate at different lengths, mobile clients most aggressively, so the working rule is to front-load the message and let the padding protect whatever space remains. And write the teaser as a continuation of the subject rather than a repeat of it; the two are read as one line, and the strongest pairs hand off mid-thought.",
+              "If you use a mainstream email platform, check before you build: most inject the hidden preheader and its padding automatically from the preview-text field in the campaign editor, and adding your own on top can produce a doubled or garbled preview."
+            ]
+          },
+          {
+            id: "when-it-shows",
+            heading: "When does the trick become visible?",
+            body: [
+              "The padding is only invisible when everything downstream decodes it correctly. Forward an email through certain clients, view one as plain text, or run it through a tool that reads the raw HTML without converting entities, and the curtain slips: the preview fills with literal &#8199;&#847; codes, the entity notation printed as text instead of rendered as invisible characters. If a preview is cut mid-entity you get a dangling fragment like &#81, which is the giveaway that a string of padding was truncated rather than written.",
+              "So if you have ever wondered whether a string of &#8199;&#847; in a preview meant an email was broken, it did not. The email was built exactly to spec; the software displaying it simply showed the machinery instead of the effect.",
+              "Recovering the intended teaser takes more than decoding the codes, which is a subtlety that catches even tools built by people who know the trick. Decoded, the entities just become invisible characters that still sit in the text, and everything past the wall is the body copy the sender meant to hide. Software that wants to show the preview as the sender designed it has to cut the text at the first run of padding and discard the rest. Pirol itself briefly printed the raw codes in its preview lines before learning that rule, so this article is written from experience.",
+              "There is one genuine cost to weigh. Some screen readers announce what sighted users never see, reading out long runs of padding characters or the hidden preheader twice. Keeping the padding modest, a few hundred characters rather than thousands, and keeping the teaser meaningful limits the annoyance for subscribers listening rather than looking."
+            ]
+          },
+          {
+            id: "see-it-at-scale",
+            heading: "How can you study competitors' preheaders?",
+            body: [
+              "Subject and preheader are a craft you improve by studying volume, and your own inbox is a thin sample. The faster route is an archive: Pirol captures the subject line and the real preheader of every email it tracks, decoded and cleaned, so you can read how the brands in your market actually use the preview line, campaign after campaign.",
+              "Open any brand and scan its recent sends as a list: which teasers continue the subject, which repeat it, which waste the line entirely. It is the quickest available education in writing preview text that earns the open."
+            ],
+            cta: { label: "Browse real subject and preview lines →", href: "/explore" }
+          }
+        ],
+        faqs: [
+          {
+            question: "Why does an email preview show &#8199;&#847;?",
+            answer:
+              "Those are HTML entity codes for invisible padding characters, a figure space and a combining grapheme joiner, that senders repeat after their preview text to stop inbox previews from pulling in body text. When software displays the raw codes instead of decoding them, the normally invisible padding becomes visible. The email is not broken; the trick is simply showing."
+          },
+          {
+            question: "Why do some emails show no preview text at all?",
+            answer:
+              "The sender padded the line with invisible characters straight after a very short teaser, sometimes nothing more than the brand name. The inbox reads the teaser, hits the padding wall and stops, so the preview stays blank. It is a deliberate move that concentrates the whole pitch into the subject line."
+          },
+          {
+            question: "What characters are used to pad a preheader?",
+            answer:
+              "Most templates alternate a figure space (U+2007, written &#8199;) with a combining grapheme joiner (U+034F, written &#847;). Older templates use zero-width non-joiners or non-breaking spaces. All render as nothing while still counting as text to the inbox preview."
+          },
+          {
+            question: "How long should preheader text be?",
+            answer:
+              "Aim for roughly 40 to 90 characters of visible teaser, front-loaded so the message survives aggressive mobile truncation, followed by invisible padding to keep body text out of the remainder of the line."
+          },
+          {
+            question: "Do I need to add preheader padding myself?",
+            answer:
+              "Usually not. Most major email platforms add the hidden preheader element and its padding automatically when you fill in the preview-text field. Only hand-built templates need the technique implemented manually."
+          }
+        ]
+      }
+    ]
+  },
+  {
     id: "deliverability",
     title: "Deliverability & Compliance",
     blurb: "Stay out of the spam folder and on the right side of the law.",

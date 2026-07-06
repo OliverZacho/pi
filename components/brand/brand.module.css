@@ -972,7 +972,7 @@
 }
 
 .discountHit:hover .discountDot {
-  fill-opacity: 1;
+  stroke: var(--brand-accent, #0f172a);
 }
 
 /* Invisible, enlarged hit target sitting over each dot. */
@@ -980,13 +980,12 @@
   fill: transparent;
 }
 
-.discountStem {
-  stroke: var(--brand-accent, #0f172a);
-  stroke-width: 1.5;
-}
-
+/* Floating send dot. The card-colored ring keeps overlapping dots in a
+   dense sale burst legible, and separates a dot from its window pill. */
 .discountDot {
   fill: var(--brand-accent, #0f172a);
+  stroke: #ffffff;
+  stroke-width: 1.4;
 }
 
 .discountPeakRing {
@@ -1002,6 +1001,96 @@
   font-weight: 600;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Stated offer validity window — a soft accent band at the offer's depth.
+   Only drawn when an email actually named a deadline. */
+.discountWindowBar {
+  fill: var(--brand-accent, #0f172a);
+  fill-opacity: 0.22;
+}
+
+/* Short vertical mark at the offer's ORIGINAL stated deadline. */
+.discountDeadlineTick {
+  stroke: var(--brand-accent, #0f172a);
+  stroke-width: 1.5;
+  stroke-opacity: 0.85;
+}
+
+/* Days the offer ran past its stated deadline — dashed and hollow so the
+   broken promise reads differently from the promised window. */
+.discountExtensionBar {
+  fill: var(--brand-accent, #0f172a);
+  fill-opacity: 0.07;
+  stroke: var(--brand-accent, #0f172a);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  stroke-dasharray: 3 2.5;
+}
+
+.discountExtensionLabel {
+  fill: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client-mounted "today" reference line (see BrandDiscountTimeline). */
+.discountTodayLine {
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.discountTodayLabel {
+  fill: #94a3b8;
+  font-size: 10px;
+}
+
+/* Legend under the chart, shown only when at least one window is drawn. */
+.discountLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.discountLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.discountLegendDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand-accent, #0f172a);
+}
+
+.discountLegendBar {
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--brand-accent, #0f172a);
+  opacity: 0.2;
+}
+
+.discountLegendTick {
+  width: 2px;
+  height: 11px;
+  background: var(--brand-accent, #0f172a);
+  opacity: 0.85;
+}
+
+.discountLegendExt {
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  border: 1px dashed var(--brand-accent, #0f172a);
+  opacity: 0.55;
 }
 
 /* ---------- Emoji habits card ---------- */
@@ -1182,36 +1271,242 @@
   color: #0f172a;
 }
 
-/* ---------- Subjects sample card ---------- */
-
-.subjectList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+/*
+ * A .flag that opens an explanatory tooltip on hover / focus (currently the
+ * "Preview padding" share). The tooltip is a child of the trigger so it stays
+ * open while the pointer travels onto its Learn link.
+ */
+.flagWithTip {
+  position: relative;
+  cursor: help;
 }
 
-.subjectRow {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 9px;
-  border: 1px solid #f1f5f9;
-  background: #fafafa;
-}
-
-.subjectText {
-  font-size: 0.88rem;
-  font-weight: 500;
+.flagWithTip:hover,
+.flagWithTip:focus-visible {
   color: #0f172a;
-  line-height: 1.35;
-  word-break: break-word;
+  outline: none;
 }
 
-.subjectMeta {
-  font-size: 0.74rem;
+.flagTooltip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  width: 260px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.flagTooltip strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.flagTooltip::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0.55rem;
+  border: 5px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.flagWithTip:hover .flagTooltip,
+.flagWithTip:focus-visible .flagTooltip,
+.flagTooltip:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.flagTooltipLink {
+  color: #7dd3fc;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.flagTooltipLink:hover {
+  color: #bae6fd;
+}
+
+/* ---------- Inbox mock (recent subject lines) ----------
+   Recent sends drawn the way a mailbox list shows them: avatar, sender,
+   date, then the subject running into the grey preview text on one
+   truncated line. The signal pills stack in the column to its right,
+   filling what used to be dead space next to the subject list. */
+
+.inboxSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(200px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .inboxSplit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.inboxList {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.inboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.inboxRow + .inboxRow {
+  border-top: 1px solid #f1f5f9;
+}
+
+.inboxAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.inboxAvatarLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0.2rem;
+}
+
+.inboxBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.inboxTopline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inboxFrom {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inboxDate {
+  margin-left: auto;
+  font-size: 0.72rem;
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* One truncated line, exactly like a desktop inbox: bold-ish subject,
+   then the preview text fading out after it. */
+.inboxLine {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.inboxSubject {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.inboxPreview {
+  color: #8b98ab;
+  font-weight: 400;
+}
+
+/* Tiny per-send tag telling whether this email cut its preview off with
+   the invisible-character padding trick. */
+.inboxPadTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.06rem 0.4rem;
+  border-radius: 999px;
+  border: 1px dashed #d3dce6;
+  color: #94a3b8;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.inboxPadTag_on {
+  border-style: solid;
+  border-color: #bbe3cd;
+  background: #f0faf4;
+  color: #086e4b;
+}
+
+/* The signal pills, stacked full-width beside the inbox with the value
+   pushed to the right edge so the column reads as a small fact sheet. */
+.inboxFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inboxFacts .flag {
+  width: 100%;
+}
+
+.inboxFacts .flagShare {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .inboxFacts {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .inboxFacts .flag {
+    width: auto;
+  }
+
+  .inboxFacts .flagShare {
+    margin-left: 0;
+  }
 }
 
 /* The CTA tag cloud renders its own chrome via inline styles inside

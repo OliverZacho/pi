@@ -73,7 +73,10 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
     maxDiscount: 50,
     maxDiscountAt: `${lastWeekStart}T08:03:00Z`,
     saleEmails: 240,
-    saleShare: 0.48
+    saleShare: 0.48,
+    offersWithDeadline: 9,
+    offersEndedOnTime: 7,
+    offersExtended: 2
   },
   emojis: {
     emailsWithEmoji: 212,
@@ -117,6 +120,7 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
     ],
     gifShare: 0.38,
     darkModeShare: 0.21,
+    preheaderPadding: { measured: 412, padded: 355, share: 0.86 },
     images: {
       emailsMeasured: 412,
       avgBytesPerEmail: 486_000,
@@ -132,11 +136,36 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
   subjects: {
     avgLength: 41,
     samples: [
-      "Your weekend edit is here ✨",
-      "Last chance — 30% off ends tonight",
-      "New in: the autumn collection",
-      "We saved your cart for you 🛒",
-      "Members get early access"
+      {
+        subject: "Your weekend edit is here ✨",
+        preheader: "Five looks our stylists keep coming back to.",
+        padded: true,
+        receivedAt: `${lastWeekStart}T08:03:00Z`
+      },
+      {
+        subject: "Last chance — 30% off ends tonight",
+        preheader: "The sale rail closes at midnight sharp.",
+        padded: true,
+        receivedAt: `${weekly[weekly.length - 2].weekStart}T17:41:00Z`
+      },
+      {
+        subject: "New in: the autumn collection",
+        preheader: "Wool coats, heavy knits and the season's first boots.",
+        padded: true,
+        receivedAt: `${weekly[weekly.length - 3].weekStart}T09:15:00Z`
+      },
+      {
+        subject: "We saved your cart for you 🛒",
+        preheader: "Still thinking it over? Your picks are waiting.",
+        padded: false,
+        receivedAt: `${weekly[weekly.length - 4].weekStart}T12:27:00Z`
+      },
+      {
+        subject: "Members get early access",
+        preheader: "Shop the drop 24 hours before everyone else.",
+        padded: true,
+        receivedAt: `${weekly[weekly.length - 5].weekStart}T10:02:00Z`
+      }
     ]
   },
   ctas: [

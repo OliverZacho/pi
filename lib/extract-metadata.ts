@@ -90,6 +90,7 @@ export type FontFamily = {
 
 export type EmailMetadata = {
   preheader: string | null;
+  preheader_padded: boolean;
   has_gif: boolean;
   has_dark_mode: boolean;
   has_amp_html: boolean;
@@ -147,6 +148,7 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
 
   return {
     preheader: extractPreheader(html),
+    preheader_padded: detectPreheaderPadding(html),
     has_gif: detectHasGif(html, input.mirroredAssets),
     has_dark_mode: detectDarkMode(html),
     has_amp_html: /<html[^>]+(?:amp|⚡)/i.test(html),
@@ -644,17 +646,88 @@ export function extractPreheader(html: string): string | null {
     if (!PREHEADER_HIDDEN_STYLE_RE.test(attrs)) {
       continue;
     }
-    const text = stripHtml(match[3] ?? "").trim();
-    if (text.length >= 4 && text.length <= 250) {
+    const text = cleanPreheaderText(stripHtml(match[3] ?? ""));
+    if (text && text.length >= 4 && text.length <= 250) {
       return text;
     }
   }
 
-  const plain = stripHtml(html).trim();
-  if (plain.length === 0) {
+  const plain = cleanPreheaderText(stripHtml(html));
+  if (!plain) {
     return null;
   }
   return plain.slice(0, 140);
+}
+
+/**
+ * One invisible padding character, in either raw Unicode or HTML-entity form:
+ * figure space (U+2007), combining grapheme joiner (U+034F), zero-width
+ * space / non-joiner / joiner (U+200B–U+200D) and BOM/zero-width no-break
+ * space (U+FEFF). These are the characters ESP templates repeat after the
+ * preview teaser so inbox previews stop before the body text.
+ */
+const PREHEADER_PAD_ENTITY =
+  "(?:&#x0*(?:2007|34f|200[bcd]|feff);|&#0*(?:8199|847|820[345]|65279);|&zwn?j;)";
+
+const PREHEADER_PAD_TOKEN =
+  `(?:${PREHEADER_PAD_ENTITY}|[\\u2007\\u034F\\u200B-\\u200D\\uFEFF])`;
+
+/**
+ * A run of at least six padding tokens, optionally interleaved with the
+ * ordinary whitespace / non-breaking spaces / soft hyphens most templates mix
+ * in ("&#8199;&#847; " or "&zwnj;&nbsp;" pairs). Only the invisible tokens
+ * count toward the six — plain &nbsp; runs (spacer cells, indentation) never
+ * trigger on their own, and a stray zero-width joiner inside an emoji
+ * sequence falls far short of the threshold.
+ */
+const PREHEADER_PADDING_RE = new RegExp(
+  `(?:${PREHEADER_PAD_TOKEN}(?:\\s|&nbsp;|&shy;|&#0*173;|[\\u00A0\\u00AD])*){6,}`,
+  "i"
+);
+
+const PREHEADER_PAD_ENTITY_RE = new RegExp(PREHEADER_PAD_ENTITY, "gi");
+
+/**
+ * A padding entity the 140/250-char preheader cap sliced mid-token, e.g. the
+ * "&#81" left dangling at the end of a stored value.
+ */
+const PREHEADER_TRAILING_PARTIAL_ENTITY_RE = /&#x?[0-9a-f]{0,6}$/i;
+
+/**
+ * Reduces a preheader to the teaser the sender actually wrote: everything
+ * after the first padding wall is body spill they meant to hide, and stray
+ * entity-form tokens ("&#8199;") would otherwise render as literal text.
+ * Raw invisible characters outside a wall are left alone — stripping lone
+ * U+200D would break emoji ZWJ sequences, and they don't render as garbage.
+ * Rows captured before this cleanup store the padded text, so read paths run
+ * this too rather than rewriting captured_emails in bulk.
+ */
+export function cleanPreheaderText(text: string | null | undefined): string | null {
+  if (!text) {
+    return null;
+  }
+  const wallStart = text.search(PREHEADER_PADDING_RE);
+  const cleaned = (wallStart >= 0 ? text.slice(0, wallStart) : text)
+    .replace(PREHEADER_PAD_ENTITY_RE, "")
+    .replace(PREHEADER_TRAILING_PARTIAL_ENTITY_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * Detects the "preheader padding" trick: the sender followed their preview
+ * teaser with a wall of invisible characters so mailbox previews show only
+ * the chosen text. Runs against the full raw HTML rather than the extracted
+ * preheader, so it still fires when the padding sits past the preheader
+ * truncation point. See /learn/preheader-padding-trick for the user-facing
+ * explanation this flag links to.
+ */
+export function detectPreheaderPadding(html: string): boolean {
+  if (!html) {
+    return false;
+  }
+  return PREHEADER_PADDING_RE.test(html);
 }
 
 export function detectDarkMode(html: string): boolean {

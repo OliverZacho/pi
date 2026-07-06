@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanPreheaderText } from "./extract-metadata";
 import type { TablesInsert } from "@/types/supabase";
 import {
   EMAIL_CATEGORIES,
@@ -237,7 +238,7 @@ export async function getEmailDetailFromDb(
   const { data, error } = await supabase
     .from("captured_emails")
     .select(
-      "id, company_id, duplicate_of, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
+      "id, company_id, duplicate_of, sender_email, recipient_email, subject, sent_at, received_at, html_content, html_storage_path, image_urls, remote_image_urls, category, subcategory, classification_source, classification_confidence, llm_model, llm_reasoning, processed_at, esp_provider, esp_confidence, preheader, preheader_padded, has_gif, has_dark_mode, discount_percent, discount_amount, currency, promo_code, primary_cta_text, primary_cta_url, detected_country, country_confidence, auth_results, list_headers, metadata, companies(id, name, primary_market_country)"
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -292,7 +293,8 @@ export async function getEmailDetailFromDb(
     classificationConfidence: Number(data.classification_confidence ?? 0),
     espProvider: (data.esp_provider as EspProvider | null) ?? null,
     espConfidence: data.esp_confidence === null ? null : Number(data.esp_confidence),
-    preheader: data.preheader ?? null,
+    preheader: cleanPreheaderText(data.preheader),
+    preheaderPadded: data.preheader_padded ?? null,
     hasGif: data.has_gif ?? false,
     hasDarkMode: data.has_dark_mode ?? false,
     discountPercent: data.discount_percent === null ? null : Number(data.discount_percent),
@@ -978,7 +980,7 @@ function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
     espConfidence: row.esp_confidence === null || row.esp_confidence === undefined
       ? null
       : Number(row.esp_confidence),
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     hasGif: row.has_gif ?? false,
     hasDarkMode: row.has_dark_mode ?? false,
     discountPercent: row.discount_percent === null || row.discount_percent === undefined
@@ -1460,6 +1462,8 @@ export type StoreProcessedEmailInput = {
     discountAmount?: number | null;
     currency?: string | null;
     promoCode?: string | null;
+    offerEndsOn?: string | null;
+    offerIsExtension?: boolean | null;
     primaryCtaText?: string | null;
     primaryCtaUrlHint?: string | null;
     detectedCountry?: string | null;
@@ -1471,6 +1475,7 @@ export type StoreProcessedEmailInput = {
     espConfidence?: number | null;
     espSignals?: unknown;
     preheader?: string | null;
+    preheaderPadded?: boolean | null;
     hasGif?: boolean | null;
     hasDarkMode?: boolean | null;
     primaryCtaUrl?: string | null;
@@ -1566,12 +1571,15 @@ export async function storeProcessedEmail(
       esp_confidence: enrichment.espConfidence ?? null,
       esp_signals: (enrichment.espSignals ?? null) as Json | null,
       preheader: enrichment.preheader ?? null,
+      preheader_padded: enrichment.preheaderPadded ?? null,
       has_gif: enrichment.hasGif ?? false,
       has_dark_mode: enrichment.hasDarkMode ?? false,
       discount_percent: input.classification.discountPercent ?? null,
       discount_amount: input.classification.discountAmount ?? null,
       currency: input.classification.currency ?? null,
       promo_code: input.classification.promoCode ?? null,
+      offer_ends_on: input.classification.offerEndsOn ?? null,
+      offer_is_extension: input.classification.offerIsExtension ?? null,
       primary_cta_text: input.classification.primaryCtaText ?? null,
       primary_cta_url: enrichment.primaryCtaUrl ?? null,
       detected_country: input.classification.detectedCountry ?? null,

@@ -560,6 +560,33 @@ function InfoPanel({
             {pill.label}
           </Pill>
         ))}
+        {/*
+          Interactive pill, kept out of the plain `pills` list: it carries a
+          hover / focus tooltip explaining the preheader padding trick with a
+          link into the Learn article, so it needs its own markup.
+        */}
+        {detail?.preheaderPadded ? (
+          <span
+            className={styles.trickPill}
+            tabIndex={0}
+            role="note"
+            aria-label="Preview padding: this email follows its preview text with invisible characters, so inboxes show only the teaser the sender wrote."
+          >
+            Preview padding
+            <InfoIcon />
+            <span className={styles.trickTooltip} role="tooltip">
+              This email follows its preview text with a run of{" "}
+              <strong>invisible characters</strong>, so the inbox preview shows
+              only the teaser the sender wrote and never bleeds into the body.{" "}
+              <Link
+                href="/learn/preheader-padding-trick"
+                className={styles.trickTooltipLink}
+              >
+                Read how the trick works
+              </Link>
+            </span>
+          </span>
+        ) : null}
       </div>
 
       {detail && detail.sentToLists.length > 1 ? (

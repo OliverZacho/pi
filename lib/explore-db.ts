@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanPreheaderText } from "./extract-metadata";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -405,7 +406,7 @@ export async function searchExploreEmails(
     return {
       id: row.id,
       subject: row.subject,
-      preheader: row.preheader ?? null,
+      preheader: cleanPreheaderText(row.preheader),
       companyId: company?.id ?? null,
       companySlug: company?.slug ?? null,
       companyName: company?.name ?? "Unknown",
