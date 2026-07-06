@@ -2091,6 +2091,93 @@ div.infoBrandRow {
   gap: 0.3rem;
 }
 
+/*
+ * "Preview padding" pill — same silhouette as .pill but interactive: hover
+ * or focus opens a tooltip explaining the preheader padding trick, with a
+ * link to the Learn article. The tooltip is a child of the trigger so it
+ * stays open while the pointer moves onto the link.
+ */
+.trickPill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: help;
+}
+
+.trickPill:hover,
+.trickPill:focus-visible {
+  color: #0f172a;
+  outline: none;
+}
+
+.trickPill svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: #94a3b8;
+}
+
+.trickTooltip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  width: 250px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.trickTooltip strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.trickTooltip::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0.55rem;
+  border: 5px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.trickPill:hover .trickTooltip,
+.trickPill:focus-visible .trickTooltip,
+.trickTooltip:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.trickTooltipLink {
+  color: #7dd3fc;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.trickTooltipLink:hover {
+  color: #bae6fd;
+}
+
 /* ---- Sent-to-lists (identical send fired to several mailing lists) ---- */
 
 .sentToBlock {

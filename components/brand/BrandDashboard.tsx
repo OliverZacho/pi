@@ -1005,6 +1005,37 @@ export function DesignCard({
             {Math.round(design.darkModeShare * 100)}%
           </span>
         </span>
+        {design.preheaderPadding.measured > 0 ? (
+          <span
+            className={`${styles.flag} ${styles.flagWithTip}`}
+            tabIndex={0}
+            role="note"
+            aria-label="Preview padding: the share of this brand's emails that follow their preview text with invisible characters, so inboxes show only the teaser the sender wrote."
+          >
+            <span
+              className={`${styles.flagDot}${
+                design.preheaderPadding.share > 0 ? ` ${styles.flagDot_on}` : ""
+              }`}
+            />
+            <span>Preview padding</span>
+            <span className={styles.flagShare}>
+              {Math.round(design.preheaderPadding.share * 100)}%
+            </span>
+            <span className={styles.flagTooltip} role="tooltip">
+              {design.preheaderPadding.padded} of{" "}
+              {design.preheaderPadding.measured} recent emails follow their
+              preview text with a run of{" "}
+              <strong>invisible characters</strong>, so the inbox preview
+              shows only the teaser the sender wrote.{" "}
+              <Link
+                href="/learn/preheader-padding-trick"
+                className={styles.flagTooltipLink}
+              >
+                Read how the trick works
+              </Link>
+            </span>
+          </span>
+        ) : null}
         <span className={styles.flag}>
           <span className={styles.flagDot} />
           <span>Avg subject</span>

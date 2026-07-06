@@ -117,6 +117,7 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
     ],
     gifShare: 0.38,
     darkModeShare: 0.21,
+    preheaderPadding: { measured: 412, padded: 355, share: 0.86 },
     images: {
       emailsMeasured: 412,
       avgBytesPerEmail: 486_000,

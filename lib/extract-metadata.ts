@@ -90,6 +90,7 @@ export type FontFamily = {
 
 export type EmailMetadata = {
   preheader: string | null;
+  preheader_padded: boolean;
   has_gif: boolean;
   has_dark_mode: boolean;
   has_amp_html: boolean;
@@ -147,6 +148,7 @@ export function extractMetadata(input: ExtractMetadataInput): EmailMetadata {
 
   return {
     preheader: extractPreheader(html),
+    preheader_padded: detectPreheaderPadding(html),
     has_gif: detectHasGif(html, input.mirroredAssets),
     has_dark_mode: detectDarkMode(html),
     has_amp_html: /<html[^>]+(?:amp|⚡)/i.test(html),
@@ -655,6 +657,45 @@ export function extractPreheader(html: string): string | null {
     return null;
   }
   return plain.slice(0, 140);
+}
+
+/**
+ * One invisible padding character, in either raw Unicode or HTML-entity form:
+ * figure space (U+2007), combining grapheme joiner (U+034F), zero-width
+ * space / non-joiner / joiner (U+200B–U+200D) and BOM/zero-width no-break
+ * space (U+FEFF). These are the characters ESP templates repeat after the
+ * preview teaser so inbox previews stop before the body text.
+ */
+const PREHEADER_PAD_TOKEN =
+  "(?:&#x0*(?:2007|34f|200[bcd]|feff);|&#0*(?:8199|847|820[345]|65279);|&zwn?j;|" +
+  "[\\u2007\\u034F\\u200B-\\u200D\\uFEFF])";
+
+/**
+ * A run of at least six padding tokens, optionally interleaved with the
+ * ordinary whitespace / non-breaking spaces / soft hyphens most templates mix
+ * in ("&#8199;&#847; " or "&zwnj;&nbsp;" pairs). Only the invisible tokens
+ * count toward the six — plain &nbsp; runs (spacer cells, indentation) never
+ * trigger on their own, and a stray zero-width joiner inside an emoji
+ * sequence falls far short of the threshold.
+ */
+const PREHEADER_PADDING_RE = new RegExp(
+  `(?:${PREHEADER_PAD_TOKEN}(?:\\s|&nbsp;|&shy;|&#0*173;|[\\u00A0\\u00AD])*){6,}`,
+  "i"
+);
+
+/**
+ * Detects the "preheader padding" trick: the sender followed their preview
+ * teaser with a wall of invisible characters so mailbox previews show only
+ * the chosen text. Runs against the full raw HTML rather than the extracted
+ * preheader, so it still fires when the padding sits past the preheader
+ * truncation point. See /learn/preheader-padding-trick for the user-facing
+ * explanation this flag links to.
+ */
+export function detectPreheaderPadding(html: string): boolean {
+  if (!html) {
+    return false;
+  }
+  return PREHEADER_PADDING_RE.test(html);
 }
 
 export function detectDarkMode(html: string): boolean {

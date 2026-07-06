@@ -187,6 +187,14 @@ export type BrandPageData = {
     gifShare: number;
     darkModeShare: number;
     /**
+     * How much of the sample uses the preheader padding trick — invisible
+     * characters after the hidden preview teaser so inbox previews stop
+     * before the body text (see /learn/preheader-padding-trick). Rows whose
+     * flag is still `null` (pre-backfill) are excluded from `measured`, so
+     * the share never mixes "not padded" with "not yet checked".
+     */
+    preheaderPadding: { measured: number; padded: number; share: number };
+    /**
      * Image weight and format habits, aggregated from each sampled email's
      * `metadata.image_stats` (written at ingest, backfilled for older rows).
      * Rows without stats are excluded from every denominator, so a brand
@@ -332,6 +340,7 @@ type EmailRow = {
   id: string;
   subject: string;
   preheader: string | null;
+  preheader_padded: boolean | null;
   received_at: string;
   sent_at: string | null;
   category: string;
@@ -539,7 +548,7 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
+      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
     )
     .eq("company_id", companyId);
   if (scoped) {
@@ -1207,6 +1216,8 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   const fonts = new Map<string, number>();
   let gif = 0;
   let dark = 0;
+  let paddingMeasured = 0;
+  let padded = 0;
   let emailsMeasured = 0;
   let imageBytes = 0;
   let imageCount = 0;
@@ -1215,6 +1226,10 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   for (const row of rows) {
     if (row.has_gif) gif += 1;
     if (row.has_dark_mode) dark += 1;
+    if (row.preheader_padded !== null && row.preheader_padded !== undefined) {
+      paddingMeasured += 1;
+      if (row.preheader_padded) padded += 1;
+    }
 
     const imageStats = parseImageStats(row.metadata);
     if (imageStats) {
@@ -1296,6 +1311,11 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
       .slice(0, 4),
     gifShare: rows.length > 0 ? gif / rows.length : 0,
     darkModeShare: rows.length > 0 ? dark / rows.length : 0,
+    preheaderPadding: {
+      measured: paddingMeasured,
+      padded,
+      share: paddingMeasured > 0 ? padded / paddingMeasured : 0
+    },
     images: {
       emailsMeasured,
       avgBytesPerEmail: emailsMeasured > 0 ? imageBytes / emailsMeasured : null,

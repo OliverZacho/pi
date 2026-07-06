@@ -163,6 +163,7 @@ export type Database = {
           metadata: Json
           plain_text: string | null
           preheader: string | null
+          preheader_padded: boolean | null
           primary_cta_text: string | null
           primary_cta_url: string | null
           processed_at: string | null
@@ -211,6 +212,7 @@ export type Database = {
           metadata?: Json
           plain_text?: string | null
           preheader?: string | null
+          preheader_padded?: boolean | null
           primary_cta_text?: string | null
           primary_cta_url?: string | null
           processed_at?: string | null
@@ -259,6 +261,7 @@ export type Database = {
           metadata?: Json
           plain_text?: string | null
           preheader?: string | null
+          preheader_padded?: boolean | null
           primary_cta_text?: string | null
           primary_cta_url?: string | null
           processed_at?: string | null

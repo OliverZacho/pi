@@ -426,6 +426,13 @@ export function classifyListHeaders(
 export type CapturedEmailDetail = CapturedEmail & {
   recipient: string;
   htmlContent: string;
+  /**
+   * True when the email pads its hidden preview text with invisible
+   * characters (the "preheader padding" trick — see
+   * /learn/preheader-padding-trick). `null` for rows ingested before the
+   * flag existed and not yet backfilled.
+   */
+  preheaderPadded: boolean | null;
   htmlSignedUrl: string | null;
   imageSignedUrls: { storagePath: string; signedUrl: string }[];
   imageMirrorMap: Record<string, string>;

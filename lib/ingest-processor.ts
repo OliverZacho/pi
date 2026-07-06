@@ -390,6 +390,7 @@ async function ingestEmailReceivedEvent(
         espConfidence: espResult.confidence,
         espSignals: espResult.signals,
         preheader: metadata.preheader,
+        preheaderPadded: metadata.preheader_padded,
         hasGif: metadata.has_gif,
         hasDarkMode: metadata.has_dark_mode,
         primaryCtaUrl,

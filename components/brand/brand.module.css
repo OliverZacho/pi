@@ -1182,6 +1182,75 @@
   color: #0f172a;
 }
 
+/*
+ * A .flag that opens an explanatory tooltip on hover / focus (currently the
+ * "Preview padding" share). The tooltip is a child of the trigger so it stays
+ * open while the pointer travels onto its Learn link.
+ */
+.flagWithTip {
+  position: relative;
+  cursor: help;
+}
+
+.flagWithTip:hover,
+.flagWithTip:focus-visible {
+  color: #0f172a;
+  outline: none;
+}
+
+.flagTooltip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  width: 260px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.flagTooltip strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.flagTooltip::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0.55rem;
+  border: 5px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.flagWithTip:hover .flagTooltip,
+.flagWithTip:focus-visible .flagTooltip,
+.flagTooltip:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.flagTooltipLink {
+  color: #7dd3fc;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.flagTooltipLink:hover {
+  color: #bae6fd;
+}
+
 /* ---------- Subjects sample card ---------- */
 
 .subjectList {

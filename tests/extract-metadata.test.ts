@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectDarkMode,
   detectHasGif,
+  detectPreheaderPadding,
   extractAuthResults,
   extractColorPalette,
   extractFontFamilies,
@@ -42,6 +43,46 @@ describe("extractPreheader", () => {
 
   it("returns null on empty input", () => {
     expect(extractPreheader("")).toBeNull();
+  });
+});
+
+describe("detectPreheaderPadding", () => {
+  it("flags figure-space + grapheme-joiner entity padding", () => {
+    const html = `<div style="display:none">Genfind kontakten til dig selv${"&#8199;&#847; ".repeat(50)}</div><p>Body</p>`;
+    expect(detectPreheaderPadding(html)).toBe(true);
+  });
+
+  it("flags zwnj + nbsp padding pairs", () => {
+    const html = `<div style="display:none">Teaser${"&zwnj;&nbsp;".repeat(40)}</div>`;
+    expect(detectPreheaderPadding(html)).toBe(true);
+  });
+
+  it("flags padding written as raw Unicode characters", () => {
+    const html = `<div style="display:none">Teaser${" ͏ ".repeat(30)}</div>`;
+    expect(detectPreheaderPadding(html)).toBe(true);
+  });
+
+  it("flags hex-entity padding", () => {
+    expect(detectPreheaderPadding(`Teaser${"&#x2007;&#x34F;".repeat(20)}`)).toBe(
+      true
+    );
+  });
+
+  it("ignores plain nbsp runs from spacer layouts", () => {
+    expect(detectPreheaderPadding(`<td>${"&nbsp;".repeat(60)}</td>`)).toBe(false);
+  });
+
+  it("ignores zero-width joiners inside emoji sequences", () => {
+    expect(
+      detectPreheaderPadding("Family time \u{1F468}‍\u{1F469}‍\u{1F467} and pride \u{1F3F3}️‍\u{1F308}")
+    ).toBe(false);
+  });
+
+  it("ignores unpadded emails and empty input", () => {
+    expect(detectPreheaderPadding("<div>Hello world, sale on now!</div>")).toBe(
+      false
+    );
+    expect(detectPreheaderPadding("")).toBe(false);
   });
 });
 
