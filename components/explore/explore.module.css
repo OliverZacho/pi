@@ -442,21 +442,6 @@
   background: var(--sidebar-bg);
 }
 
-.logoAttribution {
-  /* Logo.dev free-plan attribution: quiet, but visibly present on every
-     app page that renders brand logos. */
-  display: block;
-  padding: 0 0.55rem;
-  font-size: 0.7rem;
-  color: #94a3b8;
-  text-decoration: none;
-}
-
-.logoAttribution:hover {
-  color: #64748b;
-  text-decoration: underline;
-}
-
 .accountWrap {
   /* Positioning context for the absolutely-positioned account menu. */
   position: relative;

@@ -959,17 +959,6 @@ export default function ExploreSidebar({
       <div className={styles.sidebarFooter}>
         <SidebarNotices signedIn={Boolean(user)} />
 
-        {/* Required Logo.dev free-plan attribution; must pass referrer
-            data, so no rel="noreferrer" here. */}
-        <a
-          href="https://logo.dev"
-          className={styles.logoAttribution}
-          target="_blank"
-          rel="noopener"
-        >
-          Logos provided by Logo.dev
-        </a>
-
         {user ? (
           <AccountRow user={user} settingsActive={activeId === "settings"} />
         ) : (
