@@ -4176,3 +4176,16 @@ button.raw-source-link:hover {
   font-size: 0.68rem;
   opacity: 0.65;
 }
+
+/*
+ * Logo.dev brand logos are opaque squares that bring their own
+ * background, unlike the extracted email wordmarks the avatar boxes were
+ * styled for (object-fit: contain + white padding). Let them bleed to
+ * the box edges everywhere in one place; the attribute selector
+ * (0,1,1) outweighs the CSS-module classes (0,1,0) without !important.
+ */
+img[src^="https://img.logo.dev/"] {
+  object-fit: cover;
+  background: transparent;
+  padding: 0;
+}
