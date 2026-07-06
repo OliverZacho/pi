@@ -23,6 +23,7 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
+import { withLogoDevFallback } from "./logo-dev";
 import { cleanPreheaderText } from "./extract-metadata";
 import { parseImageStats, type ImageFormat } from "./image-stats";
 import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
@@ -609,7 +610,10 @@ export async function getBrandPageData(
   const signed = logoPath
     ? await getSignedAssets([logoPath], { transform: BRAND_LOGO_TRANSFORM })
     : {};
-  const logoUrl = logoPath ? signed[logoPath] ?? null : null;
+  const logoUrl = withLogoDevFallback(
+    logoPath ? signed[logoPath] ?? null : null,
+    companyRow.domain
+  );
 
   const stats = relationFirst(companyRow.company_email_stats);
   const inboxes = companyRow.company_inboxes ?? [];

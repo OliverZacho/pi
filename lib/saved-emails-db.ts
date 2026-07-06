@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanPreheaderText } from "./extract-metadata";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import type { Database } from "@/types/supabase";
@@ -307,7 +308,10 @@ function toExploreCard(
             typeof value === "string" && value.length > 0
         )
       : [],
-    companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
+    companyLogoUrl: withLogoDevFallback(
+      logoPath ? signed[logoPath] ?? null : null,
+      company?.domain
+    ),
     receivedAt: email.received_at,
     category: email.category,
     hasGif: email.has_gif ?? false,

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getViewer } from "@/lib/access";
 import { normalizeCompanyMarkets } from "@/lib/explore-db";
+import { withLogoDevFallback } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import {
@@ -147,6 +148,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
         console.error("Failed to sign brand logo", err);
       }
     }
+    logoUrl = withLogoDevFallback(logoUrl, company.domain);
 
     return (
       <BrandLockedDashboard

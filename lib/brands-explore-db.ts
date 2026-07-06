@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ESP_LABELS, type EspProvider } from "./admin-types";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -371,9 +372,10 @@ export async function searchBrands(
       : {};
 
   const items: BrandsExploreCard[] = slice.map((row) => {
-    const logoUrl = row.logo_storage_path
-      ? signed[row.logo_storage_path] ?? null
-      : null;
+    const logoUrl = withLogoDevFallback(
+      row.logo_storage_path ? signed[row.logo_storage_path] ?? null : null,
+      row.domain
+    );
     return {
       id: row.id,
       slug: row.slug,

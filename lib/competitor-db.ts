@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrandPageData, type BrandPageData } from "./brand-db";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { MAX_BRANDS_PER_COMPARISON } from "./competitor-constants";
 import type { Database } from "@/types/supabase";
@@ -757,7 +758,10 @@ async function loadSetBrands(
               typeof value === "string" && value.length > 0
           )
         : [],
-      logoUrl: logoPath ? signed[logoPath] ?? null : null,
+      logoUrl: withLogoDevFallback(
+        logoPath ? signed[logoPath] ?? null : null,
+        company.domain
+      ),
       inboxIds: Array.isArray(row.inbox_ids)
         ? row.inbox_ids.filter(
             (value): value is string => typeof value === "string"

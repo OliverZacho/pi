@@ -7,6 +7,7 @@ import {
 } from "./collection-event-shared";
 import { type CollectionIcon, isCollectionIcon } from "./collection-icons";
 import { cleanPreheaderText } from "./extract-metadata";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import type { Database, Json } from "@/types/supabase";
@@ -1884,7 +1885,10 @@ function ruleRowToCard(
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
     companyMarkets: pickCompanyMarkets(company),
-    companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
+    companyLogoUrl: withLogoDevFallback(
+      logoPath ? signed[logoPath] ?? null : null,
+      company?.domain
+    ),
     receivedAt: row.received_at,
     category: row.category,
     hasGif: row.has_gif ?? false,
@@ -2123,7 +2127,10 @@ function toExploreCard(
     companyName: company?.name ?? "Unknown",
     companyDomain: company?.domain ?? null,
     companyMarkets: pickCompanyMarkets(company),
-    companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
+    companyLogoUrl: withLogoDevFallback(
+      logoPath ? signed[logoPath] ?? null : null,
+      company?.domain
+    ),
     receivedAt: email.received_at,
     category: email.category,
     hasGif: email.has_gif ?? false,

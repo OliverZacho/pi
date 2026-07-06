@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanPreheaderText } from "./extract-metadata";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -412,7 +413,10 @@ export async function searchExploreEmails(
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
       companyMarkets: normalizeCompanyMarkets(company?.markets),
-      companyLogoUrl: logoPath ? signed[logoPath] ?? null : null,
+      companyLogoUrl: withLogoDevFallback(
+        logoPath ? signed[logoPath] ?? null : null,
+        company?.domain
+      ),
       receivedAt: row.received_at,
       category: row.category,
       hasGif: row.has_gif ?? false,

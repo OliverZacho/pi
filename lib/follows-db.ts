@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeBrandAggregates } from "./brands-explore-db";
+import { withLogoDevFallback } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -243,7 +244,10 @@ export async function listFollowedBrandCards(
         : [],
       primaryMarketCountry: company.primary_market_country ?? null,
       isGlobal: company.is_global ?? false,
-      logoUrl: logoPath ? signed[logoPath] ?? null : null,
+      logoUrl: withLogoDevFallback(
+        logoPath ? signed[logoPath] ?? null : null,
+        company.domain
+      ),
       followedAt: row.created_at,
       avgDaysBetween:
         aggregates?.perBrand.get(company.id)?.avgDaysBetween ?? null,
