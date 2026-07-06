@@ -161,6 +161,8 @@ export type Database = {
           llm_model: string | null
           llm_reasoning: string | null
           metadata: Json
+          offer_ends_on: string | null
+          offer_is_extension: boolean | null
           plain_text: string | null
           preheader: string | null
           preheader_padded: boolean | null
@@ -210,6 +212,8 @@ export type Database = {
           llm_model?: string | null
           llm_reasoning?: string | null
           metadata?: Json
+          offer_ends_on?: string | null
+          offer_is_extension?: boolean | null
           plain_text?: string | null
           preheader?: string | null
           preheader_padded?: boolean | null
@@ -259,6 +263,8 @@ export type Database = {
           llm_model?: string | null
           llm_reasoning?: string | null
           metadata?: Json
+          offer_ends_on?: string | null
+          offer_is_extension?: boolean | null
           plain_text?: string | null
           preheader?: string | null
           preheader_padded?: boolean | null

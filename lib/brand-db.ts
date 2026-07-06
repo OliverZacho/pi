@@ -24,6 +24,7 @@ import {
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
 import { parseImageStats, type ImageFormat } from "./image-stats";
+import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -157,6 +158,18 @@ export type BrandPageData = {
      * agrees with the orange Sale cells on the send calendar.
      */
     saleShare: number;
+    /**
+     * Deadline behaviour, counted in offer *episodes* (discount emails
+     * grouped by promo code / depth proximity — see lib/offer-episodes), not
+     * in emails. Only offers whose copy stated an explicit end date are
+     * judged. All three stay 0 while a brand's sample predates the
+     * `offer_ends_on` signal, and the promo card hides the tiles then.
+     */
+    offersWithDeadline: number;
+    /** Stated deadline passed with no extension signal observed. */
+    offersEndedOnTime: number;
+    /** Offers extended past their original stated deadline. */
+    offersExtended: number;
   };
   /**
    * Emoji usage signal computed across the brand's recent subject lines
@@ -289,6 +302,14 @@ export type BrandPageData = {
     hasDarkMode: boolean;
     discountPercent: number | null;
     promoCode: string | null;
+    /**
+     * `YYYY-MM-DD` last day the email states its offer is valid, or null
+     * when no deadline was stated (or the row predates the signal). The
+     * discount timeline only draws a validity bar when this is present.
+     */
+    offerEndsOn: string | null;
+    /** True when the email explicitly announced a deadline extension. */
+    offerIsExtension: boolean | null;
   }[];
 };
 
@@ -362,6 +383,8 @@ type EmailRow = {
   has_dark_mode: boolean | null;
   discount_percent: number | string | null;
   promo_code: string | null;
+  offer_ends_on: string | null;
+  offer_is_extension: boolean | null;
   primary_cta_text: string | null;
   primary_cta_url: string | null;
   esp_provider: string | null;
@@ -561,7 +584,7 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, primary_cta_text, primary_cta_url, esp_provider, metadata"
+      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, metadata"
     )
     .eq("company_id", companyId);
   if (scoped) {
@@ -628,7 +651,9 @@ export async function getBrandPageData(
       row.discount_percent === null || row.discount_percent === undefined
         ? null
         : Number(row.discount_percent),
-    promoCode: row.promo_code ?? null
+    promoCode: row.promo_code ?? null,
+    offerEndsOn: row.offer_ends_on ?? null,
+    offerIsExtension: row.offer_is_extension ?? null
   }));
   const accent =
     design.palette.length > 0
@@ -739,7 +764,9 @@ export async function getBrandSummary(
   const [emailsResult, statsResult] = await Promise.all([
     supabase
       .from("captured_emails")
-      .select("received_at, category, discount_percent")
+      .select(
+        "id, received_at, category, discount_percent, promo_code, offer_ends_on, offer_is_extension"
+      )
       .eq("company_id", companyId)
       .is("duplicate_of", null)
       .order("received_at", { ascending: false })
@@ -754,7 +781,13 @@ export async function getBrandSummary(
   if (emailsResult.error) throw emailsResult.error;
   const rows = (emailsResult.data ?? []) as Pick<
     EmailRow,
-    "received_at" | "category" | "discount_percent"
+    | "id"
+    | "received_at"
+    | "category"
+    | "discount_percent"
+    | "promo_code"
+    | "offer_ends_on"
+    | "offer_is_extension"
   >[];
   if (rows.length === 0) return null;
 
@@ -1052,7 +1085,16 @@ function computeCadence(
 }
 
 function computePromo(
-  rows: Pick<EmailRow, "discount_percent" | "received_at" | "category">[]
+  rows: Pick<
+    EmailRow,
+    | "id"
+    | "discount_percent"
+    | "received_at"
+    | "category"
+    | "promo_code"
+    | "offer_ends_on"
+    | "offer_is_extension"
+  >[]
 ): BrandPageData["promo"] {
   let discountEmails = 0;
   let discountSum = 0;
@@ -1088,6 +1130,24 @@ function computePromo(
     }
   }
 
+  // Deadline behaviour, judged per offer episode rather than per email so a
+  // three-reminder sale counts once. Uses the same pure grouping as the
+  // discount timeline, so the tiles can never disagree with the chart.
+  const episodes = buildOfferEpisodes(
+    rows.map((row) => ({
+      id: row.id,
+      receivedAt: row.received_at,
+      discountPercent:
+        row.discount_percent === null || row.discount_percent === undefined
+          ? null
+          : Number(row.discount_percent),
+      promoCode: row.promo_code,
+      offerEndsOn: row.offer_ends_on,
+      offerIsExtension: row.offer_is_extension
+    }))
+  );
+  const deadlines = summarizeOfferDeadlines(episodes, formatDayKey(new Date()));
+
   return {
     discountEmails,
     discountShare: rows.length > 0 ? discountEmails / rows.length : 0,
@@ -1095,7 +1155,10 @@ function computePromo(
     maxDiscount: discountMax,
     maxDiscountAt: discountMaxAt,
     saleEmails,
-    saleShare: rows.length > 0 ? saleEmails / rows.length : 0
+    saleShare: rows.length > 0 ? saleEmails / rows.length : 0,
+    offersWithDeadline: deadlines.withDeadline,
+    offersEndedOnTime: deadlines.endedOnTime,
+    offersExtended: deadlines.extended
   };
 }
 

@@ -1004,6 +1004,96 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Stated offer validity window — a soft accent band at the offer's depth.
+   Only drawn when an email actually named a deadline. */
+.discountWindowBar {
+  fill: var(--brand-accent, #0f172a);
+  fill-opacity: 0.16;
+}
+
+/* Short vertical mark at the offer's ORIGINAL stated deadline. */
+.discountDeadlineTick {
+  stroke: var(--brand-accent, #0f172a);
+  stroke-width: 1.5;
+  stroke-opacity: 0.85;
+}
+
+/* Days the offer ran past its stated deadline — dashed and hollow so the
+   broken promise reads differently from the promised window. */
+.discountExtensionBar {
+  fill: var(--brand-accent, #0f172a);
+  fill-opacity: 0.07;
+  stroke: var(--brand-accent, #0f172a);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  stroke-dasharray: 3 2.5;
+}
+
+.discountExtensionLabel {
+  fill: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client-mounted "today" reference line (see BrandDiscountTimeline). */
+.discountTodayLine {
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.discountTodayLabel {
+  fill: #94a3b8;
+  font-size: 10px;
+}
+
+/* Legend under the chart, shown only when at least one window is drawn. */
+.discountLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.discountLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.discountLegendDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand-accent, #0f172a);
+}
+
+.discountLegendBar {
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--brand-accent, #0f172a);
+  opacity: 0.2;
+}
+
+.discountLegendTick {
+  width: 2px;
+  height: 11px;
+  background: var(--brand-accent, #0f172a);
+  opacity: 0.85;
+}
+
+.discountLegendExt {
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  border: 1px dashed var(--brand-accent, #0f172a);
+  opacity: 0.55;
+}
+
 /* ---------- Emoji habits card ---------- */
 
 /* Pill grid for the brand's top emojis. Wraps onto multiple rows so a

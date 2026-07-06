@@ -322,8 +322,10 @@ async function ingestEmailReceivedEvent(
     })
   );
 
+  const sentAt = full.created_at ?? event.data.created_at ?? event.created_at;
+
   const classification = await runStage("classify_email", () =>
-    classifyEmail({ subject, html, plainText, senderDomain: full.from })
+    classifyEmail({ subject, html, plainText, senderDomain: full.from, sentAt })
   );
 
   const primaryCtaUrl = resolvePrimaryCtaUrl(
@@ -364,7 +366,7 @@ async function ingestEmailReceivedEvent(
       subject,
       html,
       plainText,
-      sentAt: full.created_at ?? event.data.created_at ?? event.created_at,
+      sentAt,
       rawPayload: { event, full, mirrorFailures: mirror.failedUrls },
       htmlStoragePath,
       imageStoragePaths: mirror.storedPaths,
@@ -379,6 +381,8 @@ async function ingestEmailReceivedEvent(
         discountAmount: classification.discountAmount ?? null,
         currency: classification.currency ?? null,
         promoCode: classification.promoCode ?? null,
+        offerEndsOn: classification.offerEndsOn ?? null,
+        offerIsExtension: classification.offerIsExtension ?? null,
         primaryCtaText: classification.primaryCtaText ?? null,
         primaryCtaUrlHint: classification.primaryCtaUrlHint ?? null,
         detectedCountry: classification.detectedCountry ?? null,

@@ -73,7 +73,10 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
     maxDiscount: 50,
     maxDiscountAt: `${lastWeekStart}T08:03:00Z`,
     saleEmails: 240,
-    saleShare: 0.48
+    saleShare: 0.48,
+    offersWithDeadline: 9,
+    offersEndedOnTime: 7,
+    offersExtended: 2
   },
   emojis: {
     emailsWithEmoji: 212,

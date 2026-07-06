@@ -815,6 +815,32 @@ export function PromoCard({
             {formatNumber(promo.discountEmails)}
           </span>
         </div>
+        {/* Deadline behaviour tiles appear once the sample contains offers
+            whose emails stated an end date (the offer_ends_on signal only
+            exists on rows captured after it shipped, so older brands keep
+            the classic three-tile strip). */}
+        {promo.offersWithDeadline > 0 || promo.offersExtended > 0 ? (
+          <>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Stated deadlines</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersWithDeadline)}
+              </span>
+            </div>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Ended on time</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersEndedOnTime)}
+              </span>
+            </div>
+            <div className={styles.statBlock}>
+              <span className={styles.statBlockLabel}>Extended</span>
+              <span className={styles.statBlockValue}>
+                {formatNumber(promo.offersExtended)}
+              </span>
+            </div>
+          </>
+        ) : null}
       </div>
     </article>
   );

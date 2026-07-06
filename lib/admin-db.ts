@@ -1461,6 +1461,8 @@ export type StoreProcessedEmailInput = {
     discountAmount?: number | null;
     currency?: string | null;
     promoCode?: string | null;
+    offerEndsOn?: string | null;
+    offerIsExtension?: boolean | null;
     primaryCtaText?: string | null;
     primaryCtaUrlHint?: string | null;
     detectedCountry?: string | null;
@@ -1575,6 +1577,8 @@ export async function storeProcessedEmail(
       discount_amount: input.classification.discountAmount ?? null,
       currency: input.classification.currency ?? null,
       promo_code: input.classification.promoCode ?? null,
+      offer_ends_on: input.classification.offerEndsOn ?? null,
+      offer_is_extension: input.classification.offerIsExtension ?? null,
       primary_cta_text: input.classification.primaryCtaText ?? null,
       primary_cta_url: enrichment.primaryCtaUrl ?? null,
       detected_country: input.classification.detectedCountry ?? null,
