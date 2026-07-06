@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanPreheaderText } from "./extract-metadata";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import type { Database } from "@/types/supabase";
@@ -295,7 +296,7 @@ function toExploreCard(
   return {
     id: email.id,
     subject: email.subject,
-    preheader: email.preheader ?? null,
+    preheader: cleanPreheaderText(email.preheader),
     companyId: company?.id ?? null,
     companySlug: company?.slug ?? null,
     companyName: company?.name ?? "Unknown",

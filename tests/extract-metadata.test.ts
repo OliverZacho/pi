@@ -9,6 +9,7 @@ import {
   extractLinks,
   extractListHeaders,
   extractMetadata,
+  cleanPreheaderText,
   extractPreheader,
   extractResourceHosts,
   extractSubjectMetadata
@@ -43,6 +44,46 @@ describe("extractPreheader", () => {
 
   it("returns null on empty input", () => {
     expect(extractPreheader("")).toBeNull();
+  });
+
+  it("cuts the padding wall out of a padded hidden preheader", () => {
+    const html = `<div style="display:none">ZARA HOME${"&#8199;&#847; ".repeat(50)}</div><p>Body text follows here</p>`;
+    expect(extractPreheader(html)).toBe("ZARA HOME");
+  });
+
+  it("cleans padding from the plaintext fallback too", () => {
+    const html = `<p>New in this week${"​‌ ".repeat(20)}unsubscribe footer text</p>`;
+    expect(extractPreheader(html)).toBe("New in this week");
+  });
+});
+
+describe("cleanPreheaderText", () => {
+  it("drops everything after the first padding wall", () => {
+    const stored = `ZARA HOME ${"&#8199;&#847; ".repeat(20)}&#81`;
+    expect(cleanPreheaderText(stored)).toBe("ZARA HOME");
+  });
+
+  it("strips stray entity tokens and a truncated trailing entity", () => {
+    expect(cleanPreheaderText("Last chance&#8199;&#847; to save&#x200")).toBe(
+      "Last chance to save"
+    );
+  });
+
+  it("keeps emoji ZWJ sequences intact", () => {
+    const family = "Family sale \u{1F468}‍\u{1F469}‍\u{1F467}";
+    expect(cleanPreheaderText(family)).toBe(family);
+  });
+
+  it("returns null for all-padding or empty input", () => {
+    expect(cleanPreheaderText("&#8199;&#847;".repeat(10))).toBeNull();
+    expect(cleanPreheaderText("")).toBeNull();
+    expect(cleanPreheaderText(null)).toBeNull();
+  });
+
+  it("leaves ordinary preheaders untouched", () => {
+    expect(cleanPreheaderText("Five looks our stylists love")).toBe(
+      "Five looks our stylists love"
+    );
   });
 });
 

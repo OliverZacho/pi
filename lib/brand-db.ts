@@ -23,6 +23,7 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
+import { cleanPreheaderText } from "./extract-metadata";
 import { parseImageStats, type ImageFormat } from "./image-stats";
 import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
@@ -642,7 +643,7 @@ export async function getBrandPageData(
   const seasonalSample = emailRows.map((row) => ({
     id: row.id,
     subject: row.subject,
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     receivedAt: row.received_at,
     category: row.category,
     hasGif: row.has_gif ?? false,
@@ -1429,7 +1430,7 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
         seen.add(key);
         samples.push({
           subject,
-          preheader: (row.preheader ?? "").trim() || null,
+          preheader: cleanPreheaderText(row.preheader),
           padded: row.preheader_padded ?? null,
           receivedAt: row.received_at
         });
@@ -1509,7 +1510,7 @@ function mapRecentEmails(
   return rows.map((row) => ({
     id: row.id,
     subject: row.subject,
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     companyId: brand.companyId,
     companySlug: brand.companySlug,
     companyName: brand.companyName,

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanPreheaderText } from "./extract-metadata";
 import type { TablesInsert } from "@/types/supabase";
 import {
   EMAIL_CATEGORIES,
@@ -292,7 +293,7 @@ export async function getEmailDetailFromDb(
     classificationConfidence: Number(data.classification_confidence ?? 0),
     espProvider: (data.esp_provider as EspProvider | null) ?? null,
     espConfidence: data.esp_confidence === null ? null : Number(data.esp_confidence),
-    preheader: data.preheader ?? null,
+    preheader: cleanPreheaderText(data.preheader),
     preheaderPadded: data.preheader_padded ?? null,
     hasGif: data.has_gif ?? false,
     hasDarkMode: data.has_dark_mode ?? false,
@@ -979,7 +980,7 @@ function rowToCapturedEmail(row: EmailListRow): CapturedEmail {
     espConfidence: row.esp_confidence === null || row.esp_confidence === undefined
       ? null
       : Number(row.esp_confidence),
-    preheader: row.preheader ?? null,
+    preheader: cleanPreheaderText(row.preheader),
     hasGif: row.has_gif ?? false,
     hasDarkMode: row.has_dark_mode ?? false,
     discountPercent: row.discount_percent === null || row.discount_percent === undefined

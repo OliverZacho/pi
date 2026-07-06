@@ -646,14 +646,14 @@ export function extractPreheader(html: string): string | null {
     if (!PREHEADER_HIDDEN_STYLE_RE.test(attrs)) {
       continue;
     }
-    const text = stripHtml(match[3] ?? "").trim();
-    if (text.length >= 4 && text.length <= 250) {
+    const text = cleanPreheaderText(stripHtml(match[3] ?? ""));
+    if (text && text.length >= 4 && text.length <= 250) {
       return text;
     }
   }
 
-  const plain = stripHtml(html).trim();
-  if (plain.length === 0) {
+  const plain = cleanPreheaderText(stripHtml(html));
+  if (!plain) {
     return null;
   }
   return plain.slice(0, 140);
@@ -666,9 +666,11 @@ export function extractPreheader(html: string): string | null {
  * space (U+FEFF). These are the characters ESP templates repeat after the
  * preview teaser so inbox previews stop before the body text.
  */
+const PREHEADER_PAD_ENTITY =
+  "(?:&#x0*(?:2007|34f|200[bcd]|feff);|&#0*(?:8199|847|820[345]|65279);|&zwn?j;)";
+
 const PREHEADER_PAD_TOKEN =
-  "(?:&#x0*(?:2007|34f|200[bcd]|feff);|&#0*(?:8199|847|820[345]|65279);|&zwn?j;|" +
-  "[\\u2007\\u034F\\u200B-\\u200D\\uFEFF])";
+  `(?:${PREHEADER_PAD_ENTITY}|[\\u2007\\u034F\\u200B-\\u200D\\uFEFF])`;
 
 /**
  * A run of at least six padding tokens, optionally interleaved with the
@@ -682,6 +684,36 @@ const PREHEADER_PADDING_RE = new RegExp(
   `(?:${PREHEADER_PAD_TOKEN}(?:\\s|&nbsp;|&shy;|&#0*173;|[\\u00A0\\u00AD])*){6,}`,
   "i"
 );
+
+const PREHEADER_PAD_ENTITY_RE = new RegExp(PREHEADER_PAD_ENTITY, "gi");
+
+/**
+ * A padding entity the 140/250-char preheader cap sliced mid-token, e.g. the
+ * "&#81" left dangling at the end of a stored value.
+ */
+const PREHEADER_TRAILING_PARTIAL_ENTITY_RE = /&#x?[0-9a-f]{0,6}$/i;
+
+/**
+ * Reduces a preheader to the teaser the sender actually wrote: everything
+ * after the first padding wall is body spill they meant to hide, and stray
+ * entity-form tokens ("&#8199;") would otherwise render as literal text.
+ * Raw invisible characters outside a wall are left alone — stripping lone
+ * U+200D would break emoji ZWJ sequences, and they don't render as garbage.
+ * Rows captured before this cleanup store the padded text, so read paths run
+ * this too rather than rewriting captured_emails in bulk.
+ */
+export function cleanPreheaderText(text: string | null | undefined): string | null {
+  if (!text) {
+    return null;
+  }
+  const wallStart = text.search(PREHEADER_PADDING_RE);
+  const cleaned = (wallStart >= 0 ? text.slice(0, wallStart) : text)
+    .replace(PREHEADER_PAD_ENTITY_RE, "")
+    .replace(PREHEADER_TRAILING_PARTIAL_ENTITY_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 /**
  * Detects the "preheader padding" trick: the sender followed their preview
