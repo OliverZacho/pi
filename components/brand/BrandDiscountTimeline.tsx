@@ -74,7 +74,7 @@ const DOMAIN_PAD_MS = 3 * 24 * 60 * 60 * 1000;
 /** Min horizontal gap (viewBox units) between two rendered date labels. */
 const MIN_LABEL_GAP = 30;
 /** Thickness of a stated-window bar, centred on the offer's depth line. */
-const WINDOW_BAR_H = 5;
+const WINDOW_BAR_H = 8;
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
@@ -88,9 +88,12 @@ function dayEndTs(dayKey: string): number | null {
 }
 
 /**
- * "Sale history" — every discounted send as a lollipop, plus the offer's
- * *stated* validity window drawn as a bar at the same depth whenever an
- * email actually named a deadline. The rules are deliberately conservative:
+ * "Sale history" — every discounted send as a floating dot at (send date,
+ * depth), plus the offer's *stated* validity window drawn as a pill at the
+ * same depth whenever an email actually named a deadline. No stems: dots sit
+ * directly on their window so the offer reads as one object, and a dot
+ * without a pill is exactly what it looks like — a send whose duration we
+ * don't know. The rules are deliberately conservative:
  *
  *  - a dot with no bar means the email never said how long the offer runs —
  *    we don't guess, and a gap in sends is never drawn as an ending;
@@ -347,7 +350,7 @@ export default function BrandDiscountTimeline({
                   {w.episode.extensionDays > 0 ? (
                     <text
                       x={round((x2 + xFor(w.extendedT)) / 2)}
-                      y={round(y - 7)}
+                      y={round(y - 9)}
                       className={styles.discountExtensionLabel}
                       textAnchor="middle"
                     >
@@ -359,8 +362,8 @@ export default function BrandDiscountTimeline({
               <line
                 x1={x2}
                 x2={x2}
-                y1={round(y - 7)}
-                y2={round(y + 7)}
+                y1={round(y - 9)}
+                y2={round(y + 9)}
                 className={styles.discountDeadlineTick}
               >
                 <title>{`Stated deadline ${deadlineLabel}`}</title>
@@ -397,13 +400,12 @@ export default function BrandDiscountTimeline({
           );
         })}
 
-        {/* Lollipops: one per discounted send, clickable to open the email */}
+        {/* One floating dot per discounted send, clickable to open the email */}
         {points.map((p, i) => {
           const px = xs[i];
           const py = round(yFor(p.depth));
           const ratio = Math.min(p.depth, ceiling) / ceiling;
-          const r = round(2.4 + ratio * 2.4);
-          const opacity = round(0.4 + ratio * 0.6);
+          const r = round(3.4 + ratio * 1.2);
           const isPeak = i === peakIdx;
           return (
             <g
@@ -423,29 +425,15 @@ export default function BrandDiscountTimeline({
                   : undefined
               }
             >
-              <line
-                x1={px}
-                x2={px}
-                y1={BASELINE_Y}
-                y2={py}
-                className={styles.discountStem}
-                strokeOpacity={opacity}
-              />
               {isPeak ? (
                 <circle
                   cx={px}
                   cy={py}
-                  r={r + 2.5}
+                  r={r + 3}
                   className={styles.discountPeakRing}
                 />
               ) : null}
-              <circle
-                cx={px}
-                cy={py}
-                r={r}
-                className={styles.discountDot}
-                fillOpacity={opacity}
-              />
+              <circle cx={px} cy={py} r={r} className={styles.discountDot} />
               {/* Invisible, larger hit target so small dots are easy to click */}
               <circle cx={px} cy={py} r={9} className={styles.discountHitArea}>
                 <title>

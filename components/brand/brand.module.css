@@ -972,7 +972,7 @@
 }
 
 .discountHit:hover .discountDot {
-  fill-opacity: 1;
+  stroke: var(--brand-accent, #0f172a);
 }
 
 /* Invisible, enlarged hit target sitting over each dot. */
@@ -980,13 +980,12 @@
   fill: transparent;
 }
 
-.discountStem {
-  stroke: var(--brand-accent, #0f172a);
-  stroke-width: 1.5;
-}
-
+/* Floating send dot. The card-colored ring keeps overlapping dots in a
+   dense sale burst legible, and separates a dot from its window pill. */
 .discountDot {
   fill: var(--brand-accent, #0f172a);
+  stroke: #ffffff;
+  stroke-width: 1.4;
 }
 
 .discountPeakRing {
@@ -1008,7 +1007,7 @@
    Only drawn when an email actually named a deadline. */
 .discountWindowBar {
   fill: var(--brand-accent, #0f172a);
-  fill-opacity: 0.16;
+  fill-opacity: 0.22;
 }
 
 /* Short vertical mark at the offer's ORIGINAL stated deadline. */
