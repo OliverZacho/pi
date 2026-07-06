@@ -173,7 +173,11 @@ async function processRow(
   }
 
   const endsOn = result.offerEndsOn ?? null;
-  const isExtension = result.offerIsExtension ?? null;
+  // Every row here carries a discount, so a null extension answer from the
+  // model ("no offer") is really "no extension language" — store false. This
+  // also keeps the is-null skip filter in main() a reliable "never processed"
+  // marker, so reruns only pick up genuinely unprocessed rows.
+  const isExtension = result.offerIsExtension ?? false;
 
   if (!opts.dryRun) {
     const { error } = await supabase
