@@ -46,6 +46,16 @@ export default function SiteFooter() {
       <div className={styles.footerBottom}>
         <span>&copy; 2026 Pirol</span>
         <nav className={styles.footerLegal} aria-label="Legal">
+          {/* Required Logo.dev free-plan attribution; must pass referrer
+              data, so no rel="noreferrer" here. */}
+          <a
+            href="https://logo.dev"
+            className={styles.footerLink}
+            target="_blank"
+            rel="noopener"
+          >
+            Logos provided by Logo.dev
+          </a>
           <Link href="/privacy" className={styles.footerLink}>Privacy</Link>
           <Link href="/terms" className={styles.footerLink}>Terms</Link>
           <Link href="/takedown" className={styles.footerLink}>Takedown</Link>

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ESP_LABELS, type EspProvider } from "./admin-types";
+import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -133,6 +134,7 @@ type CompanyRow = {
   is_global: boolean | null;
   subscribed_since: string;
   logo_storage_path: string | null;
+  logo_source: string | null;
   company_email_stats:
     | { email_count: number | null; last_received_at: string | null }
     | { email_count: number | null; last_received_at: string | null }[]
@@ -184,7 +186,7 @@ export async function searchBrands(
   let query = supabase
     .from("companies")
     .select(
-      "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, company_email_stats(email_count, last_received_at)"
+      "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, company_email_stats(email_count, last_received_at)"
     )
     .is("deleted_at", null);
 
@@ -371,9 +373,11 @@ export async function searchBrands(
       : {};
 
   const items: BrandsExploreCard[] = slice.map((row) => {
-    const logoUrl = row.logo_storage_path
-      ? signed[row.logo_storage_path] ?? null
-      : null;
+    const logoUrl = resolveBrandLogo(
+      row.logo_storage_path ? signed[row.logo_storage_path] ?? null : null,
+      row.logo_source,
+      row.domain
+    );
     return {
       id: row.id,
       slug: row.slug,

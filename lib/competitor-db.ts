@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrandPageData, type BrandPageData } from "./brand-db";
+import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { MAX_BRANDS_PER_COMPARISON } from "./competitor-constants";
 import type { Database } from "@/types/supabase";
@@ -716,7 +717,7 @@ async function loadSetBrands(
       `added_at,
        company_id,
        inbox_ids,
-       companies!inner(id, name, domain, markets, logo_storage_path, deleted_at)`
+       companies!inner(id, name, domain, markets, logo_storage_path, logo_source, deleted_at)`
     )
     .eq("set_id", setId)
     .order("added_at", { ascending: true });
@@ -757,7 +758,11 @@ async function loadSetBrands(
               typeof value === "string" && value.length > 0
           )
         : [],
-      logoUrl: logoPath ? signed[logoPath] ?? null : null,
+      logoUrl: resolveBrandLogo(
+        logoPath ? signed[logoPath] ?? null : null,
+        company.logo_source,
+        company.domain
+      ),
       inboxIds: Array.isArray(row.inbox_ids)
         ? row.inbox_ids.filter(
             (value): value is string => typeof value === "string"
@@ -889,6 +894,7 @@ type CompanyField =
       domain?: string | null
       markets?: string[] | null
       logo_storage_path?: string | null
+      logo_source?: string | null
       deleted_at?: string | null
     }
   | Array<{
@@ -897,6 +903,7 @@ type CompanyField =
       domain?: string | null
       markets?: string[] | null
       logo_storage_path?: string | null
+      logo_source?: string | null
       deleted_at?: string | null
     }>
   | null

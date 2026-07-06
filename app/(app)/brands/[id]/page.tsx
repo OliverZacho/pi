@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getViewer } from "@/lib/access";
 import { normalizeCompanyMarkets } from "@/lib/explore-db";
+import { resolveBrandLogo } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import {
@@ -125,7 +126,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
       admin
         .from("companies")
         .select(
-          "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, subscribed_since, deleted_at"
+          "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, logo_source, subscribed_since, deleted_at"
         )
         .eq("id", id)
         .maybeSingle(),
@@ -147,6 +148,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
         console.error("Failed to sign brand logo", err);
       }
     }
+    logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
 
     return (
       <BrandLockedDashboard
