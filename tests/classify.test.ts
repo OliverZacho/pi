@@ -141,6 +141,126 @@ describe("classifyEmail", () => {
     expect(result.primaryCtaText).toBe("Shop now");
   });
 
+  it("keeps an offer deadline only when its verbatim evidence appears in the email", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "sale",
+        confidence: 0.95,
+        reasoning: "Percent off with a stated end date.",
+        discount_percent: 40,
+        offer_ends_on: "2026-07-06",
+        offer_end_evidence: "Offer valid through July 6",
+        offer_is_extension: false
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "40% off everything",
+      html: "<p>Sitewide 40% off. Offer valid through July 6.</p>",
+      sentAt: "2026-07-03T09:00:00Z"
+    });
+
+    expect(result.offerEndsOn).toBe("2026-07-06");
+    expect(result.offerIsExtension).toBe(false);
+  });
+
+  it("drops a deadline whose evidence quote is not actually in the email", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "sale",
+        confidence: 0.95,
+        reasoning: "Summer sale.",
+        discount_percent: 20,
+        // The failure mode observed in production: a plausible date invented
+        // from the campaign theme, with fabricated (or missing) evidence.
+        offer_ends_on: "2026-07-31",
+        offer_end_evidence: "gælder til og med 31. juli",
+        offer_is_extension: false
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "20% på sommerens øjeblikke",
+      html: "<p>20% på hele sortimentet. God sommer!</p>",
+      sentAt: "2026-07-06T09:00:00Z"
+    });
+
+    expect(result.offerEndsOn).toBeNull();
+  });
+
+  it("drops a deadline when sentAt is missing, and collapses an unquoted extension claim to false", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      anthropicResponse({
+        category: "sale",
+        confidence: 0.95,
+        reasoning: "Sale with end date but unknown send time.",
+        discount_percent: 30,
+        offer_ends_on: "2026-07-10",
+        offer_end_evidence: "ends July 10",
+        offer_is_extension: true,
+        offer_extension_evidence: "we extended the sale"
+      })
+    );
+
+    const result = await classifyEmail({
+      subject: "30% off, ends July 10",
+      html: "<p>30% off everything, ends July 10.</p>"
+    });
+
+    expect(result.offerEndsOn).toBeNull();
+    expect(result.offerIsExtension).toBe(false);
+  });
+
+  it("rejects deadlines before the send day or absurdly far out", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        anthropicResponse({
+          category: "sale",
+          confidence: 0.9,
+          reasoning: "End date lies before the send date.",
+          discount_percent: 30,
+          offer_ends_on: "2026-06-30",
+          offer_end_evidence: "ends June 30",
+          offer_is_extension: false
+        })
+      )
+      .mockResolvedValueOnce(
+        anthropicResponse({
+          category: "sale",
+          confidence: 0.9,
+          reasoning: "End date a year out.",
+          discount_percent: 30,
+          offer_ends_on: "2027-08-01",
+          offer_end_evidence: "ends August 1, 2027",
+          offer_is_extension: false
+        })
+      );
+
+    const past = await classifyEmail({
+      subject: "Sale",
+      html: "<p>30% off, ends June 30.</p>",
+      sentAt: "2026-07-03T09:00:00Z"
+    });
+    const farOut = await classifyEmail({
+      subject: "Sale",
+      html: "<p>30% off, ends August 1, 2027.</p>",
+      sentAt: "2026-07-03T09:00:00Z"
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(past.offerEndsOn).toBeNull();
+    expect(farOut.offerEndsOn).toBeNull();
+  });
+
   it("falls back to rules when the LLM returns an unknown category", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-test";
 
