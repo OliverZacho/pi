@@ -1251,36 +1251,173 @@
   color: #bae6fd;
 }
 
-/* ---------- Subjects sample card ---------- */
+/* ---------- Inbox mock (recent subject lines) ----------
+   Recent sends drawn the way a mailbox list shows them: avatar, sender,
+   date, then the subject running into the grey preview text on one
+   truncated line. The signal pills stack in the column to its right,
+   filling what used to be dead space next to the subject list. */
 
-.subjectList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+.inboxSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(200px, 1fr);
+  gap: 1rem;
+  align-items: start;
 }
 
-.subjectRow {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 9px;
-  border: 1px solid #f1f5f9;
-  background: #fafafa;
+@media (max-width: 760px) {
+  .inboxSplit {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.subjectText {
-  font-size: 0.88rem;
-  font-weight: 500;
+.inboxList {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.inboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.inboxRow + .inboxRow {
+  border-top: 1px solid #f1f5f9;
+}
+
+.inboxAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.inboxAvatarLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0.2rem;
+}
+
+.inboxBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.inboxTopline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inboxFrom {
+  font-size: 0.84rem;
+  font-weight: 600;
   color: #0f172a;
-  line-height: 1.35;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.subjectMeta {
-  font-size: 0.74rem;
+.inboxDate {
+  margin-left: auto;
+  font-size: 0.72rem;
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* One truncated line, exactly like a desktop inbox: bold-ish subject,
+   then the preview text fading out after it. */
+.inboxLine {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.inboxSubject {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.inboxPreview {
+  color: #8b98ab;
+  font-weight: 400;
+}
+
+/* Tiny per-send tag telling whether this email cut its preview off with
+   the invisible-character padding trick. */
+.inboxPadTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.06rem 0.4rem;
+  border-radius: 999px;
+  border: 1px dashed #d3dce6;
+  color: #94a3b8;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.inboxPadTag_on {
+  border-style: solid;
+  border-color: #bbe3cd;
+  background: #f0faf4;
+  color: #086e4b;
+}
+
+/* The signal pills, stacked full-width beside the inbox with the value
+   pushed to the right edge so the column reads as a small fact sheet. */
+.inboxFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inboxFacts .flag {
+  width: 100%;
+}
+
+.inboxFacts .flagShare {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .inboxFacts {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .inboxFacts .flag {
+    width: auto;
+  }
+
+  .inboxFacts .flagShare {
+    margin-left: 0;
+  }
 }
 
 /* The CTA tag cloud renders its own chrome via inline styles inside

@@ -212,7 +212,20 @@ export type BrandPageData = {
   };
   subjects: {
     avgLength: number | null;
-    samples: string[];
+    /**
+     * Up to five recent sends, deduped by subject, carrying everything the
+     * dashboard's inbox mock needs to render each one the way a mailbox
+     * would: the subject, the preview text that follows it, whether the
+     * sender cut the preview off with the padding trick
+     * (see /learn/preheader-padding-trick; `null` = not yet measured),
+     * and when it landed.
+     */
+    samples: {
+      subject: string;
+      preheader: string | null;
+      padded: boolean | null;
+      receivedAt: string;
+    }[];
   };
   /**
    * The most-used primary call-to-action labels for this brand. We
@@ -1339,7 +1352,7 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
   let total = 0;
   let counted = 0;
   const seen = new Set<string>();
-  const samples: string[] = [];
+  const samples: BrandPageData["subjects"]["samples"] = [];
   for (const row of rows) {
     const subject = (row.subject ?? "").trim();
     if (subject) {
@@ -1351,7 +1364,12 @@ function computeSubjects(rows: EmailRow[]): BrandPageData["subjects"] {
       const key = subject.toLowerCase();
       if (!seen.has(key) && samples.length < 5) {
         seen.add(key);
-        samples.push(subject);
+        samples.push({
+          subject,
+          preheader: (row.preheader ?? "").trim() || null,
+          padded: row.preheader_padded ?? null,
+          receivedAt: row.received_at
+        });
       }
     }
   }
