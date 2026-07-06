@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanPreheaderText } from "./extract-metadata";
-import { withLogoDevFallback } from "./logo-dev";
+import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -254,8 +254,8 @@ export async function searchExploreEmails(
     params.sort === "brand_asc" || params.sort === "brand_desc";
 
   const companiesEmbed = needsCompanyInnerJoin
-    ? "companies!inner(id, slug, name, domain, markets, logo_storage_path)"
-    : "companies(id, slug, name, domain, markets, logo_storage_path)";
+    ? "companies!inner(id, slug, name, domain, markets, logo_storage_path, logo_source)"
+    : "companies(id, slug, name, domain, markets, logo_storage_path, logo_source)";
 
   let emailsQuery = supabase
     .from("captured_emails")
@@ -413,8 +413,9 @@ export async function searchExploreEmails(
       companyName: company?.name ?? "Unknown",
       companyDomain: company?.domain ?? null,
       companyMarkets: normalizeCompanyMarkets(company?.markets),
-      companyLogoUrl: withLogoDevFallback(
+      companyLogoUrl: resolveBrandLogo(
         logoPath ? signed[logoPath] ?? null : null,
+        company?.logo_source,
         company?.domain
       ),
       receivedAt: row.received_at,
@@ -614,6 +615,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      logo_source?: string | null;
       is_curated?: boolean | null;
     }
   | Array<{
@@ -623,6 +625,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      logo_source?: string | null;
       is_curated?: boolean | null;
     }>
   | null

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanPreheaderText } from "./extract-metadata";
-import { withLogoDevFallback } from "./logo-dev";
+import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import type { Database } from "@/types/supabase";
@@ -174,7 +174,7 @@ export async function listSavedEmails(
        captured_emails!inner(
          id, subject, preheader, received_at, category, has_gif, has_dark_mode,
          discount_percent, promo_code, company_id, duplicate_of,
-         companies(id, slug, name, domain, markets, logo_storage_path)
+         companies(id, slug, name, domain, markets, logo_storage_path, logo_source)
        )`
     )
     .eq("user_id", userId)
@@ -261,6 +261,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      logo_source?: string | null;
     }
   | Array<{
       id: string;
@@ -269,6 +270,7 @@ type CompaniesField =
       domain?: string | null;
       markets?: string[] | null;
       logo_storage_path?: string | null;
+      logo_source?: string | null;
     }>
   | null
   | undefined;
@@ -308,8 +310,9 @@ function toExploreCard(
             typeof value === "string" && value.length > 0
         )
       : [],
-    companyLogoUrl: withLogoDevFallback(
+    companyLogoUrl: resolveBrandLogo(
       logoPath ? signed[logoPath] ?? null : null,
+      company?.logo_source,
       company?.domain
     ),
     receivedAt: email.received_at,

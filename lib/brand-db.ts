@@ -23,7 +23,7 @@ import {
   startOfYearInZone
 } from "./datetime";
 import type { ExploreEmailCard } from "./explore-db";
-import { withLogoDevFallback } from "./logo-dev";
+import { resolveBrandLogo } from "./logo-dev";
 import { cleanPreheaderText } from "./extract-metadata";
 import { parseImageStats, type ImageFormat } from "./image-stats";
 import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
@@ -355,6 +355,7 @@ type CompanyRow = {
   market_citation: unknown;
   subscribed_since: string;
   logo_storage_path: string | null;
+  logo_source: string | null;
   deleted_at: string | null;
   company_inboxes:
     | {
@@ -526,7 +527,7 @@ export async function getBrandPageData(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, slug, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, company_inboxes(id, email_address, is_primary, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, slug, name, domain, markets, primary_market_country, market_confidence, is_global, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, company_inboxes(id, email_address, is_primary, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle<CompanyRow>();
@@ -610,8 +611,9 @@ export async function getBrandPageData(
   const signed = logoPath
     ? await getSignedAssets([logoPath], { transform: BRAND_LOGO_TRANSFORM })
     : {};
-  const logoUrl = withLogoDevFallback(
+  const logoUrl = resolveBrandLogo(
     logoPath ? signed[logoPath] ?? null : null,
+    companyRow.logo_source,
     companyRow.domain
   );
 

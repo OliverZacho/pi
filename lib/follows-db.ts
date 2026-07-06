@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeBrandAggregates } from "./brands-explore-db";
-import { withLogoDevFallback } from "./logo-dev";
+import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -192,7 +192,7 @@ export async function listFollowedBrandCards(
     .select(
       `created_at,
        company_id,
-       companies!inner(id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, deleted_at, company_email_stats(last_received_at))`
+       companies!inner(id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, deleted_at, company_email_stats(last_received_at))`
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -244,8 +244,9 @@ export async function listFollowedBrandCards(
         : [],
       primaryMarketCountry: company.primary_market_country ?? null,
       isGlobal: company.is_global ?? false,
-      logoUrl: withLogoDevFallback(
+      logoUrl: resolveBrandLogo(
         logoPath ? signed[logoPath] ?? null : null,
+        company.logo_source,
         company.domain
       ),
       followedAt: row.created_at,
@@ -276,6 +277,7 @@ type CompanyRow = {
   is_global?: boolean | null;
   subscribed_since?: string;
   logo_storage_path?: string | null;
+  logo_source?: string | null;
   deleted_at?: string | null;
   company_email_stats?: EmailStatsRow | EmailStatsRow[] | null;
 };

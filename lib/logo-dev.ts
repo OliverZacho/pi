@@ -1,21 +1,27 @@
 /**
- * Logo.dev fallback for brand logos.
+ * Logo.dev is the primary source for brand logos.
  *
- * Our own email-extraction pipeline stays the primary source: when a
- * company has a `logo_storage_path` we serve that (signed URL or CDN).
- * Logo.dev only fills the gap for brands where extraction hasn't
- * produced a logo yet, keyed by the company domain.
+ * The email-extraction pipeline produced too many wrong picks, so its
+ * output is no longer trusted for display: a captured logo is only shown
+ * when an admin manually selected it (`companies.logo_source = 'manual'`)
+ * or when a Logo.dev URL can't be built at all (missing token or domain).
+ * The admin logo tooling still reads the raw pipeline output directly.
  *
- * The publishable token is safe to expose in URLs. The free plan caps
- * at 500k CDN requests/month and requires the visible "Logos provided
- * by Logo.dev" link (site footer + app sidebar). Unknown domains get
- * Logo.dev's generated monogram, so the URL always renders an image.
+ * The publishable token is safe to expose in URLs. The free plan caps at
+ * 500k CDN requests/month and requires the visible "Logos provided by
+ * Logo.dev" link (marketing site footer). Unknown domains get Logo.dev's
+ * generated monogram, so the URL always renders an image.
  */
-export function withLogoDevFallback(
-  logoUrl: string | null,
+export function resolveBrandLogo(
+  storedUrl: string | null,
+  source: string | null | undefined,
   domain: string | null | undefined
 ): string | null {
-  if (logoUrl) return logoUrl;
+  if (source === "manual" && storedUrl) return storedUrl;
+  return logoDevUrl(domain) ?? storedUrl;
+}
+
+function logoDevUrl(domain: string | null | undefined): string | null {
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN;
   const host = domain ? normalizeHost(domain) : null;
   if (!token || !host) return null;
