@@ -136,6 +136,7 @@ export type Database = {
           category: string
           classification_confidence: number
           classification_source: string
+          color_buckets: string[] | null
           company_id: string | null
           content_hash: string | null
           country_confidence: number | null
@@ -187,6 +188,7 @@ export type Database = {
           category?: string
           classification_confidence?: number
           classification_source?: string
+          color_buckets?: string[] | null
           company_id?: string | null
           content_hash?: string | null
           country_confidence?: number | null
@@ -238,6 +240,7 @@ export type Database = {
           category?: string
           classification_confidence?: number
           classification_source?: string
+          color_buckets?: string[] | null
           company_id?: string | null
           content_hash?: string | null
           country_confidence?: number | null

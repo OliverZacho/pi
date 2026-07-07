@@ -478,8 +478,8 @@ export default function BrandTeardown() {
           <div className={styles.fetchLimit} role="status">
             <p className={styles.fetchLimitTitle}>That&rsquo;s the preview — {MAX_LIVE} emails.</p>
             <p className={styles.fetchLimitBody}>
-              The archive holds thousands more, from every brand we track —
-              broken down exactly like this.
+              The full archive holds thousands more, from every brand we track.
+              What you see here is the simplest version of what&rsquo;s inside.
             </p>
             <div className={styles.fetchLimitCtas}>
               <Link href="/pricing" className={styles.fetchBtn}>

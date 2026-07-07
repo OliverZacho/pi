@@ -11,7 +11,6 @@ import {
 } from "react";
 import type { EspProvider } from "@/lib/admin-types";
 import type {
-  BrandsActivityWindow,
   BrandsExploreCard,
   BrandsFacets,
   BrandsSortKey
@@ -43,13 +42,6 @@ const SORT_LABEL: Record<BrandsSortKey, string> = SORT_OPTIONS.reduce(
   (acc, opt) => ({ ...acc, [opt.id]: opt.label }),
   {} as Record<BrandsSortKey, string>
 );
-
-const ACTIVITY_OPTIONS: { id: BrandsActivityWindow; label: string }[] = [
-  { id: "30d", label: "30 days" },
-  { id: "90d", label: "90 days" },
-  { id: "180d", label: "180 days" },
-  { id: "inactive", label: "Inactive" }
-];
 
 const SEARCH_DEBOUNCE_MS = 250;
 /** Smallest cadence-slider step. 0.1 day ≈ 2.4 hours; finer than that and
@@ -139,7 +131,6 @@ export default function BrandsExploreClient({
   const cadenceActive =
     cadenceRange[0] > 0 || cadenceRange[1] < facets.cadenceMaxDays;
 
-  const [activity, setActivity] = useState<BrandsActivityWindow | null>(null);
   const [minEmailsInput, setMinEmailsInput] = useState("");
   const [subscribedAfter, setSubscribedAfter] = useState("");
   const [subscribedBefore, setSubscribedBefore] = useState("");
@@ -259,14 +250,6 @@ export default function BrandsExploreClient({
       setCadenceRange([Math.min(lo, hi), Math.max(lo, hi)]);
     }
 
-    const activityParam = sp.get("activity");
-    if (
-      activityParam &&
-      ACTIVITY_OPTIONS.some((option) => option.id === activityParam)
-    ) {
-      setActivity(activityParam as BrandsActivityWindow);
-    }
-
     const minEmails = sp.get("minEmails");
     if (minEmails) setMinEmailsInput(minEmails);
 
@@ -301,7 +284,6 @@ export default function BrandsExploreClient({
       params.set("cadenceMin", cadenceRange[0].toFixed(1));
       params.set("cadenceMax", cadenceRange[1].toFixed(1));
     }
-    if (activity) params.set("activity", activity);
     if (parsedMinEmails !== null) {
       params.set("minEmails", String(parsedMinEmails));
     }
@@ -323,7 +305,6 @@ export default function BrandsExploreClient({
     selectedEsps,
     cadenceActive,
     cadenceRange,
-    activity,
     parsedMinEmails,
     subscribedAfter,
     subscribedBefore,
@@ -342,7 +323,6 @@ export default function BrandsExploreClient({
         params.set("cadenceMin", cadenceRange[0].toFixed(1));
         params.set("cadenceMax", cadenceRange[1].toFixed(1));
       }
-      if (activity) params.set("activity", activity);
       if (parsedMinEmails !== null) {
         params.set("minEmails", String(parsedMinEmails));
       }
@@ -372,7 +352,6 @@ export default function BrandsExploreClient({
       selectedEsps,
       cadenceActive,
       cadenceRange,
-      activity,
       parsedMinEmails,
       subscribedAfter,
       subscribedBefore,
@@ -494,7 +473,6 @@ export default function BrandsExploreClient({
   }, [facets.espProviders, espQuery]);
 
   const moreFiltersCount =
-    (activity ? 1 : 0) +
     (parsedMinEmails !== null ? 1 : 0) +
     (cadenceActive ? 1 : 0) +
     (subscribedAfter ? 1 : 0) +
@@ -519,7 +497,6 @@ export default function BrandsExploreClient({
   }
 
   function clearMoreFilters() {
-    setActivity(null);
     setMinEmailsInput("");
     setCadenceRange([0, facets.cadenceMaxDays]);
     setSubscribedAfter("");
@@ -890,32 +867,6 @@ export default function BrandsExploreClient({
                 role="dialog"
                 aria-label="More brand filters"
               >
-                <div className={styles.panelGroup}>
-                  <div className={styles.panelLabel}>Last activity</div>
-                  <div className={styles.segmented}>
-                    {ACTIVITY_OPTIONS.map((option) => {
-                      const selected = activity === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className={`${styles.segmentedItem}${
-                            selected ? ` ${styles.segmentedItemActive}` : ""
-                          }`}
-                          onClick={() =>
-                            setActivity(selected ? null : option.id)
-                          }
-                          aria-pressed={selected}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className={styles.panelDivider} />
-
                 <div className={styles.panelGroup}>
                   <div className={styles.panelLabel}>Minimum emails</div>
                   <div className={styles.numberRow}>

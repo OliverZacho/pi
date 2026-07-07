@@ -1029,6 +1029,83 @@
   background: #1e293b;
 }
 
+/* ---------- Colour filter ---------- */
+
+.colorPopover {
+  width: 264px;
+  padding: 0.8rem 0.85rem 0.6rem;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem 0.4rem;
+}
+
+.colorSwatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.colorSwatch:hover {
+  background: #f8fafc;
+}
+
+.colorSwatchActive {
+  border-color: #0f172a;
+  background: #f1f5f9;
+}
+
+.colorSwatchDot {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  /* Soft ring so pale swatches (beige, yellow) stay visible on white. */
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.colorSwatchActive .colorSwatchDot {
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.12),
+    0 0 0 2px #ffffff,
+    0 0 0 3.5px #0f172a;
+}
+
+.colorSwatchLabel {
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+.colorSwatchActive .colorSwatchLabel {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+/* The little colour dots shown on the filter chip when swatches are picked. */
+.colorChipDots {
+  display: inline-flex;
+  align-items: center;
+}
+
+.colorChipDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+}
+
+.colorChipDot + .colorChipDot {
+  margin-left: -4px;
+}
+
 /* ---------- Grid ---------- */
 
 .grid {

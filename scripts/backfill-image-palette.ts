@@ -108,7 +108,7 @@ async function main(): Promise<void> {
       }
 
       const paths = Array.isArray(row.image_urls) ? (row.image_urls as string[]) : [];
-      const palette = await extractImagePaletteForEmail(paths);
+      const { palette } = await extractImagePaletteForEmail(paths);
 
       if (palette.length === 0) {
         skippedNoColours++;

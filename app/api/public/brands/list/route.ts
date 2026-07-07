@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   searchBrands,
-  type BrandsActivityWindow,
   type BrandsSearchParams,
   type BrandsSortKey
 } from "@/lib/brands-explore-db";
@@ -13,13 +12,6 @@ const SORT_KEYS: BrandsSortKey[] = [
   "recently_added",
   "name_asc",
   "name_desc"
-];
-
-const ACTIVITY_WINDOWS: BrandsActivityWindow[] = [
-  "30d",
-  "90d",
-  "180d",
-  "inactive"
 ];
 
 /**
@@ -38,12 +30,6 @@ export async function GET(request: Request) {
       ? (sortRaw as BrandsSortKey)
       : "most_active";
 
-  const activityRaw = params.get("activity");
-  const activity: BrandsActivityWindow | null =
-    activityRaw && (ACTIVITY_WINDOWS as string[]).includes(activityRaw)
-      ? (activityRaw as BrandsActivityWindow)
-      : null;
-
   const countryRaw = params.get("country");
   const country =
     countryRaw && /^[A-Za-z]{2}$/.test(countryRaw)
@@ -60,7 +46,6 @@ export async function GET(request: Request) {
     espProviders: [],
     cadenceMinDays: parseNonNegativeFloat(params.get("cadenceMin")),
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),
-    activity,
     minEmailCount: parseNonNegativeInt(params.get("minEmails")),
     subscribedAfter: params.get("after") ?? null,
     subscribedBefore: params.get("before") ?? null,

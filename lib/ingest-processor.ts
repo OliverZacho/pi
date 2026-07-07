@@ -7,6 +7,7 @@ import { extractImageUrlsFromHtml } from "./email-utils";
 import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
 import { extractImagePaletteForEmail } from "./extract-image-palette";
+import { classifyPaletteBuckets } from "./color-buckets";
 import { buildImageStats } from "./image-stats";
 import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
@@ -307,11 +308,23 @@ async function ingestEmailReceivedEvent(
     })
   );
 
-  // Pixel-based brand palette from the mirrored content images. Never throws —
-  // returns [] on any failure — so it can't break ingestion.
-  const imagePalette = await runStage("extract_image_palette", () =>
-    extractImagePaletteForEmail(mirror.storedPaths)
+  // Pixel-based brand palette from the mirrored content images, plus the
+  // Explore colour buckets classified from a true area share of those pixels.
+  // Never throws — returns empty results on any failure — so it can't break
+  // ingestion.
+  const { palette: imagePalette, buckets: imageColorBuckets } = await runStage(
+    "extract_image_palette",
+    () => extractImagePaletteForEmail(mirror.storedPaths)
   );
+
+  // Colour buckets that power the Explore colour filter. The pixel path measures
+  // real coverage (a colour is tagged only when it visibly fills the email), so
+  // prefer it; fall back to the count-based markup tokens only when there were
+  // no analysable images. Pure/local, so no separate runStage.
+  const colorBuckets =
+    imagePalette.length > 0
+      ? imageColorBuckets
+      : classifyPaletteBuckets(metadata.palette_colors);
 
   const espResult = await runStage("detect_esp", () =>
     detectEsp({
@@ -371,6 +384,7 @@ async function ingestEmailReceivedEvent(
       htmlStoragePath,
       imageStoragePaths: mirror.storedPaths,
       remoteImageUrls,
+      colorBuckets,
       classification: {
         category: classification.category,
         confidence: classification.confidence,

@@ -9,6 +9,7 @@ import type {
 } from "@/lib/explore-db";
 import type { CollectionSummary } from "@/lib/collections-db";
 import { EMAIL_CATEGORY_LABELS } from "@/lib/admin-types";
+import { COLOR_BUCKETS } from "@/lib/color-buckets";
 import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import EmailCard from "./EmailCard";
@@ -214,6 +215,7 @@ type PopoverName =
   | "brands"
   | "brandCategories"
   | "categories"
+  | "colors"
   | "more"
   | "sort"
   | null;
@@ -270,6 +272,7 @@ export default function ExploreClient({
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set()
   );
+  const [selectedColors, setSelectedColors] = useState<Set<string>>(new Set());
   const [brandQuery, setBrandQuery] = useState("");
   const [brandRequestOpen, setBrandRequestOpen] = useState(false);
   const [marketQuery, setMarketQuery] = useState("");
@@ -671,6 +674,9 @@ export default function ExploreClient({
     const categories = sp.getAll("category").filter(Boolean);
     if (categories.length > 0) setSelectedCategories(new Set(categories));
 
+    const colors = sp.getAll("color").filter(Boolean);
+    if (colors.length > 0) setSelectedColors(new Set(colors));
+
     if (sp.get("gif") === "1") setHasGif(true);
     if (sp.get("dark") === "1") setHasDarkMode(true);
 
@@ -708,6 +714,7 @@ export default function ExploreClient({
       selectedBrandIds.size > 0 ||
       selectedMarkets.size > 0 ||
       selectedCategories.size > 0 ||
+      selectedColors.size > 0 ||
       hasGif ||
       hasDarkMode ||
       receivedAfter !== "" ||
@@ -719,6 +726,7 @@ export default function ExploreClient({
     selectedBrandIds,
     selectedMarkets,
     selectedCategories,
+    selectedColors,
     hasGif,
     hasDarkMode,
     receivedAfter,
@@ -739,6 +747,7 @@ export default function ExploreClient({
     for (const category of selectedCategories) {
       params.append("category", category);
     }
+    for (const color of selectedColors) params.append("color", color);
     if (hasGif) params.set("gif", "1");
     if (hasDarkMode) params.set("dark", "1");
     if (receivedAfter) params.set("from", receivedAfter);
@@ -767,6 +776,7 @@ export default function ExploreClient({
     selectedBrandIds,
     selectedMarkets,
     selectedCategories,
+    selectedColors,
     hasGif,
     hasDarkMode,
     receivedAfter,
@@ -803,6 +813,7 @@ export default function ExploreClient({
       for (const category of selectedCategories) {
         params.append("category", category);
       }
+      for (const color of selectedColors) params.append("color", color);
       if (hasGif) params.set("hasGif", "1");
       if (hasDarkMode) params.set("hasDarkMode", "1");
 
@@ -832,6 +843,7 @@ export default function ExploreClient({
       selectedBrandIds,
       selectedMarkets,
       selectedCategories,
+      selectedColors,
       hasGif,
       hasDarkMode,
       receivedAfter,
@@ -1016,6 +1028,15 @@ export default function ExploreClient({
     });
   }
 
+  function toggleColor(key: string) {
+    setSelectedColors((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   function clearMoreFilters() {
     setHasGif(false);
     setHasDarkMode(false);
@@ -1031,6 +1052,7 @@ export default function ExploreClient({
     selectedBrandIds.size > 0 ||
     selectedMarkets.size > 0 ||
     selectedCategories.size > 0 ||
+    selectedColors.size > 0 ||
     moreFiltersCount > 0 ||
     debouncedQuery.length > 0;
 
@@ -1293,6 +1315,77 @@ export default function ExploreClient({
                       type="button"
                       className={styles.popoverClear}
                       onClick={() => setSelectedCategories(new Set())}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className={styles.filterChipWrap}>
+            <button
+              type="button"
+              className={`${styles.filterChip}${
+                selectedColors.size > 0 ? ` ${styles.filterChipActive}` : ""
+              }${openPopover === "colors" ? ` ${styles.filterChipOpen}` : ""}`}
+              onClick={() => togglePopover("colors")}
+              aria-haspopup="true"
+              aria-expanded={openPopover === "colors"}
+            >
+              <span>Colours</span>
+              {selectedColors.size > 0 ? (
+                <span className={styles.colorChipDots} aria-hidden="true">
+                  {COLOR_BUCKETS.filter((b) => selectedColors.has(b.key))
+                    .slice(0, 3)
+                    .map((b) => (
+                      <span
+                        key={b.key}
+                        className={styles.colorChipDot}
+                        style={{ background: b.swatch }}
+                      />
+                    ))}
+                </span>
+              ) : null}
+              <ChevronIcon />
+            </button>
+            {openPopover === "colors" ? (
+              <div
+                className={`${styles.popover} ${styles.colorPopover}`}
+                role="menu"
+              >
+                <div className={styles.colorGrid}>
+                  {COLOR_BUCKETS.map((bucket) => {
+                    const active = selectedColors.has(bucket.key);
+                    return (
+                      <button
+                        key={bucket.key}
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={active}
+                        className={`${styles.colorSwatch}${
+                          active ? ` ${styles.colorSwatchActive}` : ""
+                        }`}
+                        onClick={() => toggleColor(bucket.key)}
+                      >
+                        <span
+                          className={styles.colorSwatchDot}
+                          style={{ background: bucket.swatch }}
+                        />
+                        <span className={styles.colorSwatchLabel}>
+                          {bucket.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedColors.size > 0 ? (
+                  <div className={styles.popoverFooter}>
+                    <button
+                      type="button"
+                      className={styles.popoverClear}
+                      onClick={() => setSelectedColors(new Set())}
                     >
                       Clear
                     </button>
