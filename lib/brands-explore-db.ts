@@ -61,9 +61,6 @@ export type BrandsSortKey =
   | "name_asc"
   | "name_desc";
 
-/** Activity windows expressed in days. Backed by `last_received_at`. */
-export type BrandsActivityWindow = "30d" | "90d" | "180d" | "inactive";
-
 export type BrandsSearchParams = {
   query?: string;
   markets?: string[];
@@ -79,7 +76,6 @@ export type BrandsSearchParams = {
    */
   cadenceMinDays?: number | null;
   cadenceMaxDays?: number | null;
-  activity?: BrandsActivityWindow | null;
   minEmailCount?: number | null;
   subscribedAfter?: string | null;
   subscribedBefore?: string | null;
@@ -163,7 +159,7 @@ function relationFirst<T>(value: T | T[] | null | undefined): T | null {
  *
  * Two-pass design:
  *  1. Pull non-deleted companies + the `company_email_stats` view (so
- *     activity / volume filters and sorts can run on cheap counters).
+ *     volume filters and sorts can run on cheap counters).
  *  2. Pull one row per brand from the `brand_send_stats` view (ESP +
  *     cadence, aggregated in the DB). The aggregates are folded into
  *     each candidate row, then ESP / cadence filters are applied and
@@ -210,7 +206,7 @@ export async function searchBrands(
   // DB. The term needs to match a brand's *category* too (e.g. "kids" →
   // "baby & kids"), and PostgREST can't do a partial `ilike` against a
   // `text[]` element. The function already fetches the full structural
-  // match set and filters in memory for activity/cadence/ESP, so folding
+  // match set and filters in memory for cadence/ESP, so folding
   // the text match in there keeps one code path and makes name, domain and
   // category all searchable.
   const searchTerm = (params.query ?? "").trim().toLowerCase();
@@ -224,13 +220,6 @@ export async function searchBrands(
 
   const { data, error } = await query;
   if (error) throw error;
-
-  const now = Date.now();
-  const windowMs: Record<Exclude<BrandsActivityWindow, "inactive">, number> = {
-    "30d": 30 * 86_400_000,
-    "90d": 90 * 86_400_000,
-    "180d": 180 * 86_400_000
-  };
 
   type EnrichedRow = CompanyRow & {
     emailCount: number;
@@ -289,21 +278,6 @@ export async function searchBrands(
   if (typeof params.minEmailCount === "number" && params.minEmailCount > 0) {
     const min = Math.floor(params.minEmailCount);
     filtered = filtered.filter((row) => row.emailCount >= min);
-  }
-  if (params.activity) {
-    if (params.activity === "inactive") {
-      filtered = filtered.filter(
-        (row) =>
-          row.lastReceivedMs === null ||
-          now - row.lastReceivedMs > windowMs["180d"]
-      );
-    } else {
-      const max = windowMs[params.activity];
-      filtered = filtered.filter(
-        (row) =>
-          row.lastReceivedMs !== null && now - row.lastReceivedMs <= max
-      );
-    }
   }
   if (params.espProviders && params.espProviders.length > 0) {
     const allowed = new Set<EspProvider>(params.espProviders);

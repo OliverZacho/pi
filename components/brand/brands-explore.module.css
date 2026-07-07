@@ -488,50 +488,8 @@
 }
 
 /*
- * Segmented pill group used for the activity-window filter. Same
- * visual idiom as the iOS segmented control: one filled-in segment
- * indicates the current choice.
- */
-.segmented {
-  display: inline-flex;
-  align-items: stretch;
-  padding: 0.2rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  gap: 0.1rem;
-}
-
-.segmentedItem {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  border: 0;
-  background: transparent;
-  color: #475569;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-}
-
-.segmentedItem:hover {
-  color: #0f172a;
-}
-
-.segmentedItemActive {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08),
-    0 0 0 1px rgba(15, 23, 42, 0.04);
-}
-
-/*
- * Primary Brands / Emails switch on the Following page. Larger and more
- * prominent than the in-popover `.segmented` group since it controls the
- * whole page, but built on the same pill idiom for consistency.
+ * Primary Brands / Emails switch on the Following page. Built on the
+ * pill idiom: a filled-in segment indicates the current choice.
  */
 .viewToggle {
   display: inline-flex;

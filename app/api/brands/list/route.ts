@@ -3,7 +3,6 @@ import { requireArchiveAccess } from "@/lib/require-admin-api";
 import { ESP_LABELS, type EspProvider } from "@/lib/admin-types";
 import {
   searchBrands,
-  type BrandsActivityWindow,
   type BrandsSearchParams,
   type BrandsSortKey
 } from "@/lib/brands-explore-db";
@@ -14,13 +13,6 @@ const SORT_KEYS: BrandsSortKey[] = [
   "recently_added",
   "name_asc",
   "name_desc"
-];
-
-const ACTIVITY_WINDOWS: BrandsActivityWindow[] = [
-  "30d",
-  "90d",
-  "180d",
-  "inactive"
 ];
 
 // `ESP_LABELS` is the source of truth for the valid set so adding a
@@ -49,12 +41,6 @@ export async function GET(request: Request) {
       ? (sortRaw as BrandsSortKey)
       : "most_active";
 
-  const activityRaw = params.get("activity");
-  const activity: BrandsActivityWindow | null =
-    activityRaw && (ACTIVITY_WINDOWS as string[]).includes(activityRaw)
-      ? (activityRaw as BrandsActivityWindow)
-      : null;
-
   const espProviders = params
     .getAll("esp")
     .filter((id): id is EspProvider => VALID_ESP_IDS.has(id as EspProvider));
@@ -73,7 +59,6 @@ export async function GET(request: Request) {
     espProviders,
     cadenceMinDays: parseNonNegativeFloat(params.get("cadenceMin")),
     cadenceMaxDays: parseNonNegativeFloat(params.get("cadenceMax")),
-    activity,
     minEmailCount: parseNonNegativeInt(params.get("minEmails")),
     subscribedAfter: params.get("after") ?? null,
     subscribedBefore: params.get("before") ?? null,

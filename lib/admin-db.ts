@@ -1452,6 +1452,12 @@ export type StoreProcessedEmailInput = {
   htmlStoragePath: string;
   imageStoragePaths: string[];
   remoteImageUrls: string[];
+  /**
+   * Prominent perceptual colour buckets for the email, derived from its
+   * palette by `classifyPaletteBuckets` (lib/color-buckets.ts). Persisted to
+   * the indexed `color_buckets` column that powers the Explore colour filter.
+   */
+  colorBuckets?: string[];
   classification: {
     category: EmailCategory;
     confidence: number;
@@ -1574,6 +1580,7 @@ export async function storeProcessedEmail(
       preheader_padded: enrichment.preheaderPadded ?? null,
       has_gif: enrichment.hasGif ?? false,
       has_dark_mode: enrichment.hasDarkMode ?? false,
+      color_buckets: input.colorBuckets ?? null,
       discount_percent: input.classification.discountPercent ?? null,
       discount_amount: input.classification.discountAmount ?? null,
       currency: input.classification.currency ?? null,

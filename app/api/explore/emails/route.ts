@@ -44,6 +44,7 @@ export async function GET(request: Request) {
     brandIds: params.getAll("brand").filter(Boolean),
     markets: params.getAll("market").filter(Boolean),
     categories: params.getAll("category").filter(Boolean),
+    colors: params.getAll("color").filter(Boolean),
     hasGif: params.get("hasGif") === "1",
     hasDarkMode: params.get("hasDarkMode") === "1",
     receivedAfter: params.get("after") ?? null,

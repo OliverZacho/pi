@@ -114,6 +114,11 @@ create table if not exists public.captured_emails (
   primary_cta_url text,
   auth_results jsonb,
   list_headers jsonb,
+  -- Prominent perceptual colour buckets (red/yellow/green/blue/purple/
+  -- pink/beige/black) derived from the email's palette by lib/color-buckets.ts.
+  -- Powers the Explore colour filter via a GIN array-overlap. Null until
+  -- classified.
+  color_buckets text[],
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   constraint captured_emails_esp_confidence_range
@@ -139,6 +144,8 @@ create index if not exists captured_emails_classification_source_idx on public.c
 create index if not exists captured_emails_esp_provider_idx
   on public.captured_emails (esp_provider)
   where esp_provider is not null;
+create index if not exists captured_emails_color_buckets_gin_idx
+  on public.captured_emails using gin (color_buckets);
 create index if not exists captured_emails_discount_percent_idx
   on public.captured_emails (received_at desc)
   where discount_percent is not null;

@@ -26,7 +26,21 @@ export async function GET() {
       }
     });
   } catch (error) {
-    console.error("Failed to load search facets", error);
+    // Log the concrete message/code, not the raw object: a PostgrestError's
+    // fields are non-enumerable, so the structured JSON logger serialises it
+    // to a useless `{}`. Spell out what actually failed.
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null
+          ? JSON.stringify({
+              message: (error as { message?: unknown }).message,
+              code: (error as { code?: unknown }).code,
+              details: (error as { details?: unknown }).details,
+              hint: (error as { hint?: unknown }).hint
+            })
+          : String(error);
+    console.error(`Failed to load search facets: ${detail}`);
     return NextResponse.json(
       { error: "Failed to load search facets" },
       { status: 500 }

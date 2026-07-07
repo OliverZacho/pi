@@ -5,7 +5,7 @@ export const EMAIL_HTML_BUCKET = "email-html";
 export const EMAIL_ASSETS_BUCKET = "email-assets";
 
 const FETCH_TIMEOUT_MS = 5_000;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Signed URLs live for 7 days. Bumped up from 1 hour so the same URL is

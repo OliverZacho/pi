@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isColorBucketKey } from "./color-buckets";
 import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
@@ -65,6 +66,12 @@ export type ExploreSearchParams = {
   restrictBrandIds?: string[] | null;
   markets?: string[];
   categories?: string[];
+  /**
+   * Perceptual colour buckets (see lib/color-buckets.ts). An email passes if
+   * its `color_buckets` array overlaps any selected bucket — i.e. it's
+   * prominently made of at least one of the chosen colours.
+   */
+  colors?: string[];
   hasGif?: boolean;
   hasDarkMode?: boolean;
   receivedAfter?: string | null;
@@ -307,6 +314,19 @@ export async function searchExploreEmails(
         `group_segment_categories.is.null,group_segment_categories.ov.{${safe.join(",")}}`
       );
     }
+  }
+  // Colour filter: keep rows whose prominent buckets overlap the selection.
+  // We validate against the known bucket keys so only the fixed vocabulary
+  // reaches the array-literal the client builds. If a colour was requested but
+  // none are recognised (e.g. a stale `?color=orange` bookmark from before the
+  // vocabulary changed), return nothing rather than silently dropping the
+  // filter and showing the whole catalogue.
+  if (params.colors && params.colors.length > 0) {
+    const validColors = params.colors.filter((c) => isColorBucketKey(c));
+    if (validColors.length === 0) {
+      return emptyResult(page, pageSize);
+    }
+    emailsQuery = emailsQuery.overlaps("color_buckets", validColors);
   }
   if (params.hasGif) {
     emailsQuery = emailsQuery.eq("has_gif", true);
