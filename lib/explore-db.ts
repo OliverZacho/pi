@@ -254,22 +254,22 @@ export async function searchExploreEmails(
     }
   }
 
-  // Inner join only when sorting by brand name; otherwise a left join
-  // keeps the (small handful of) orphan emails without a company_id
-  // visible in Explore, matching the original behavior.
-  const needsCompanyInnerJoin =
-    params.sort === "brand_asc" || params.sort === "brand_desc";
-
-  const companiesEmbed = needsCompanyInnerJoin
-    ? "companies!inner(id, slug, name, domain, markets, logo_storage_path, logo_source)"
-    : "companies(id, slug, name, domain, markets, logo_storage_path, logo_source)";
+  // Always inner-join companies. An email that isn't attributed to a brand
+  // (company_id null, or pointing at a company that no longer exists) must
+  // never appear in the archive: it renders as an "Unknown" card and can
+  // expose non-marketing mail (auto-replies, bounces, personal email) that
+  // happened to land in a capture inbox. The inner join drops those rows; the
+  // explicit `not(company_id is null)` below states the same intent plainly.
+  const companiesEmbed =
+    "companies!inner(id, slug, name, domain, markets, logo_storage_path, logo_source)";
 
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
       `id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, company_id, ${companiesEmbed}`,
       { count: "exact" }
-    );
+    )
+    .not("company_id", "is", null);
 
   if (params.emailIds && params.emailIds.length > 0) {
     emailsQuery = emailsQuery.in("id", params.emailIds);

@@ -2204,7 +2204,12 @@ div.infoBrandRow {
 .trickTooltip {
   position: absolute;
   bottom: calc(100% + 0.5rem);
-  left: 0;
+  /* Anchor to the pill's right edge so the tooltip opens leftward and stays
+     inside the 360px info panel. The panel needs overflow-y:auto to scroll,
+     which forces overflow-x to clip too, so a left-anchored tooltip on a pill
+     sitting mid-row would be cut off at the panel's right edge. */
+  right: 0;
+  left: auto;
   z-index: 20;
   width: 250px;
   padding: 0.55rem 0.7rem;
@@ -2231,7 +2236,7 @@ div.infoBrandRow {
   content: "";
   position: absolute;
   top: 100%;
-  left: 0.55rem;
+  right: 0.9rem;
   border: 5px solid transparent;
   border-top-color: #0f172a;
 }

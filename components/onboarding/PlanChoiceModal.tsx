@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Caveat } from "next/font/google";
 import styles from "./plan-choice.module.css";
+import CheckoutAuthFlow from "./CheckoutAuthFlow";
+import { perMonthLabel } from "@/lib/pricing";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -42,8 +44,8 @@ const PLANS: Plan[] = [
     id: "solo",
     name: "Solo",
     blurb: "For the individual marketer studying the competition.",
-    monthly: 29,
-    annual: 290,
+    monthly: 30,
+    annual: 300,
     cta: "Get Solo",
     features: [
       "Full access to the entire archive",
@@ -56,8 +58,8 @@ const PLANS: Plan[] = [
     id: "team",
     name: "Team",
     blurb: "For marketing teams and agencies working together.",
-    monthly: 89,
-    annual: 890,
+    monthly: 90,
+    annual: 900,
     featured: true,
     cta: "Get Team",
     features: [
@@ -69,10 +71,6 @@ const PLANS: Plan[] = [
   }
 ];
 
-/** Per-month figure shown on the card, rounded for display. */
-function perMonth(plan: Plan, billing: Billing): number {
-  return billing === "annual" ? Math.round(plan.annual / 12) : plan.monthly;
-}
 
 /**
  * The plan picker. Two modes share one component:
@@ -85,8 +83,8 @@ function perMonth(plan: Plan, billing: Billing): number {
  *    free user clicks any in-app upgrade CTA. It's dismissible (×, Esc, overlay
  *    click) and the Free card simply closes — the user already has that tier.
  *
- * Solo/Team currently run the temporary free-grant bridge (see /api/select-plan)
- * and bounce through /explore?upgraded=1 in both modes.
+ * Free stamps the onboarding choice via /api/select-plan; Solo/Team hand off to
+ * Stripe Checkout (/api/checkout) in both modes.
  */
 export default function PlanChoiceModal({
   onClose
@@ -98,6 +96,10 @@ export default function PlanChoiceModal({
   const [billing, setBilling] = useState<Billing>("annual");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // When a logged-out visitor picks a paid plan, we swap the cards for an
+  // inline email-verify step (this holds which plan they're buying) and resume
+  // checkout once they have a session.
+  const [verifyPlan, setVerifyPlan] = useState<"solo" | "team" | null>(null);
 
   const dismissible = typeof onClose === "function";
 
@@ -112,6 +114,27 @@ export default function PlanChoiceModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [dismissible, onClose, pending]);
 
+  /**
+   * POST `/api/checkout` for a paid plan and hand off to Stripe on success.
+   * Returns "unauth" when there's no session yet, so the caller can show the
+   * inline email-verify step and retry once the visitor is signed in.
+   */
+  async function startPaidCheckout(
+    planId: "solo" | "team"
+  ): Promise<"unauth" | void> {
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: planId, billing })
+    });
+    if (res.status === 401) return "unauth";
+    const data: { url?: string; error?: string } = await res.json();
+    if (!res.ok || !data.url) {
+      throw new Error(data.error ?? "Could not start checkout");
+    }
+    window.location.assign(data.url);
+  }
+
   async function choose(planId: Plan["id"]) {
     // In upgrade mode the user is already on Free — just close, no round-trip.
     if (dismissible && planId === "free") {
@@ -121,26 +144,58 @@ export default function PlanChoiceModal({
     setPending(planId);
     setError(null);
     try {
-      const res = await fetch("/api/select-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId })
-      });
-      const data: { ok?: boolean; redirect?: string | null; error?: string } =
-        await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error ?? "Could not save your choice");
-      }
-      if (data.redirect) {
-        // Paid grant — hard navigate so entitlement re-resolves server-side.
-        window.location.assign(data.redirect);
+      if (planId === "free") {
+        // Stamp the onboarding choice so the forced modal stops showing.
+        const res = await fetch("/api/select-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: planId })
+        });
+        const data: { ok?: boolean; error?: string } = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error ?? "Could not save your choice");
+        }
+        // The choice is stamped, so a refresh drops the modal in place.
+        router.refresh();
         return;
       }
-      // Free — the choice is stamped, so a refresh drops the modal in place.
-      router.refresh();
+
+      const result = await startPaidCheckout(planId);
+      if (result === "unauth") {
+        // Logged-out visitor — verify their email inline, then resume checkout.
+        setVerifyPlan(planId);
+        setPending(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice");
       setPending(null);
+    }
+  }
+
+  // Logged-out visitor picked a paid plan — hand off to the split-screen
+  // account/checkout flow, which keeps the plan they're buying in view while
+  // they create an account (or log in) and then resumes checkout.
+  if (verifyPlan) {
+    const chosen = PLANS.find((pl) => pl.id === verifyPlan);
+    if (chosen) {
+      return (
+        <CheckoutAuthFlow
+          plan={{
+            id: verifyPlan,
+            name: chosen.name,
+            monthly: chosen.monthly,
+            annual: chosen.annual,
+            features: chosen.features
+          }}
+          billing={billing}
+          onBack={() => {
+            setVerifyPlan(null);
+            setPending(null);
+            setError(null);
+          }}
+          onClose={dismissible ? onClose : undefined}
+        />
+      );
     }
   }
 
@@ -236,7 +291,12 @@ export default function PlanChoiceModal({
 
         <div className={styles.cards}>
           {PLANS.map((plan) => {
-            const price = perMonth(plan, billing);
+            const isFree = plan.monthly === 0 && plan.annual === 0;
+            const priceLabel = perMonthLabel(
+              plan.monthly,
+              plan.annual,
+              billing === "annual"
+            );
             const isPending = pending === plan.id;
             return (
               <div
@@ -247,17 +307,17 @@ export default function PlanChoiceModal({
                 <h3 className={styles.planName}>{plan.name}</h3>
                 <p className={styles.planBlurb}>{plan.blurb}</p>
                 <div className={styles.price}>
-                  {price === 0 ? (
+                  {isFree ? (
                     <span className={styles.priceAmount}>Free</span>
                   ) : (
                     <>
-                      <span className={styles.priceAmount}>${price}</span>
+                      <span className={styles.priceAmount}>€{priceLabel}</span>
                       <span className={styles.priceUnit}>/mo</span>
                     </>
                   )}
                 </div>
-                {price > 0 && billing === "annual" ? (
-                  <p className={styles.priceNote}>billed ${plan.annual}/yr</p>
+                {!isFree && billing === "annual" ? (
+                  <p className={styles.priceNote}>billed €{plan.annual}/yr</p>
                 ) : (
                   <p className={styles.priceNote}>&nbsp;</p>
                 )}

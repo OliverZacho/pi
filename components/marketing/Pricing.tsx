@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Caveat } from "next/font/google";
 import styles from "./pricing.module.css";
 import PricingCompare from "./PricingCompare";
+import { perMonthLabel } from "@/lib/pricing";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -42,8 +43,8 @@ const PLANS: Plan[] = [
     id: "solo",
     name: "Solo",
     blurb: "For the individual marketer studying the competition.",
-    monthly: 29,
-    annual: 290,
+    monthly: 30,
+    annual: 300,
     cta: "Get Solo",
     features: [
       "1 seat",
@@ -58,8 +59,8 @@ const PLANS: Plan[] = [
     id: "team",
     name: "Team",
     blurb: "For marketing teams and agencies working together.",
-    monthly: 89,
-    annual: 890,
+    monthly: 90,
+    annual: 900,
     featured: true,
     cta: "Get Team",
     features: [
@@ -73,9 +74,9 @@ const PLANS: Plan[] = [
   },
 ];
 
-/** Per-month figure shown on the card, rounded for display. */
-function perMonth(plan: Plan, billing: Billing): number {
-  return billing === "annual" ? Math.round(plan.annual / 12) : plan.monthly;
+/** Per-month figure shown on the card, exact so it matches Stripe checkout. */
+function perMonth(plan: Plan, billing: Billing): string {
+  return perMonthLabel(plan.monthly, plan.annual, billing === "annual");
 }
 
 export default function Pricing() {
@@ -91,25 +92,22 @@ export default function Pricing() {
     setPending(planId);
     setError(null);
 
-    // TEMPORARY launch bridge: during the external-test window, clicking
-    // upgrade grants a free, time-boxed entitlement instead of opening Stripe
-    // checkout. Revert this (and /api/free-upgrade) to restore the real path.
     try {
-      const res = await fetch("/api/free-upgrade", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, billing }),
       });
       // Not signed in — send them to sign up, then back to pricing.
       if (res.status === 401) {
         window.location.assign("/login?next=/pricing");
         return;
       }
-      const data: { ok?: boolean; error?: string } = await res.json();
-      if (!res.ok || !data.ok) {
+      const data: { url?: string; error?: string } = await res.json();
+      if (!res.ok || !data.url) {
         throw new Error(data.error ?? "Could not complete upgrade");
       }
-      window.location.assign("/explore?upgraded=1");
+      window.location.assign(data.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete upgrade");
       setPending(null);

@@ -5,16 +5,10 @@ import { trackUpgradeClick } from "@/lib/upgrade-tracking";
 
 /**
  * An upgrade CTA that starts the Team-plan upgrade directly — no detour
- * through `/pricing`. Records the click (tagged with `source`) then kicks off
- * checkout. On success it reloads the page so the now-entitled owner lands
- * back where they were with the feature unlocked.
- *
- * TEMPORARY launch bridge: during the external-test window upgrades grant a
- * free, time-boxed entitlement via `/api/free-upgrade` instead of opening
- * Stripe checkout — same as `components/marketing/Pricing.tsx`. To restore the
- * real paid path, revert both to POST `/api/checkout` (body
- * `{ plan: "team", billing }`) and `window.location.assign(data.url)` to the
- * returned Stripe Checkout url.
+ * through `/pricing`. Records the click (tagged with `source`) then opens
+ * Stripe Checkout for the annual Team plan (the marketing default; the pricing
+ * page is where a monthly/annual choice is made). On success the browser is
+ * redirected to the returned Checkout url.
  */
 export default function TeamUpgradeButton({
   source,
@@ -38,10 +32,10 @@ export default function TeamUpgradeButton({
     setPending(true);
     onError?.("");
     try {
-      const res = await fetch("/api/free-upgrade", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "team" })
+        body: JSON.stringify({ plan: "team", billing: "annual" })
       });
       // Not signed in — send them to log in, then back to this page.
       if (res.status === 401) {
@@ -50,13 +44,12 @@ export default function TeamUpgradeButton({
         window.location.assign(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
-      const data: { ok?: boolean; error?: string } = await res.json();
-      if (!res.ok || !data.ok) {
+      const data: { url?: string; error?: string } = await res.json();
+      if (!res.ok || !data.url) {
         throw new Error(data.error ?? "Could not complete upgrade");
       }
-      // Reload so the server re-evaluates entitlement and swaps the locked
-      // upsell for the live share toggle.
-      window.location.reload();
+      // Hand off to Stripe Checkout.
+      window.location.assign(data.url);
     } catch (err) {
       onError?.(
         err instanceof Error ? err.message : "Could not complete upgrade"
