@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import {
-  getStripe,
-  getStripeWebhookSecret,
-  planForPriceId,
-  periodEndIso,
-  GRACE_PERIOD_DAYS,
-} from "@/lib/stripe";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getStripe, getStripeWebhookSecret } from "@/lib/stripe";
+import { syncSubscription } from "@/lib/stripe-sync";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -79,84 +73,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
-}
-
-/**
- * Write a Stripe subscription's current state into `public.subscriptions`.
- *
- * Resolves the owning user from the metadata hint first; if absent (e.g. an
- * event whose subscription metadata wasn't set), falls back to matching the
- * Stripe customer id we stored at checkout. Without a user we can't attribute
- * the row, so we log and skip rather than guess.
- */
-async function syncSubscription(
-  sub: Stripe.Subscription,
-  userIdHint: string | null
-): Promise<void> {
-  const admin = getSupabaseAdmin();
-  const customerId =
-    typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-
-  // Resolve the user and read the prior row in one go — we need the existing
-  // status/grace to decide whether this is a *fresh* entry into past_due.
-  let userId = userIdHint;
-  let prior:
-    | { user_id: string; status: string; grace_until: string | null }
-    | null = null;
-  if (userId) {
-    const { data } = await admin
-      .from("subscriptions")
-      .select("user_id, status, grace_until")
-      .eq("user_id", userId)
-      .maybeSingle();
-    prior = data;
-  } else {
-    const { data } = await admin
-      .from("subscriptions")
-      .select("user_id, status, grace_until")
-      .eq("stripe_customer_id", customerId)
-      .maybeSingle();
-    prior = data;
-    userId = data?.user_id ?? null;
-  }
-  if (!userId) {
-    console.error(
-      `Stripe subscription ${sub.id} has no resolvable user (customer ${customerId})`
-    );
-    return;
-  }
-
-  const priceId = sub.items?.data?.[0]?.price?.id ?? null;
-  const plan = (sub.metadata?.plan as string | undefined) ??
-    (priceId ? planForPriceId(priceId) : null);
-
-  // Grace window: start the clock on the *transition* into past_due (keep an
-  // already-running window so retries don't keep pushing it out); clear it on
-  // any other status so a recovered or cancelled sub doesn't linger.
-  let graceUntil: string | null = null;
-  if (sub.status === "past_due") {
-    graceUntil =
-      prior?.status === "past_due" && prior.grace_until
-        ? prior.grace_until
-        : new Date(
-            Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
-          ).toISOString();
-  }
-
-  const { error } = await admin.from("subscriptions").upsert(
-    {
-      user_id: userId,
-      status: sub.status,
-      plan,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: sub.id,
-      current_period_end: periodEndIso(sub),
-      grace_until: graceUntil,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  if (error) {
-    throw new Error(`subscriptions upsert failed: ${error.message}`);
-  }
 }

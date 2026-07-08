@@ -106,7 +106,9 @@ export async function startCheckoutSession(params: {
     line_items: [{ price: priceIdFor(plan, billing), quantity: 1 }],
     allow_promotion_codes: true,
     subscription_data: { metadata: { user_id: userId, plan } },
-    success_url: `${origin}/explore?checkout=success`,
+    // session_id lets the landing page reconcile entitlement directly with
+    // Stripe (lib/stripe-sync.ts) instead of waiting on the webhook.
+    success_url: `${origin}/explore?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/pricing?checkout=cancelled`,
   });
 
