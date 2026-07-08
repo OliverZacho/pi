@@ -29,7 +29,7 @@ type PriceSpec = {
   lookupKey: string;
   nickname: string;
   interval: "month" | "year";
-  /** Amount in the currency's minor unit (cents). €29.00 -> 2900. */
+  /** Amount in the currency's minor unit (cents). €30.00 -> 3000. */
   unitAmount: number;
   /** The `.env.local` variable this price ID is written back into. */
   envVar: string;
@@ -46,7 +46,7 @@ type PlanSpec = {
 
 const CURRENCY = "eur";
 
-// €290 / €890 yearly = 10× monthly, i.e. "two months free" (the pricing copy).
+// €300 / €900 yearly = 10× monthly, i.e. "two months free" (the pricing copy).
 const PLANS: PlanSpec[] = [
   {
     plan: "solo",
@@ -59,14 +59,14 @@ const PLANS: PlanSpec[] = [
         lookupKey: "pirol_solo_monthly",
         nickname: "Solo — Monthly",
         interval: "month",
-        unitAmount: 2900,
+        unitAmount: 3000,
         envVar: "STRIPE_PRICE_SOLO_MONTHLY",
       },
       {
         lookupKey: "pirol_solo_yearly",
         nickname: "Solo — Yearly",
         interval: "year",
-        unitAmount: 29000,
+        unitAmount: 30000,
         envVar: "STRIPE_PRICE_SOLO_YEARLY",
       },
     ],
@@ -82,14 +82,14 @@ const PLANS: PlanSpec[] = [
         lookupKey: "pirol_team_monthly",
         nickname: "Team — Monthly",
         interval: "month",
-        unitAmount: 8900,
+        unitAmount: 9000,
         envVar: "STRIPE_PRICE_TEAM_MONTHLY",
       },
       {
         lookupKey: "pirol_team_yearly",
         nickname: "Team — Yearly",
         interval: "year",
-        unitAmount: 89000,
+        unitAmount: 90000,
         envVar: "STRIPE_PRICE_TEAM_YEARLY",
       },
     ],
@@ -155,7 +155,13 @@ async function ensureProduct(
   return product;
 }
 
-/** Find a price by its lookup_key, or create it on the given product. */
+/**
+ * Find a price by its lookup_key, or create it. Reprice-aware: Stripe prices
+ * are immutable, so if a price with this lookup_key exists at a *different*
+ * amount, we create a new price (transfer_lookup_key moves the key onto it) and
+ * archive the old one. Existing subscriptions stay on the archived price, so
+ * repricing only affects new checkouts.
+ */
 async function ensurePrice(
   stripe: Stripe,
   productId: string,
@@ -166,10 +172,17 @@ async function ensurePrice(
     active: true,
     limit: 1,
   });
-  if (existing.data[0]) {
-    console.log(`    price ${spec.lookupKey}: reused ${existing.data[0].id}`);
-    return existing.data[0];
+  const current = existing.data[0];
+  if (
+    current &&
+    current.unit_amount === spec.unitAmount &&
+    current.currency === CURRENCY &&
+    current.recurring?.interval === spec.interval
+  ) {
+    console.log(`    price ${spec.lookupKey}: reused ${current.id}`);
+    return current;
   }
+
   const price = await stripe.prices.create({
     product: productId,
     currency: CURRENCY,
@@ -179,7 +192,15 @@ async function ensurePrice(
     lookup_key: spec.lookupKey,
     transfer_lookup_key: true,
   });
-  console.log(`    price ${spec.lookupKey}: created ${price.id}`);
+
+  if (current) {
+    await stripe.prices.update(current.id, { active: false });
+    console.log(
+      `    price ${spec.lookupKey}: repriced ${current.id} -> ${price.id} (old archived)`
+    );
+  } else {
+    console.log(`    price ${spec.lookupKey}: created ${price.id}`);
+  }
   return price;
 }
 

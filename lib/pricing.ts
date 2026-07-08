@@ -1,10 +1,10 @@
 /**
  * The per-month figure shown on plan cards, formatted to match exactly what
  * Stripe charges. Annual plans bill yearly, so their monthly-equivalent
- * (annual / 12) can carry cents (€290/yr = €24.17/mo). We show those cents
- * rather than rounding, so the number never disagrees with the amount on the
- * Stripe checkout page — a rounded "€24" that becomes "€24.17" at checkout
- * reads as a bait-and-switch.
+ * (annual / 12) can carry cents. We show the exact figure rather than rounding,
+ * so the number never disagrees with the amount on the Stripe checkout page (a
+ * rounded price that grows at checkout reads as a bait-and-switch). Current
+ * prices divide cleanly (€300/yr = €25.00/mo), so no cents show today.
  */
 export function perMonthLabel(
   monthly: number,

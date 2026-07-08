@@ -52,9 +52,9 @@ export default function PricingTeaser() {
             <span className={styles.planBlurb}>For the marketer studying the competition.</span>
           </div>
           <div className={styles.planPrice}>
-            <span className={styles.planAmount}>€29</span>
+            <span className={styles.planAmount}>€30</span>
             <span className={styles.planPer}>/ month</span>
-            <span className={styles.planAnnual}>or €290/yr — 2 months free</span>
+            <span className={styles.planAnnual}>or €300/yr, 2 months free</span>
           </div>
           <p className={styles.planEverything}>Everything in Free, plus:</p>
           <ul className={`${styles.planFeatures} ${styles.planFeaturesUnlock}`}>
@@ -72,7 +72,7 @@ export default function PricingTeaser() {
 
       <p className={styles.teamLine}>
         Working as a team? <strong>Team</strong>{" "}adds up to 6 seats, shared
-        collections &amp; priority support for €89/mo.{" "}
+        collections &amp; priority support for €90/mo.{" "}
         <Link href="/pricing" className={styles.inlineLink}>
           Compare all plans →
         </Link>

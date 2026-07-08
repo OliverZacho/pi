@@ -21,7 +21,7 @@ export const PRICING_FAQ: PricingFaqItem[] = [
   {
     question: "How much does Pirol cost?",
     answer:
-      "Pirol has three plans: Free at €0, Solo at €29 per month (or €290 per year) for one user, and Team at €89 per month (or €890 per year) for up to 6 users. Annual billing gives you two months free.",
+      "Pirol has three plans: Free at €0, Solo at €30 per month (or €300 per year) for one user, and Team at €90 per month (or €900 per year) for up to 6 users. Annual billing gives you two months free.",
   },
   {
     question: "Is there a free plan?",

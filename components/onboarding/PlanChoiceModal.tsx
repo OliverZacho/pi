@@ -44,8 +44,8 @@ const PLANS: Plan[] = [
     id: "solo",
     name: "Solo",
     blurb: "For the individual marketer studying the competition.",
-    monthly: 29,
-    annual: 290,
+    monthly: 30,
+    annual: 300,
     cta: "Get Solo",
     features: [
       "Full access to the entire archive",
@@ -58,8 +58,8 @@ const PLANS: Plan[] = [
     id: "team",
     name: "Team",
     blurb: "For marketing teams and agencies working together.",
-    monthly: 89,
-    annual: 890,
+    monthly: 90,
+    annual: 900,
     featured: true,
     cta: "Get Team",
     features: [
