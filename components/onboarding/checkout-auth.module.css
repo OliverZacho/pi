@@ -296,11 +296,14 @@
 .right {
   flex: 1 1 45%;
   min-width: 0;
-  padding: 40px 34px;
+  /* Top-align the summary, and pad it down so "You're buying" lines up with the
+     left-hand heading (which sits below a back link) rather than floating in
+     the vertical centre. */
+  padding: 96px 34px 40px;
   background: #086e4b;
   color: #ecfdf5;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .summaryCard {
