@@ -12,6 +12,7 @@ import {
   type CollectionSummary
 } from "@/lib/collections-db";
 import { getTeamContext } from "@/lib/teams-db";
+import { syncCheckoutSuccess } from "@/lib/stripe-sync";
 import ExploreClient from "@/components/explore/ExploreClient";
 import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
 import TeamWelcomeModal from "@/components/onboarding/TeamWelcomeModal";
@@ -28,10 +29,24 @@ type PageProps = {
 
 export default async function ExplorePage({ searchParams }: PageProps) {
   const supabase = await createClient();
-  const viewer = await getViewer();
+  const params = await searchParams;
   // One-shot flag set by the auth callback right after a team invite is
   // claimed — the welcome modal below only renders on that landing.
-  const teamWelcome = (await searchParams).team_welcome === "1";
+  const teamWelcome = params.team_welcome === "1";
+  // Landing back from a paid Stripe checkout. The webhook usually lags the
+  // redirect by a few seconds, so if entitlement hasn't flipped yet we
+  // reconcile with Stripe ourselves — a paying customer must never see the
+  // capped teaser or the forced plan modal.
+  const checkoutSuccess = params.checkout === "success";
+  const checkoutSessionId =
+    typeof params.session_id === "string" ? params.session_id : null;
+
+  let viewer = await getViewer();
+  if (viewer && !viewer.hasAccess && checkoutSuccess && checkoutSessionId) {
+    const live = await syncCheckoutSuccess(checkoutSessionId, viewer.userId);
+    // getViewer() is request-cached, so flip the flag rather than re-resolve.
+    if (live) viewer = { ...viewer, hasAccess: true };
+  }
 
   // Logged-out / unpaid viewers get the interactive teaser: the real
   // Explore UI (search / filter / sort) capped to PUBLIC_EXPLORE_LIMIT with
@@ -57,12 +72,15 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     // get no Save button.
     let initialSavedIds: string[] = [];
     let savedCount = 0;
-    // Onboarding gate for brand-new signups (both flags null until acted on):
-    //   - tour not done yet  → run the guided product tour first; the forced
-    //     plan modal is held back until the tour finishes or is skipped.
-    //   - tour done, no plan → force the "pick a plan" modal.
-    // Backfilled existing users already have a `plan_selected_at` stamp, so
-    // neither ever fires for them.
+    // Onboarding gate for new signups. The tour keys on `tour_completed_at`
+    // alone — every new user gets it, paid or free (paid signups take the
+    // paid branch below, which runs the same gate). Existing users were
+    // backfilled with a `tour_completed_at` stamp (migration 20260708210000)
+    // so it never fires for them. The forced plan modal stays unpaid-only:
+    //   - tour done, no plan chosen → force the "pick a plan" modal.
+    //   - never on a checkout=success landing, even if the Stripe reconcile
+    //     above couldn't confirm the sub: someone who just paid must never
+    //     be forced to pick a plan.
     let showTour = false;
     let mustChoosePlan = false;
     if (viewer) {
@@ -80,8 +98,8 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         savedCount = count;
         const planChosen = Boolean(profile.data?.plan_selected_at);
         const tourDone = Boolean(profile.data?.tour_completed_at);
-        showTour = !planChosen && !tourDone;
-        mustChoosePlan = !planChosen && tourDone;
+        showTour = !tourDone;
+        mustChoosePlan = !planChosen && tourDone && !checkoutSuccess;
       } catch (err) {
         console.error("Failed to load saved email IDs", err);
       }
@@ -131,7 +149,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   //   - collections: feeds the "Add to collection" popover on every card.
   // The per-source `.catch`es swallow errors so a single broken table
   // (saves / collections) never takes down Explore itself.
-  const [initialResult, facets, savedSet, initialCollections, teamCtx] =
+  const [initialResult, facets, savedSet, initialCollections, teamCtx, profile] =
     await Promise.all([
       searchExploreEmails(supabase, {
         page: 1,
@@ -155,12 +173,23 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             console.error("Failed to load team context for welcome", err);
             return null;
           })
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      // Tour flag: paid signups get the onboarding tour too (same gate as
+      // the unpaid branch — `tour_completed_at` only; existing users are
+      // backfilled). Service-role read, matching the unpaid branch.
+      getSupabaseAdmin()
+        .from("user_profiles")
+        .select("tour_completed_at")
+        .eq("user_id", userId)
+        .maybeSingle()
+        .then((r) => r.data)
     ]);
   const initialSavedIds = Array.from(savedSet);
+  const showTour = !profile?.tour_completed_at;
 
   return (
     <>
+      {showTour ? <TourStarter /> : null}
       {teamCtx && teamCtx.role === "member" ? (
         <TeamWelcomeModal
           teamName={teamCtx.teamName}
