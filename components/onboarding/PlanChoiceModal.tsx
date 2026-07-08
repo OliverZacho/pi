@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Caveat } from "next/font/google";
 import styles from "./plan-choice.module.css";
 import CheckoutAuthFlow from "./CheckoutAuthFlow";
+import { perMonthLabel } from "@/lib/pricing";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -70,10 +71,6 @@ const PLANS: Plan[] = [
   }
 ];
 
-/** Per-month figure shown on the card, rounded for display. */
-function perMonth(plan: Plan, billing: Billing): number {
-  return billing === "annual" ? Math.round(plan.annual / 12) : plan.monthly;
-}
 
 /**
  * The plan picker. Two modes share one component:
@@ -294,7 +291,12 @@ export default function PlanChoiceModal({
 
         <div className={styles.cards}>
           {PLANS.map((plan) => {
-            const price = perMonth(plan, billing);
+            const isFree = plan.monthly === 0 && plan.annual === 0;
+            const priceLabel = perMonthLabel(
+              plan.monthly,
+              plan.annual,
+              billing === "annual"
+            );
             const isPending = pending === plan.id;
             return (
               <div
@@ -305,17 +307,17 @@ export default function PlanChoiceModal({
                 <h3 className={styles.planName}>{plan.name}</h3>
                 <p className={styles.planBlurb}>{plan.blurb}</p>
                 <div className={styles.price}>
-                  {price === 0 ? (
+                  {isFree ? (
                     <span className={styles.priceAmount}>Free</span>
                   ) : (
                     <>
-                      <span className={styles.priceAmount}>${price}</span>
+                      <span className={styles.priceAmount}>€{priceLabel}</span>
                       <span className={styles.priceUnit}>/mo</span>
                     </>
                   )}
                 </div>
-                {price > 0 && billing === "annual" ? (
-                  <p className={styles.priceNote}>billed ${plan.annual}/yr</p>
+                {!isFree && billing === "annual" ? (
+                  <p className={styles.priceNote}>billed €{plan.annual}/yr</p>
                 ) : (
                   <p className={styles.priceNote}>&nbsp;</p>
                 )}

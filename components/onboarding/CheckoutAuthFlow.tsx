@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import CodeInput from "./CodeInput";
+import { perMonthLabel } from "@/lib/pricing";
 import styles from "./checkout-auth.module.css";
 
 /** Match the Supabase Auth "Email OTP length" setting. */
@@ -66,9 +67,7 @@ export default function CheckoutAuthFlow({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const perMonth = Math.round(
-    (billing === "annual" ? plan.annual / 12 : plan.monthly)
-  );
+  const perMonth = perMonthLabel(plan.monthly, plan.annual, billing === "annual");
 
   /** Buyer/business fields to persist on signup and pass to checkout. */
   function buyerData() {

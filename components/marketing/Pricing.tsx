@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Caveat } from "next/font/google";
 import styles from "./pricing.module.css";
 import PricingCompare from "./PricingCompare";
+import { perMonthLabel } from "@/lib/pricing";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -73,9 +74,9 @@ const PLANS: Plan[] = [
   },
 ];
 
-/** Per-month figure shown on the card, rounded for display. */
-function perMonth(plan: Plan, billing: Billing): number {
-  return billing === "annual" ? Math.round(plan.annual / 12) : plan.monthly;
+/** Per-month figure shown on the card, exact so it matches Stripe checkout. */
+function perMonth(plan: Plan, billing: Billing): string {
+  return perMonthLabel(plan.monthly, plan.annual, billing === "annual");
 }
 
 export default function Pricing() {
