@@ -1,28 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import type { PlanId } from "@/lib/stripe";
-import { grantTestWindow, stampPlanSelected } from "@/lib/plan-selection";
+import { stampPlanSelected } from "@/lib/plan-selection";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const PAID: PlanId[] = ["solo", "team"];
-const CHOICES = ["free", "solo", "team"];
-
 /**
- * POST `/api/select-plan` — records the onboarding plan choice made in the
- * forced "pick a plan" modal shown to new signups on /explore.
+ * POST `/api/select-plan` — records that a new signup picked "Free" in the
+ * forced "pick a plan" modal on /explore. Stamps `plan_selected_at` so the
+ * modal stops showing; the user stays on the free preview tier.
  *
- *  - "free": just stamp `plan_selected_at` so the modal stops showing; the user
- *    stays on the free preview tier.
- *  - "solo" / "team": TEMPORARY test-window path — grant the entitlement for
- *    free (see {@link grantTestWindow}) and stamp the choice. At launch this
- *    paid branch is swapped for real Stripe embedded checkout.
- *
- * The response `redirect` tells the client where to go on success (paid plans
- * bounce through /explore?upgraded=1 to refresh entitlement; free just closes
- * the modal in place).
+ * Paid plans (Solo/Team) do NOT come here — they hand off to Stripe Checkout
+ * via `/api/checkout` directly from the modal.
  */
 export async function POST(request: Request) {
   const session = await requireSession();
@@ -37,23 +27,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const plan = body.plan ?? "";
-  if (!CHOICES.includes(plan)) {
+  if (body.plan !== "free") {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
   try {
     const admin = getSupabaseAdmin();
-    const isPaid = PAID.includes(plan as PlanId);
-    if (isPaid) {
-      await grantTestWindow(admin, session.user.id, plan as PlanId);
-    }
     await stampPlanSelected(admin, session.user.id);
-
-    return NextResponse.json({
-      ok: true,
-      redirect: isPaid ? "/explore?upgraded=1" : null
-    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to record plan choice", error);
     return NextResponse.json(

@@ -91,25 +91,22 @@ export default function Pricing() {
     setPending(planId);
     setError(null);
 
-    // TEMPORARY launch bridge: during the external-test window, clicking
-    // upgrade grants a free, time-boxed entitlement instead of opening Stripe
-    // checkout. Revert this (and /api/free-upgrade) to restore the real path.
     try {
-      const res = await fetch("/api/free-upgrade", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, billing }),
       });
       // Not signed in — send them to sign up, then back to pricing.
       if (res.status === 401) {
         window.location.assign("/login?next=/pricing");
         return;
       }
-      const data: { ok?: boolean; error?: string } = await res.json();
-      if (!res.ok || !data.ok) {
+      const data: { url?: string; error?: string } = await res.json();
+      if (!res.ok || !data.url) {
         throw new Error(data.error ?? "Could not complete upgrade");
       }
-      window.location.assign("/explore?upgraded=1");
+      window.location.assign(data.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete upgrade");
       setPending(null);

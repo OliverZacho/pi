@@ -38,7 +38,16 @@ export async function POST(request: Request) {
     return session.response;
   }
 
-  let body: { plan?: string; billing?: string };
+  let body: {
+    plan?: string;
+    billing?: string;
+    // Optional buyer details captured in the inline signup flow.
+    name?: string;
+    isBusiness?: boolean;
+    company?: string;
+    vatNumber?: string;
+    country?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -64,15 +73,40 @@ export async function POST(request: Request) {
     // confirms payment) so repeat checkouts don't spawn duplicate customers.
     const { data: existing } = await admin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, status")
       .eq("user_id", session.user.id)
       .maybeSingle();
+
+    // Don't let someone who already has a live subscription buy a second one
+    // (e.g. a returning subscriber who logs in through the upgrade modal). The
+    // client uses this to just unlock rather than redirect to Stripe.
+    if (existing?.status === "active" || existing?.status === "trialing") {
+      return NextResponse.json({ alreadyActive: true });
+    }
+
+    // Buyer/business details for the Stripe customer record. Company name (when
+    // buying as a business) takes the customer name; VAT + country ride along as
+    // metadata. Proper VAT-ID validation / reverse charge is a later step.
+    const trimmed = (v?: string) => {
+      const t = (v ?? "").trim();
+      return t.length > 0 ? t : undefined;
+    };
+    const customerName = body.isBusiness
+      ? trimmed(body.company) ?? trimmed(body.name)
+      : trimmed(body.name);
+    const customerMeta: Record<string, string> = { user_id: session.user.id };
+    if (body.isBusiness) customerMeta.is_business = "true";
+    const vat = trimmed(body.vatNumber);
+    const country = trimmed(body.country);
+    if (vat) customerMeta.vat_number = vat;
+    if (country) customerMeta.country = country;
 
     let customerId = existing?.stripe_customer_id ?? null;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: session.user.email ?? undefined,
-        metadata: { user_id: session.user.id },
+        name: customerName,
+        metadata: customerMeta,
       });
       customerId = customer.id;
       await admin.from("subscriptions").upsert(
@@ -83,6 +117,12 @@ export async function POST(request: Request) {
         },
         { onConflict: "user_id" }
       );
+    } else if (customerName || vat || country) {
+      // Returning through checkout with fresh details — keep the customer current.
+      await stripe.customers.update(customerId, {
+        ...(customerName ? { name: customerName } : {}),
+        metadata: customerMeta,
+      });
     }
 
     const checkout = await stripe.checkout.sessions.create({
