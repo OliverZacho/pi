@@ -397,8 +397,7 @@ export default function CheckoutAuthFlow({
                   </button>
                   <h2 className={styles.title}>Create your account</h2>
                   <p className={styles.lead}>
-                    You&apos;re a step away from {plan.name}. Create an account to
-                    complete your purchase.
+                    Create an account to complete your purchase.
                   </p>
                   {oauthBlock}
                   <form className={styles.form} onSubmit={onSubmitDetails}>
