@@ -303,7 +303,17 @@
   background: #086e4b;
   color: #ecfdf5;
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
+}
+
+/* Pinned to the very bottom of the summary panel. */
+.summaryRefund {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(236, 253, 245, 0.85);
 }
 
 .summaryCard {

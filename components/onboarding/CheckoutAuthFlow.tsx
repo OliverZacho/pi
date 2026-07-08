@@ -648,6 +648,9 @@ export default function CheckoutAuthFlow({
               Secure payment through Stripe. Cancel anytime.
             </p>
           </div>
+          <p className={styles.summaryRefund}>
+            7 day refund, no questions asked.
+          </p>
         </aside>
       </div>
     </div>
