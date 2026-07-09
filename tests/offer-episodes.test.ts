@@ -139,6 +139,70 @@ describe("buildOfferEpisodes", () => {
     ]);
   });
 
+  it("splits a same-depth send whose stated deadline jumps far past the episode's promise", () => {
+    // Ferm Living pattern: 48h VIP preview with a stated deadline, then the
+    // public sale opens next day at the same depth with a deadline weeks out.
+    const episodes = buildOfferEpisodes([
+      email({
+        receivedAt: "2026-06-15T04:30:00Z",
+        discountPercent: 50,
+        promoCode: "VIPSUMMERSALE26"
+      }),
+      email({
+        receivedAt: "2026-06-16T05:00:00Z",
+        discountPercent: 50,
+        promoCode: "VIPSUMMERSALE26",
+        offerEndsOn: "2026-06-16"
+      }),
+      email({
+        receivedAt: "2026-06-17T04:30:00Z",
+        discountPercent: 50,
+        offerEndsOn: "2026-07-12"
+      }),
+      email({
+        receivedAt: "2026-06-21T05:30:00Z",
+        discountPercent: 50,
+        offerEndsOn: "2026-07-12"
+      })
+    ]);
+    expect(episodes).toHaveLength(2);
+    expect(episodes[0].emails).toHaveLength(2);
+    expect(episodes[0].statedEndOn).toBe("2026-06-16");
+    expect(episodes[0].extended).toBe(false);
+    expect(episodes[1].emails).toHaveLength(2);
+    expect(episodes[1].statedEndOn).toBe("2026-07-12");
+    expect(episodes[1].extended).toBe(false);
+  });
+
+  it("keeps a small quiet deadline nudge in the episode as an extension", () => {
+    const episodes = buildOfferEpisodes([
+      email({ receivedAt: "2026-06-01T09:00:00Z", offerEndsOn: "2026-06-07" }),
+      email({ receivedAt: "2026-06-08T09:00:00Z", offerEndsOn: "2026-06-12" })
+    ]);
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0].extended).toBe(true);
+    expect(episodes[0].extendedUntilOn).toBe("2026-06-12");
+    expect(episodes[0].extensionDays).toBe(5);
+  });
+
+  it("lets a shared promo code carry a deadline jump of any size", () => {
+    const episodes = buildOfferEpisodes([
+      email({
+        receivedAt: "2026-06-01T09:00:00Z",
+        promoCode: "SUMMER20",
+        offerEndsOn: "2026-06-03"
+      }),
+      email({
+        receivedAt: "2026-06-04T09:00:00Z",
+        promoCode: "SUMMER20",
+        offerEndsOn: "2026-06-30"
+      })
+    ]);
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0].extended).toBe(true);
+    expect(episodes[0].extendedUntilOn).toBe("2026-06-30");
+  });
+
   it("keeps a send inside a long stated window in the episode despite a big gap", () => {
     const episodes = buildOfferEpisodes([
       email({ receivedAt: "2026-06-01T09:00:00Z", offerEndsOn: "2026-06-20" }),
