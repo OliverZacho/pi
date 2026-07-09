@@ -1680,10 +1680,61 @@
 }
 
 @media (max-width: 1080px) {
+  .modalBackdrop {
+    padding: 0.75rem;
+  }
+
+  /*
+   * Stacked layout: preview on top, info panel below. Both rows are
+   * minmax(0, *fr) so they split the viewport instead of the info panel
+   * sizing to its (very tall) content and shoving the preview off-screen.
+   * Each pane keeps its own internal scroll.
+   */
   .modalDialog {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    height: calc(100dvh - 1.5rem);
     max-height: none;
+  }
+
+  .modalStage {
+    padding: 0.75rem;
+  }
+
+  /*
+   * Drop the tall min-heights: the preview fills exactly the stage it has
+   * and the email scrolls inside the iframe, instead of the stage scrolling
+   * a 600px+ frame inside a half-height row.
+   */
+  .previewFrameWrapDesktop,
+  .previewFrameWrapPhone {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  /*
+   * The view toggle is normally absolutely centered in the toolbar; at
+   * phone widths it would overlap the close button, so let it flow and
+   * collapse the tab labels to icons.
+   */
+  .modalToolbar {
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .viewToggle {
+    position: static;
+    transform: none;
+  }
+
+  .viewToggleButton {
+    padding: 0.45rem 0.6rem;
+  }
+
+  .viewToggleButton span {
+    display: none;
   }
 }
 

@@ -82,6 +82,7 @@ export default function PublicEmailModal({
                     type="button"
                     role="tab"
                     aria-selected={active}
+                    aria-label={option.label}
                     className={`${exploreStyles.viewToggleButton}${
                       active ? ` ${exploreStyles.viewToggleButtonActive}` : ""
                     }`}

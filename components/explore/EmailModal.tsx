@@ -242,6 +242,7 @@ export default function EmailModal({
                     type="button"
                     role="tab"
                     aria-selected={active}
+                    aria-label={option.label}
                     className={`${styles.viewToggleButton}${
                       active ? ` ${styles.viewToggleButtonActive}` : ""
                     }`}
