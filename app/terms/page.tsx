@@ -12,7 +12,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of Service"
-      lastUpdated="15 June 2026"
+      lastUpdated="9 July 2026"
       intro={
         <>
           These terms govern your access to and use of Pirol. By creating an account
@@ -143,6 +143,15 @@ export default function TermsPage() {
         hard to keep the archive and analytics accurate and useful, but we do not warrant
         that they are complete, error-free, or fit for any particular purpose. To the
         fullest extent permitted by law, we disclaim all implied warranties.
+      </p>
+      <p>
+        Articles, guides, and other editorial content we publish, including everything
+        in our <a href="/learn">Learn</a> section, are provided for general information
+        only. They do not constitute legal, financial, tax, or other professional
+        advice, and you should not rely on them as such. While we aim to keep editorial
+        content accurate and current, we make no warranty that it is, and to the fullest
+        extent permitted by law we accept no liability for any loss arising from
+        reliance on it. For anything consequential, consult a qualified professional.
       </p>
 
       <h2>11. Limitation of liability</h2>
