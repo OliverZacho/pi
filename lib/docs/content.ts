@@ -1065,6 +1065,78 @@ export const DOC_CATEGORIES: DocCategory[] = [
               "Under CAN-SPAM you must honour opt-outs within ten business days and keep the address suppressed thereafter. Under GDPR withdrawal of consent should be as easy as giving it and acted on without undue delay. In practice, processing unsubscribes immediately satisfies both."
           }
         ]
+      },
+      {
+        slug: "email-tracking-links",
+        title: "Email tracking links: how they work and where the law now stands",
+        description:
+          "Tracking links rewrite every URL in your email through a redirect that records who clicked. Here is how they work, what France and Italy actually changed in 2026, and how to keep measuring clicks lawfully.",
+        readingTime: "8 min read",
+        sections: [
+          {
+            id: "what-is-a-tracking-link",
+            heading: "What is an email tracking link?",
+            body: [
+              "A tracking link is a rewritten URL. When you paste a link into a campaign, most email platforms quietly swap it for a redirect hosted on their own domain, or on a tracking subdomain of yours. The recipient clicks, lands on the platform's server for a few milliseconds while it logs the event, and is then forwarded to the real destination. In that instant the platform can record who clicked, which campaign the link belonged to, the timestamp, the destination URL, the device, and often an approximate location derived from the IP address.",
+              "UTM parameters are the milder cousin. Instead of routing the click through a redirect, you append tags to the destination URL, such as utm_source and utm_campaign, and the analytics on your landing page read them on arrival. A campaign-level UTM identifies the email that sent the visitor. It does not, by itself, identify the visitor.",
+              "Both are different animals from the tracking pixel. A pixel is a tiny invisible image that fires the moment an email is opened, with no action from the recipient at all. A tracking link fires only when someone deliberately clicks. That distinction between passive observation and voluntary action used to be a technical footnote. In 2026 it became the legally significant line."
+            ]
+          },
+          {
+            id: "what-changed-in-2026",
+            heading: "What did France and Italy change in 2026?",
+            body: [
+              "On 14 April 2026, France's data protection authority, the CNIL, published a recommendation treating email tracking pixels the way the law already treats cookies. Using a pixel to measure individual opens for marketing analytics, profiling, or send-time optimisation now requires the recipient's prior, specific consent, collected at the point the email address is gathered. Narrow exemptions cover security, authentication, and measurement strictly necessary for deliverability. Senders had until 14 July 2026 to inform their existing lists, and the rules applied immediately to newly collected addresses.",
+              "Italy's Garante adopted binding guidelines three days later, published at the end of April, with a compliance deadline of 28 October 2026. The Italian position reaches the same destination with two notable differences: tracking consent may be bundled with marketing consent if the wording is neutral and clear, and recipients must be offered granular withdrawal, meaning they can refuse tracking while continuing to receive the emails themselves.",
+              "Neither ruling stops you emailing contacts in France or Italy. The email remains lawful. What is no longer lawful is silently watching whether an identifiable person opened it. Consent to receive a newsletter, both regulators agree, is not consent to be measured reading it. The wider consent rules that sit underneath all of this are covered in our guide to [GDPR and CAN-SPAM](/learn/gdpr-and-can-spam)."
+            ]
+          },
+          {
+            id: "are-tracking-links-covered",
+            heading: "Are tracking links covered by the new rules?",
+            body: [
+              "Here is the detail most of the commentary has missed: neither the French recommendation nor the Italian guidelines mentions tracked links, redirects, or UTM parameters. Both texts are scoped to open-tracking pixels. Click tracking sits outside the explicit scope of the 2026 rulings.",
+              "That is not the same as a green light. A click event tied to a named or identifiable recipient is still personal data under GDPR, and the principles behind the pixel rulings, transparency and a valid legal basis for behavioural measurement, apply to any technique that builds a profile of what an individual does with your emails. A redirect that logs which specific person clicked which specific link is engagement analytics, whichever mechanism produces it.",
+              "The defensible ground is easy to describe. Campaign-level measurement, such as a UTM tag that says this visit came from the July newsletter, identifies the campaign rather than the person and carries low risk. Recipient-level measurement, such as a subscriber ID, hashed email, or lead score embedded in the URL, turns the same click into individual tracking and deserves the same consent treatment as a pixel. The practical rule: measure the campaign by default, and measure the person only where you have consent to. This is orientation, not legal advice; for anything consequential, consult a qualified professional."
+            ]
+          },
+          {
+            id: "clicks-beat-opens",
+            heading: "Why are clicks the better metric anyway?",
+            body: [
+              "Open rate was a broken instrument long before a regulator touched it. Apple's Mail Privacy Protection began preloading images in 2021, firing tracking pixels whether or not a human ever looked at the message, and other clients followed with image proxying and caching of their own. An open has meant little more than an image request for years. The 2026 rulings did not kill a healthy metric. They retired an injured one.",
+              "A click is different in kind, not just in reliability. It is a decision. Someone read enough to act, and clicks, replies, demo requests, and form fills sit far closer to revenue than any open ever did. Automations keyed to opens, such as resending to non-openers or scoring engagement by open count, were built on noise. Rebuilding them on clicks improves them regardless of what any regulator says.",
+              "The same logic applies to list hygiene. Sunset policies and engagement segments that relied on opens should key on clicks and conversions instead, which also keeps your sender reputation honest, as covered in the [deliverability checklist](/learn/avoiding-the-spam-folder)."
+            ]
+          },
+          {
+            id: "measure-clicks-lawfully",
+            heading: "How do you keep measuring clicks without crossing the line?",
+            body: [
+              "Start where consent actually works: the sign-up form. Ask for tracking consent at the moment the address is collected, in plain language, separate from the consent to receive email in France, bundled but clearly worded in Italy. Asking inside the first email is too late, because a pixel fires before the recipient can answer. And treat silence as what it is. A re-permission blast that counts its own opens as agreement fails twice: silence is not consent, and the counting email tracked people who had not yet agreed to be tracked.",
+              "Then adjust the plumbing. Turn off open tracking for French and Italian contacts who have not consented, and swap open-based triggers in your automations for click-based ones. Keep UTMs campaign-level and free of anything that maps to a person. Serve tracked links from your own branded tracking domain rather than a shared platform domain, which recipients can read, filters trust more, and which keeps your authentication aligned, as explained in [SPF, DKIM, and DMARC](/learn/spf-dkim-dmarc). Finally, offer the granular exit Italy requires everywhere, letting people refuse measurement without leaving the list.",
+              "One thing the rulings do not touch is your view of the market. Watching what competitors send, how often, and what they offer never depended on tracking your own recipients, and the brands in Pirol's archive keep telling that story in full, links, offers, cadence and all."
+            ],
+            cta: { label: "See what your competitors are sending →", href: "/explore" }
+          }
+        ],
+        faqs: [
+          {
+            question: "Are email tracking links illegal in France or Italy?",
+            answer:
+              "No. The 2026 rulings from France's CNIL and Italy's Garante are scoped to open-tracking pixels and do not mention tracked links or UTM parameters. But click data tied to an identifiable recipient is still personal data under GDPR, so recipient-level click profiling needs a lawful basis. Campaign-level measurement carries far lower risk."
+          },
+          {
+            question: "Do tracking pixels now require consent in the EU?",
+            answer:
+              "In France and Italy, yes, for marketing analytics. France's CNIL recommendation applied from 14 July 2026 for existing lists and immediately for new sign-ups; Italy's binding Garante guidelines take effect 28 October 2026. Narrow exemptions cover security, authentication, and measurement strictly necessary for deliverability. Other EU regulators are widely expected to follow."
+          },
+          {
+            question: "What should I measure instead of open rates?",
+            answer:
+              "Clicks, replies, demo requests, form fills, and conversions. Opens have been unreliable since Apple Mail Privacy Protection began preloading images in 2021, and they now require consent in France and Italy. Click-based triggers also make automations and sunset policies more accurate, because a click reflects a real decision."
+          }
+        ]
       }
     ]
   }
