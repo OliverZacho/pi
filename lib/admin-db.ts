@@ -19,6 +19,7 @@ import {
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
 import { LOGO_REVIEW_MAX_CONFIDENCE } from "./extract-logo";
+import { normalizeDomain } from "./suggest-companies";
 import { buildImageStatsFromSizes, parseImageStats } from "./image-stats";
 import {
   BRAND_LOGO_TRANSFORM,
@@ -1039,6 +1040,18 @@ function parseMetadata(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+// Fold a brand name to a comparison key: strip diacritics, collapse internal
+// whitespace, and lower-case. Keeps `OperáSPORT` and `OpéraSport` from being
+// treated as two different brands.
+function foldBrandName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 export async function createCompanySubscriptionInDb(
   supabase: PirolDb,
   input: {
@@ -1055,6 +1068,12 @@ export async function createCompanySubscriptionInDb(
   // when an active (non-deleted) company already uses this name
   // (case-insensitive) or domain. We compare in JS so brand names containing
   // PostgREST/ilike metacharacters (`%`, `_`, commas) can't slip through.
+  //
+  // Domains are compared on their normalized host (via normalizeDomain), so
+  // protocol / `www.` / trailing-slash variants of the same domain — e.g.
+  // `https://operasport.net/` vs `operasport.net` — resolve to one key and
+  // can't spawn a duplicate brand. Names are folded to a diacritic-insensitive
+  // key so `OperáSPORT` and `OpéraSport` collapse together too.
   const { data: activeCompanies, error: dupCheckError } = await supabase
     .from("companies")
     .select("name, domain")
@@ -1064,12 +1083,13 @@ export async function createCompanySubscriptionInDb(
     throw dupCheckError;
   }
 
-  const nameKey = normalizedName.toLowerCase();
+  const domainKey = normalizeDomain(normalizedDomain);
+  const nameKey = foldBrandName(normalizedName);
   for (const existing of activeCompanies ?? []) {
-    if ((existing.domain ?? "").trim().toLowerCase() === normalizedDomain) {
+    if (domainKey && normalizeDomain(existing.domain ?? "") === domainKey) {
       throw new DuplicateCompanyError("domain", existing.name);
     }
-    if ((existing.name ?? "").trim().toLowerCase() === nameKey) {
+    if (nameKey && foldBrandName(existing.name ?? "") === nameKey) {
       throw new DuplicateCompanyError("name", existing.name);
     }
   }
