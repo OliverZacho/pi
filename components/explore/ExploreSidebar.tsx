@@ -16,6 +16,7 @@ import styles from "./explore.module.css";
 
 type NavId =
   | "explore"
+  | "your-brand"
   | "following"
   | "saved"
   | "brands"
@@ -62,6 +63,13 @@ type Props = {
    * back to the plain Settings link.
    */
   user?: ViewerDisplay | null;
+  /**
+   * Name of the tracked brand whose website domain matches the viewer's
+   * login-email domain, resolved server-side by the layout. When set,
+   * a "Your brand" nav row appears (for unpaid viewers too — the page
+   * itself shows a teaser); when null the row doesn't exist at all.
+   */
+  yourBrandName?: string | null;
 };
 
 // Number of collection/comparison rows surfaced in the collapsed section
@@ -94,6 +102,8 @@ function activeIdFromPathname(pathname: string | null): ActiveId {
   switch (first) {
     case "explore":
       return "explore";
+    case "your-brand":
+      return "your-brand";
     case "saved":
       return "saved";
     case "brands":
@@ -251,6 +261,28 @@ function MoreIcon() {
       <circle cx="5" cy="12" r="1" />
       <circle cx="12" cy="12" r="1" />
       <circle cx="19" cy="12" r="1" />
+    </svg>
+  );
+}
+
+function StorefrontIcon() {
+  // Awning over a shop box — "your own storefront", distinct from the
+  // stacked-layers Brands icon at the 16px sidebar size.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 9l1.5-5h13L20 9" />
+      <path d="M4 9a2.65 2.65 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.65 2.65 0 0 0 20 9" />
+      <path d="M5.5 12.5V20h13v-7.5" />
     </svg>
   );
 }
@@ -570,7 +602,8 @@ export default function ExploreSidebar({
   collections = EMPTY_COLLECTIONS,
   competitorSets = EMPTY_COMPETITOR_SETS,
   hasAccess = true,
-  user = null
+  user = null,
+  yourBrandName = null
 }: Props = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -665,6 +698,22 @@ export default function ExploreSidebar({
   const showCollectionsViewAll =
     ownCollections.length > COLLECTION_PREVIEW_COUNT;
 
+  // "Your brand" only exists for viewers whose email domain matched a
+  // tracked brand — inserted right after Explore so the personalized
+  // surface sits at the top without reshuffling the familiar order.
+  const navItems: NavItem[] = yourBrandName
+    ? [
+        NAV_ITEMS[0],
+        {
+          id: "your-brand",
+          label: "Your brand",
+          icon: <StorefrontIcon />,
+          href: "/your-brand"
+        },
+        ...NAV_ITEMS.slice(1)
+      ]
+    : NAV_ITEMS;
+
   const ownSets = sets.filter((s) => !s.sharedByTeam);
   const teamSets = sets.filter((s) => s.sharedByTeam);
   const comparisonsCanFoldOut = ownSets.length < SECTION_FOLD_OUT_LIMIT;
@@ -691,7 +740,7 @@ export default function ExploreSidebar({
       </div>
 
       <div className={styles.navGroup}>
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = item.id === activeRowId;
           const className = `${styles.navItem}${
             isActive ? ` ${styles.active}` : ""
