@@ -191,8 +191,14 @@ function heavyEmailsRule(own: BrandPageData): YourBrandInsight | null {
     return null;
   }
 
+  // Gate the GIF hint on the share of measured image files that are
+  // GIFs, not on the per-email `has_gif` flag — a 1px tracking GIF sets
+  // that flag on every send at many brands, which would make this hint
+  // effectively unconditional.
+  const gifImageShare =
+    images.formats.find((entry) => entry.format === "gif")?.share ?? 0;
   const gifNote =
-    own.design.gifShare >= 0.3
+    gifImageShare >= 0.2
       ? " GIFs are the usual culprit. A short loop often weighs ten times a static image."
       : "";
 
@@ -223,11 +229,16 @@ function darkModeRule(
   ).length;
   if (peersWithDarkMode < peers.length / 2) return null;
 
+  const peerClause =
+    peersWithDarkMode === peers.length
+      ? `all ${peers.length} brands in your comparison group do`
+      : `${peersWithDarkMode} of the ${peers.length} brands in your comparison group do`;
+
   return {
     id: "no-dark-mode",
     kind: "consider",
-    title: "Your competitors handle dark mode, you don't",
-    body: `None of your recent emails declare dark-mode styles, while ${peersWithDarkMode} of the ${peers.length} brands in your comparison group do. Roughly a third of inbox time happens in dark mode, where unstyled emails get their colors force-inverted, which is where broken logos and unreadable buttons come from.`,
+    title: "Your competitors handle dark mode",
+    body: `None of your recent emails declare dark-mode styles, while ${peerClause}. Roughly a third of inbox time happens in dark mode, where unstyled emails get their colors force-inverted, which is where broken logos and unreadable buttons come from.`,
     learnHref: null,
     usesPeers: true
   };
@@ -263,7 +274,10 @@ function saleHeavyRule(own: BrandPageData): YourBrandInsight | null {
   return {
     id: "sale-heavy-mix",
     kind: "consider",
-    title: "Almost everything you send is a sale",
+    title:
+      share >= 0.95
+        ? "Everything you send is a sale"
+        : "Almost everything you send is a sale",
     body: `${pct(share)} of your campaigns are sale emails. When nearly every send asks for a discount purchase, subscribers learn to ignore you between sales. Brands that mix in content, launches or education give people a reason to open at full price too.`,
     learnHref: null,
     usesPeers: false
@@ -280,7 +294,9 @@ function deadlineExtensionsRule(own: BrandPageData): YourBrandInsight | null {
     id: "deadline-extensions",
     kind: "consider",
     title: "Your deadlines keep moving",
-    body: `You extended ${offersExtended} of your last ${offersWithDeadline} offers past their stated end date. Extensions convert in the short term, but subscribers who have seen a deadline move stop treating your deadlines as real, and the urgency stops working.`,
+    // "deadlines you set", not "your last N offers" — the denominator is
+    // offers that stated an end date, and offers without one don't count.
+    body: `You extended ${offersExtended} of the last ${offersWithDeadline} offer deadlines you set. Extensions convert in the short term, but subscribers who have seen a deadline move stop treating your deadlines as real, and the urgency stops working.`,
     learnHref: null,
     usesPeers: false
   };
@@ -553,6 +569,13 @@ function sendTimeCollisionRule(
       }
     });
   });
+
+  // If even the quietest slot carries real traffic, "send there instead"
+  // would be dishonest — an all-slots-covered group is the compare
+  // dashboard's story, not an action item.
+  if (quietestCount > Math.max(1, Math.round(peerSlots.total * 0.03))) {
+    return null;
+  }
 
   return {
     id: "send-time-collision",
