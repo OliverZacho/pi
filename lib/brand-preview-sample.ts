@@ -131,6 +131,12 @@ export const BRAND_PREVIEW_SAMPLE: BrandPreviewSample = {
         { format: "png", count: 640, share: 0.21 },
         { format: "gif", count: 250, share: 0.08 }
       ]
+    },
+    openTracking: {
+      measured: 412,
+      withPixel: 379,
+      share: 0.92,
+      provider: "Klaviyo"
     }
   },
   subjects: {

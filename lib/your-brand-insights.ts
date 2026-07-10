@@ -45,7 +45,8 @@ export const YOUR_BRAND_INSIGHT_IDS = [
   "cadence-low",
   "cadence-high",
   "send-time-collision",
-  "urgency-overuse"
+  "urgency-overuse",
+  "tracking-pixel-consent"
 ] as const;
 
 export type YourBrandInsightId = (typeof YOUR_BRAND_INSIGHT_IDS)[number];
@@ -191,14 +192,14 @@ function heavyEmailsRule(own: BrandPageData): YourBrandInsight | null {
     return null;
   }
 
-  // Gate the GIF hint on the share of measured image files that are
-  // GIFs, not on the per-email `has_gif` flag — a 1px tracking GIF sets
-  // that flag on every send at many brands, which would make this hint
-  // effectively unconditional.
-  const gifImageShare =
-    images.formats.find((entry) => entry.format === "gif")?.share ?? 0;
+  // `has_gif` historically meant "any GIF asset, tracking pixels
+  // included", which set the flag on every send at many brands and would
+  // have made this hint effectively unconditional. Since July 2026 the
+  // flag requires a content GIF of meaningful size (MIN_CONTENT_GIF_BYTES
+  // in lib/extract-metadata.ts, backfilled), so the share of sends with a
+  // GIF is safe to gate on directly.
   const gifNote =
-    gifImageShare >= 0.2
+    own.design.gifShare >= 0.2
       ? " GIFs are the usual culprit. A short loop often weighs ten times a static image."
       : "";
 
@@ -402,6 +403,30 @@ function authFailuresRule(
     title: `${list} ${failing.length === 1 ? "is" : "are"} failing on your sends`,
     body: `Most of the recent emails we received from you fail ${list} authentication. Failed authentication is one of the strongest spam-folder signals there is, and it is usually a DNS record fix rather than an email change.`,
     learnHref: null,
+    usesPeers: false
+  };
+}
+
+/**
+ * Open-tracking pixels vs the 2026 CNIL / Garante rulings. Fires
+ * whenever the brand demonstrably uses dedicated open pixels — the
+ * point is awareness ("if you have subscribers there, this now needs
+ * consent"), so it doesn't try to guess where the brand's list lives.
+ * Facts and dates mirror /learn/email-tracking-links.
+ */
+function trackingPixelConsentRule(own: BrandPageData): YourBrandInsight | null {
+  const tracking = own.design.openTracking;
+  if (tracking.measured < MIN_SAMPLE) return null;
+  if (tracking.share < 0.3) return null;
+
+  const via = tracking.provider ? ` via ${tracking.provider}` : "";
+  return {
+    id: "tracking-pixel-consent",
+    kind: "consider",
+    title: "Your open tracking now needs consent in France and Italy",
+    body: `${pct(tracking.share)} of your recent emails load a dedicated open-tracking pixel${via}. France and Italy decided in 2026 to treat these pixels like cookies: measuring individual opens for marketing requires the recipient's explicit consent, collected at signup. France's rules apply from 14 July 2026 for existing lists (immediately for new signups) and Italy's from 28 October 2026. If you have subscribers in either country, check that your signup flow captures that consent, or turn off open tracking for those segments and key your automations on clicks instead.`,
+    learnHref: "/learn/email-tracking-links",
+    learnLabel: "Where the law stands, on the Learn page",
     usesPeers: false
   };
 }
@@ -626,6 +651,7 @@ export function buildYourBrandInsights(input: {
     // strategic considerations in the rendered list.
     authFailuresRule(deliverability),
     unsubscribeHeadersRule(deliverability),
+    trackingPixelConsentRule(own),
     ...previewTextRules(own),
     heavyEmailsRule(own),
     sendTimeCollisionRule(own, peers),
