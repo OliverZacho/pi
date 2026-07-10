@@ -70,6 +70,8 @@ export type YourBrandInsight = {
   body: string;
   /** Optional Learn article that explains the mechanism. */
   learnHref: string | null;
+  /** Link text for {@link learnHref} — should name the destination. */
+  learnLabel?: string;
   /** True when the finding compares against the user's competitor set. */
   usesPeers: boolean;
 };
@@ -148,13 +150,20 @@ function previewTextRules(own: BrandPageData): YourBrandInsight[] {
 
   const padding = own.design.preheaderPadding;
   if (padding.measured >= MIN_SAMPLE && padding.share < 0.4) {
+    const lead =
+      padding.padded === 0
+        ? `None of your last ${padding.measured} emails pad the preview text with invisible characters.`
+        : padding.padded === 1
+          ? `Only 1 of your last ${padding.measured} emails pads the preview text with invisible characters.`
+          : `Only ${padding.padded} of your last ${padding.measured} emails pad the preview text with invisible characters.`;
     return [
       {
         id: "preview-text-padding",
         kind: "fix",
         title: "Your preview text runs into body text",
-        body: `Only ${padding.padded} of your last ${padding.measured} emails pad the preview text with invisible characters. Without the padding, inboxes append your body copy (or an unsubscribe line) right after the preview you wrote.`,
+        body: `${lead} Without the padding, inboxes append your body copy (or an unsubscribe line) right after the preview you wrote.`,
         learnHref: "/learn/preheader-padding-trick",
+        learnLabel: "Why padding matters, on the Learn page",
         usesPeers: false
       }
     ];
@@ -163,39 +172,64 @@ function previewTextRules(own: BrandPageData): YourBrandInsight[] {
   return [];
 }
 
+/**
+ * Calibrated against the catalogue (July 2026): per-brand average image
+ * weight has a median of ~2.7 MB and a 90th percentile of ~6.3 MB, so
+ * anything past 6 MB is genuinely a heavy sender, not the middle of the
+ * pack. Recheck the percentiles if this ever seems to over- or
+ * under-fire.
+ */
+const HEAVY_EMAIL_BYTES = 6 * MB;
+
 function heavyEmailsRule(own: BrandPageData): YourBrandInsight | null {
   const images = own.design.images;
   if (images.emailsMeasured < MIN_SAMPLE) return null;
-  if (images.avgBytesPerEmail === null || images.avgBytesPerEmail < 2.5 * MB) {
+  if (
+    images.avgBytesPerEmail === null ||
+    images.avgBytesPerEmail < HEAVY_EMAIL_BYTES
+  ) {
     return null;
   }
 
   const gifNote =
     own.design.gifShare >= 0.3
-      ? " GIFs are the usual culprit, a short looping video frame stack weighs many times a static image."
+      ? " GIFs are the usual culprit. A short loop often weighs ten times a static image."
       : "";
 
   return {
     id: "heavy-emails",
     kind: "fix",
     title: "Your emails are heavy",
-    body: `Your recent emails average ${fmtMb(images.avgBytesPerEmail)} MB of images. On mobile connections that means visible loading, and some clients stop fetching altogether. Converting hero images to WebP or AVIF usually cuts the weight by more than half.${gifNote}`,
+    body: `Your recent emails average ${fmtMb(images.avgBytesPerEmail)} MB of images, heavier than roughly nine in ten brands we track. On mobile that means visible loading, and some clients stop fetching altogether. Converting hero images to WebP or AVIF usually cuts the weight by more than half.${gifNote}`,
     learnHref: null,
     usesPeers: false
   };
 }
 
-function darkModeRule(own: BrandPageData): YourBrandInsight | null {
+function darkModeRule(
+  own: BrandPageData,
+  peers: BrandPageData[]
+): YourBrandInsight | null {
   if (own.totals.sampleSize < MIN_SAMPLE) return null;
   if (own.design.darkModeShare > 0) return null;
+
+  // Most email programs skip dark mode entirely, so "you don't handle
+  // dark mode" alone is a generic tip, not a decision. Only fire when at
+  // least half the user's chosen competitors DO handle it — then it's a
+  // real gap against their own peer group.
+  if (peers.length < MIN_PEERS) return null;
+  const peersWithDarkMode = peers.filter(
+    (peer) => peer.design.darkModeShare > 0
+  ).length;
+  if (peersWithDarkMode < peers.length / 2) return null;
 
   return {
     id: "no-dark-mode",
     kind: "consider",
-    title: "No dark mode handling detected",
-    body: `None of your recent emails declare dark-mode styles. Roughly a third of inbox time happens in dark mode, where unstyled emails get their colors force-inverted, which is where broken logos and unreadable buttons come from.`,
+    title: "Your competitors handle dark mode, you don't",
+    body: `None of your recent emails declare dark-mode styles, while ${peersWithDarkMode} of the ${peers.length} brands in your comparison group do. Roughly a third of inbox time happens in dark mode, where unstyled emails get their colors force-inverted, which is where broken logos and unreadable buttons come from.`,
     learnHref: null,
-    usesPeers: false
+    usesPeers: true
   };
 }
 
@@ -384,11 +418,22 @@ function cadenceRule(
   }
 
   if (ownRate >= peerMedian * 2 && ownRate >= 2) {
+    // Name the actual multiple — the rule fires at 2x, but the ratio
+    // keeps growing past the threshold and "double" would understate it.
+    const ratio = ownRate / peerMedian;
+    const multiple =
+      ratio >= 4.5
+        ? `${Math.round(ratio)} times`
+        : ratio >= 3.5
+          ? "four times"
+          : ratio >= 2.5
+            ? "three times"
+            : "double";
     return {
       id: "cadence-high",
       kind: "consider",
       title: "You send far more than your competitors",
-      body: `You average ${fmt(ownRate)} emails a week, roughly double the ${fmt(peerMedian)} median across your comparison group. High frequency can work, but it is worth checking your unsubscribe rate against it, list fatigue compounds quietly.`,
+      body: `You average ${fmt(ownRate)} emails a week, roughly ${multiple} the median of ${fmt(peerMedian)} across your comparison group. High frequency can work, but it is worth checking your unsubscribe rate against it. List fatigue compounds quietly.`,
       learnHref: null,
       usesPeers: true
     };
@@ -513,7 +558,7 @@ function sendTimeCollisionRule(
     id: "send-time-collision",
     kind: "consider",
     title: "You send when your competitors send",
-    body: `Your emails usually land ${slotLabel(top)}, which is also the most contested window in your comparison group (${peerCountInOwnSlot} of their ${peerSlots.total} recent campaign sends). ${slotLabel(quietest).replace(/^./, (c) => c.toUpperCase())} is close to empty, a send there competes with almost nobody.`,
+    body: `Your emails usually land ${slotLabel(top)}, which is also the most contested window in your comparison group (${peerCountInOwnSlot} of their ${peerSlots.total} recent campaign sends). ${slotLabel(quietest).replace(/^./, (c) => c.toUpperCase())} is close to empty. A send there competes with almost nobody.`,
     learnHref: null,
     usesPeers: true
   };
@@ -536,7 +581,7 @@ function urgencyOveruseRule(
     id: "urgency-overuse",
     kind: "consider",
     title: "You lean on urgency more than anyone around you",
-    body: `${pct(ownShare)} of your recent subject lines use scarcity language ("last chance", "ends tonight"), against ${pct(peerAvg)} on average across your comparison group. Urgency works until subscribers notice everything is urgent, then none of it is.`,
+    body: `${pct(ownShare)} of your recent subject lines use scarcity language ("last chance", "ends tonight"), against ${pct(peerAvg)} on average across your comparison group. Urgency works until subscribers notice everything is urgent, and then none of it is.`,
     learnHref: null,
     usesPeers: true
   };
@@ -567,7 +612,7 @@ export function buildYourBrandInsights(input: {
     saleHeavyRule(own),
     urgencyOveruseRule(own, peers),
     longSubjectsRule(own),
-    darkModeRule(own)
+    darkModeRule(own, peers)
   ];
 
   return insights.filter((insight): insight is YourBrandInsight =>

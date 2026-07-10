@@ -122,6 +122,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 0.9rem;
+  /* Cards self-size instead of stretching to the tallest in the row —
+     short findings shouldn't carry a slab of dead space above their
+     footer just because a neighbor is wordy. */
+  align-items: start;
 }
 
 .card {

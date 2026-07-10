@@ -104,7 +104,7 @@ export default function YourBrandDashboard({
       <section className={styles.section}>
         <div className={styles.sectionHeadRow}>
           <div>
-            <div className={styles.sectionEyebrow}>This week&apos;s read</div>
+            <div className={styles.sectionEyebrow}>The current read</div>
             <h2 className={styles.sectionTitle}>
               {visible.length === 0
                 ? "Nothing needs your attention"
@@ -112,7 +112,7 @@ export default function YourBrandDashboard({
             </h2>
             <p className={styles.sectionSub}>
               Checks only appear when the data says there is something to
-              decide. Hide the ones you have made a call on, they stay
+              decide. Hide the ones you have made a call on. They stay
               available under hidden insights.
             </p>
           </div>
@@ -167,8 +167,8 @@ export default function YourBrandDashboard({
           {showHidden && hidden.length > 0 ? (
             <div className={styles.hiddenBlock}>
               <p className={styles.hiddenBlockLabel}>
-                Hidden insights. These checks still fire on your data, you
-                chose not to be reminded.
+                Hidden insights. These checks still fire on your data.
+                Restore any you want to see again.
               </p>
               <div className={styles.cardGrid}>
                 {hidden.map((insight) => (
@@ -198,7 +198,7 @@ export default function YourBrandDashboard({
         <h2 className={styles.sectionTitle}>Compare against your competitors</h2>
         <p className={styles.sectionSub}>
           Send timing, cadence and urgency checks need a group to compare
-          against. Pick one of your saved comparisons, the checks use its
+          against. Pick one of your saved comparisons. The checks use its
           brands as your peer group.
         </p>
         <div className={styles.sectionBody}>
@@ -280,7 +280,7 @@ function InsightCard({
       <div className={styles.cardFoot}>
         {insight.learnHref ? (
           <Link href={insight.learnHref} className={styles.learnLink}>
-            How this works, on the Learn page
+            {insight.learnLabel ?? "Read more on the Learn page"}
           </Link>
         ) : (
           <span />
