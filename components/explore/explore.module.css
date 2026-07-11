@@ -2327,7 +2327,6 @@ div.infoBrandRow {
 }
 
 .sentToHeader {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -2356,12 +2355,15 @@ div.infoBrandRow {
 }
 
 .sentToTooltip {
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
+  /* Same fixed-position pattern as .trickTooltip: escapes the info panel's
+     overflow clipping. left/top and --tip-arrow-x are set inline from the
+     info icon's viewport rect (fixedTipStyle in EmailModal.tsx);
+     translateY(-100%) hangs the bubble above that point. */
+  position: fixed;
   left: 0;
-  right: 0;
+  top: 0;
   z-index: 20;
-  width: auto;
+  width: 250px;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
   background: #0f172a;
@@ -2374,7 +2376,7 @@ div.infoBrandRow {
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(2px);
+  transform: translateY(calc(-100% + 2px));
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
 }
 
@@ -2387,7 +2389,8 @@ div.infoBrandRow {
   content: "";
   position: absolute;
   top: 100%;
-  right: 0.55rem;
+  left: var(--tip-arrow-x, 50%);
+  margin-left: -5px;
   border: 5px solid transparent;
   border-top-color: #0f172a;
 }
@@ -2396,7 +2399,7 @@ div.infoBrandRow {
 .sentToInfo:focus-visible .sentToTooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(-100%);
 }
 
 .sentToPills {
