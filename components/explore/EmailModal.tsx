@@ -379,6 +379,29 @@ function InfoPanel({
   const [following, setFollowing] = useState(false);
   const [followPending, setFollowPending] = useState(false);
 
+  // The preview-padding tooltip is position:fixed so it escapes the info
+  // panel's overflow clipping (overflow-y:auto forces overflow-x to clip,
+  // so an absolutely positioned bubble gets cut off at the panel edge no
+  // matter which side it opens toward). Measured from the pill on hover /
+  // focus and clamped to the viewport; the arrow keeps pointing at the pill.
+  const [trickTipStyle, setTrickTipStyle] = useState<
+    React.CSSProperties | undefined
+  >(undefined);
+  const placeTrickTip = (event: React.SyntheticEvent<HTMLSpanElement>) => {
+    const pill = event.currentTarget.getBoundingClientRect();
+    const width = 250;
+    const margin = 8;
+    const left = Math.min(
+      Math.max(margin, pill.left + pill.width / 2 - width / 2),
+      window.innerWidth - width - margin
+    );
+    setTrickTipStyle({
+      left,
+      top: pill.top - 8,
+      "--tip-arrow-x": `${pill.left + pill.width / 2 - left}px`
+    } as React.CSSProperties);
+  };
+
   useEffect(() => {
     if (readOnly || !followCompanyId) return;
     let cancelled = false;
@@ -572,10 +595,16 @@ function InfoPanel({
             tabIndex={0}
             role="note"
             aria-label="Preview padding: this email follows its preview text with invisible characters, so inboxes show only the teaser the sender wrote."
+            onMouseEnter={placeTrickTip}
+            onFocus={placeTrickTip}
           >
             Preview padding
             <InfoIcon />
-            <span className={styles.trickTooltip} role="tooltip">
+            <span
+              className={styles.trickTooltip}
+              role="tooltip"
+              style={trickTipStyle}
+            >
               This email follows its preview text with a run of{" "}
               <strong>invisible characters</strong>, so the inbox preview shows
               only the teaser the sender wrote and never bleeds into the body.{" "}
