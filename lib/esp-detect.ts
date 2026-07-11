@@ -1,5 +1,5 @@
 import type { EspProvider as KnownEspProvider } from "./admin-types";
-import type { ParsedLink } from "./extract-metadata";
+import { extractListHeaders, type ParsedLink } from "./extract-metadata";
 
 /**
  * A detected ESP, or `"unknown"` when no fingerprint clears the confidence
@@ -83,6 +83,11 @@ const FINGERPRINTS: Fingerprint[] = [
     //     `/o/01KSDRR5A3KQS23S0ADQW8CQ4Z` for the open-tracking pixel).
     // Image / template assets continue to live on the shared CloudFront
     // distribution `d3k81ch9hvuctc.cloudfront.net/company/<tenant>/images/…`.
+    // List management (unsubscribe / preferences) is always hosted on
+    // `manage.kmail-lists.com` — even for dedicated-infrastructure tenants
+    // (e.g. Patagonia) whose delivery runs through SendGrid with a fully
+    // brand-CNAMEd click tracker, so it's often the ONLY Klaviyo-owned host
+    // left in the message.
     hostPatterns: [
       /(^|\.)klaviyo\.com$/i,
       /(^|\.)klaviyomail\.com$/i,
@@ -91,6 +96,7 @@ const FINGERPRINTS: Fingerprint[] = [
       /(^|\.)email\.klaviyomail\.com$/i,
       /(^|\.)klclick\.com$/i,
       /(^|\.)ctrk\.klclick\.com$/i,
+      /(^|\.)kmail-lists\.com$/i,
       /(^|\.)d3k81ch9hvuctc\.cloudfront\.net$/i
     ],
     // Klaviyo's editor (powered by MJML) leaves a very distinctive set of
@@ -130,7 +136,18 @@ const FINGERPRINTS: Fingerprint[] = [
       /klaviyomail\.com/i,
       /klclick\.com/i
     ],
-    xHeaderNames: ["x-klaviyo-message-id", "x-klaviyo-account"]
+    // Klaviyo's mail pipeline is internally named "kmail" — production sends
+    // stamp `x-kmail-account` (the 6-char public account id), `x-kmail-message`
+    // and `x-kmail-ops` (ULIDs) on every message. These survive on
+    // dedicated-SendGrid tenants where every other Klaviyo fingerprint is
+    // hidden behind brand CNAMEs.
+    xHeaderNames: [
+      "x-klaviyo-message-id",
+      "x-klaviyo-account",
+      "x-kmail-account",
+      "x-kmail-message",
+      "x-kmail-ops"
+    ]
   },
   {
     provider: "hubspot",
@@ -1070,7 +1087,7 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
   const dkimDomain = parseDkimDomain(headerLookup["dkim-signature"]);
   const arcDkimDomain = parseDkimDomain(headerLookup["arc-message-signature"]);
   const returnPath = headerLookup["return-path"] ?? headerLookup["sender"] ?? "";
-  const listUnsubscribe = headerLookup["list-unsubscribe"] ?? "";
+  const unsubscribeTargets = parseUnsubscribeTargets(input.headers ?? null);
   const feedbackId = headerLookup["feedback-id"] ?? "";
   const html = input.html ?? "";
   const links = input.links ?? [];
@@ -1131,8 +1148,14 @@ export function detectEsp(input: DetectEspInput): EspDetectionResult {
           addSignal(fp.provider, { kind: "link_host", detail: matchedHost });
           break;
         }
-        if (listUnsubscribe && pattern.test(listUnsubscribe)) {
-          addSignal(fp.provider, { kind: "list_unsubscribe", detail: listUnsubscribe });
+        const matchedUnsubscribe = unsubscribeTargets.find((target) =>
+          pattern.test(target.host)
+        );
+        if (matchedUnsubscribe) {
+          addSignal(fp.provider, {
+            kind: "list_unsubscribe",
+            detail: matchedUnsubscribe.detail.slice(0, 120)
+          });
           break;
         }
       }
@@ -1252,6 +1275,51 @@ function lowerCaseHeaders(
     }
   }
   return out;
+}
+
+/**
+ * Resolves the List-Unsubscribe endpoint(s) to bare hosts so they can be
+ * tested against the same end-anchored `hostPatterns` as link/image hosts.
+ * Delegates header parsing to {@link extractListHeaders}, which understands
+ * both the raw RFC 2369 `list-unsubscribe: <https://…>, <mailto:…>` form and
+ * Resend's inbound shape where postal-mime folds all `List-*` headers into a
+ * single `list` key holding a JSON blob. The unsubscribe endpoint is operated
+ * by the composing platform (not the delivery transport), so a provider-owned
+ * host here identifies the ESP even when every link in the body is wrapped by
+ * a brand-CNAMEd tracker (e.g. Klaviyo's `manage.kmail-lists.com` on a
+ * dedicated-SendGrid send).
+ */
+function parseUnsubscribeTargets(
+  headers: Record<string, string> | null
+): Array<{ host: string; detail: string }> {
+  const listHeaders = extractListHeaders(headers);
+  if (!listHeaders) {
+    return [];
+  }
+  const targets: Array<{ host: string; detail: string }> = [];
+  if (listHeaders.unsubscribe_url) {
+    try {
+      const host = new URL(listHeaders.unsubscribe_url).hostname.toLowerCase();
+      if (host) {
+        targets.push({ host, detail: listHeaders.unsubscribe_url });
+      }
+    } catch {
+      // Malformed URL — skip; other signals can still carry detection.
+    }
+  }
+  if (listHeaders.unsubscribe_mailto) {
+    const domain = listHeaders.unsubscribe_mailto
+      .replace(/^mailto:/i, "")
+      .split("?")[0]
+      .split("@")
+      .pop()
+      ?.trim()
+      .toLowerCase();
+    if (domain) {
+      targets.push({ host: domain, detail: listHeaders.unsubscribe_mailto });
+    }
+  }
+  return targets;
 }
 
 function parseDkimDomain(dkim: string | undefined): string | null {

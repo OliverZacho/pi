@@ -1204,6 +1204,61 @@ describe("detectEsp", () => {
     );
   });
 
+  it("identifies Klaviyo on a dedicated-SendGrid tenant via x-kmail-* headers and the kmail-lists.com unsubscribe host (Resend `list` blob, brand-CNAMEd tracker)", () => {
+    // Distilled from a real Patagonia send. Delivery runs through SendGrid
+    // (x-sg-eid, bounces+…@em.na.patagonia.com) with every click/open link
+    // wrapped by SendGrid's brand-CNAMEd tracker (`trk.na.patagonia.com/ls/
+    // click?upn=u001.…`), so no Klaviyo host, class marker, or URL shape
+    // appears anywhere in the body. The composing platform is only visible in
+    // the transport headers (x-kmail-account/message/ops) and in the
+    // List-Unsubscribe endpoint on manage.kmail-lists.com — which Resend
+    // surfaces as a JSON blob under the folded `list` header key, not as a
+    // raw `list-unsubscribe` header. Klaviyo (the composer) must outrank
+    // SendGrid (the transport).
+    const result = detectEsp({
+      headers: {
+        "x-sg-eid": "u001.8l22YAme1b9WP62dO4kbSJ",
+        "x-kmail-account": "YgU9me",
+        "x-kmail-message": "01KVTW2GPWWSNF8S2GTH9JM9CE",
+        "x-kmail-ops": "01KTF0EB8WGWB9AMZENYDH1VYK",
+        "return-path": "bounces+30602736-0063-user=example.com@em.na.patagonia.com",
+        list: JSON.stringify({
+          unsubscribe: {
+            url: "https://manage.kmail-lists.com/subscriptions/unsubscribe?a=YgU9me&c=01KTF0EB8WGWB9AMZENYDH1VYK&k=13bd&m=01KVTW2GPWWSNF8S2GTH9JM9CE"
+          },
+          "unsubscribe-post": { name: "List-Unsubscribe=One-Click" }
+        })
+      },
+      html: '<a href="https://trk.na.patagonia.com/ls/click?upn=u001.sIJIdDSs4ZUW45aJuUQ5ST">Shop</a><img src="https://trk.na.patagonia.com/wf/open?upn=u001.cvFzIFhJn0j" width="1" height="1" />',
+      links: [link("https://trk.na.patagonia.com/ls/click?upn=u001.sIJIdDSs4ZUW45aJuUQ5ST")],
+      resourceHosts: ["trk.na.patagonia.com", "images.patagonia.com"]
+    });
+    expect(result.provider).toBe("klaviyo");
+    expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+    expect(result.signals.map((s) => s.kind)).toEqual(
+      expect.arrayContaining(["x_header", "list_unsubscribe"])
+    );
+    const sendgrid = result.candidates.find((c) => c.provider === "sendgrid");
+    expect(sendgrid).toBeDefined();
+    expect(result.confidence).toBeGreaterThan(sendgrid!.score);
+  });
+
+  it("matches end-anchored host patterns against the raw RFC 2369 List-Unsubscribe header", () => {
+    // The host patterns are anchored with `$`, so they can only match once the
+    // unsubscribe URI is reduced to its bare host — testing them against the
+    // full `<https://…>` header string can never fire.
+    const result = detectEsp({
+      headers: {
+        "List-Unsubscribe": "<https://manage.kmail-lists.com/subscriptions/unsubscribe?a=abc>, <mailto:unsub@kmail-lists.com>"
+      },
+      html: "<p>Hello</p>",
+      links: []
+    });
+    const klaviyo = result.candidates.find((c) => c.provider === "klaviyo");
+    expect(klaviyo).toBeDefined();
+    expect(result.signals.map((s) => s.kind)).toContain("list_unsubscribe");
+  });
+
   it("returns unknown when there are no provider hints", () => {
     const result = detectEsp({
       headers: { "DKIM-Signature": "v=1; d=brand.com;" },
