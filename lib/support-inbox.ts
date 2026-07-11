@@ -20,7 +20,7 @@ export const SUPPORT_ATTACHMENT_BUCKET = "support-attachments";
 /** Skip anything above the bucket's 25 MB object cap. */
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
-type ResendInboundEvent = {
+export type ResendInboundEvent = {
   type: string;
   created_at: string;
   data: {

@@ -13,6 +13,7 @@ import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
 import { mirrorRemoteImages, uploadEmailHtml, type MirroredImage } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
+import { forwardFounderEmail, isFounderRecipient } from "./founder-inbox";
 import {
   ingestSupportEmail,
   isSupportRecipient,
@@ -136,6 +137,34 @@ async function runClaimedEvent(row: WebhookEventRow): Promise<ProcessEventOutcom
       status: "skipped",
       error: `unsupported event type: ${event?.type ?? "unknown"}`
     };
+  }
+
+  // Mail to the founder address is forwarded to the personal mailbox — like
+  // support mail, it must never reach the captured_emails pipeline.
+  if (isFounderRecipient(recipientsFromEvent(event))) {
+    try {
+      const resend = getResend();
+      const result = await forwardFounderEmail(resend, event);
+      await markEventStatus(row.id, "processed");
+      return {
+        eventId: row.id,
+        status: "processed",
+        emailId: result.id,
+        deduplicated: result.deduplicated
+      };
+    } catch (error) {
+      const message = serializeProcessingError(error);
+      console.error("Founder email forwarding failed", {
+        eventId: row.id,
+        svixId: row.svix_id,
+        resendEmailId: event.data.email_id,
+        from: event.data.from,
+        subject: event.data.subject,
+        error
+      });
+      await markEventStatus(row.id, "failed", message);
+      return { eventId: row.id, status: "failed", error: message };
+    }
   }
 
   // Mail to support@pirol.app rides the same inbound webhook as newsletters.
