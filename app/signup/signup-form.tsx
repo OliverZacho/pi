@@ -136,20 +136,18 @@ export default function SignupForm() {
     if (pending) return;
     setError("");
     setPending(true);
-    try {
-      const res = await fetch("/api/account/password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: password })
-      });
-      const data: { error?: string } = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not set the password");
-      router.push(safeNext);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not set the password");
+    // The verifyOtp session is seconds old, so this works even with the
+    // "secure password change" project option on. /api/account/password is
+    // for Settings, where an existing password must be verified first.
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    if (updateError) {
+      setError(updateError.message);
       setPending(false);
+      return;
     }
+    router.push(safeNext);
+    router.refresh();
   }
 
   if (step === "code") {
