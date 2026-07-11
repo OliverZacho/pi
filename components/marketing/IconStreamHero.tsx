@@ -360,7 +360,7 @@ export default function IconStreamHero() {
           Intelligence and inspiration across thousands of newsletters
         </h1>
         <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.primaryBtn}>
+          <Link href="/signup" className={styles.primaryBtn}>
             Sign up
           </Link>
           <button type="button" className={styles.secondaryBtn}>

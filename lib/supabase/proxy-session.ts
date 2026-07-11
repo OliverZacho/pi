@@ -49,7 +49,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (isLoggedIn && path === "/login") {
+  if (isLoggedIn && (path === "/login" || path === "/signup")) {
     // Land everyone on the app, not the admin console: non-admin subscribers
     // would otherwise bounce to /access-denied. Admins reach /admin via nav.
     const redirectUrl = request.nextUrl.clone();

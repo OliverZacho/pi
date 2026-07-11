@@ -24,7 +24,7 @@ export default function FeatureExplainer({ eyebrow, title, lede, items }: Props)
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.lede}>{lede}</p>
         <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.primaryBtn}>
+          <Link href="/signup" className={styles.primaryBtn}>
             Start free →
           </Link>
           <Link href="/explore" className={styles.secondaryBtn}>

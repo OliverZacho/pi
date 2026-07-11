@@ -70,6 +70,7 @@ export const DISALLOWED_PATHS = [
   "/api",
   "/auth",
   "/login",
+  "/signup",
   "/access-denied",
   "/settings",
   "/saved",
