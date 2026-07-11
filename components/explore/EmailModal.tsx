@@ -242,6 +242,7 @@ export default function EmailModal({
                     type="button"
                     role="tab"
                     aria-selected={active}
+                    aria-label={option.label}
                     className={`${styles.viewToggleButton}${
                       active ? ` ${styles.viewToggleButtonActive}` : ""
                     }`}
@@ -349,6 +350,29 @@ type InfoPanelProps = {
   onRequestMemberships?: (emailId: string) => Promise<void> | void;
 };
 
+// Shared placement for the info panel's tooltips (.trickTooltip and
+// .sentToTooltip). They are position:fixed so the bubble escapes the panel's
+// overflow clipping (overflow-y:auto forces overflow-x to clip, so an
+// absolutely positioned bubble gets cut off at the panel edge no matter which
+// side it opens toward). Measured from the trigger's viewport rect on hover /
+// focus and clamped to the viewport; --tip-arrow-x keeps the arrow pointing
+// at the trigger. translateY(-100%) in the CSS hangs the bubble above the
+// returned point.
+function fixedTipStyle(trigger: Element): React.CSSProperties {
+  const rect = trigger.getBoundingClientRect();
+  const width = 250;
+  const margin = 8;
+  const left = Math.min(
+    Math.max(margin, rect.left + rect.width / 2 - width / 2),
+    window.innerWidth - width - margin
+  );
+  return {
+    left,
+    top: rect.top - 8,
+    "--tip-arrow-x": `${rect.left + rect.width / 2 - left}px`
+  } as React.CSSProperties;
+}
+
 function InfoPanel({
   email,
   detail,
@@ -377,6 +401,19 @@ function InfoPanel({
   const followCompanyId = email.companyId;
   const [following, setFollowing] = useState(false);
   const [followPending, setFollowPending] = useState(false);
+
+  // Fixed-position tooltip placement, measured on hover / focus — see
+  // fixedTipStyle above for why these are not plain absolute tooltips.
+  const [trickTipStyle, setTrickTipStyle] = useState<
+    React.CSSProperties | undefined
+  >(undefined);
+  const placeTrickTip = (event: React.SyntheticEvent<HTMLSpanElement>) =>
+    setTrickTipStyle(fixedTipStyle(event.currentTarget));
+  const [sentToTipStyle, setSentToTipStyle] = useState<
+    React.CSSProperties | undefined
+  >(undefined);
+  const placeSentToTip = (event: React.SyntheticEvent<HTMLSpanElement>) =>
+    setSentToTipStyle(fixedTipStyle(event.currentTarget));
 
   useEffect(() => {
     if (readOnly || !followCompanyId) return;
@@ -571,10 +608,16 @@ function InfoPanel({
             tabIndex={0}
             role="note"
             aria-label="Preview padding: this email follows its preview text with invisible characters, so inboxes show only the teaser the sender wrote."
+            onMouseEnter={placeTrickTip}
+            onFocus={placeTrickTip}
           >
             Preview padding
             <InfoIcon />
-            <span className={styles.trickTooltip} role="tooltip">
+            <span
+              className={styles.trickTooltip}
+              role="tooltip"
+              style={trickTipStyle}
+            >
               This email follows its preview text with a run of{" "}
               <strong>invisible characters</strong>, so the inbox preview shows
               only the teaser the sender wrote and never bleeds into the body.{" "}
@@ -600,9 +643,15 @@ function InfoPanel({
               tabIndex={0}
               role="note"
               aria-label={`${email.companyName} sent this identical email to all ${detail.sentToLists.length} of these mailing lists. We've collapsed the duplicates into one.`}
+              onMouseEnter={placeSentToTip}
+              onFocus={placeSentToTip}
             >
               <InfoIcon />
-              <span className={styles.sentToTooltip} role="tooltip">
+              <span
+                className={styles.sentToTooltip}
+                role="tooltip"
+                style={sentToTipStyle}
+              >
                 <strong>{email.companyName}</strong> sent this identical email to
                 all {detail.sentToLists.length}{" "}of these mailing lists.
                 We&rsquo;ve collapsed the duplicates into one.

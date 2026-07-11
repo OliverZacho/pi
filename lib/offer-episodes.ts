@@ -96,6 +96,15 @@ const MAX_EXTENSION_GAP_DAYS = 10;
  * (evergreen codes like WELCOME10) and starts a fresh episode.
  */
 const MAX_CODE_GAP_DAYS = 45;
+/**
+ * A codeless send may only pull an episode's known deadline forward by this
+ * many days before we stop believing it's the same offer. Quiet extensions
+ * run "through the weekend"; a same-depth send stating a deadline weeks past
+ * the episode's promise (a public sale right after a VIP preview, say) is a
+ * new offer, not an extension. Sends that explicitly announce an extension,
+ * or share the episode's promo code, are exempt — that's real evidence.
+ */
+const MAX_QUIET_EXTENSION_DAYS = 7;
 
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -132,7 +141,9 @@ function knownEndOn(episode: OfferEpisode): string | null {
  *  2. codeless sends join a same-depth episode only while it is plausibly
  *     still running: inside its stated window (+ grace), within a reminder
  *     gap of its last send, or within a longer gap when the email itself
- *     says the offer was extended.
+ *     says the offer was extended — but never when the send states its own
+ *     deadline more than {@link MAX_QUIET_EXTENSION_DAYS} past the episode's
+ *     known end, which marks it as a different offer at the same depth.
  *
  * Everything that doesn't confidently link starts its own episode, so an
  * over-split (two bars where one sale ran) is the failure mode — never an
@@ -196,6 +207,18 @@ export function buildOfferEpisodes(
       if (episode.depth !== send.depth) continue;
 
       const end = knownEndOn(episode);
+      // A send stating a deadline far past everything this episode ever
+      // promised is a different offer at the same depth (a public sale on
+      // the heels of a VIP preview), not a reminder. Only an explicit
+      // "extended" in the copy links across a jump that big.
+      if (
+        !send.isExtension &&
+        end !== null &&
+        send.offerEndsOn !== null &&
+        dayDiff(end, send.offerEndsOn, zone) > MAX_QUIET_EXTENSION_DAYS
+      ) {
+        continue;
+      }
       const insideWindow =
         end !== null && dayDiff(send.sendDay, end, zone) >= -DEADLINE_GRACE_DAYS;
       const reminderGap = gap <= MAX_REMINDER_GAP_DAYS;

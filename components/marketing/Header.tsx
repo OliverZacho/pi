@@ -201,7 +201,7 @@ export default function Header({ user = null }: { user?: HeaderUser | null }) {
             <Link href="/login" className={styles.linkBtn}>
               Login
             </Link>
-            <Link href="/login" className={styles.primaryBtn}>
+            <Link href="/signup" className={styles.primaryBtn}>
               Sign up
             </Link>
           </>

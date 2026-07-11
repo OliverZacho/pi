@@ -1010,6 +1010,40 @@ export function DesignCard({
           </span>
         </span>
       ) : null}
+      {design.openTracking.measured > 0 ? (
+        <span
+          className={`${styles.flag} ${styles.flagWithTip}`}
+          tabIndex={0}
+          role="note"
+          aria-label="Open tracking: the share of this brand's recent emails that load a dedicated open-tracking pixel, the invisible image that reports when a recipient opens the email."
+        >
+          <span
+            className={`${styles.flagDot}${
+              design.openTracking.share > 0 ? ` ${styles.flagDot_on}` : ""
+            }`}
+          />
+          <span>Open tracking</span>
+          <span className={styles.flagShare}>
+            {Math.round(design.openTracking.share * 100)}%
+          </span>
+          <span className={styles.flagTooltip} role="tooltip">
+            {design.openTracking.withPixel} of {design.openTracking.measured}{" "}
+            recent emails load a dedicated{" "}
+            <strong>open-tracking pixel</strong>
+            {design.openTracking.provider
+              ? ` via ${design.openTracking.provider}`
+              : ""}
+            , the invisible image that reports each open. France and Italy
+            now require explicit consent for these.{" "}
+            <Link
+              href="/learn/email-tracking-links"
+              className={styles.flagTooltipLink}
+            >
+              Read where the law stands
+            </Link>
+          </span>
+        </span>
+      ) : null}
       <span className={styles.flag}>
         <span className={styles.flagDot} />
         <span>Avg subject</span>

@@ -19,7 +19,7 @@ export type CheckoutPlan = {
 };
 
 type Mode = "signup" | "login";
-type Step = "details" | "business" | "verify";
+type Step = "details" | "business" | "verify" | "linkSent";
 
 /**
  * The paid-plan checkout gate for logged-out visitors, shown after they pick a
@@ -28,8 +28,9 @@ type Step = "details" | "business" | "verify";
  * time so it's clear the account is a means to that purchase.
  *
  * Signup collects name + password (+ optional business details), then confirms
- * the email with an 8-digit code (`verifyOtp type:"signup"`), which also
- * establishes the session. Login just signs in. Either way we then resume the
+ * the email with a 6-digit code (`verifyOtp type:"signup"`), which also
+ * establishes the session. Login signs in with a password, or falls back to a
+ * magic link that resumes checkout on return. Either way we then resume the
  * Stripe checkout for the chosen plan — unless the returning user already has
  * an active subscription, in which case we unlock in place instead of charging.
  */
@@ -60,9 +61,6 @@ export default function CheckoutAuthFlow({
   const [vatNumber, setVatNumber] = useState("");
   const [country, setCountry] = useState("");
   const [code, setCode] = useState("");
-  // Which OTP the verify step is confirming: a new signup ("signup") or a
-  // magic-code login for an existing user who forgot their password ("email").
-  const [verifyType, setVerifyType] = useState<"signup" | "email">("signup");
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +87,15 @@ export default function CheckoutAuthFlow({
     const supabase = createClient();
     const emailRedirectTo = `${window.location.origin}/auth/callback?next=/explore`;
     if (passwordless) {
+      // Existing emails would get a magic *link* instead of a code (Supabase
+      // picks the template by user existence), so catch them up front.
+      const { data: exists, error: checkError } = await supabase.rpc("email_has_account", {
+        check_email: email.trim()
+      });
+      if (checkError) throw new Error(checkError.message);
+      if (exists) {
+        throw new Error("That email already has an account. Log in instead.");
+      }
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { shouldCreateUser: true, emailRedirectTo, data: buyerData() }
@@ -180,7 +187,7 @@ export default function CheckoutAuthFlow({
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: code,
-        type: verifyType
+        type: "signup"
       });
       if (verifyError) throw new Error(verifyError.message);
       await finishCheckout();
@@ -210,29 +217,40 @@ export default function CheckoutAuthFlow({
   }
 
   /**
-   * Existing user forgot their password — email a one-time login code and hand
-   * off to the shared verify step (verified as an "email" magic code, not a
-   * signup). No account is created for an unknown email in this login context.
+   * Existing user forgot their password — email a magic login link that
+   * carries the chosen plan through /auth/callback (same mechanism as the
+   * Google path), so clicking it logs them in and resumes this checkout.
+   * No account is created for an unknown email in this login context.
    */
-  async function sendLoginCode() {
+  async function sendLoginLink() {
     if (pending) return;
+    if (!email.trim()) {
+      setError("Enter your email first.");
+      return;
+    }
     setError(null);
     setPending(true);
     try {
+      const next = `/api/checkout/continue?plan=${plan.id}&billing=${billing}`;
       const supabase = createClient();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/explore`
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
         }
       });
-      if (otpError) throw new Error(otpError.message);
-      setVerifyType("email");
-      setStep("verify");
+      if (otpError) {
+        // Supabase rejects unknown emails with "Signups not allowed for otp".
+        if (/signups not allowed|otp_disabled/i.test(otpError.message)) {
+          throw new Error("No account found for that email. Create one instead.");
+        }
+        throw new Error(otpError.message);
+      }
+      setStep("linkSent");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not email a login code"
+        err instanceof Error ? err.message : "Could not email a login link"
       );
     } finally {
       setPending(false);
@@ -273,20 +291,7 @@ export default function CheckoutAuthFlow({
     setError(null);
     setPending(true);
     try {
-      if (verifyType === "email") {
-        // Login-via-code: re-send the magic code for the existing account.
-        const supabase = createClient();
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email: email.trim(),
-          options: {
-            shouldCreateUser: false,
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=/explore`
-          }
-        });
-        if (otpError) throw new Error(otpError.message);
-      } else {
-        await createAccount();
-      }
+      await createAccount();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not resend the code");
     } finally {
@@ -340,7 +345,32 @@ export default function CheckoutAuthFlow({
 
         {/* LEFT — the account / login flow */}
         <div className={styles.left}>
-          {step === "verify" ? (
+          {step === "linkSent" ? (
+            <>
+              <button
+                type="button"
+                className={styles.back}
+                onClick={() => setStep("details")}
+              >
+                ← Back
+              </button>
+              <h2 className={styles.title}>Check your email</h2>
+              <p className={styles.lead}>
+                We sent a login link to <strong>{email.trim()}</strong>. Open
+                it on this device to log in and continue to payment.
+              </p>
+              <div className={styles.altRow}>
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={sendLoginLink}
+                  disabled={pending}
+                >
+                  Resend link
+                </button>
+              </div>
+            </>
+          ) : step === "verify" ? (
             <>
               <button
                 type="button"
@@ -356,10 +386,8 @@ export default function CheckoutAuthFlow({
               <h2 className={styles.title}>Enter your code</h2>
               <p className={styles.lead}>
                 We sent a {CODE_LENGTH}-digit code to{" "}
-                <strong>{email.trim()}</strong>.{" "}
-                {verifyType === "signup"
-                  ? "Enter it to confirm your email and continue to payment."
-                  : "Enter it to log in and continue to payment."}
+                <strong>{email.trim()}</strong>. Enter it to confirm your
+                email and continue to payment.
               </p>
               <form className={styles.form} onSubmit={onSubmitCode}>
                 <CodeInput
@@ -585,10 +613,10 @@ export default function CheckoutAuthFlow({
                 <button
                   type="button"
                   className={styles.linkBtn}
-                  onClick={sendLoginCode}
+                  onClick={sendLoginLink}
                   disabled={pending}
                 >
-                  Forgot your password? Email me a login code
+                  Forgot your password? Email me a login link
                 </button>
                 <button
                   type="button"

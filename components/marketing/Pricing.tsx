@@ -100,7 +100,7 @@ export default function Pricing() {
       });
       // Not signed in — send them to sign up, then back to pricing.
       if (res.status === 401) {
-        window.location.assign("/login?next=/pricing");
+        window.location.assign("/signup?next=/pricing");
         return;
       }
       const data: { url?: string; error?: string } = await res.json();
@@ -223,7 +223,7 @@ export default function Pricing() {
 
             {plan.id === "free" ? (
               <Link
-                href="/login"
+                href="/signup"
                 className={`${styles.cta} ${
                   plan.featured ? styles.ctaPrimary : styles.ctaGhost
                 }`}

@@ -6,11 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./login.module.css";
 
+/**
+ * Login for existing accounts: email + password by default, with Google and
+ * an emailed magic link as alternatives. Signups happen on /signup — the
+ * magic link here never creates an account.
+ */
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Land on the app by default — non-admin users bounced off /admin would
-  // otherwise hit /access-denied right after signing up. Admins reach
+  // otherwise hit /access-denied right after signing in. Admins reach
   // /admin via nav.
   const nextPath = searchParams.get("next") ?? "/explore";
   const safeNext = nextPath.startsWith("/") ? nextPath : "/explore";
@@ -18,19 +23,23 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [useMagicLink, setUseMagicLink] = useState(false);
+  const [noAccount, setNoAccount] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
   const [pending, setPending] = useState<null | "google" | "magic" | "password">(null);
 
+  const signupHref = `/signup?next=${encodeURIComponent(safeNext)}`;
+
   // Both magic links and the Google OAuth round-trip come back through the
-  // existing /auth/callback route, which exchanges the PKCE `code` for a
-  // session. Preserve the caller's `next` so they land where they intended.
+  // existing /auth/callback route, which turns them into a session. Preserve
+  // the caller's `next` so they land where they intended.
   function callbackUrl() {
     return `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
   }
 
   async function onGoogle() {
     setError("");
+    setNoAccount(false);
     setPending("google");
     const supabase = createClient();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -47,20 +56,26 @@ export default function LoginForm() {
   async function onMagicLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setNoAccount(false);
     setPending("magic");
     const supabase = createClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        // Passwordless sign-up doubles as sign-in: create the account on the
-        // first link if it doesn't exist yet.
-        shouldCreateUser: true,
+        // Login only — new accounts are created on /signup, where the
+        // emailed code flow lives.
+        shouldCreateUser: false,
         emailRedirectTo: callbackUrl()
       }
     });
     setPending(null);
     if (otpError) {
-      setError(otpError.message);
+      // Supabase rejects unknown emails with "Signups not allowed for otp".
+      if (/signups not allowed|otp_disabled/i.test(otpError.message)) {
+        setNoAccount(true);
+      } else {
+        setError(otpError.message);
+      }
       return;
     }
     setMagicSent(true);
@@ -69,6 +84,7 @@ export default function LoginForm() {
   async function onPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setNoAccount(false);
     setPending("password");
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -77,7 +93,7 @@ export default function LoginForm() {
     });
     setPending(null);
     if (signInError) {
-      setError(signInError.message);
+      setError("Wrong email or password.");
       return;
     }
     router.push(safeNext);
@@ -93,8 +109,8 @@ export default function LoginForm() {
         </svg>
         <h1 className={styles.title}>Check your email</h1>
         <p className={styles.subtitle}>
-          We sent a sign-in link to <strong>{email.trim()}</strong>. Open it on this device to
-          finish signing in.
+          We sent a login link to <strong>{email.trim()}</strong>. Open it on this device to
+          finish logging in.
         </p>
         <p className={styles.footer}>
           Didn’t get it? Check spam, or{" "}
@@ -109,27 +125,53 @@ export default function LoginForm() {
 
   return (
     <div className={styles.form}>
-      <h1 className={styles.title}>Welcome to Pirol</h1>
-      <p className={styles.subtitle}>Log in or sign up to continue</p>
+      <h1 className={styles.title}>Log in to Pirol</h1>
+      <p className={styles.subtitle}>Welcome back</p>
 
       {searchParams.get("error") === "auth" ? (
         <p className={styles.error}>Authentication failed. Try again or request a new link.</p>
       ) : null}
 
-      <form className={styles.fieldGroup} onSubmit={onMagicLink}>
-        <input
-          className={styles.input}
-          type="email"
-          placeholder="Email address"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <button type="submit" className={styles.primaryBtn} disabled={pending !== null}>
-          {pending === "magic" ? "Sending…" : "Continue with email"}
-        </button>
-      </form>
+      {useMagicLink ? (
+        <form className={styles.fieldGroup} onSubmit={onMagicLink}>
+          <input
+            className={styles.input}
+            type="email"
+            placeholder="Email address"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <button type="submit" className={styles.primaryBtn} disabled={pending !== null}>
+            {pending === "magic" ? "Sending…" : "Email me a login link"}
+          </button>
+        </form>
+      ) : (
+        <form className={styles.fieldGroup} onSubmit={onPassword}>
+          <input
+            className={styles.input}
+            type="email"
+            placeholder="Email address"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input
+            className={styles.input}
+            type="password"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <button type="submit" className={styles.primaryBtn} disabled={pending !== null}>
+            {pending === "password" ? "Logging in…" : "Log in"}
+          </button>
+        </form>
+      )}
 
       <div className={styles.divider}>OR</div>
 
@@ -143,32 +185,36 @@ export default function LoginForm() {
         {pending === "google" ? "Redirecting…" : "Continue with Google"}
       </button>
 
-      {showPassword ? (
-        <form className={styles.fieldGroup} onSubmit={onPassword} style={{ marginTop: "0.75rem" }}>
-          <input
-            className={styles.input}
-            type="password"
-            placeholder="Password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button type="submit" className={styles.primaryBtn} disabled={pending !== null}>
-            {pending === "password" ? "Signing in…" : "Sign in with password"}
-          </button>
-        </form>
-      ) : null}
-
-      {error ? <p className={styles.error}>{error}</p> : null}
-
-      {!showPassword ? (
-        <p className={styles.footer}>
-          <button type="button" className={styles.linkButton} onClick={() => setShowPassword(true)}>
-            Sign in with a password instead
-          </button>
+      {noAccount ? (
+        <p className={styles.error}>
+          No account found for that email.{" "}
+          <Link className={styles.link} href={signupHref}>
+            Create one
+          </Link>
+          .
         </p>
       ) : null}
+      {error ? <p className={styles.error}>{error}</p> : null}
+
+      <p className={styles.footer}>
+        <button
+          type="button"
+          className={styles.linkButton}
+          onClick={() => {
+            setError("");
+            setNoAccount(false);
+            setUseMagicLink((v) => !v);
+          }}
+        >
+          {useMagicLink ? "Log in with a password instead" : "Email me a login link instead"}
+        </button>
+      </p>
+      <p className={styles.footer}>
+        New here?{" "}
+        <Link className={styles.link} href={signupHref}>
+          Create an account
+        </Link>
+      </p>
       <p className={styles.footer}>
         <Link className={styles.link} href="/">
           Back to home

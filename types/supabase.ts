@@ -1352,6 +1352,7 @@ export type Database = {
           size: number
         }[]
       }
+      email_has_account: { Args: { check_email: string }; Returns: boolean }
       explore_facets: { Args: { restrict_ids?: string[] | null }; Returns: Json }
       get_team_context: {
         Args: never

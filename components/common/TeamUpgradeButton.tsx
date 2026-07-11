@@ -37,11 +37,11 @@ export default function TeamUpgradeButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: "team", billing: "annual" })
       });
-      // Not signed in — send them to log in, then back to this page.
+      // Not signed in — send them to sign up, then back to this page.
       if (res.status === 401) {
         const next =
           typeof window !== "undefined" ? window.location.pathname : "/";
-        window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+        window.location.assign(`/signup?next=${encodeURIComponent(next)}`);
         return;
       }
       const data: { url?: string; error?: string } = await res.json();

@@ -1680,10 +1680,61 @@
 }
 
 @media (max-width: 1080px) {
+  .modalBackdrop {
+    padding: 0.75rem;
+  }
+
+  /*
+   * Stacked layout: preview on top, info panel below. Both rows are
+   * minmax(0, *fr) so they split the viewport instead of the info panel
+   * sizing to its (very tall) content and shoving the preview off-screen.
+   * Each pane keeps its own internal scroll.
+   */
   .modalDialog {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    height: calc(100dvh - 1.5rem);
     max-height: none;
+  }
+
+  .modalStage {
+    padding: 0.75rem;
+  }
+
+  /*
+   * Drop the tall min-heights: the preview fills exactly the stage it has
+   * and the email scrolls inside the iframe, instead of the stage scrolling
+   * a 600px+ frame inside a half-height row.
+   */
+  .previewFrameWrapDesktop,
+  .previewFrameWrapPhone {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  /*
+   * The view toggle is normally absolutely centered in the toolbar; at
+   * phone widths it would overlap the close button, so let it flow and
+   * collapse the tab labels to icons.
+   */
+  .modalToolbar {
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .viewToggle {
+    position: static;
+    transform: none;
+  }
+
+  .viewToggleButton {
+    padding: 0.45rem 0.6rem;
+  }
+
+  .viewToggleButton span {
+    display: none;
   }
 }
 
@@ -2202,14 +2253,16 @@ div.infoBrandRow {
 }
 
 .trickTooltip {
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
-  /* Anchor to the pill's right edge so the tooltip opens leftward and stays
-     inside the 360px info panel. The panel needs overflow-y:auto to scroll,
-     which forces overflow-x to clip too, so a left-anchored tooltip on a pill
-     sitting mid-row would be cut off at the panel's right edge. */
-  right: 0;
-  left: auto;
+  /* position:fixed so the bubble escapes the info panel's overflow clipping
+     (overflow-y:auto forces overflow-x to clip too, so an absolute tooltip
+     is cut off at the panel edge whichever side it opens toward). left/top
+     and --tip-arrow-x are set inline from the pill's viewport rect, clamped
+     to the viewport; translateY(-100%) hangs the bubble above that point.
+     The full-viewport modal backdrop's backdrop-filter makes it the fixed
+     containing block, which coincides with the viewport. */
+  position: fixed;
+  left: 0;
+  top: 0;
   z-index: 20;
   width: 250px;
   padding: 0.55rem 0.7rem;
@@ -2223,7 +2276,7 @@ div.infoBrandRow {
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(2px);
+  transform: translateY(calc(-100% + 2px));
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
 }
 
@@ -2236,7 +2289,8 @@ div.infoBrandRow {
   content: "";
   position: absolute;
   top: 100%;
-  right: 0.9rem;
+  left: var(--tip-arrow-x, 50%);
+  margin-left: -5px;
   border: 5px solid transparent;
   border-top-color: #0f172a;
 }
@@ -2246,7 +2300,7 @@ div.infoBrandRow {
 .trickTooltip:hover {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(-100%);
 }
 
 .trickTooltipLink {
@@ -2273,7 +2327,6 @@ div.infoBrandRow {
 }
 
 .sentToHeader {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -2302,12 +2355,15 @@ div.infoBrandRow {
 }
 
 .sentToTooltip {
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
+  /* Same fixed-position pattern as .trickTooltip: escapes the info panel's
+     overflow clipping. left/top and --tip-arrow-x are set inline from the
+     info icon's viewport rect (fixedTipStyle in EmailModal.tsx);
+     translateY(-100%) hangs the bubble above that point. */
+  position: fixed;
   left: 0;
-  right: 0;
+  top: 0;
   z-index: 20;
-  width: auto;
+  width: 250px;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
   background: #0f172a;
@@ -2320,7 +2376,7 @@ div.infoBrandRow {
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(2px);
+  transform: translateY(calc(-100% + 2px));
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
 }
 
@@ -2333,7 +2389,8 @@ div.infoBrandRow {
   content: "";
   position: absolute;
   top: 100%;
-  right: 0.55rem;
+  left: var(--tip-arrow-x, 50%);
+  margin-left: -5px;
   border: 5px solid transparent;
   border-top-color: #0f172a;
 }
@@ -2342,7 +2399,7 @@ div.infoBrandRow {
 .sentToInfo:focus-visible .sentToTooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(-100%);
 }
 
 .sentToPills {

@@ -9,15 +9,15 @@
           <td style="font-size:17px;font-weight:600;color:#0f172a;padding-bottom:10px;">Confirm your email</td>
         </tr>
         <tr>
-          <td style="font-size:14px;color:#64748b;line-height:1.6;padding-bottom:28px;">Welcome to Pirol. Click the button below to confirm your account and start exploring.</td>
+          <td style="font-size:14px;color:#64748b;line-height:1.6;padding-bottom:28px;">Welcome to Pirol. Enter this code where you signed up to confirm your account.</td>
         </tr>
         <tr>
           <td style="padding-bottom:28px;">
-            <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&next=/explore" style="display:inline-block;background-color:#0f172a;color:#ffffff;font-size:14px;font-weight:500;text-decoration:none;border-radius:999px;padding:12px 28px;">Confirm email</a>
+            <span style="display:inline-block;background-color:#f1f5f9;border-radius:12px;padding:14px 24px;font-size:28px;font-weight:700;letter-spacing:0.3em;color:#0f172a;font-family:'SF Mono',Menlo,Consolas,monospace;">{{ .Token }}</span>
           </td>
         </tr>
         <tr>
-          <td style="font-size:13px;color:#94a3b8;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:24px;">If you didn&rsquo;t create a Pirol account, you can safely ignore this email.</td>
+          <td style="font-size:13px;color:#94a3b8;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:24px;">This code expires shortly. If you didn&rsquo;t create a Pirol account, you can safely ignore this email.</td>
         </tr>
       </table>
     </td>

@@ -231,7 +231,7 @@ export default function PricingCompare({
             plan.id === "free" ? (
               <Link
                 key={plan.id}
-                href="/login"
+                href="/signup"
                 className={`${styles.cta} ${styles.ctaGhost}`}
               >
                 {plan.cta}

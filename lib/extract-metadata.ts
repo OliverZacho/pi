@@ -737,14 +737,52 @@ export function detectDarkMode(html: string): boolean {
   return DARK_MODE_PATTERNS.some((pattern) => pattern.test(html));
 }
 
+/**
+ * Minimum byte size for a GIF to count as content rather than plumbing.
+ * Nearly every marketing email carries 1px tracking GIFs (~42-43 bytes),
+ * which used to set `has_gif` on every send and pushed brands that never
+ * animate anything to a 100% "GIF usage" stat. The catalogue's GIF sizes
+ * are strongly bimodal — trackers under 100 bytes, real animated content
+ * almost entirely above 50KB, with a near-empty gap between — so 10KB
+ * cleanly separates the two (measured July 2026).
+ */
+export const MIN_CONTENT_GIF_BYTES = 10 * 1024;
+
+/**
+ * "Does this email use a GIF as content?" When mirrored assets are
+ * available they are authoritative: a GIF must have been stored with a
+ * meaningful byte size. The HTML fallback (no mirror data, e.g. reprocess
+ * scripts) can't see sizes, so it skips `<img>` tags that declare
+ * tracking-pixel dimensions instead.
+ */
 export function detectHasGif(html: string, mirroredAssets?: MirroredImage[]): boolean {
-  if (mirroredAssets && mirroredAssets.some((asset) => asset.contentType === "image/gif")) {
-    return true;
+  if (mirroredAssets) {
+    return mirroredAssets.some(
+      (asset) =>
+        asset.contentType === "image/gif" && asset.byteLength >= MIN_CONTENT_GIF_BYTES
+    );
   }
   if (!html) {
     return false;
   }
-  return /<img[^>]+src=["'][^"']+\.gif(?:["'?#])/i.test(html);
+  const imgTags = html.match(/<img\b[^>]*>/gi) ?? [];
+  return imgTags.some(
+    (tag) =>
+      /\bsrc=["'][^"']+\.gif(?:["'?#])/i.test(tag) && !isLikelyTrackingPixel(tag)
+  );
+}
+
+function isLikelyTrackingPixel(imgTag: string): boolean {
+  const dimension = (name: string): number | null => {
+    const match = imgTag.match(new RegExp(`\\b${name}\\s*=\\s*["']?(\\d+)`, "i"));
+    return match ? Number(match[1]) : null;
+  };
+  const width = dimension("width");
+  const height = dimension("height");
+  if ((width !== null && width <= 2) || (height !== null && height <= 2)) {
+    return true;
+  }
+  return /style\s*=\s*["'][^"']*\b(?:width|height)\s*:\s*[012]px/i.test(imgTag);
 }
 
 export function extractLinks(html: string): ParsedLink[] {

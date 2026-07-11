@@ -39,7 +39,7 @@ export default function PricingTeaser() {
             <li>Save up to 25 emails</li>
             <li>Email breakdowns: ESP, category &amp; design</li>
           </ul>
-          <Link href="/login" className={styles.planCtaGhost}>
+          <Link href="/signup" className={styles.planCtaGhost}>
             Create free account
           </Link>
         </div>
@@ -64,7 +64,7 @@ export default function PricingTeaser() {
             <li>Stats &amp; analytics dashboards</li>
             <li>Follow brands &amp; catch every new send</li>
           </ul>
-          <Link href="/login" className={styles.planCta}>
+          <Link href="/signup" className={styles.planCta}>
             Get Solo
           </Link>
         </div>

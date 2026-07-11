@@ -38,7 +38,7 @@ export default function SiteFooter() {
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Account</p>
             <Link href="/login" className={styles.footerLink}>Log in</Link>
-            <Link href="/login" className={styles.footerLink}>Sign up</Link>
+            <Link href="/signup" className={styles.footerLink}>Sign up</Link>
           </div>
         </nav>
       </div>

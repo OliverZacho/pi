@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import Logo from "@/components/Logo";
-import LoginForm from "./login-form";
+import SignupForm from "./signup-form";
 import NewsletterFan from "@/components/marketing/NewsletterFan";
-import styles from "./login.module.css";
+import styles from "../login/login.module.css";
 
-// Slightly larger, wider-spaced, static stack for the login panel.
-const LOGIN_FAN_GEOMETRY = {
+// Slightly larger, wider-spaced, static stack for the auth panel.
+const SIGNUP_FAN_GEOMETRY = {
   cardW: 332,
   cardH: 420,
   xFrom: 390,
@@ -19,24 +19,24 @@ const LOGIN_FAN_GEOMETRY = {
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Log in — Pirol"
+  title: "Sign up — Pirol"
 };
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <main className={styles.layout}>
       <section className={styles.panel}>
         <Logo className={styles.brandMark} />
         <div className={styles.formWrap}>
           <Suspense fallback={<p className={styles.subtitle}>Loading…</p>}>
-            <LoginForm />
+            <SignupForm />
           </Suspense>
         </div>
         <span className={styles.cookies}>Cookie preferences</span>
       </section>
 
       <aside className={styles.visual} aria-hidden="true">
-        <NewsletterFan animate={false} geometry={LOGIN_FAN_GEOMETRY} />
+        <NewsletterFan animate={false} geometry={SIGNUP_FAN_GEOMETRY} />
       </aside>
     </main>
   );

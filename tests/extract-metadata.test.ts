@@ -152,23 +152,57 @@ describe("detectDarkMode", () => {
 });
 
 describe("detectHasGif", () => {
-  it("returns true if any mirrored asset has image/gif content type", () => {
+  it("returns true for a mirrored GIF of meaningful size", () => {
     expect(
       detectHasGif("<p>no gif here</p>", [
         {
-          remoteUrl: "https://cdn.example.com/file.bin",
+          remoteUrl: "https://cdn.example.com/hero.gif",
           storagePath: "x/abc.gif",
           contentType: "image/gif",
-          byteLength: 1
+          byteLength: 250_000
         }
       ])
     ).toBe(true);
+  });
+
+  it("ignores tiny tracking GIFs in mirrored assets", () => {
+    expect(
+      detectHasGif(`<img src="https://track.example.com/open.gif" />`, [
+        {
+          remoteUrl: "https://track.example.com/open.gif",
+          storagePath: "x/pixel.gif",
+          contentType: "image/gif",
+          byteLength: 43
+        }
+      ])
+    ).toBe(false);
+  });
+
+  it("treats mirrored assets as authoritative over .gif URLs in the HTML", () => {
+    // The hero GIF failed to mirror or was only a tracker: the HTML
+    // fallback must not resurrect the flag from the tracker's .gif URL.
+    expect(
+      detectHasGif(`<img src="https://cdn.example.com/banner.gif?v=1" />`, [])
+    ).toBe(false);
   });
 
   it("falls back to .gif src detection when no mirrored assets are provided", () => {
     expect(
       detectHasGif(`<img src="https://cdn.example.com/banner.gif?v=1" />`)
     ).toBe(true);
+  });
+
+  it("skips declared 1px tracking pixels in the HTML fallback", () => {
+    expect(
+      detectHasGif(
+        `<img src="https://track.example.com/open.gif" width="1" height="1" />`
+      )
+    ).toBe(false);
+    expect(
+      detectHasGif(
+        `<img src="https://track.example.com/open.gif" style="width:1px;height:1px" />`
+      )
+    ).toBe(false);
   });
 
   it("returns false when no GIFs are present", () => {
@@ -860,7 +894,7 @@ describe("extractMetadata (integration)", () => {
           remoteUrl: "https://cdn.example.com/banner.gif",
           storagePath: "abc/123.gif",
           contentType: "image/gif",
-          byteLength: 100
+          byteLength: 250_000
         }
       ],
       headers: {

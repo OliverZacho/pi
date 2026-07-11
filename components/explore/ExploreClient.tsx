@@ -1572,7 +1572,7 @@ export default function ExploreClient({
               up where you left off.
             </p>
             <Link
-              href={`/login?next=${encodeURIComponent(signupModalNext)}`}
+              href={`/signup?next=${encodeURIComponent(signupModalNext)}`}
               className={styles.signupModalCta}
             >
               Sign up

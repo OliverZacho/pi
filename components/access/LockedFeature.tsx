@@ -7,7 +7,8 @@ export type LockedVariant =
   | "collections"
   | "brands"
   | "following"
-  | "saved";
+  | "saved"
+  | "your-brand";
 
 type Copy = {
   eyebrow: string;
@@ -51,6 +52,12 @@ const COPY: Record<LockedVariant, Copy> = {
     title: "Save emails to your gallery",
     description:
       "Bookmark any email and keep your own searchable gallery of the best work. Subscribe to start saving."
+  },
+  "your-brand": {
+    eyebrow: "Your brand",
+    title: "See what your own emails could do better",
+    description:
+      "We run your brand's captured emails through deliverability, design and timing checks, and compare them against the competitors you pick. Available on every paid plan."
   }
 };
 

@@ -27,6 +27,7 @@ import { resolveBrandLogo } from "./logo-dev";
 import { cleanPreheaderText } from "./extract-metadata";
 import { parseImageStats, type ImageFormat } from "./image-stats";
 import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
+import { detectOpenPixel } from "./tracking-pixels";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import type { Database } from "@/types/supabase";
 
@@ -224,6 +225,21 @@ export type BrandPageData = {
       avgImagesPerEmail: number | null;
       formats: { format: ImageFormat; count: number; share: number }[];
     };
+    /**
+     * Dedicated open-tracking pixels detected in the sample's remote
+     * image URLs (see lib/tracking-pixels.ts for the pattern registry).
+     * `measured` counts rows whose remote images were captured at all,
+     * so pre-capture rows never dilute the share. `provider` is the
+     * most common recognized tracker, or null when only generic
+     * (unattributed) pixels matched. Surfaces the CNIL / Garante 2026
+     * consent question on the brand page and the Your-brand tab.
+     */
+    openTracking: {
+      measured: number;
+      withPixel: number;
+      share: number;
+      provider: string | null;
+    };
   };
   subjects: {
     avgLength: number | null;
@@ -391,6 +407,7 @@ type EmailRow = {
   primary_cta_text: string | null;
   primary_cta_url: string | null;
   esp_provider: string | null;
+  remote_image_urls: string[] | null;
   metadata: unknown;
 };
 
@@ -587,7 +604,7 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, metadata"
+      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, remote_image_urls, metadata"
     )
     .eq("company_id", companyId);
   if (scoped) {
@@ -1305,6 +1322,9 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
   let imageBytes = 0;
   let imageCount = 0;
   const formatCounts = new Map<ImageFormat, number>();
+  let pixelMeasured = 0;
+  let withPixel = 0;
+  const pixelProviders = new Map<string, number>();
 
   for (const row of rows) {
     if (row.has_gif) gif += 1;
@@ -1312,6 +1332,23 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
     if (row.preheader_padded !== null && row.preheader_padded !== undefined) {
       paddingMeasured += 1;
       if (row.preheader_padded) padded += 1;
+    }
+
+    // Open-tracking pixels: only rows whose remote images were captured
+    // count toward the denominator (an empty array is a real "no remote
+    // images" observation; null means we never looked).
+    if (Array.isArray(row.remote_image_urls)) {
+      pixelMeasured += 1;
+      const pixel = detectOpenPixel(row.remote_image_urls);
+      if (pixel) {
+        withPixel += 1;
+        if (pixel.provider) {
+          pixelProviders.set(
+            pixel.provider,
+            (pixelProviders.get(pixel.provider) ?? 0) + 1
+          );
+        }
+      }
     }
 
     const imageStats = parseImageStats(row.metadata);
@@ -1411,6 +1448,14 @@ function computeDesign(rows: EmailRow[]): BrandPageData["design"] {
           share: imageCount > 0 ? count / imageCount : 0
         }))
         .sort((a, b) => b.count - a.count)
+    },
+    openTracking: {
+      measured: pixelMeasured,
+      withPixel,
+      share: pixelMeasured > 0 ? withPixel / pixelMeasured : 0,
+      provider:
+        Array.from(pixelProviders.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+        null
     }
   };
 }
