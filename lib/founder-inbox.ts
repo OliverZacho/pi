@@ -20,7 +20,7 @@ import {
 
 /** Address customers write to; also the send-as identity in the mail client. */
 export const FOUNDER_EMAIL = (
-  process.env.FOUNDER_EMAIL ?? "oliver@pirol.app"
+  process.env.FOUNDER_EMAIL ?? "oza@pirol.app"
 ).toLowerCase();
 
 /**
