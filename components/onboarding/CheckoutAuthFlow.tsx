@@ -105,7 +105,10 @@ export default function CheckoutAuthFlow({
       const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo, data: buyerData() }
+        // password_signup tells the on_auth_user_change trigger to stamp
+        // user_profiles.password_set_at (OTP signups get a random hash, so
+        // the hash itself can't distinguish real passwords).
+        options: { emailRedirectTo, data: { ...buyerData(), password_signup: true } }
       });
       if (signUpError) {
         if (/already registered|already exists/i.test(signUpError.message)) {
