@@ -108,7 +108,17 @@ function publicAssetUrl(path: string): string {
  */
 function cloudflareImageUrl(path: string, transform: ImageTransform): string {
   const fit = transform.fit ?? "scale-down";
-  const opts = [`width=${transform.width}`, `fit=${fit}`, "format=auto"];
+  // `onerror=redirect` is our broken-image fallback. When a resize fails
+  // (a transient cold-transform error under the grid's request burst, or an
+  // input Cloudflare can't process), CF 302s to the *original* mirrored image
+  // at this same host — the exact URL the modal serves — instead of returning
+  // an error the browser paints as a broken "?". This has to live here, on the
+  // CDN, because the preview iframe runs with `sandbox` (no allow-scripts) and
+  // a `default-src 'none'` CSP, so a client-side onError handler can never
+  // fire. The redirect target is same-origin (cdn.pirol.app), which img-src
+  // already allows, and it only triggers on failure, so the happy path is
+  // unchanged.
+  const opts = ["onerror=redirect", `width=${transform.width}`, `fit=${fit}`, "format=auto"];
   if (transform.height) opts.push(`height=${transform.height}`);
   if (transform.quality) opts.push(`quality=${transform.quality}`);
   // Crops anchor to the top edge ("0.5x0" = horizontal center, vertical
