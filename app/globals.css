@@ -4177,6 +4177,414 @@ button.raw-source-link:hover {
   opacity: 0.65;
 }
 
+/* Admin → Probes: signup probe diagnostics board. */
+.probes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.probes-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.probe-stat {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.probe-stat.is-delivering {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.probe-stat.is-welcome-only,
+.probe-stat.is-repeat {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.probes-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.probes-brand-filter {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+}
+
+.probe-create {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.probe-create-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.probe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.probe-field-note {
+  flex: 1 1 220px;
+}
+
+.probe-field input,
+.probe-field select {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #0f172a;
+  padding: 0.4rem 0.55rem;
+  min-width: 160px;
+}
+
+.probe-field-note input {
+  width: 100%;
+}
+
+.probe-create-button {
+  border: none;
+  background: #086e4b;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.probe-create-button:hover {
+  background: #065a3c;
+}
+
+.probe-create-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.probe-create-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #dc2626;
+}
+
+.probe-create-minted {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.probe-create-minted code {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+.probe-create-minted span {
+  color: #94a3b8;
+}
+
+.probe-copy {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.probe-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.probe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 560px;
+}
+
+.probe-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #94a3b8;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.probe-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  color: #334155;
+}
+
+.probe-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.probe-row {
+  cursor: pointer;
+}
+
+.probe-row:hover td {
+  background: #f8fafc;
+}
+
+.probe-row.is-selected td {
+  background: #f0f9ff;
+}
+
+.probe-surface {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.probe-brand {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.probe-surface-type {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 0.05rem 0.35rem;
+  border-radius: 5px;
+}
+
+.probe-note {
+  font-size: 0.8rem;
+  color: #475569;
+  margin-top: 0.15rem;
+}
+
+.probe-address {
+  margin-top: 0.2rem;
+}
+
+.probe-address code,
+.probe-detail code {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.probe-muted {
+  color: #94a3b8;
+}
+
+.probe-count-strong {
+  font-weight: 600;
+  color: #166534;
+}
+
+.probe-verdict {
+  display: inline-block;
+  font-size: 0.74rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.probe-verdict.is-delivering {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.probe-verdict.is-welcome-only {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.probe-verdict.is-repeat {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.probe-verdict.is-no-mail {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.probe-delete {
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+}
+
+.probe-delete:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.probe-detail {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.probe-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.85rem;
+  background: #f8fafc;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.probe-detail-head > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.probe-detail-head .probe-muted {
+  font-size: 0.78rem;
+}
+
+.probe-detail-empty {
+  margin: 0;
+  padding: 1.2rem 0.85rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.probe-mail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.probe-mail {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.probe-mail-date {
+  flex-shrink: 0;
+  width: 3.6rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding-top: 0.1rem;
+}
+
+.probe-mail-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.probe-mail-subject {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.probe-mail-from {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.probe-mail-flag {
+  font-size: 0.75rem;
+  color: #9a3412;
+  margin-top: 0.15rem;
+}
+
+.probe-mail-kind {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.probe-mail-kind.is-welcome {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.probe-mail-kind.is-campaign {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.probe-mail-kind.is-repeat {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.probe-mail-view {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: #086e4b;
+  text-decoration: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+}
+
+.probe-mail-view:hover {
+  background: #f0fdf4;
+}
+
 /*
  * Logo.dev brand logos are opaque squares that bring their own
  * background, unlike the extracted email wordmarks the avatar boxes were
