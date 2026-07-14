@@ -42,7 +42,7 @@ type Bucket = {
  * module mid-session, so the chart wouldn't get its height/flex.
  */
 export default function CadenceStack({ brands }: Props) {
-  const [lookback, setLookback] = useState<LookbackId>("1m");
+  const [lookback, setLookback] = useState<LookbackId>("6m");
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -51,7 +51,7 @@ export default function CadenceStack({ brands }: Props) {
   }, [lookback, brands]);
 
   const meta = useMemo(
-    () => LOOKBACKS.find((l) => l.id === lookback) ?? LOOKBACKS[1],
+    () => LOOKBACKS.find((l) => l.id === lookback) ?? LOOKBACKS[2],
     [lookback]
   );
 

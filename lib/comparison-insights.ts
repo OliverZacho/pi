@@ -175,6 +175,13 @@ function pct(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
+/** Joins names into a readable clause: "A", "A and B", "A, B and C". */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 /** Lowercases a category label for mid-sentence use ("Product launch" →
  *  "product launch"); leaves all-caps acronyms alone. */
 function lower(label: string): string {
@@ -357,10 +364,16 @@ function buildPromoTakeaway(brands: BrandPageData[]): string | null {
   const bottom = byShare[byShare.length - 1];
 
   if (top.share >= 0.3 && top.share - bottom.share >= 0.25) {
-    const bottomClause =
-      bottom.share <= 0.05
-        ? `${bottom.name} almost never does`
-        : `${bottom.name} stays at ${pct(bottom.share)}`;
+    let bottomClause: string;
+    if (bottom.share <= 0.05) {
+      // Name every brand tied at the "almost never" floor, not just one —
+      // several brands often sit at 0% together. Verb agrees with the count.
+      const abstainers = byShare.filter((r) => r.share <= 0.05).map((r) => r.name);
+      const verb = abstainers.length > 1 ? "do" : "does";
+      bottomClause = `${joinNames(abstainers)} almost never ${verb}`;
+    } else {
+      bottomClause = `${bottom.name} stays at ${pct(bottom.share)}`;
+    }
     return `${top.name} attaches a discount to ${pct(top.share)} of their emails; ${bottomClause}.`;
   }
   if (rows.every((r) => r.share <= 0.1)) {

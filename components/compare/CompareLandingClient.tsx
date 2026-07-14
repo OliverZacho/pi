@@ -374,7 +374,11 @@ export default function CompareLandingClient({
 
         <BrandSearchPicker
           alreadySelectedIds={alreadySelectedIds}
-          remainingSlots={remainingSlots}
+          // Landing flow has no already-committed brands — every pick is
+          // pending — so the picker gets the full budget and lets
+          // `pendingIds` do the single decrement. Passing the post-selection
+          // `remainingSlots` here would double-count and cap the tray at 10.
+          remainingSlots={MAX_BRANDS_PER_COMPARISON}
           pendingIds={selectedIds}
           onChange={handleAddFromPicker}
           onBrandSeen={rememberBrand}

@@ -215,6 +215,15 @@ describe("promo takeaway", () => {
     expect(promoTakeaway).toContain("Premium almost never");
   });
 
+  it("names every brand tied at the abstainer floor", () => {
+    const { promoTakeaway } = buildComparisonInsights([
+      makeBrand("Pushy", { discountShare: 0.55 }),
+      makeBrand("Quiet", { discountShare: 0.0 }),
+      makeBrand("Silent", { discountShare: 0.02 })
+    ]);
+    expect(promoTakeaway).toContain("Silent and Quiet almost never do");
+  });
+
   it("reports a no-discount group", () => {
     const { promoTakeaway } = buildComparisonInsights([
       makeBrand("A", { discountShare: 0.05 }),

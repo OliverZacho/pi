@@ -207,17 +207,21 @@ export default function BrandSearchPicker({
       }
       if (atLimit) return;
       onChange([...pendingIds, id]);
-      // Collapse the dropdown once a brand lands in the tray: clearing
-      // the query drops `hasQuery`, which closes the result list so the
-      // Compare button below it isn't left hidden behind the popover.
-      // The picked brand is now a chip in the parent's tray, so nothing
-      // is lost — the user just starts a fresh search for the next pick.
-      setQuery("");
-      setDebouncedQuery("");
-      setResults([]);
-      setOpen(false);
+      // Inline (landing) picker only: collapse the dropdown once a brand
+      // lands in the tray. Clearing the query drops `hasQuery`, which closes
+      // the result list so the Compare button below it isn't left hidden
+      // behind the popover. In the modal there's no such overlap and the
+      // user is batch-adding, so we keep the query and results in place —
+      // the just-added row flips to "IN COMPARISON" and they can keep
+      // picking more matches for the same search without retyping.
+      if (variant !== "modal") {
+        setQuery("");
+        setDebouncedQuery("");
+        setResults([]);
+        setOpen(false);
+      }
     },
-    [alreadySelectedIds, atLimit, onChange, pendingIds, pendingSet]
+    [alreadySelectedIds, atLimit, onChange, pendingIds, pendingSet, variant]
   );
 
   const showDropdown = (variant === "modal" || open) && hasQuery;
