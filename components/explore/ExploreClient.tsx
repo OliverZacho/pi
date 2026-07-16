@@ -25,10 +25,7 @@ const SORT_OPTIONS: { id: ExploreSortKey; label: string }[] = [
   // first because it's the default landing order on Explore.
   { id: "recommended", label: "Recommended" },
   { id: "newest", label: "Newest first" },
-  { id: "oldest", label: "Oldest first" },
-  { id: "brand_asc", label: "Brand A–Z" },
-  { id: "brand_desc", label: "Brand Z–A" },
-  { id: "discount_desc", label: "Highest discount" }
+  { id: "oldest", label: "Oldest first" }
 ];
 
 const SORT_LABEL: Record<ExploreSortKey, string> = SORT_OPTIONS.reduce(
