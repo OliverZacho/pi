@@ -310,9 +310,10 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     );
 
     // Raster image → Cloudflare /cdn-cgi/image/ resize URL (never upscales,
-    // serves WebP/AVIF). SVG is not transformable → plain public URL.
+    // serves WebP/AVIF). `onerror=redirect` falls back to the original mirrored
+    // image if the transform fails. SVG is not transformable → plain public URL.
     expect(map["email-1/hero.jpg"]).toBe(
-      "https://cdn.pirol.app/cdn-cgi/image/width=600,fit=scale-down,format=auto,quality=70/storage/v1/object/public/email-assets/email-1/hero.jpg"
+      "https://cdn.pirol.app/cdn-cgi/image/onerror=redirect,width=600,fit=scale-down,format=auto,quality=70/storage/v1/object/public/email-assets/email-1/hero.jpg"
     );
     expect(map["email-1/logo.svg"]).toBe(
       "https://cdn.pirol.app/storage/v1/object/public/email-assets/email-1/logo.svg"
@@ -334,7 +335,7 @@ describe("getSignedAssets with NEXT_PUBLIC_ASSET_CDN_URL", () => {
     // Fixed-aspect region for the notification preview slots, taken from
     // the top of the image (gravity 0.5x0 = center top), never enlarged.
     expect(map["email-1/hero.jpg"]).toBe(
-      "https://cdn.pirol.app/cdn-cgi/image/width=1104,fit=crop,format=auto,height=440,quality=70,gravity=0.5x0/storage/v1/object/public/email-assets/email-1/hero.jpg"
+      "https://cdn.pirol.app/cdn-cgi/image/onerror=redirect,width=1104,fit=crop,format=auto,height=440,quality=70,gravity=0.5x0/storage/v1/object/public/email-assets/email-1/hero.jpg"
     );
   });
 

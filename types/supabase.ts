@@ -766,6 +766,41 @@ export type Database = {
           },
         ]
       }
+      signup_probes: {
+        Row: {
+          address: string
+          company_id: string | null
+          created_at: string
+          id: string
+          note: string
+          surface_type: string
+        }
+        Insert: {
+          address: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string
+          surface_type?: string
+        }
+        Update: {
+          address?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string
+          surface_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signup_probes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           created_at: string

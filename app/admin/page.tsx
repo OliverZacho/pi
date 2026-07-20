@@ -38,6 +38,7 @@ import CategoryFrequencyChart from "@/components/admin/CategoryFrequencyChart";
 import CategoryCountryFrequencyChart from "@/components/admin/CategoryCountryFrequencyChart";
 import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import SupportInbox from "@/components/admin/SupportInbox";
+import ProbesBoard from "@/components/admin/ProbesBoard";
 import QualityDetailModal, {
   type LowConfidenceEmail,
   type QualityKind,
@@ -142,6 +143,7 @@ type AdminTab =
   | "companies"
   | "mails"
   | "create"
+  | "probes"
   | "support"
   | "feedback";
 
@@ -151,6 +153,7 @@ const ADMIN_TABS: readonly AdminTab[] = [
   "create",
   "companies",
   "mails",
+  "probes",
   "support",
   "feedback"
 ];
@@ -188,6 +191,12 @@ const TAB_META: Record<
     title: "Recent Emails + Classification",
     description:
       "Browse, search, and filter every captured newsletter with its ESP and content signals."
+  },
+  probes: {
+    label: "Probes",
+    title: "Signup Probes",
+    description:
+      "Diagnostic addresses, one per signup form on a brand's site. See which surfaces deliver real campaigns, which only fire a welcome, and which stay silent."
   },
   support: {
     label: "Support",
@@ -3681,6 +3690,8 @@ export default function AdminHomePage() {
         )}
       </section>
       ) : null}
+
+      {activeTab === "probes" ? <ProbesBoard /> : null}
 
       {activeTab === "support" ? <SupportInbox /> : null}
 
