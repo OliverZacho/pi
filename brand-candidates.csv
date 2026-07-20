@@ -1,0 +1,162 @@
+list,brand,domain,region,category,priority,note
+suggested,Maria Black,mariablack.com,DK,Jewellery,High,Strong Danish D2C jewellery next to tracked Sophie Bille Brahe / Foundrae
+suggested,Foreo,foreo.com,SE,Beauty tech,High,Swedish beauty-tech D2C; very high email volume
+suggested,Sezane,sezane.com,FR,Fashion,High,Widely regarded best-in-class D2C email; major benchmark
+suggested,Bloom & Wild,bloomandwild.com,UK,Flowers/Gifting,High,Famously well-run lifecycle email program
+suggested,Rituals,rituals.com,NL,Beauty,High,Very high-volume European email program
+suggested,Suitsupply,suitsupply.com,NL,Menswear,High,Strong European D2C with distinctive campaigns
+suggested,Ace & Tate,aceandtate.com,NL,Eyewear,High,European D2C eyewear; category still empty
+suggested,Birkenstock,birkenstock.com,DE,Footwear,High,Major European footwear D2C
+suggested,Armedangels,armedangels.com,DE,Fashion,High,Sustainability-led German D2C
+suggested,On,on.com,CH,Activewear,High,Major European activewear omission
+suggested,Adanola,adanola.com,UK,Activewear,High,Fast-growing UK activewear D2C
+suggested,Flying Tiger Copenhagen,flyingtiger.com,DK,Retail,High,High-volume Danish variety retail; strong promo email
+suggested,Son of a Tailor,sonofatailor.com,DK,Menswear,Medium,Made-to-order D2C; unusually data-driven flows
+suggested,Les Deux,lesdeux.com,DK,Menswear,Medium,Mainstream Danish menswear currently uncovered
+suggested,Han Kjobenhavn,hankjobenhavn.com,DK,Fashion,Medium,Copenhagen fashion next to tracked Soulland / mfpen
+suggested,Saks Potts,sakspotts.com,DK,Fashion,Medium,Copenhagen fashion next to tracked Stine Goya
+suggested,Libertine-Libertine,libertine-libertine.com,DK,Fashion,Medium,Copenhagen fashion D2C
+suggested,Sofie Schnoor,sofieschnoor.com,DK,Fashion,Medium,Danish fashion with broad range
+suggested,Resume,resume.dk,DK,Fashion,Low,Danish fashion
+suggested,Custommade,custommade.com,DK,Fashion,Low,Danish fashion
+suggested,Day Birger et Mikkelsen,day.dk,DK,Fashion,Low,Danish fashion
+suggested,Ilse Jacobsen,ilsejacobsen.com,DK,Footwear/Rainwear,Medium,Danish rainwear and footwear; pairs with Rains
+suggested,A. Kjaerbede,akjaerbede.com,DK,Eyewear,Medium,Danish D2C eyewear; category still empty
+suggested,Skagen,skagen.com,DK,Watches,Low,Danish watches; category thin
+suggested,Pernille Corydon,pernillecorydon.com,DK,Jewellery,Medium,Danish D2C jewellery
+suggested,Jane Konig,janekonig.com,DK,Jewellery,Low,Danish D2C jewellery
+suggested,Libratone,libratone.com,DK,Electronics,Medium,Danish audio D2C; electronics category still empty
+suggested,AIAIAI,aiaiai.audio,DK,Electronics,Low,Danish audio D2C
+suggested,SACKit,sackit.dk,DK,Electronics,Low,Danish audio and lifestyle electronics
+suggested,Kahler,kahlerdesign.com,DK,Homeware,Medium,Danish ceramics next to tracked Stelton / Eva Solo
+suggested,Holmegaard,holmegaard.com,DK,Homeware,Medium,Danish glassware next to tracked Rosendahl
+suggested,Design Letters,designletters.com,DK,Homeware,Medium,Danish design D2C with strong campaign email
+suggested,OYOY Living Design,oyoy.com,DK,Interiors,Low,Danish interiors D2C
+suggested,Bodum,bodum.com,DK,Kitchen,Medium,Kitchen D2C; category absent despite deep interiors coverage
+suggested,Skagerak,skagerak.dk,DK,Furniture,Medium,Danish design gap next to tracked Fritz Hansen / Fredericia
+suggested,Woud,woud.com,DK,Furniture,Medium,Danish design gap next to tracked Muuto / Hay
+suggested,Umage,umage.com,DK,Lighting,Medium,Danish lighting next to tracked Louis Poulsen / Le Klint
+suggested,By Lassen,bylassen.com,DK,Furniture,Low,Danish design gap
+suggested,House Doctor,housedoctor.dk,DK,Interiors,Medium,Volume Danish interiors next to tracked Broste / Hubsch
+suggested,Bloomingville,bloomingville.com,DK,Interiors,Medium,Volume Danish interiors next to tracked Broste / Hubsch
+suggested,Illums Bolighus,illumsbolighus.com,DK,Interiors,Medium,Danish design retail; broad catalogue email
+suggested,Magasin du Nord,magasin.dk,DK,Department store,Medium,Danish department store; high email volume
+suggested,Soft Gallery,softgallery.com,DK,Kids,Medium,Danish kidswear next to tracked Liewood / Konges Slojd
+suggested,Done by Deer,donebydeer.com,DK,Kids,Low,Danish kids and nursery D2C
+suggested,Sebra,sebra.dk,DK,Kids,Low,Danish kids and nursery D2C
+suggested,Nilens Jord,nilensjord.com,DK,Beauty,Medium,Danish clean beauty next to tracked Rudolph Care / Verso
+suggested,Karmameju,karmameju.com,DK,Beauty,Low,Danish skincare D2C
+suggested,Nemlig.com,nemlig.com,DK,Grocery,Medium,Danish grocery D2C next to tracked Rema1000 / COOP
+suggested,Simple Feast,simplefeast.com,DK,Food,Low,Danish food D2C
+suggested,Puori,puori.com,DK,Supplements,Medium,Danish supplements D2C; category absent
+suggested,Axel Arigato,axelarigato.com,SE,Footwear,High,Drop-driven D2C footwear at scale
+suggested,Toteme,toteme-studio.com,SE,Fashion,High,Reference point for Nordic minimal luxury
+suggested,NA-KD,na-kd.com,SE,Fashion,High,Very high email volume; useful cadence benchmark
+suggested,& Other Stories,stories.com,SE,Fashion,High,H&M group sibling to tracked ARKET / COS
+suggested,Oatly,oatly.com,SE,Food,High,Food/bev D2C absent; distinctive brand voice
+suggested,Our Legacy,ourlegacy.com,SE,Fashion,Medium,Strong drop-driven campaigns
+suggested,A Day's March,adaysmarch.com,SE,Menswear,Medium,Swedish menswear D2C
+suggested,Gina Tricot,ginatricot.com,SE,Fashion,Medium,Swedish high-street; high email volume
+suggested,Polarn O. Pyret,polarnopyret.com,SE,Kids,Medium,Swedish kidswear next to tracked Mini Rodini
+suggested,Nudie Jeans,nudiejeans.com,SE,Denim,Medium,Denim category entirely uncovered
+suggested,Eytys,eytys.com,SE,Footwear,Medium,Nordic footwear gap
+suggested,Tretorn,tretorn.com,SE,Footwear,Low,Swedish footwear and rainwear
+suggested,CDLP,cdlp.com,SE,Basics,Medium,Underwear/basics; pairs with tracked Tekla
+suggested,Stutterheim,stutterheim.com,SE,Rainwear,Low,Rainwear gap; pairs with Rains
+suggested,Sandqvist,sandqvist.com,SE,Bags,Low,Bags category uncovered
+suggested,Happy Socks,happysocks.com,SE,Accessories,Low,High-cadence promotional program
+suggested,Bjorn Borg,bjornborg.com,SE,Activewear,Low,Swedish activewear
+suggested,Hope,hope-sthlm.com,SE,Fashion,Medium,Swedish minimal fashion next to tracked Filippa K
+suggested,Maria Nila,marianila.com,SE,Haircare,Medium,Swedish vegan haircare D2C next to tracked OUAI / Oribe
+suggested,Sachajuan,sachajuan.com,SE,Haircare,Low,Swedish haircare D2C
+suggested,Bjork & Berries,bjorkandberries.com,SE,Beauty,Low,Swedish clean beauty
+suggested,Svenskt Tenn,svenskttenn.se,SE,Interiors,Medium,Swedish heritage interiors
+suggested,String Furniture,stringfurniture.com,SE,Furniture,Medium,Swedish design next to tracked Muuto / Hay
+suggested,Design House Stockholm,designhousestockholm.com,SE,Design,Low,Swedish design
+suggested,Estrid,estrid.com,SE,Personal care,Medium,Subscription D2C razors; strong lifecycle email
+suggested,L:A Bruket,labruket.com,SE,Beauty,Medium,Swedish skincare next to tracked Verso / Rudolph Care
+suggested,Lyko,lyko.com,SE,Beauty,Medium,Nordic beauty retail; high email volume
+suggested,Blueair,blueair.com,SE,Electronics,Low,Swedish D2C electronics
+suggested,Helly Hansen,hellyhansen.com,NO,Outdoor,Medium,Norwegian outdoor next to tracked Norrona / Devold
+suggested,Bergans,bergans.com,NO,Outdoor,Medium,Norwegian outdoor
+suggested,Kari Traa,karitraa.com,NO,Activewear,Medium,Norwegian women's activewear D2C
+suggested,Swims,swims.com,NO,Footwear,Low,Norwegian D2C footwear
+suggested,Dale of Norway,daleofnorway.com,NO,Knitwear,Low,Norwegian heritage knitwear
+suggested,Artek,artek.fi,FI,Furniture,Medium,Design gap next to tracked Iittala / Marimekko
+suggested,Reima,reima.com,FI,Kids,Medium,Kidswear; pairs with tracked Molo / Wheat / Liewood
+suggested,Fiskars,fiskars.com,FI,Homeware,Medium,Finnish homeware group
+suggested,Lumene,lumene.com,FI,Beauty,Medium,Finnish D2C skincare
+suggested,Makia,makiaclothing.com,FI,Fashion,Low,Finnish fashion
+suggested,Karhu,karhu.com,FI,Footwear,Low,Finnish footwear
+suggested,Finlayson,finlayson.fi,FI,Textiles,Low,Finnish textiles
+suggested,Polene,polene-paris.com,FR,Bags,High,Fast-growing French D2C; bags category uncovered
+suggested,Rouje,rouje.com,FR,Fashion,Medium,French D2C fashion
+suggested,Balzac Paris,balzac-paris.fr,FR,Fashion,Medium,French D2C fashion
+suggested,Le Slip Francais,leslipfrancais.fr,FR,Basics,Medium,French D2C basics with strong brand voice
+suggested,Veja,veja-store.com,FR,Footwear,Medium,European D2C footwear
+suggested,Typology,typology.com,FR,Beauty,Medium,French D2C skincare
+suggested,Caudalie,caudalie.com,FR,Beauty,Medium,French skincare
+suggested,Diptyque,diptyqueparis.com,FR,Fragrance,Medium,Fragrance next to tracked Byredo / Le Labo
+suggested,Ba&sh,ba-sh.com,FR,Fashion,Medium,French fashion
+suggested,Sandro,sandro-paris.com,FR,Fashion,Medium,French fashion
+suggested,Ami Paris,amiparis.com,FR,Fashion,Medium,French fashion next to tracked A.P.C. / Jacquemus
+suggested,Scotch & Soda,scotch-soda.com,NL,Fashion,Medium,Dutch fashion
+suggested,G-Star,g-star.com,NL,Denim,Medium,Dutch denim
+suggested,Snocks,snocks.com,DE,Basics,Medium,German D2C basics; performance-marketing led
+suggested,Wildling Shoes,wildling.shoes,DE,Footwear,Medium,German D2C footwear with strong community email
+suggested,Kapten & Son,kapten-son.com,DE,Accessories,Medium,German D2C accessories
+suggested,Closed,closed.com,DE,Fashion,Medium,German fashion
+suggested,Marc O'Polo,marc-o-polo.com,DE,Fashion,Medium,German fashion
+suggested,Jack Wolfskin,jack-wolfskin.com,DE,Outdoor,Medium,German outdoor
+suggested,Douglas,douglas.de,DE,Beauty,Medium,European beauty retail; high email volume
+suggested,About You,aboutyou.com,DE,Fashion,Medium,European fashion platform; high email volume
+suggested,Astrid & Miyu,astridandmiyu.com,UK,Jewellery,Medium,UK D2C jewellery next to tracked Sophie Bille Brahe
+suggested,Monica Vinader,monicavinader.com,UK,Jewellery,Medium,UK D2C jewellery
+suggested,Missoma,missoma.com,UK,Jewellery,Medium,Volume player in jewellery
+suggested,Beauty Pie,beautypie.com,UK,Beauty,Medium,Membership D2C; unusual lifecycle model
+suggested,ME+EM,meandem.com,UK,Fashion,Medium,UK D2C fashion
+suggested,Tala,wearetala.com,UK,Activewear,Medium,UK activewear D2C
+suggested,Finisterre,finisterre.com,UK,Outdoor,Medium,UK outdoor D2C with strong editorial email
+suggested,Toast,toa.st,UK,Fashion,Medium,UK fashion with strong editorial email
+suggested,Wild,wearewild.com,UK,Personal care,Medium,Refill subscription D2C; strong lifecycle email
+suggested,Huel,huel.com,UK,Food,Medium,Food D2C absent
+suggested,Represent,representclo.com,UK,Fashion,Medium,UK drop-driven D2C
+suggested,Nothing,nothing.tech,UK,Electronics,Medium,Distinctive launch-driven email; electronics empty
+suggested,Freitag,freitag.ch,CH,Bags,Medium,Swiss D2C bags
+suggested,Golden Goose,goldengoose.com,IT,Footwear,Medium,Italian footwear next to tracked Miu Miu / Marni
+suggested,Autry,autry.com,IT,Footwear,Medium,Italian D2C sneakers
+suggested,Diesel,diesel.com,IT,Denim,Medium,Italian denim
+suggested,Superga,superga.com,IT,Footwear,Low,Italian footwear
+suggested,Mango,mango.com,ES,Fashion,Medium,Spanish fashion; high email volume
+suggested,Massimo Dutti,massimodutti.com,ES,Fashion,Medium,Inditex sibling to tracked Zara Home
+suggested,Bimba y Lola,bimbaylola.com,ES,Fashion,Medium,Spanish fashion
+suggested,Ecoalf,ecoalf.com,ES,Fashion,Medium,Spanish sustainability-led D2C
+attraction,Gronalund,gronalund.com,SE,Amusement park,High,Stockholm Tivoli-style park; pairs with tracked Liseberg
+attraction,Kolmarden,kolmarden.com,SE,Zoo/Safari,High,Largest Nordic safari park; strong seasonal email
+attraction,Skara Sommarland,skarasommarland.se,SE,Water/Theme park,Medium,Swedish summer park next to tracked Lalandia
+attraction,Furuvik,furuvik.se,SE,Amusement/Zoo,Low,Swedish park and zoo
+attraction,Kristiansand Dyrepark,dyreparken.no,NO,Zoo/Theme park,High,Norway's biggest attraction; pairs with tracked Tusenfryd
+attraction,Hunderfossen,hunderfossen.no,NO,Theme park,Medium,Norwegian family park
+attraction,Linnanmaki,linnanmaki.fi,FI,Amusement park,High,Helsinki's flagship park
+attraction,Sarkanniemi,sarkanniemi.fi,FI,Amusement park,Medium,Finnish amusement park and aquarium
+attraction,PowerPark,powerpark.fi,FI,Amusement park,Low,Finnish amusement park
+attraction,Odense Zoo,odensezoo.dk,DK,Zoo,High,Major Danish zoo next to tracked Zoo Kobenhavn / Givskud
+attraction,Aalborg Zoo,aalborgzoo.dk,DK,Zoo,Medium,Danish zoo
+attraction,Ree Park Safari,reepark.dk,DK,Zoo/Safari,Medium,Danish safari park next to tracked Knuthenborg
+attraction,Nordsoen Oceanarium,nordsoenoceanarium.dk,DK,Aquarium,Medium,Danish aquarium next to tracked Den Bla Planet
+attraction,Kattegatcentret,kattegatcentret.dk,DK,Aquarium,Low,Danish aquarium
+attraction,AQUA Akvarium & Dyrepark,visitaqua.dk,DK,Aquarium/Zoo,Low,Danish aquarium and nature park
+attraction,Parc Asterix,parcasterix.fr,FR,Theme park,High,Major French park; pairs with tracked Disneyland Paris
+attraction,Puy du Fou,puydufou.com,FR,Theme park,Medium,Award-winning French historical park
+attraction,Futuroscope,futuroscope.com,FR,Theme park,Medium,French futuristic theme park
+attraction,Phantasialand,phantasialand.de,DE,Theme park,High,Top German park next to tracked Europa-Park
+attraction,Heide Park,heide-park.de,DE,Theme park,Medium,German Merlin park next to tracked Alton Towers / LEGOLAND
+attraction,Movie Park Germany,moviepark.de,DE,Theme park,Low,German film-themed park
+attraction,Toverland,toverland.com,NL,Theme park,Medium,Dutch theme park next to tracked Efteling
+attraction,Walibi Holland,walibi.nl,NL,Theme park,Medium,Dutch thrill park
+attraction,Plopsaland,plopsaland.be,BE,Theme park,Medium,Belgian family park
+attraction,PortAventura World,portaventuraworld.com,ES,Theme park,High,Major Spanish resort park
+attraction,Gardaland,gardaland.it,IT,Theme park,Medium,Italy's leading theme park
+attraction,Thorpe Park,thorpepark.com,UK,Theme park,Medium,UK Merlin thrill park next to tracked Alton Towers
+attraction,Chessington World of Adventures,chessington.com,UK,Theme park/Zoo,Medium,UK Merlin park and zoo
+attraction,Chester Zoo,chesterzoo.org,UK,Zoo,Medium,Major UK zoo
