@@ -152,7 +152,34 @@ export function classifyFromRules(subject: string, html: string): {
   return { category: "other", confidence: 0.45 };
 }
 
+// CSS background images: `background:url(...)` / `background-image: url(...)`
+// in inline `style` attributes and `<style>` blocks. Scoped to background
+// declarations (not bare `url(...)`) so @font-face font files are never
+// mirrored as images. The value part stops at `;`, `}` and quotes so a match
+// can't run across an attribute or rule boundary.
+const CSS_BACKGROUND_URL_RE =
+  /background(?:-image)?\s*:[^;}"']*url\(\s*(?:&quot;|["'])?([^"'()\s]+?)(?:&quot;|["'])?\s*\)/gi;
+
+// Legacy HTML `background="..."` attribute on non-img tags (`<td background>`,
+// `<table background>`, `<body background>`).
+const BACKGROUND_ATTR_RE =
+  /<(?!img[\s>])[a-z][a-z0-9]*\b[^>]*\sbackground\s*=\s*["']([^"']+)["']/gi;
+
 export function extractImageUrlsFromHtml(html: string): string[] {
-  const matches = [...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)];
-  return matches.map((m) => m[1]).filter(Boolean);
+  const urls = [...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
+    .map((m) => m[1])
+    .filter(Boolean);
+  // Background images (Klaviyo hero sections and friends) render behind a
+  // transparent spacer `<img>`, so missing them here means the preview shows
+  // a blank block: the render CSP only allows mirrored hosts. Only http(s)
+  // values are added — background shorthands also emit colors/keywords.
+  for (const re of [BACKGROUND_ATTR_RE, CSS_BACKGROUND_URL_RE]) {
+    for (const match of html.matchAll(re)) {
+      const url = match[1];
+      if (url && /^https?:\/\//i.test(url)) {
+        urls.push(url);
+      }
+    }
+  }
+  return urls;
 }

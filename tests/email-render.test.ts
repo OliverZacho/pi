@@ -45,6 +45,33 @@ describe("rewriteEmailHtml", () => {
     expect(result.html).not.toContain("cdn.example.com/banner.png");
   });
 
+  it("rewrites background attributes on layout tags", () => {
+    const html =
+      '<table background="https://cdn.example.com/banner.png"><tr><td background=\'https://cdn.example.com/products/shoe.jpg\'>hi</td></tr></table>';
+    const result = rewriteEmailHtml(html, {
+      mirrorMap: MIRROR_MAP,
+      signedAssets: SIGNED_ASSETS
+    });
+    expect(result.rewritten).toBe(2);
+    expect(result.html).toContain('background="https://signed.supabase.co/em-1/abc.png?token=banner"');
+    expect(result.html).toContain('background="https://signed.supabase.co/em-1/def.jpg?token=shoe"');
+    expect(result.html).not.toContain("cdn.example.com");
+  });
+
+  it("rewrites css background url() in inline style attributes", () => {
+    const html =
+      '<table style="background:url(https://cdn.example.com/banner.png) center center / cover no-repeat;width:100%"><tr><td>hi</td></tr></table>';
+    const result = rewriteEmailHtml(html, {
+      mirrorMap: MIRROR_MAP,
+      signedAssets: SIGNED_ASSETS
+    });
+    expect(result.rewritten).toBe(1);
+    expect(result.html).toContain(
+      "url(&quot;https://signed.supabase.co/em-1/abc.png?token=banner&quot;)"
+    );
+    expect(result.html).not.toContain("cdn.example.com");
+  });
+
   it("rewrites srcset entries while keeping descriptors", () => {
     const html =
       '<img src="https://cdn.example.com/banner.png" srcset="https://cdn.example.com/banner.png 1x, https://cdn.example.com/products/shoe.jpg 2x" />';

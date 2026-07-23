@@ -46,6 +46,11 @@ export function emailPreviewCsp(): string {
 
 const IMG_TAG_RE = /<img\b[^>]*>/gi;
 const ATTR_RE = /(\s)(src|srcset|background|data-src|data-original|data-image|data-bg)\s*=\s*("([^"]*)"|'([^']*)')/gi;
+// Legacy HTML background attribute on layout tags (`<td background="...">`).
+// The ATTR_RE pass above only runs inside `<img>` tags, so these need their
+// own pass or the photo stays remote and the preview CSP blanks it.
+const BACKGROUND_TAG_RE = /<(?:table|td|th|tr|body)\b[^>]*>/gi;
+const BACKGROUND_ATTR_RE = /(\sbackground\s*=\s*)("([^"]*)"|'([^']*)')/gi;
 const STYLE_TAG_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 const STYLE_ATTR_RE = /(\sstyle\s*=\s*)("([^"]*)"|'([^']*)')/gi;
 const URL_FN_RE = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
@@ -128,7 +133,20 @@ export function rewriteEmailHtml(html: string, options: RewriteOptions): Rewrite
     });
   });
 
-  const withRewrittenStyles = withRewrittenImgTags
+  const withRewrittenBackgroundAttrs = withRewrittenImgTags.replace(
+    BACKGROUND_TAG_RE,
+    (tag) =>
+      tag.replace(BACKGROUND_ATTR_RE, (match, prefix: string, _value, dq: string | undefined, sq: string | undefined) => {
+        const original = dq ?? sq ?? "";
+        const replacement = resolve(original);
+        if (replacement) {
+          return `${prefix}"${escapeAttr(replacement)}"`;
+        }
+        return match;
+      })
+  );
+
+  const withRewrittenStyles = withRewrittenBackgroundAttrs
     .replace(STYLE_TAG_RE, (match, css: string) => {
       const next = rewriteCssUrls(css, lookup, () => {
         rewritten += 1;
