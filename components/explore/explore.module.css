@@ -41,6 +41,101 @@
   padding: 0.15rem 0.4rem 0.4rem;
 }
 
+/* ---------- Mobile nav drawer ----------
+   Below the breakpoint the sidebar leaves the flow entirely and becomes
+   a fixed drawer sliding in from the left; a floating hamburger opens
+   it and a backdrop / close button / any navigation dismisses it. On
+   desktop all three mobile controls are display:none and the sidebar
+   rules above apply untouched. */
+
+.mobileNavToggle,
+.mobileNavClose,
+.mobileNavBackdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobileNavToggle {
+    position: fixed;
+    top: 0.7rem;
+    left: 0.7rem;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
+    cursor: pointer;
+  }
+
+  /* Backdrop + drawer sit above the fixed top-right utility panel
+     (z-index 50) so it dims with the rest of the page, but below email
+     modals (z-index 60). */
+  .mobileNavBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 52;
+    background: rgba(15, 23, 42, 0.4);
+  }
+
+  .mobileNavClose {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  .mobileNavClose:hover {
+    background: rgba(15, 23, 42, 0.06);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    width: min(300px, 85vw);
+    z-index: 53;
+    transform: translateX(-105%);
+    /* visibility flips to hidden only after the slide-out finishes, so
+       the closed drawer is untabbable without cutting the animation */
+    transition: transform 220ms ease, visibility 220ms;
+    box-shadow: none;
+    visibility: hidden;
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+    box-shadow: 12px 0 32px rgba(15, 23, 42, 0.2);
+    visibility: visible;
+  }
+
+  /* Tighter gutters on phones, with enough top padding that page
+     headings clear the floating hamburger. */
+  .main {
+    padding: 4.4rem 1.1rem 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}
+
 .brandName {
   font-size: 0.95rem;
   font-weight: 600;
