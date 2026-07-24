@@ -17,6 +17,8 @@ import {
 } from "@/lib/collection-event-shared";
 import { formatMonthShort, formatShortDate, parseDayKey } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import FigureDownload from "@/components/FigureDownload";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import styles from "./collections.module.css";
 
 /**
@@ -586,6 +588,70 @@ function EventInsightsCard({
 
   const eventDates = formatEventDates(event.startDate, event.endDate);
 
+  const categoryLabel = (category: string) =>
+    EMAIL_CATEGORY_LABELS[category as EmailCategory] ?? category;
+  const dateForIdx = (dayIdx: number) => addDays(model.windowStart, dayIdx);
+
+  const swimlaneCsv: CsvValue[][] = [
+    ["Brand", "Date", "Received at", "Category", "Subject"],
+    ...model.brands.flatMap((brand) =>
+      brand.items.map((item): CsvValue[] => [
+        brand.name,
+        dateForIdx(item.dayIdx),
+        item.card.receivedAt,
+        categoryLabel(item.card.category),
+        item.card.subject
+      ])
+    )
+  ];
+  const crescendoCsv: CsvValue[][] = [
+    ["Date", "Emails"],
+    ...model.dailyCounts.map((count, idx): CsvValue[] => [
+      dateForIdx(idx),
+      count
+    ])
+  ];
+  const phaseCsv: CsvValue[][] = [
+    ["Phase", "Brand", "Date", "Received at", "Subject"],
+    ...model.phaseLanes.flatMap((lane) =>
+      lane.items.map((item): CsvValue[] => [
+        CAMPAIGN_PHASE_LABELS[lane.phase],
+        item.card.companyName,
+        dateForIdx(item.dayIdx),
+        item.card.receivedAt,
+        item.card.subject
+      ])
+    )
+  ];
+  const categoryMixCsv: CsvValue[][] = [
+    ["Week start", "Category", "Emails"],
+    ...model.weeks.flatMap((week) =>
+      Array.from(week.counts.entries()).map(([category, count]): CsvValue[] => [
+        dateForIdx(week.startIdx),
+        categoryLabel(category),
+        count
+      ])
+    )
+  ];
+  const discountCsv: CsvValue[][] | null = model.discount
+    ? [
+        [
+          "Brand",
+          "Avg discount % (this collection)",
+          "Max discount % (this collection)",
+          "Deepest discount % (past 12 months)",
+          "Discount emails"
+        ],
+        ...model.discount.brands.map((brand): CsvValue[] => [
+          brand.name,
+          Math.round(brand.avg),
+          Math.round(brand.max),
+          Math.round(brand.benchmarkMax),
+          brand.count
+        ])
+      ]
+    : null;
+
   return (
     <section
       className={`${styles.insightsCard}${inModal ? ` ${styles.insightsCardModal}` : ""}`}
@@ -658,63 +724,119 @@ function EventInsightsCard({
 
       <div ref={wrapRef} className={styles.insightsChartWrap}>
         <figure className={styles.insightsFigure} style={{ margin: 0 }}>
-          <h3 className={styles.insightsFigureTitle}>Who moves first</h3>
+          <div className={styles.insightsFigureHead}>
+            <h3 className={styles.insightsFigureTitle}>Who moves first</h3>
+            <FigureDownload
+              filename={exportSlug(event.name, "who-moves-first")}
+              csvRows={swimlaneCsv}
+            />
+          </div>
           <p className={styles.insightsFigureCaption}>
             One lane per brand, earliest sender on top — each dot is one
             email.
           </p>
-          <SwimlaneFigure
-            model={model}
-            width={width}
-            onOpenEmail={onOpenEmail}
-            onHover={showTip}
-            onLeave={hideTip}
-          />
+          <div data-export-figure="">
+            <SwimlaneFigure
+              model={model}
+              width={width}
+              onOpenEmail={onOpenEmail}
+              onHover={showTip}
+              onLeave={hideTip}
+            />
+          </div>
         </figure>
 
-        <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
-          <h3 className={styles.insightsFigureTitle}>Volume crescendo</h3>
+        <figure
+          className={styles.insightsFigure}
+          style={{ marginLeft: 0, marginRight: 0 }}
+        >
+          <div className={styles.insightsFigureHead}>
+            <h3 className={styles.insightsFigureTitle}>Volume crescendo</h3>
+            <FigureDownload
+              filename={exportSlug(event.name, "volume-crescendo")}
+              csvRows={crescendoCsv}
+            />
+          </div>
           <p className={styles.insightsFigureCaption}>
             Emails per day across the run-up — the noise you&apos;d compete
             with on each day.
           </p>
-          <CrescendoFigure model={model} width={width} />
+          <div data-export-figure="">
+            <CrescendoFigure model={model} width={width} />
+          </div>
         </figure>
 
-        <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
-          <h3 className={styles.insightsFigureTitle}>Campaign phases</h3>
+        <figure
+          className={styles.insightsFigure}
+          style={{ marginLeft: 0, marginRight: 0 }}
+        >
+          <div className={styles.insightsFigureHead}>
+            <h3 className={styles.insightsFigureTitle}>Campaign phases</h3>
+            <FigureDownload
+              filename={exportSlug(event.name, "campaign-phases")}
+              csvRows={phaseCsv}
+            />
+          </div>
           <p className={styles.insightsFigureCaption}>
             Each email labelled by the role it plays: announce, reveal the
             programme, remind, open the doors, wrap up.
           </p>
-          <PhaseStripFigure
-            model={model}
-            width={width}
-            onOpenEmail={onOpenEmail}
-            onHover={showTip}
-            onLeave={hideTip}
-          />
+          <div data-export-figure="">
+            <PhaseStripFigure
+              model={model}
+              width={width}
+              onOpenEmail={onOpenEmail}
+              onHover={showTip}
+              onLeave={hideTip}
+            />
+          </div>
         </figure>
 
-        <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
-          <h3 className={styles.insightsFigureTitle}>Category mix over time</h3>
+        <figure
+          className={styles.insightsFigure}
+          style={{ marginLeft: 0, marginRight: 0 }}
+        >
+          <div className={styles.insightsFigureHead}>
+            <h3 className={styles.insightsFigureTitle}>Category mix over time</h3>
+            <FigureDownload
+              filename={exportSlug(event.name, "category-mix")}
+              csvRows={categoryMixCsv}
+            />
+          </div>
           <p className={styles.insightsFigureCaption}>
             Weekly email volume split by category — watch invitations give
             way to launches as the event nears.
           </p>
-          <CategoryMixFigure model={model} width={width} />
+          <div data-export-figure="">
+            <CategoryMixFigure model={model} width={width} />
+          </div>
         </figure>
 
         {model.discount ? (
-          <figure className={styles.insightsFigure} style={{ marginLeft: 0, marginRight: 0 }}>
-            <h3 className={styles.insightsFigureTitle}>How much each brand discounts</h3>
+          <figure
+            className={styles.insightsFigure}
+            style={{ marginLeft: 0, marginRight: 0 }}
+          >
+            <div className={styles.insightsFigureHead}>
+              <h3 className={styles.insightsFigureTitle}>
+                How much each brand discounts
+              </h3>
+              {discountCsv ? (
+                <FigureDownload
+                  filename={exportSlug(event.name, "brand-discounts")}
+                  csvRows={discountCsv}
+                />
+              ) : null}
+            </div>
             <p className={styles.insightsFigureCaption}>
               {Math.round(model.discount.share * 100)}% of these emails carry a
               price cut. Bars show each brand&apos;s average discount in this
               collection; the diamond marks its deepest deal anywhere in the
               past 12 months.
             </p>
-            <DiscountFigure model={model} width={width} />
+            <div data-export-figure="">
+              <DiscountFigure model={model} width={width} />
+            </div>
           </figure>
         ) : null}
       </div>

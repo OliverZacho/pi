@@ -989,12 +989,34 @@
 /* ---------- Section card ---------- */
 
 .section {
+  position: relative;
   margin-top: 1.4rem;
   padding: 1.3rem 1.4rem 1.45rem;
   border: 0;
   border-radius: 20px;
   background: #ffffff;
   box-shadow: var(--panel-shadow);
+}
+
+/* Shared per-section download button, sitting flush left of the section
+   rail's hide/move cluster so the two read as one control row. The rail
+   cluster lives at top 2.45rem / right 1.35rem in `.railShell` coords,
+   and the section's 1.4rem top margin collapses through the shell, so
+   the same 2.45rem lines the button up with those controls exactly.
+   Horizontally: 1.35rem offset + 5.45rem cluster + 0.25rem gap. */
+.sectionDownload {
+  position: absolute;
+  top: 2.45rem;
+  right: 7.05rem;
+}
+
+/* Match the rail buttons' 1.65rem footprint so the row reads as one
+   cluster (the shared trigger defaults to 28px elsewhere). Direct child
+   only — the menu items inside the popover are buttons too and must
+   keep their natural width. */
+.sectionDownload > button {
+  width: 1.65rem;
+  height: 1.65rem;
 }
 
 .sectionEyebrow {
@@ -1832,6 +1854,68 @@
   background: var(--accent-soft, rgba(15, 23, 42, 0.07));
   color: var(--accent, #0f172a);
   font-weight: 500;
+}
+
+/* Ranked top-CTA list — one row per CTA: rank, text over a bar scaled
+   to the brand's own most-used CTA, and the raw email count. */
+.ctaRankList {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ctaRankItem {
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr) max-content;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.ctaRankNum {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ctaRankBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.ctaRankText {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctaRankBar {
+  height: 5px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.ctaRankBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent, #0f172a);
+}
+
+.ctaRankCount {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Recent campaigns ---------- */

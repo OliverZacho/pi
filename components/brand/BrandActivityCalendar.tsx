@@ -8,8 +8,10 @@ import {
   useState,
   type CSSProperties
 } from "react";
+import FigureDownload from "@/components/FigureDownload";
 import type { BrandPageData } from "@/lib/brand-db";
 import { colorForCategory } from "@/lib/category-colors";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import {
   formatLongDate as formatLongDateZoned,
   formatTime as formatTimeZoned,
@@ -138,6 +140,21 @@ export default function BrandActivityCalendar({ brandName, calendar }: Props) {
   );
   const activeDays = perDayLookup.size;
 
+  const csvRows = useMemo<CsvValue[][]>(
+    () => [
+      ["Date", "Received at", "Category", "Subject"],
+      ...calendar.days.flatMap((day) =>
+        day.emails.map((email): CsvValue[] => [
+          day.date,
+          email.receivedAt,
+          email.categoryLabel,
+          email.subject
+        ])
+      )
+    ],
+    [calendar.days]
+  );
+
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -150,14 +167,23 @@ export default function BrandActivityCalendar({ brandName, calendar }: Props) {
             time.
           </p>
         </div>
-        <div className={styles.calendarSummary}>
-          <span className={styles.calendarSummaryValue}>{totalSends}</span>
-          <span className={styles.calendarSummaryLabel}>
-            sends across {activeDays} day{activeDays === 1 ? "" : "s"}
-          </span>
+        <div className={styles.cardHeadTools}>
+          <div className={styles.calendarSummary}>
+            <span className={styles.calendarSummaryValue}>{totalSends}</span>
+            <span className={styles.calendarSummaryLabel}>
+              sends across {activeDays} day{activeDays === 1 ? "" : "s"}
+            </span>
+          </div>
+          <FigureDownload
+            filename={exportSlug(brandName, "send-calendar")}
+            csvRows={csvRows}
+          />
         </div>
       </div>
 
+      {/* Grid + legend grouped so the PNG export captures both — the
+          legend is what makes the category colours readable offline. */}
+      <div className={styles.calendarFigure} data-export-figure="">
       <div className={styles.calendarScroller}>
         <div className={styles.calendarLayout}>
           <div className={styles.calendarDayLabels} aria-hidden="true">
@@ -227,6 +253,7 @@ export default function BrandActivityCalendar({ brandName, calendar }: Props) {
           ))}
         </div>
       ) : null}
+      </div>
 
       {tooltip ? (
         <CalendarTooltip key={tooltip.cell.iso} state={tooltip} />

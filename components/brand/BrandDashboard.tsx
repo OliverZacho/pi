@@ -10,6 +10,8 @@ import {
 } from "@/lib/datetime";
 import { formatBytes, imageFormatLabel } from "@/lib/image-stats";
 import { hasAnySeasonalMentions } from "@/lib/seasonal-events";
+import FigureDownload from "@/components/FigureDownload";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import BrandCtaCloud from "./BrandCtaCloud";
@@ -247,8 +249,16 @@ export default function BrandDashboard({
             className={`${styles.sectionGrid} ${styles.cardEnter}`}
             style={{ animationDelay: "340ms" }}
           >
-            <CadenceCard cadence={cadence} totals={totals} />
-            <CategoryCard categories={categories} sample={totals.sampleSize} />
+            <CadenceCard
+              cadence={cadence}
+              totals={totals}
+              brandName={brand.name}
+            />
+            <CategoryCard
+              categories={categories}
+              sample={totals.sampleSize}
+              brandName={brand.name}
+            />
           </section>
 
           <section
@@ -280,14 +290,22 @@ export default function BrandDashboard({
                 logoUrl: brand.logoUrl
               }}
             />
-            <EmojiCard emojis={emojis} sample={totals.sampleSize} />
+            <EmojiCard
+              emojis={emojis}
+              sample={totals.sampleSize}
+              brandName={brand.name}
+            />
           </section>
 
           <section
             className={`${styles.recentSection} ${styles.cardEnter}`}
             style={{ animationDelay: "520ms" }}
           >
-            <CtaCloudCard ctas={ctas} sample={totals.sampleSize} />
+            <CtaCloudCard
+              ctas={ctas}
+              sample={totals.sampleSize}
+              brandName={brand.name}
+            />
           </section>
 
           <section
@@ -541,12 +559,18 @@ function KpiTile({
 
 export function CadenceCard({
   cadence,
-  totals
+  totals,
+  brandName
 }: {
   cadence: BrandPageData["cadence"];
   totals: BrandPageData["totals"];
+  brandName?: string;
 }) {
   const totalThisRange = cadence.weekly.reduce((acc, w) => acc + w.count, 0);
+  const csvRows: CsvValue[][] = [
+    ["Week start", "Emails"],
+    ...cadence.weekly.map((week) => [week.weekStart, week.count])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -558,9 +582,13 @@ export function CadenceCard({
             bar is one calendar week, ending today.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "send-frequency")}
+          csvRows={csvRows}
+        />
       </div>
 
-      <div className={styles.cadenceWrap}>
+      <div className={styles.cadenceWrap} data-export-figure="">
         <CadenceChart weekly={cadence.weekly} />
         <div className={styles.cadenceAxis}>
           <span>{formatRangeStart(cadence.weekly)}</span>
@@ -689,13 +717,23 @@ function CadenceChart({
 
 export function CategoryCard({
   categories,
-  sample
+  sample,
+  brandName
 }: {
   categories: BrandPageData["categories"];
   sample: number;
+  brandName?: string;
 }) {
   const max = categories[0]?.count ?? 0;
   const top = categories.slice(0, 6);
+  const csvRows: CsvValue[][] = [
+    ["Category", "Emails", "Share of sample %"],
+    ...categories.map((row) => [
+      row.label,
+      row.count,
+      sample > 0 ? Math.round((row.count / sample) * 100) : 0
+    ])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -706,11 +744,15 @@ export function CategoryCard({
             Share of {sample} recent emails by campaign type.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "campaign-categories")}
+          csvRows={csvRows}
+        />
       </div>
       {top.length === 0 ? (
         <div className={styles.cardSub}>No category data yet.</div>
       ) : (
-        <div className={styles.categoryList}>
+        <div className={styles.categoryList} data-export-figure="">
           {top.map((row) => {
             const ratio = max > 0 ? row.count / max : 0;
             return (
@@ -762,6 +804,30 @@ export function PromoCard({
   seasonalSample?: BrandPageData["seasonalSample"];
   company?: DiscountTimelineCompany | null;
 }) {
+  const discounted = seasonalSample
+    .filter(
+      (email) =>
+        email.discountPercent !== null && email.discountPercent > 0
+    )
+    .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+  const csvRows: CsvValue[][] = [
+    [
+      "Received at",
+      "Discount %",
+      "Promo code",
+      "Offer stated end",
+      "Extension announced",
+      "Subject"
+    ],
+    ...discounted.map((email) => [
+      email.receivedAt,
+      email.discountPercent,
+      email.promoCode,
+      email.offerEndsOn,
+      email.offerIsExtension === null ? "" : email.offerIsExtension ? "yes" : "no",
+      email.subject
+    ])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -773,6 +839,10 @@ export function PromoCard({
             sends.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "discount-activity")}
+          csvRows={csvRows}
+        />
       </div>
 
       <div className={styles.promoSummary}>
@@ -864,11 +934,17 @@ export function PromoCard({
  */
 export function EmojiCard({
   emojis,
-  sample
+  sample,
+  brandName
 }: {
   emojis: BrandPageData["emojis"];
   sample: number;
+  brandName?: string;
 }) {
+  const csvRows: CsvValue[][] = [
+    ["Emoji", "Uses"],
+    ...emojis.top.map((entry) => [entry.emoji, entry.count])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -880,6 +956,10 @@ export function EmojiCard({
             subject lines and preheaders.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "emoji-habits")}
+          csvRows={csvRows}
+        />
       </div>
 
       <div className={styles.promoSummary}>
@@ -917,7 +997,7 @@ export function EmojiCard({
       </div>
 
       {emojis.top.length > 0 ? (
-        <div className={styles.emojiList}>
+        <div className={styles.emojiList} data-export-figure="">
           {emojis.top.map((entry) => (
             <div key={entry.emoji} className={styles.emojiRow}>
               <span className={styles.emojiGlyph} aria-hidden="true">
@@ -1074,6 +1154,71 @@ export function DesignCard({
     </>
   );
 
+  const csvRows: CsvValue[][] = [
+    ["Section", "Item", "Value"],
+    ...design.palette.map((entry): CsvValue[] => [
+      "Color palette",
+      entry.hex,
+      entry.count
+    ]),
+    ...design.fonts.map((font): CsvValue[] => [
+      "Typography",
+      font.family,
+      font.count
+    ]),
+    ["Signals", "Uses GIFs %", Math.round(design.gifShare * 100)],
+    ["Signals", "Dark-mode aware %", Math.round(design.darkModeShare * 100)],
+    ...(design.preheaderPadding.measured > 0
+      ? [
+          [
+            "Signals",
+            "Preview padding %",
+            Math.round(design.preheaderPadding.share * 100)
+          ] as CsvValue[]
+        ]
+      : []),
+    ...(design.openTracking.measured > 0
+      ? [
+          [
+            "Signals",
+            "Open tracking %",
+            Math.round(design.openTracking.share * 100)
+          ] as CsvValue[]
+        ]
+      : []),
+    ...(subjects.avgLength !== null
+      ? [
+          [
+            "Signals",
+            "Avg subject length (chars)",
+            Math.round(subjects.avgLength)
+          ] as CsvValue[]
+        ]
+      : []),
+    ...(design.images.avgBytesPerEmail !== null
+      ? [
+          [
+            "Signals",
+            "Avg image weight (bytes)",
+            Math.round(design.images.avgBytesPerEmail)
+          ] as CsvValue[]
+        ]
+      : []),
+    ...(design.images.avgImagesPerEmail !== null
+      ? [
+          [
+            "Signals",
+            "Images per email",
+            design.images.avgImagesPerEmail.toFixed(1)
+          ] as CsvValue[]
+        ]
+      : []),
+    ...design.images.formats.map((entry): CsvValue[] => [
+      "Image formats",
+      imageFormatLabel(entry.format),
+      `${Math.round(entry.share * 100)}%`
+    ])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -1084,9 +1229,13 @@ export function DesignCard({
             Visual signals aggregated across this brand&apos;s emails.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brand.name, "design-dna")}
+          csvRows={csvRows}
+        />
       </div>
 
-      <div className={styles.dnaGrid}>
+      <div className={styles.dnaGrid} data-export-figure="">
         <div className={styles.dnaSection}>
           <span className={styles.dnaTitle}>Color palette</span>
           {design.palette.length === 0 ? (
@@ -1244,11 +1393,17 @@ export function DesignCard({
  */
 export function CtaCloudCard({
   ctas,
-  sample
+  sample,
+  brandName
 }: {
   ctas: BrandPageData["ctas"];
   sample: number;
+  brandName?: string;
 }) {
+  const csvRows: CsvValue[][] = [
+    ["Call to action", "Uses"],
+    ...ctas.map((cta) => [cta.text, cta.count])
+  ];
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -1260,13 +1415,19 @@ export function CtaCloudCard({
             {sample} recent emails. Larger words appear more frequently.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "calls-to-action")}
+          csvRows={csvRows}
+        />
       </div>
       {ctas.length === 0 ? (
         <div className={styles.cardSub}>
           No CTA labels captured yet.
         </div>
       ) : (
-        <BrandCtaCloud ctas={ctas} />
+        <div data-export-figure="">
+          <BrandCtaCloud ctas={ctas} />
+        </div>
       )}
     </article>
   );

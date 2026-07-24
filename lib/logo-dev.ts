@@ -21,6 +21,15 @@ export function resolveBrandLogo(
   return logoDevUrl(domain) ?? storedUrl;
 }
 
+/**
+ * Whether Logo.dev can serve a logo for this brand at all — i.e. a usable
+ * host can be derived from `companies.domain`. Deliberately ignores the
+ * token: a missing token is a global ops problem, not a per-brand one.
+ */
+export function hasLogoDevCoverage(domain: string | null | undefined): boolean {
+  return domain != null && normalizeHost(domain) !== null;
+}
+
 function logoDevUrl(domain: string | null | undefined): string | null {
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN;
   const host = domain ? normalizeHost(domain) : null;

@@ -70,9 +70,11 @@ export function classifyFromRules(subject: string, html: string): {
   // off your first order"), and we don't want those to be miscategorised as
   // `sale`. We also cover Scandinavian "velkommen til <brand>" / "välkommen
   // till" patterns because the dataset is heavily Nordic. The negative
-  // lookahead on "welcome back" preserves loyalty re-engagement classification.
+  // lookahead on "welcome back" preserves loyalty re-engagement classification,
+  // and the season lookahead keeps collection launches ("Welcome to Pre-Fall
+  // 2026") out of `welcome` — those greet a season, not a subscriber.
   if (
-    /\bwelcome to\b|^welcome(?! back\b)|\bvelkommen til\b|\bvälkommen till\b|\bwillkommen bei\b|\bbienvenue (?:à|chez)\b|\bbienvenido a\b|\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bglad you'?re here\b/.test(
+    /\bwelcome to\b(?! (?:pre.?)?(?:fall|spring|summer|winter|autumn|aw ?\d|ss ?\d))|^welcome(?! back\b| to\b)|\bvelkommen til\b|\bvälkommen till\b|\bwillkommen bei\b|\bbienvenue (?:à|chez)\b|\bbienvenido a\b|\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bglad you'?re here\b/.test(
       subjectLc
     )
   ) {
@@ -152,7 +154,34 @@ export function classifyFromRules(subject: string, html: string): {
   return { category: "other", confidence: 0.45 };
 }
 
+// CSS background images: `background:url(...)` / `background-image: url(...)`
+// in inline `style` attributes and `<style>` blocks. Scoped to background
+// declarations (not bare `url(...)`) so @font-face font files are never
+// mirrored as images. The value part stops at `;`, `}` and quotes so a match
+// can't run across an attribute or rule boundary.
+const CSS_BACKGROUND_URL_RE =
+  /background(?:-image)?\s*:[^;}"']*url\(\s*(?:&quot;|["'])?([^"'()\s]+?)(?:&quot;|["'])?\s*\)/gi;
+
+// Legacy HTML `background="..."` attribute on non-img tags (`<td background>`,
+// `<table background>`, `<body background>`).
+const BACKGROUND_ATTR_RE =
+  /<(?!img[\s>])[a-z][a-z0-9]*\b[^>]*\sbackground\s*=\s*["']([^"']+)["']/gi;
+
 export function extractImageUrlsFromHtml(html: string): string[] {
-  const matches = [...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)];
-  return matches.map((m) => m[1]).filter(Boolean);
+  const urls = [...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
+    .map((m) => m[1])
+    .filter(Boolean);
+  // Background images (Klaviyo hero sections and friends) render behind a
+  // transparent spacer `<img>`, so missing them here means the preview shows
+  // a blank block: the render CSP only allows mirrored hosts. Only http(s)
+  // values are added — background shorthands also emit colors/keywords.
+  for (const re of [BACKGROUND_ATTR_RE, CSS_BACKGROUND_URL_RE]) {
+    for (const match of html.matchAll(re)) {
+      const url = match[1];
+      if (url && /^https?:\/\//i.test(url)) {
+        urls.push(url);
+      }
+    }
+  }
+  return urls;
 }

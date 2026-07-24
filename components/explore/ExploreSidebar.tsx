@@ -63,13 +63,6 @@ type Props = {
    * back to the plain Settings link.
    */
   user?: ViewerDisplay | null;
-  /**
-   * Name of the tracked brand whose website domain matches the viewer's
-   * login-email domain, resolved server-side by the layout. When set,
-   * a "Your brand" nav row appears (for unpaid viewers too — the page
-   * itself shows a teaser); when null the row doesn't exist at all.
-   */
-  yourBrandName?: string | null;
 };
 
 // Number of collection/comparison rows surfaced in the collapsed section
@@ -383,7 +376,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: <CollectionIcon />,
     href: "/collections"
   },
-  { id: "compare", label: "Comparisons", icon: <CompareIcon />, href: "/compare" }
+  { id: "compare", label: "Comparisons", icon: <CompareIcon />, href: "/compare" },
+  // Visible to everyone: with a work-email match the page shows the
+  // brand's own insights, without one it explains how to get them —
+  // which is the feature's only acquisition surface.
+  {
+    id: "your-brand",
+    label: "Your brand",
+    icon: <StorefrontIcon />,
+    href: "/your-brand"
+  }
 ];
 
 /**
@@ -641,8 +643,7 @@ export default function ExploreSidebar({
   collections = EMPTY_COLLECTIONS,
   competitorSets = EMPTY_COMPETITOR_SETS,
   hasAccess = true,
-  user = null,
-  yourBrandName = null
+  user = null
 }: Props = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -762,21 +763,7 @@ export default function ExploreSidebar({
   const showCollectionsViewAll =
     ownCollections.length > COLLECTION_PREVIEW_COUNT;
 
-  // "Your brand" only exists for viewers whose email domain matched a
-  // tracked brand — inserted right after Explore so the personalized
-  // surface sits at the top without reshuffling the familiar order.
-  const navItems: NavItem[] = yourBrandName
-    ? [
-        NAV_ITEMS[0],
-        {
-          id: "your-brand",
-          label: "Your brand",
-          icon: <StorefrontIcon />,
-          href: "/your-brand"
-        },
-        ...NAV_ITEMS.slice(1)
-      ]
-    : NAV_ITEMS;
+  const navItems: NavItem[] = NAV_ITEMS;
 
   const ownSets = sets.filter((s) => !s.sharedByTeam);
   const teamSets = sets.filter((s) => s.sharedByTeam);

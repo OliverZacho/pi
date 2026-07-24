@@ -11,14 +11,18 @@ import {
   MAX_BRANDS_PER_COMPARISON
 } from "@/lib/competitor-db";
 import {
+  getAltTextSample,
   getDeliverabilitySample,
+  getWelcomeSignal,
   getYourBrandBySlug,
   getYourBrandMatch,
   getYourBrandPrefs,
+  listYourBrandPreviewBrands,
   type YourBrandMatch
 } from "@/lib/your-brand-db";
 import { buildYourBrandInsights } from "@/lib/your-brand-insights";
 import LockedFeature from "@/components/access/LockedFeature";
+import AdminBrandPicker from "@/components/your-brand/AdminBrandPicker";
 import RequestBrandButton from "@/components/your-brand/RequestBrandButton";
 import YourBrandDashboard from "@/components/your-brand/YourBrandDashboard";
 import styles from "@/components/your-brand/your-brand.module.css";
@@ -68,6 +72,14 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
     match = await getYourBrandMatch(viewer.email);
   }
 
+  // Admins can preview the tab as any tracked brand — their own login is
+  // a consumer domain that never matches, so without this the tab would
+  // be dead weight for them.
+  const adminBrands = viewer.isAdmin ? await listYourBrandPreviewBrands() : [];
+  const adminPicker = viewer.isAdmin ? (
+    <AdminBrandPicker brands={adminBrands} currentSlug={match?.slug ?? null} />
+  ) : null;
+
   if (!match) {
     return (
       <main className={styles.main}>
@@ -78,6 +90,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
               A running check of your own email program, built from the
               emails we capture.
             </p>
+            {adminPicker}
           </div>
         </header>
         <section className={styles.section}>
@@ -105,12 +118,15 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
   // fired, without rendering any of the underlying findings.
   if (!viewer.hasAccess) {
     const admin = getSupabaseAdmin();
-    const [own, deliverability] = await Promise.all([
+    const [own, deliverability, altText, welcome] = await Promise.all([
       getBrandPageData(admin, match.id),
-      getDeliverabilitySample(admin, match.id)
+      getDeliverabilitySample(admin, match.id),
+      getAltTextSample(admin, match.id),
+      getWelcomeSignal(admin, match.id)
     ]);
     const count = own
-      ? buildYourBrandInsights({ own, peers: [], deliverability }).length
+      ? buildYourBrandInsights({ own, peers: [], deliverability, altText, welcome })
+          .length
       : 0;
 
     return (
@@ -129,9 +145,12 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
   }
 
   const supabase = await createClient();
-  const [own, deliverability, prefs, comparisonSets] = await Promise.all([
+  const [own, deliverability, altText, welcome, prefs, comparisonSets] =
+    await Promise.all([
     getBrandPageData(supabase, match.id),
     getDeliverabilitySample(supabase, match.id),
+    getAltTextSample(supabase, match.id),
+    getWelcomeSignal(supabase, match.id),
     getYourBrandPrefs(supabase, viewer.userId),
     listCompetitorSetSummaries(supabase, viewer.userId).catch((err) => {
       console.error("Failed to load comparisons for your-brand", err);
@@ -147,6 +166,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
         <header className={styles.heading}>
           <div>
             <h1>Your brand</h1>
+            {adminPicker}
           </div>
         </header>
         <section className={styles.section}>
@@ -181,7 +201,13 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
     }
   }
 
-  const insights = buildYourBrandInsights({ own, peers, deliverability });
+  const insights = buildYourBrandInsights({
+    own,
+    peers,
+    deliverability,
+    altText,
+    welcome
+  });
 
   return (
     <main className={styles.main}>
@@ -200,6 +226,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
               Open the {match.name} brand dashboard
             </Link>
           </div>
+          {adminPicker}
         </div>
       </header>
 

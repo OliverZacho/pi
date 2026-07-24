@@ -6,6 +6,7 @@ import {
   type AdminOverview,
   type CapturedEmail,
   type CapturedEmailDetail,
+  type ClassificationSource,
   type CompanyDetail,
   type CompanyInbox,
   type CompanySubscription,
@@ -18,7 +19,7 @@ import {
   type PaletteColorSource
 } from "./admin-types";
 import { buildUniqueSubscriptionEmail } from "./email-utils";
-import { LOGO_REVIEW_MAX_CONFIDENCE } from "./extract-logo";
+import { hasLogoDevCoverage, resolveBrandLogo } from "./logo-dev";
 import { normalizeDomain } from "./suggest-companies";
 import { buildImageStatsFromSizes, parseImageStats } from "./image-stats";
 import {
@@ -154,7 +155,7 @@ export async function getOverviewFromDb(
       supabase
         .from("companies")
         .select(
-          "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+          "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
         )
         .is("deleted_at", null)
         .order("subscribed_since", { ascending: false }),
@@ -524,7 +525,7 @@ export async function getCompanyDetailFromDb(
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, deleted_at, logo_storage_path, logo_source, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .eq("id", companyId)
     .maybeSingle();
@@ -662,7 +663,7 @@ export async function updateCompanyInDb(
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(
-      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_confidence, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+      "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
     )
     .maybeSingle();
 
@@ -725,7 +726,6 @@ type CompanyRow = {
   subscribed_since: string;
   logo_storage_path?: string | null;
   logo_source?: string | null;
-  logo_confidence?: number | string | null;
   logo_stale?: boolean | null;
   company_inboxes?: CompanyInboxRow[] | null;
   company_email_stats?: CompanyStatsRow | CompanyStatsRow[] | null;
@@ -772,8 +772,10 @@ function normalizeLogoSource(value: string | null | undefined): CompanySubscript
 }
 
 /**
- * Batch-signs the storage paths of every email-sourced logo, then returns
- * the company list with `logoUrl` set to the short-lived signed URL.
+ * Sets `logoUrl` to the logo users actually see (same resolution as the
+ * app: manual pick wins, otherwise Logo.dev by domain). Storage paths are
+ * batch-signed so manual picks — and the fallback when Logo.dev has no
+ * usable domain — render from the short-lived signed URL.
  */
 async function resolveCompanyLogos(
   companies: CompanySubscription[]
@@ -794,10 +796,11 @@ async function resolveCompanyLogos(
 
   return companies.map((company) => {
     const raw = company as CompanyWithRawLogo;
-    const logoUrl =
+    const signedUrl =
       raw.__logoStoragePath && signed[raw.__logoStoragePath]
         ? signed[raw.__logoStoragePath]
         : null;
+    const logoUrl = resolveBrandLogo(signedUrl, company.logoSource, company.domain);
     return {
       id: company.id,
       name: company.name,
@@ -816,7 +819,6 @@ async function resolveCompanyLogos(
       lastEmailAt: company.lastEmailAt,
       logoUrl,
       logoSource: company.logoSource,
-      logoConfidence: company.logoConfidence,
       logoStale: company.logoStale,
       needsLogoReview: company.needsLogoReview
     };
@@ -882,20 +884,14 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
   const stats = relationFirst(row.company_email_stats);
   const logoSource = normalizeLogoSource(row.logo_source);
   const logoStoragePath = row.logo_storage_path ?? null;
-  const logoConfidence =
-    row.logo_confidence === null || row.logo_confidence === undefined
-      ? null
-      : Number(row.logo_confidence);
   const logoStale = row.logo_stale ?? false;
-  // A logo needs review when it's an admin's manual pick that has gone stale
-  // (brand stopped sending it), OR it's a non-manual pick that is missing or
-  // below the confidence floor — where the picker drifts onto QR codes / blanks.
+  // Logo.dev serves every non-manual brand with a usable domain, so pipeline
+  // confidence no longer matters for display. A logo only needs review when
+  // what users see can actually be wrong: an admin's manual pick that has
+  // gone stale, or a brand whose domain Logo.dev can't resolve (the raw
+  // pipeline pick / monogram shows as fallback).
   const needsLogoReview =
-    logoStale ||
-    (logoSource !== "manual" &&
-      (logoStoragePath === null ||
-        logoConfidence === null ||
-        logoConfidence < LOGO_REVIEW_MAX_CONFIDENCE));
+    logoStale || (logoSource !== "manual" && !hasLogoDevCoverage(row.domain));
   const base: CompanyWithRawLogo = {
     id: row.id,
     name: row.name,
@@ -919,7 +915,6 @@ function rowToCompany(row: CompanyRow): CompanySubscription {
     lastEmailAt: stats?.last_received_at ?? null,
     logoUrl: null,
     logoSource,
-    logoConfidence,
     logoStale,
     needsLogoReview,
     __logoStoragePath: logoStoragePath
@@ -1171,10 +1166,10 @@ export async function createCompanySubscriptionInDb(
     lastEmailAt: null,
     logoUrl: null,
     logoSource: null,
-    logoConfidence: null,
     logoStale: false,
-    // Brand-new company has no logo yet — it needs a pick once email lands.
-    needsLogoReview: true
+    // Logo.dev covers the brand from day one as long as the domain resolves;
+    // only a domain-less brand needs an admin's eyes on its logo.
+    needsLogoReview: !hasLogoDevCoverage(company.domain)
   };
 }
 
@@ -1536,12 +1531,15 @@ export async function storeProcessedEmail(
     recipient: string;
     segment_category: string | null;
     segment_country: string | null;
+    created_at: string;
   } | null = null;
 
   if (lowercaseRecipients.length > 0) {
     const { data: inboxRows, error: inboxError } = await supabaseAdmin
       .from("company_inboxes")
-      .select("id, company_id, email_address, segment_category, segment_country")
+      .select(
+        "id, company_id, email_address, segment_category, segment_country, created_at"
+      )
       .in("email_address", lowercaseRecipients);
 
     if (inboxError) {
@@ -1557,7 +1555,8 @@ export async function storeProcessedEmail(
         company_id: firstMatch.company_id,
         recipient: firstMatch.email_address,
         segment_category: firstMatch.segment_category ?? null,
-        segment_country: firstMatch.segment_country ?? null
+        segment_country: firstMatch.segment_country ?? null,
+        created_at: firstMatch.created_at
       };
     }
   }
@@ -1565,6 +1564,34 @@ export async function storeProcessedEmail(
   const recipient = matchedInbox?.recipient ?? lowercaseRecipients[0] ?? "unknown@pirol.app";
 
   const enrichment = input.enrichment ?? {};
+
+  // Welcome-timing override. An email that lands within the first hour of
+  // its inbox existing was triggered by our own signup, which makes it a
+  // welcome (or double opt-in) email no matter what its copy says. The
+  // copy-based classifiers routinely mislabel these as `sale` because
+  // welcome emails so often headline a signup discount; arrival time is
+  // the one signal the copy cannot confuse. Small negative drift is
+  // tolerated because `sentAt` comes from the provider clock.
+  const WELCOME_WINDOW_MS = 60 * 60 * 1000;
+  const WELCOME_DRIFT_MS = 10 * 60 * 1000;
+  let category = input.classification.category;
+  let classificationSource: ClassificationSource = input.classification.source;
+  let classificationConfidence = input.classification.confidence;
+  if (matchedInbox && category !== "welcome") {
+    const inboxMs = new Date(matchedInbox.created_at).getTime();
+    const receivedMs = input.sentAt ? new Date(input.sentAt).getTime() : Date.now();
+    const delta = receivedMs - inboxMs;
+    if (
+      !Number.isNaN(inboxMs) &&
+      !Number.isNaN(receivedMs) &&
+      delta >= -WELCOME_DRIFT_MS &&
+      delta <= WELCOME_WINDOW_MS
+    ) {
+      category = "welcome";
+      classificationSource = "timing";
+      classificationConfidence = 0.97;
+    }
+  }
 
   const { data: email, error: emailError } = await supabaseAdmin
     .from("captured_emails")
@@ -1586,9 +1613,9 @@ export async function storeProcessedEmail(
       plain_text: input.plainText ?? null,
       image_urls: input.imageStoragePaths,
       remote_image_urls: input.remoteImageUrls,
-      category: input.classification.category,
-      classification_source: input.classification.source,
-      classification_confidence: input.classification.confidence,
+      category,
+      classification_source: classificationSource,
+      classification_confidence: classificationConfidence,
       llm_model: input.classification.model ?? null,
       llm_reasoning: input.classification.reasoning ?? null,
       raw_payload: input.rawPayload as Json,

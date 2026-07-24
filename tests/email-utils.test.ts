@@ -214,4 +214,38 @@ describe("extractImageUrlsFromHtml", () => {
   it("handles html with no images", () => {
     expect(extractImageUrlsFromHtml("<p>nothing</p>")).toEqual([]);
   });
+
+  it("extracts css background urls from inline style attributes", () => {
+    const html =
+      '<table style="background:url(https://cdn.example.com/hero.png) center center / cover no-repeat;width:600px"><tr><td>hi</td></tr></table>';
+    expect(extractImageUrlsFromHtml(html)).toEqual([
+      "https://cdn.example.com/hero.png"
+    ]);
+  });
+
+  it("extracts quoted background-image urls from style blocks", () => {
+    const html =
+      "<style>.hero { background-image: url('https://cdn.example.com/bg.jpg'); }</style>";
+    expect(extractImageUrlsFromHtml(html)).toEqual([
+      "https://cdn.example.com/bg.jpg"
+    ]);
+  });
+
+  it("extracts legacy background attributes on layout tags", () => {
+    const html =
+      '<td background="https://cdn.example.com/tile.png" style="width:100%">hi</td>';
+    expect(extractImageUrlsFromHtml(html)).toEqual([
+      "https://cdn.example.com/tile.png"
+    ]);
+  });
+
+  it("ignores font urls, colors, and non-http background values", () => {
+    const html = [
+      "<style>@font-face { font-family: X; src: url(https://fonts.example.com/x.woff2); }</style>",
+      '<td style="background: #fff">hi</td>',
+      '<td background="cid:inline-part">hi</td>',
+      '<td style="background:url(data:image/png;base64,AAAA)">hi</td>'
+    ].join("");
+    expect(extractImageUrlsFromHtml(html)).toEqual([]);
+  });
 });

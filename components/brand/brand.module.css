@@ -670,6 +670,15 @@
   gap: 0.75rem;
 }
 
+/* Right-hand side of a card head: existing controls (year select,
+   summary stat) plus the shared download button, kept on one row. */
+.cardHeadTools {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
 .cardTitle {
   margin: 0;
   font-size: 0.95rem;
@@ -1584,6 +1593,15 @@
 }
 
 /* ---------- Activity calendar (GitHub-style heatmap) ---------- */
+
+/* Groups the grid + legend into one node for the PNG export, keeping
+   the card's own 1rem stack rhythm between them. */
+.calendarFigure {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
 
 .calendarSummary {
   display: inline-flex;

@@ -1,0 +1,79 @@
+.root {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* Zero specificity on purpose: consumers override `position` (e.g. the
+   compare sections pin the button into the header's control cluster with
+   `position: absolute`), and CSS-module stylesheet order differs between
+   SSR and client-side navigation — an equal-specificity `.root` rule
+   would win or lose depending on how the page was reached. */
+:where(.root) {
+  position: relative;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.trigger:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 158px;
+  padding: 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: #f1f5f9;
+}
+
+.spinner {
+  animation: figureDownloadSpin 700ms linear infinite;
+}
+
+@keyframes figureDownloadSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

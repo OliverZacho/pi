@@ -206,6 +206,25 @@ function median(values: number[]): number {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Deterministic "now" anchor for the rate windows: the end of the
+ * timeline's last day. These functions run during both server render
+ * and client hydration, and the wall clock caused hydration
+ * mismatches — the two renders can sit on opposite sides of a
+ * whole-day boundary since `firstEmailAt`, shifting the clamped
+ * window by a day and flipping derived values (the Avg cadence tile
+ * between "3.9" and "4.0 days"). The timeline is built server-side
+ * and shipped in props, so both sides agree on it byte for byte.
+ */
+function timelineEndMs(
+  timeline: BrandPageData["cadence"]["dailyTimeline"]
+): number | null {
+  const lastDate = timeline[timeline.length - 1]?.date;
+  if (!lastDate) return null;
+  const ms = new Date(`${lastDate}T23:59:59Z`).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
  * Average emails/week over the rate window, clamped to the period the
  * brand has actually been tracked so a brand added last month isn't
  * diluted across twelve empty weeks.
@@ -216,10 +235,11 @@ export function weeklySendRate(brand: BrandPageData): number {
 
   let windowDays = Math.min(RATE_WINDOW_DAYS, timeline.length);
   const first = brand.totals.firstEmailAt;
-  if (first) {
+  const endMs = timelineEndMs(timeline);
+  if (first && endMs !== null) {
     const firstMs = new Date(first).getTime();
     if (!Number.isNaN(firstMs)) {
-      const trackedDays = Math.ceil((Date.now() - firstMs) / 86_400_000);
+      const trackedDays = Math.ceil((endMs - firstMs) / 86_400_000);
       windowDays = Math.max(7, Math.min(windowDays, trackedDays));
     }
   }
@@ -247,11 +267,12 @@ export function previousWeeklySendRate(brand: BrandPageData): number | null {
 
   let windowDays = Math.min(RATE_WINDOW_DAYS, end);
   const first = brand.totals.firstEmailAt;
-  if (first) {
+  const endMs = timelineEndMs(timeline);
+  if (first && endMs !== null) {
     const firstMs = new Date(first).getTime();
     if (!Number.isNaN(firstMs)) {
       const trackedDays =
-        Math.ceil((Date.now() - firstMs) / 86_400_000) - RATE_WINDOW_DAYS;
+        Math.ceil((endMs - firstMs) / 86_400_000) - RATE_WINDOW_DAYS;
       if (trackedDays < PREV_RATE_MIN_DAYS) return null;
       windowDays = Math.min(windowDays, trackedDays);
     }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import FigureDownload from "@/components/FigureDownload";
 import { getActiveTimeZone, getZoneAbbreviation } from "@/lib/datetime";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import styles from "./brand.module.css";
 
 type Props = {
@@ -71,6 +73,14 @@ export default function BrandClockHeatmap({ brandName, hourly }: Props) {
     [hourly]
   );
 
+  const csvRows = useMemo<CsvValue[][]>(
+    () => [
+      [`Hour (${zoneAbbr})`, "Emails"],
+      ...hourly.map((count, hour): CsvValue[] => [formatHour(hour), count])
+    ],
+    [hourly, zoneAbbr]
+  );
+
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -83,9 +93,13 @@ export default function BrandClockHeatmap({ brandName, hourly }: Props) {
             are quieter. All times shown in {zoneAbbr}.
           </p>
         </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "send-hours")}
+          csvRows={csvRows}
+        />
       </div>
 
-      <div className={styles.clockPair}>
+      <div className={styles.clockPair} data-export-figure="">
         <ClockFace
           label="AM"
           hourlyForClock={hourly.slice(0, 12)}

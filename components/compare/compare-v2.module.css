@@ -443,6 +443,14 @@
   padding-right: 6rem;
 }
 
+/* Lookback tabs + download button on the cadence card's head row. */
+.cadenceTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .lookback {
   display: inline-flex;
   align-items: center;

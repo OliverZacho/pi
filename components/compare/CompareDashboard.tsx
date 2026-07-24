@@ -24,6 +24,8 @@ import {
 import { countryFlag, countryName, countryZoneSignature } from "@/lib/country";
 import { formatHourOfDay } from "@/lib/datetime";
 import BrandRecentEmails from "@/components/brand/BrandRecentEmails";
+import FigureDownload from "@/components/FigureDownload";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import KpiTiles from "./KpiTiles";
 import CadenceStack from "./CadenceStack";
 import CompareSectionRail from "./CompareSectionRail";
@@ -57,8 +59,8 @@ type Props = {
  *                     send-time heatmap, quiet zones
  *   3. Promo        — per-brand discount aggressiveness blocks
  *   4. Occasions    — seasonal-event matrix with per-brand lead times
- *   5. Voice        — per-brand creative fingerprint (palette, fonts,
- *                     subject habits, emoji, CTAs)
+ *   5. Voice        — per-brand creative fingerprint (palette, fonts)
+ *                     plus a ranked top-CTA card per brand
  *   6. Content mix  — stacked category-share bars
  *   7. Recent       — merged chronological feed
  *
@@ -154,6 +156,14 @@ export default function CompareDashboard({
         <FingerprintGrid brands={brands} takeaway={insights.voiceTakeaway} />
       )
     },
+    ...(brands.some((b) => b.ctas.length > 0)
+      ? [
+          {
+            id: "ctas" as const,
+            content: <TopCtasSection brands={brands} />
+          }
+        ]
+      : []),
     ...(insights.mix.rows.some((row) => row.segments.length > 0)
       ? [
           {
@@ -414,8 +424,26 @@ function RhythmLeague({
     ticks.push((t / maxRate) * 100);
   }
 
+  const csvRows: CsvValue[][] = [
+    [
+      "Brand",
+      "Emails per week (last 12 weeks)",
+      "Emails per week (previous 12 weeks)"
+    ],
+    ...insight.rows.map((row): CsvValue[] => [
+      row.name,
+      fmtRate(row.perWeek),
+      row.prevPerWeek !== null ? fmtRate(row.prevPerWeek) : ""
+    ])
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "who-sends-the-most")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>Who sends the most</h2>
       <p className={styles.sectionSub}>
@@ -425,7 +453,7 @@ function RhythmLeague({
       </p>
       <Takeaway text={insight.takeaway} />
 
-      <div className={styles.sectionBody}>
+      <div className={styles.sectionBody} data-export-figure="">
         <div className={styles.leagueList}>
           {insight.rows.map((row) => {
             const color = getCompareColor(row.index);
@@ -570,8 +598,21 @@ function SendTimeStrips({
   }
   const aggregatedMax = Math.max(0, ...aggregated);
 
+  const hourLabel = (hour: number) =>
+    formatHourOfDay(hour, { case: "lower", withZone: false });
+  const csvRows: CsvValue[][] = [
+    ["Brand", ...Array.from({ length: 24 }, (_, hour) => hourLabel(hour))],
+    ["All brands", ...aggregated],
+    ...brands.map((b): CsvValue[] => [b.brand.name, ...b.cadence.hourly])
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "when-they-send")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>When they send</h2>
       <p className={styles.sectionSub}>
@@ -581,7 +622,7 @@ function SendTimeStrips({
       </p>
       <Takeaway text={takeaway} />
 
-      <div className={styles.sectionBody}>
+      <div className={styles.sectionBody} data-export-figure="">
         <div className={styles.clockGrid}>
           <HeatmapRow
             name="All brands"
@@ -681,8 +722,21 @@ function HeatmapRow({
 function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
   const max = Math.max(1, ...insight.grid.flat());
 
+  const csvRows: CsvValue[][] = [
+    ["Daypart", ...QUIET_ZONE_DAYS],
+    ...QUIET_ZONE_DAYPARTS.map((daypart, dpIdx): CsvValue[] => [
+      daypart.label,
+      ...QUIET_ZONE_DAYS.map((_, dayIdx) => insight.cells[dpIdx][dayIdx].count)
+    ])
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "quiet-zones")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Rhythm</span>
       <h2 className={styles.sectionTitle}>Quiet zones</h2>
       <p className={styles.sectionSub}>
@@ -692,7 +746,7 @@ function QuietZonesSection({ insight }: { insight: QuietZonesInsight }) {
       </p>
       <Takeaway text={insight.takeaway} />
 
-      <div className={`${styles.sectionBody} ${styles.qzLayout}`}>
+      <div className={`${styles.sectionBody} ${styles.qzLayout}`} data-export-figure="">
         <div className={styles.qzMain}>
           <div className={styles.qzGrid}>
             <span aria-hidden="true" />
@@ -820,8 +874,38 @@ function PromoBlocks({
   );
   const showTrend = trend.months.length >= 2;
 
+  const csvRows: CsvValue[][] = [
+    [
+      "Brand",
+      "Promo share %",
+      "Avg discount %",
+      "Highest discount %",
+      "Discount emails",
+      ...(showTrend
+        ? trend.months.map((month) => `Avg % in ${month}`)
+        : [])
+    ],
+    ...brands.map((b, idx): CsvValue[] => [
+      b.brand.name,
+      Math.round(b.promo.discountShare * 100),
+      b.promo.avgDiscount !== null ? Math.round(b.promo.avgDiscount) : "",
+      b.promo.maxDiscount !== null ? Math.round(b.promo.maxDiscount) : "",
+      b.promo.discountEmails,
+      ...(showTrend
+        ? (trend.rows[idx]?.points ?? trend.months.map(() => null)).map(
+            (point) => (point !== null ? Math.round(point) : "")
+          )
+        : [])
+    ])
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "discount-aggressiveness")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Offers</span>
       <h2 className={styles.sectionTitle}>Discount aggressiveness</h2>
       <p className={styles.sectionSub}>
@@ -830,7 +914,7 @@ function PromoBlocks({
       </p>
       <Takeaway text={takeaway} />
 
-      <div className={styles.promoGrid}>
+      <div className={styles.promoGrid} data-export-figure="">
         {brands.map((b, idx) => {
           const color = getCompareColor(idx);
           const accentStyle = {
@@ -985,8 +1069,25 @@ function OccasionMatrix({
 }) {
   if (insight.rows.length === 0) return null;
 
+  const csvRows: CsvValue[][] = [
+    ["Event", "Brand", "Emails", "Lead days"],
+    ...insight.rows.flatMap((row) =>
+      row.cells.map((cell, idx): CsvValue[] => [
+        row.label,
+        brands[idx]?.brand.name ?? "",
+        cell.count,
+        cell.leadDays ?? ""
+      ])
+    )
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "seasonal-moments")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Occasions</span>
       <h2 className={styles.sectionTitle}>Seasonal moments they activate</h2>
       <p className={styles.sectionSub}>
@@ -995,7 +1096,7 @@ function OccasionMatrix({
       </p>
       <Takeaway text={insight.takeaway} />
 
-      <div className={`${styles.sectionBody} ${styles.occTableWrap}`}>
+      <div className={`${styles.sectionBody} ${styles.occTableWrap}`} data-export-figure="">
         <table className={styles.occTable}>
           <thead>
             <tr>
@@ -1094,17 +1195,35 @@ function FingerprintGrid({
   brands: BrandPageData[];
   takeaway: string | null;
 }) {
+  const csvRows: CsvValue[][] = [
+    ["Brand", "Type", "Value"],
+    ...brands.flatMap((b): CsvValue[][] => [
+      ...b.design.palette
+        .slice(0, 8)
+        .map((entry): CsvValue[] => [b.brand.name, "Color", entry.hex]),
+      ...b.design.fonts
+        .slice(0, 3)
+        .map((font): CsvValue[] => [b.brand.name, "Font", font.family])
+    ])
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "creative-fingerprint")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Voice &amp; creative</span>
       <h2 className={styles.sectionTitle}>Creative fingerprint</h2>
       <p className={styles.sectionSub}>
-        Each brand's look at a glance: palette, typography and the CTAs
-        they reach for. Copy metrics live in the KPI matrix above.
+        Each brand's look at a glance: palette and typography. Copy
+        metrics live in the KPI matrix above, and the CTAs they reach
+        for have their own section below.
       </p>
       <Takeaway text={takeaway} />
 
-      <div className={styles.dnaGrid}>
+      <div className={styles.dnaGrid} data-export-figure="">
         {brands.map((b, idx) => {
           const color = getCompareColor(idx);
           const accentStyle = {
@@ -1163,6 +1282,108 @@ function FingerprintGrid({
 }
 
 /* -----------------------------------------------------------------
+   Top CTAs
+   ----------------------------------------------------------------- */
+
+const TOP_CTA_LIMIT = 5;
+
+/**
+ * One card per brand with its most-used CTA texts ranked by how often
+ * they appear. Bars are scaled against the brand's own #1 CTA, so the
+ * shape answers "does this brand hammer one button or rotate several?"
+ * — cross-brand volume comparisons live in the rhythm sections.
+ */
+function TopCtasSection({ brands }: { brands: BrandPageData[] }) {
+  const withCtas = brands
+    .map((b, idx) => ({ brand: b, idx }))
+    .filter(({ brand }) => brand.ctas.length > 0);
+  if (withCtas.length === 0) return null;
+
+  const csvRows: CsvValue[][] = [
+    ["Brand", "Rank", "CTA", "Emails"],
+    ...withCtas.flatMap(({ brand }) =>
+      brand.ctas
+        .slice(0, TOP_CTA_LIMIT)
+        .map((cta, rank): CsvValue[] => [
+          brand.brand.name,
+          rank + 1,
+          cta.text,
+          cta.count
+        ])
+    )
+  ];
+
+  return (
+    <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "top-ctas")}
+        csvRows={csvRows}
+      />
+      <span className={styles.sectionEyebrow}>Voice &amp; creative</span>
+      <h2 className={styles.sectionTitle}>Top CTAs</h2>
+      <p className={styles.sectionSub}>
+        The buttons each brand asks you to click, ranked by how many
+        emails they appear in. Bars are relative to that brand&apos;s own
+        most-used CTA.
+      </p>
+
+      <div className={styles.ctaGrid} data-export-figure="">
+        {withCtas.map(({ brand: b, idx }) => {
+          const top = b.ctas.slice(0, TOP_CTA_LIMIT);
+          const max = top[0]?.count ?? 1;
+          return (
+            <article
+              key={b.brand.id}
+              className={styles.ctaCard}
+              style={
+                {
+                  ["--accent" as string]: getCompareColor(idx)
+                } as CSSProperties
+              }
+            >
+              <span className={styles.ctaCardHead}>
+                <span className={styles.brandStripAccentDot} />
+                {b.brand.name}
+              </span>
+              <ol className={styles.ctaRankList}>
+                {top.map((cta, rank) => (
+                  <li key={cta.text} className={styles.ctaRankItem}>
+                    <span className={styles.ctaRankNum}>{rank + 1}</span>
+                    <span className={styles.ctaRankBody}>
+                      <span className={styles.ctaRankText}>{cta.text}</span>
+                      <span className={styles.ctaRankBar} aria-hidden="true">
+                        <span
+                          className={styles.ctaRankBarFill}
+                          style={{
+                            width: `${Math.max(
+                              6,
+                              Math.round((cta.count / max) * 100)
+                            )}%`
+                          }}
+                        />
+                      </span>
+                    </span>
+                    <span
+                      className={styles.ctaRankCount}
+                      title={`Appears in ${cta.count} email${
+                        cta.count === 1 ? "" : "s"
+                      }`}
+                    >
+                      ×{cta.count}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
    Content mix
    ----------------------------------------------------------------- */
 
@@ -1173,8 +1394,24 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
   // Shared, volume-ranked order from the builder — every bar follows it.
   const legend = insight.legend;
 
+  const csvRows: CsvValue[][] = [
+    ["Brand", "Category", "Share %"],
+    ...insight.rows.flatMap((row) =>
+      row.segments.map((segment): CsvValue[] => [
+        row.name,
+        segment.label,
+        Math.round(segment.share * 100)
+      ])
+    )
+  ];
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "content-mix")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Content</span>
       <h2 className={styles.sectionTitle}>What they talk about</h2>
       <p className={styles.sectionSub}>
@@ -1186,7 +1423,7 @@ function ContentMixSection({ insight }: { insight: ContentMixInsight }) {
       </p>
       <Takeaway text={insight.takeaway} />
 
-      <div className={styles.sectionBody}>
+      <div className={styles.sectionBody} data-export-figure="">
         <div className={styles.mixList}>
           {insight.rows.map((row) => (
             <MixRow key={row.id} row={row} />

@@ -6,7 +6,12 @@ import { isConsumerEmailDomain } from "./email-domains";
 import { normalizeDomain } from "./suggest-companies";
 import type { ListHeaders } from "./admin-types";
 import type { AuthResults } from "./extract-metadata";
-import type { DeliverabilitySignal } from "./your-brand-insights";
+import {
+  altTextStatsFromHtml,
+  type AltTextSignal,
+  type DeliverabilitySignal,
+  type WelcomeSignal
+} from "./your-brand-insights";
 import {
   defaultYourBrandPrefs,
   sanitizeYourBrandPrefs,
@@ -94,6 +99,29 @@ export async function getYourBrandBySlug(
   return { id: data.id, slug: data.slug, name: data.name, domain: data.domain };
 }
 
+/**
+ * All tracked brands, for the admin-only preview picker on the
+ * "Your brand" tab. Service-role read of public brand metadata; callers
+ * must gate on `viewer.isAdmin` themselves.
+ */
+export async function listYourBrandPreviewBrands(): Promise<
+  { slug: string; name: string }[]
+> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("companies")
+    .select("slug, name")
+    .is("deleted_at", null)
+    .not("slug", "is", null)
+    .order("name");
+  if (error) {
+    console.error("Failed to list brands for admin preview", error);
+    return [];
+  }
+  return (data ?? []).flatMap((row) =>
+    row.slug ? [{ slug: row.slug, name: row.name }] : []
+  );
+}
+
 export async function getYourBrandPrefs(
   supabase: SupabaseClient<Database>,
   userId: string
@@ -162,4 +190,57 @@ export async function getDeliverabilitySample(
     listHeaders: (row.list_headers as ListHeaders | null) ?? null,
     authResults: (row.auth_results as AuthResults | null) ?? null
   }));
+}
+
+/**
+ * How many recent emails feed the alt-text rule. Deliberately smaller
+ * than the header sample: each row ships its full `html_content` (often
+ * 100 KB+), so this is the one expensive fetch on the page.
+ */
+const ALT_TEXT_SAMPLE_SIZE = 12;
+
+/**
+ * Alt-text coverage from the brand's most recent captured emails,
+ * computed here so the raw HTML never leaves the server layer.
+ */
+export async function getAltTextSample(
+  supabase: SupabaseClient<Database>,
+  companyId: string
+): Promise<AltTextSignal[]> {
+  const { data, error } = await supabase
+    .from("captured_emails")
+    .select("html_content")
+    .eq("company_id", companyId)
+    .is("duplicate_of", null)
+    .order("received_at", { ascending: false })
+    .limit(ALT_TEXT_SAMPLE_SIZE);
+
+  if (error) {
+    console.error("Failed to load alt-text sample", error);
+    return [];
+  }
+  return (data ?? []).map((row) => altTextStatsFromHtml(row.html_content ?? ""));
+}
+
+/**
+ * All-time welcome-category evidence for the brand. A count query over
+ * every captured row (duplicates included — a deduped welcome still
+ * proves the flow exists) because the brand-page stats sample is capped
+ * at recent rows and the welcome is always the oldest.
+ */
+export async function getWelcomeSignal(
+  supabase: SupabaseClient<Database>,
+  companyId: string
+): Promise<WelcomeSignal | null> {
+  const { count, error } = await supabase
+    .from("captured_emails")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("category", "welcome");
+
+  if (error || count === null) {
+    console.error("Failed to load welcome signal", error);
+    return null;
+  }
+  return { welcomeCount: count };
 }

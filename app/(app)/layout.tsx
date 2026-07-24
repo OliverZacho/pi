@@ -11,7 +11,6 @@ import {
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getYourBrandMatch } from "@/lib/your-brand-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
@@ -37,18 +36,6 @@ export default async function AppShellLayout({
 }) {
   const viewer = await getViewer();
   const hasAccess = Boolean(viewer?.hasAccess);
-
-  // "Your brand" tab: shown whenever the viewer's login-email domain
-  // matches a tracked brand's website domain — for unpaid viewers too,
-  // since the page itself renders a teaser for them. Kicked off here and
-  // awaited alongside the other sidebar data; `getYourBrandMatch` is
-  // request-cached, so the page's own lookup reuses this resolution.
-  const yourBrandPromise = viewer?.email
-    ? getYourBrandMatch(viewer.email).catch((err) => {
-        console.error("Failed to resolve your-brand match", err);
-        return null;
-      })
-    : Promise.resolve(null);
 
   let collections: CollectionSummary[] = [];
   let competitorSets: CompetitorSetSummary[] = [];
@@ -111,8 +98,6 @@ export default async function AppShellLayout({
     user = await getViewerDisplay();
   }
 
-  const yourBrand = await yourBrandPromise;
-
   return (
     <div className={styles.shell}>
       <ExploreSidebar
@@ -120,7 +105,6 @@ export default async function AppShellLayout({
         collections={collections}
         competitorSets={competitorSets}
         hasAccess={hasAccess}
-        yourBrandName={yourBrand?.name ?? null}
       />
       {children}
     </div>
