@@ -328,6 +328,45 @@ function PlusIcon() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
+}
+
 const NAV_ITEMS: NavItem[] = [
   { id: "explore", label: "Explore", icon: <CompassIcon />, href: "/explore" },
   { id: "saved", label: "Saved", icon: <BookmarkIcon />, href: "/saved" },
@@ -617,6 +656,31 @@ export default function ExploreSidebar({
   const [createPending, setCreatePending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const createInputRef = useRef<HTMLInputElement | null>(null);
+  // Mobile-only drawer state. On desktop the sidebar is always visible
+  // and these have no effect (the toggle/backdrop are display:none).
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Any navigation closes the drawer, so tapping a nav row both routes
+  // and dismisses without each row needing its own onClick.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  // While the drawer is open: lock page scroll behind it and let
+  // Escape dismiss it.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileNavOpen]);
 
   // Keep local state in sync if the server re-renders the page with a
   // different list (e.g. after a route change).
@@ -732,11 +796,44 @@ export default function ExploreSidebar({
     {/* Failed-renewal nudge — self-fetches, only renders during a grace
         window. Gated on `user` so it never shows to logged-out previews. */}
     {user ? <BillingGraceCard /> : null}
-    <aside className={styles.sidebar} aria-label="Explore navigation">
+    {/* Mobile-only: floating hamburger that opens the nav drawer. Hidden
+        while the drawer is open (the in-drawer close button takes over). */}
+    {!mobileNavOpen ? (
+      <button
+        type="button"
+        className={styles.mobileNavToggle}
+        onClick={() => setMobileNavOpen(true)}
+        aria-label="Open navigation"
+        aria-expanded={false}
+      >
+        <MenuIcon />
+      </button>
+    ) : null}
+    {mobileNavOpen ? (
+      <div
+        className={styles.mobileNavBackdrop}
+        onClick={() => setMobileNavOpen(false)}
+        aria-hidden="true"
+      />
+    ) : null}
+    <aside
+      className={`${styles.sidebar}${
+        mobileNavOpen ? ` ${styles.sidebarOpen}` : ""
+      }`}
+      aria-label="Explore navigation"
+    >
       <div className={styles.brandRow}>
         <Link href="/explore" aria-label="Pirol — go to Explore">
           <Logo className={styles.brandLogo} />
         </Link>
+        <button
+          type="button"
+          className={styles.mobileNavClose}
+          onClick={() => setMobileNavOpen(false)}
+          aria-label="Close navigation"
+        >
+          <CloseIcon />
+        </button>
       </div>
 
       <div className={styles.navGroup}>
