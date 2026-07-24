@@ -1641,9 +1641,9 @@ export default function AdminHomePage() {
   );
 
   const companiesNeedingLogoReview = useMemo(
-    // Only surface brands that actually have a logo to review (low-confidence
-    // or outdated). Brands with no logo yet have nothing to pick from, so they
-    // are not shown here.
+    // Only surface brands that actually have a logo to review (stale manual
+    // pick, or no Logo.dev coverage). Brands with no logo at all have nothing
+    // to pick from, so they are not shown here.
     () =>
       sortedCompanies.filter(
         (company) => company.needsLogoReview && company.logoUrl
@@ -2316,9 +2316,9 @@ export default function AdminHomePage() {
               </span>
             </h2>
             <p className="muted">
-              These brands have a low-confidence or outdated logo — the picker
-              may have drifted onto a QR code or blank image, or the brand
-              rebranded. Open one to pick the correct logo.
+              Logo.dev can&apos;t cover these brands: a manually picked logo
+              fell out of their recent emails, or no usable domain is set.
+              Open one to pick the correct logo.
             </p>
           </div>
           <ul className="logo-review-list">
@@ -2331,7 +2331,7 @@ export default function AdminHomePage() {
                   <span className="logo-review-reason">
                     {company.logoStale
                       ? "outdated — gone from recent emails"
-                      : "low confidence"}
+                      : "no domain for Logo.dev"}
                   </span>
                 </span>
                 <button

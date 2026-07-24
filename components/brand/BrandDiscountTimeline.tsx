@@ -265,7 +265,7 @@ export default function BrandDiscountTimeline({
     nowTs !== null && nowTs >= domainMin && nowTs <= domainMax;
 
   return (
-    <div className={styles.discountTimelineWrap}>
+    <div className={styles.discountTimelineWrap} data-export-figure="">
       <svg
         className={styles.discountChart}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

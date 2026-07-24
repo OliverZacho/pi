@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import FigureDownload from "@/components/FigureDownload";
 import type { BrandPageData } from "@/lib/brand-db";
 import { weeklySendRate } from "@/lib/comparison-insights";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import { getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -377,15 +379,37 @@ export default function KpiTiles({
     [active, definitions]
   );
 
+  const csvRows = useMemo<CsvValue[][]>(
+    () => [
+      ["KPI", "Brand", "Value", "Note"],
+      ...definitions.flatMap((def): CsvValue[][] => {
+        const agg = def.aggregate(brands);
+        return [
+          [def.label, "All brands", agg.display, agg.sublabel],
+          ...brands.map((brand, idx): CsvValue[] => {
+            const per = def.perBrand(brand, idx);
+            return [def.label, brand.brand.name, per.display, per.sublabel ?? ""];
+          })
+        ];
+      })
+    ],
+    [definitions, brands]
+  );
+
   return (
     <section className={styles.section}>
+      <FigureDownload
+        className={styles.sectionDownload}
+        filename={exportSlug("compare", "kpi-matrix")}
+        csvRows={csvRows}
+      />
       <span className={styles.sectionEyebrow}>Snapshot</span>
       <h2 className={styles.sectionTitle}>KPI matrix</h2>
       <p className={styles.sectionSub}>
         Cohort-wide rollups. Tap any tile to see the per-brand breakdown.
       </p>
 
-      <div className={v2.tilesGrid}>
+      <div className={v2.tilesGrid} data-export-figure="">
         {definitions.map((def) => {
           const { display, sublabel } = def.aggregate(brands);
           return (

@@ -1,22 +1,58 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import type { CompanySubscription } from "@/lib/admin-types";
+import type { CompanyInbox, CompanySubscription } from "@/lib/admin-types";
 import { buildUniqueSubscriptionEmail } from "@/lib/email-utils";
 
 type RowStatus = "pending" | "subscribing" | "subscribed" | "error";
+
+/**
+ * One planned mailing-list segment, mirroring the Companies tab's
+ * "Inboxes & segments" fields: free-text label, category tag (markets
+ * vocabulary) and optional ISO alpha-2 country.
+ */
+type CsvSegment = {
+  label: string;
+  category: string;
+  country: string;
+};
 
 type CsvRow = {
   id: string;
   name: string;
   website: string;
   category: string;
+  /**
+   * Segments planned via the row's expand editor. On subscribe, the first
+   * tags the primary inbox and each further one creates an extra inbox,
+   * exactly like the Companies tab's "Inboxes & segments" panel.
+   */
+  segments: CsvSegment[];
   status: RowStatus;
   /** Real subscription email returned by the server once subscribed. */
   createdEmail: string | null;
+  /** All inboxes created for the row (primary + one per extra segment). */
+  createdInboxes: CompanyInbox[] | null;
   error: string | null;
 };
+
+const EMPTY_SEGMENT_DRAFT: CsvSegment = { label: "", category: "", country: "" };
+
+/** "Women · fashion · DK" style summary of a planned segment chip. */
+function segmentSummary(segment: CsvSegment): string {
+  return [segment.label, segment.category, segment.country]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Same summary for a created inbox's stored segment columns. */
+function inboxSegmentText(inbox: CompanyInbox): string {
+  return [inbox.segmentLabel, inbox.segmentCategory, inbox.segmentCountry]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 type Props = {
   existingMarkets: string[];
@@ -139,8 +175,10 @@ function rowsFromCsv(text: string): CsvRow[] {
       name: (cells[cols.name] ?? "").trim(),
       website: (cells[cols.website] ?? "").trim(),
       category: (cells[cols.category] ?? "").trim(),
+      segments: [] as CsvSegment[],
       status: "pending" as RowStatus,
       createdEmail: null,
+      createdInboxes: null,
       error: null
     }))
     .filter((row) => row.name || row.website);
@@ -204,6 +242,10 @@ export default function CsvBrandUploader({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Which row's category picker is open (only one at a time).
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  // Rows whose segment editor is expanded below the main row.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // In-progress label/category/country of each expanded row's segment form.
+  const [segmentDrafts, setSegmentDrafts] = useState<Record<string, CsvSegment>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Close the open category picker on any click outside a category cell.
@@ -261,8 +303,16 @@ export default function CsvBrandUploader({
       setFileName(name);
       return;
     }
+    // Silently drop rows for brands we already track.
+    const fresh = parsed.filter((row) => !isDuplicate(row));
+    if (fresh.length === 0) {
+      setParseError("Every brand in this file is already tracked.");
+      setRows([]);
+      setFileName(name);
+      return;
+    }
     setParseError(null);
-    setRows(parsed);
+    setRows(fresh);
     setFileName(name);
   }
 
@@ -295,6 +345,52 @@ export default function CsvBrandUploader({
 
   function hideRow(id: string) {
     setRows((current) => current.filter((row) => row.id !== id));
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function updateSegmentDraft(rowId: string, patch: Partial<CsvSegment>) {
+    setSegmentDrafts((current) => ({
+      ...current,
+      [rowId]: { ...(current[rowId] ?? EMPTY_SEGMENT_DRAFT), ...patch }
+    }));
+  }
+
+  function addSegment(row: CsvRow) {
+    const draft = segmentDrafts[row.id] ?? EMPTY_SEGMENT_DRAFT;
+    const segment: CsvSegment = {
+      label: draft.label.trim(),
+      category: draft.category.trim().toLowerCase(),
+      country: draft.country.trim().toUpperCase()
+    };
+    if (!segment.label && !segment.category) return;
+    const key = segmentSummary(segment).toLowerCase();
+    const exists = row.segments.some(
+      (item) => segmentSummary(item).toLowerCase() === key
+    );
+    if (!exists) {
+      updateRow(row.id, { segments: [...row.segments, segment] });
+    }
+    setSegmentDrafts((current) => ({
+      ...current,
+      [row.id]: { ...EMPTY_SEGMENT_DRAFT }
+    }));
+  }
+
+  function removeSegment(row: CsvRow, index: number) {
+    updateRow(row.id, {
+      segments: row.segments.filter((_, i) => i !== index)
+    });
   }
 
   async function copyEmail(id: string, email: string) {
@@ -352,22 +448,114 @@ export default function CsvBrandUploader({
 
       const body = (await response.json()) as { company?: CompanySubscription };
       const company = body.company;
-      if (company) {
-        updateRow(row.id, {
-          status: "subscribed",
-          createdEmail: company.subscriptionEmail,
-          error: null
-        });
-        onCompanyCreated(company);
-      } else {
+      if (!company) {
         updateRow(row.id, { status: "subscribed", error: null });
+        return;
       }
+
+      const { inboxes, failed } = await applySegments(company, row.segments);
+
+      updateRow(row.id, {
+        status: "subscribed",
+        createdEmail: company.subscriptionEmail,
+        createdInboxes: inboxes,
+        error:
+          failed.length > 0
+            ? `Subscribed, but tagging failed for: ${failed.join(", ")}. Finish in the Companies list.`
+            : null
+      });
+      // Keep the panel open when several inboxes were created so their
+      // addresses are right there to copy; collapse a plain single-inbox row.
+      setExpandedIds((current) => {
+        const next = new Set(current);
+        if (inboxes.length > 1) {
+          next.add(row.id);
+        } else {
+          next.delete(row.id);
+        }
+        return next;
+      });
+      onCompanyCreated({ ...company, inboxes });
     } catch {
       updateRow(row.id, {
         status: "error",
         error: "Network error. Try again."
       });
     }
+  }
+
+  /**
+   * Applies a row's planned segments to a freshly created company the same
+   * way the Companies tab's "Inboxes & segments" panel does: the first
+   * segment is PATCHed onto the primary inbox, each remaining segment POSTs
+   * an extra inbox with its own generated address. Returns the resulting
+   * inbox list plus summaries of any segments that failed (the company
+   * itself is already live at that point).
+   */
+  async function applySegments(
+    company: CompanySubscription,
+    segments: CsvSegment[]
+  ): Promise<{ inboxes: CompanyInbox[]; failed: string[] }> {
+    let inboxes = [...company.inboxes];
+    const failed: string[] = [];
+    if (segments.length === 0) {
+      return { inboxes, failed };
+    }
+
+    const segmentBody = (segment: CsvSegment) =>
+      JSON.stringify({
+        segmentLabel: segment.label,
+        segmentCategory: segment.category,
+        segmentCountry: segment.country
+      });
+
+    const [first, ...rest] = segments;
+    const primary = inboxes.find((inbox) => inbox.isPrimary) ?? inboxes[0];
+    if (primary) {
+      try {
+        const response = await fetch(
+          `/api/admin/companies/${company.id}/inboxes/${primary.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: segmentBody(first)
+          }
+        );
+        if (response.ok) {
+          const body = (await response.json()) as { inbox: CompanyInbox };
+          inboxes = inboxes.map((item) =>
+            item.id === body.inbox.id ? body.inbox : item
+          );
+        } else {
+          failed.push(segmentSummary(first));
+        }
+      } catch {
+        failed.push(segmentSummary(first));
+      }
+    }
+
+    for (const segment of rest) {
+      try {
+        const response = await fetch(
+          `/api/admin/companies/${company.id}/inboxes`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: segmentBody(segment)
+          }
+        );
+        if (response.ok) {
+          const body = (await response.json()) as { inbox: CompanyInbox };
+          inboxes = [...inboxes, body.inbox];
+        } else {
+          failed.push(segmentSummary(segment));
+        }
+      } catch {
+        failed.push(segmentSummary(segment));
+      }
+    }
+
+    return { inboxes, failed };
   }
 
   const pendingCount = rows.filter((row) => row.status !== "subscribed").length;
@@ -380,7 +568,9 @@ export default function CsvBrandUploader({
           <p className="muted">
             Drop a CSV of <strong>name, website, category</strong>. Each row gets a
             generated subscription email. Click the green tick to subscribe (same as
-            Create below), the red cross to hide a row. Click an email to copy it.
+            Create below), the red cross to hide a row, the chevron to plan segments
+            (one inbox per segment, like the Companies tab). Click an email to copy
+            it.
           </p>
         </div>
         <button
@@ -461,13 +651,17 @@ export default function CsvBrandUploader({
                   const email = previewEmails[index];
                   const subscribed = row.status === "subscribed";
                   const busy = row.status === "subscribing";
-                  const duplicate = !subscribed && isDuplicate(row);
+                  const expanded = expandedIds.has(row.id);
+                  const segmentDraft = segmentDrafts[row.id] ?? EMPTY_SEGMENT_DRAFT;
+                  const draftReady =
+                    segmentDraft.label.trim().length > 0 ||
+                    segmentDraft.category.trim().length > 0;
                   return (
+                    <Fragment key={row.id}>
                     <tr
-                      key={row.id}
                       className={`csv-upload-row${subscribed ? " subscribed" : ""}${
                         row.status === "error" ? " has-error" : ""
-                      }${duplicate ? " is-duplicate" : ""}`}
+                      }`}
                     >
                       <td>
                         <input
@@ -482,16 +676,49 @@ export default function CsvBrandUploader({
                         />
                       </td>
                       <td>
-                        <input
-                          className="csv-upload-input"
-                          value={row.website}
-                          onChange={(event) =>
-                            updateRow(row.id, { website: event.target.value })
-                          }
-                          placeholder="company.com"
-                          disabled={subscribed || busy}
-                          aria-label="Website"
-                        />
+                        {(() => {
+                          const domain = toDomain(row.website);
+                          return (
+                            <div className="csv-upload-site">
+                              <input
+                                className="csv-upload-input"
+                                value={row.website}
+                                onChange={(event) =>
+                                  updateRow(row.id, { website: event.target.value })
+                                }
+                                placeholder="company.com"
+                                disabled={subscribed || busy}
+                                aria-label="Website"
+                              />
+                              {domain ? (
+                                <a
+                                  className="csv-upload-site-link"
+                                  href={`https://${domain}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`Open ${domain} in a new tab`}
+                                  aria-label={`Open ${domain} in a new tab`}
+                                >
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.4"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                  </svg>
+                                </a>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td>
                         {(() => {
@@ -593,9 +820,63 @@ export default function CsvBrandUploader({
                       </td>
                       <td className="csv-upload-actions-col">
                         {subscribed ? (
-                          <span className="csv-upload-subscribed-tag">Subscribed</span>
-                        ) : duplicate ? null : (
                           <div className="csv-upload-actions">
+                            {row.createdInboxes && row.createdInboxes.length > 1 ? (
+                              <button
+                                type="button"
+                                className={`csv-upload-expand${expanded ? " is-open" : ""}`}
+                                onClick={() => toggleExpanded(row.id)}
+                                title={expanded ? "Hide inboxes" : "Show inboxes"}
+                                aria-label={expanded ? "Hide inboxes" : "Show inboxes"}
+                                aria-expanded={expanded}
+                              >
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.4"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </button>
+                            ) : null}
+                            <span className="csv-upload-subscribed-tag">Subscribed</span>
+                          </div>
+                        ) : (
+                          <div className="csv-upload-actions">
+                            <button
+                              type="button"
+                              className={`csv-upload-expand${expanded ? " is-open" : ""}`}
+                              onClick={() => toggleExpanded(row.id)}
+                              disabled={busy}
+                              title={expanded ? "Hide segments" : "Add more segments"}
+                              aria-label={expanded ? "Hide segments" : "Add more segments"}
+                              aria-expanded={expanded}
+                            >
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                              {row.segments.length > 0 ? (
+                                <span className="csv-upload-expand-count">
+                                  +{row.segments.length}
+                                </span>
+                              ) : null}
+                            </button>
                             <button
                               type="button"
                               className="csv-upload-tick"
@@ -620,24 +901,160 @@ export default function CsvBrandUploader({
                             </button>
                           </div>
                         )}
-                        {duplicate ? (
-                          <div className="csv-upload-dup-overlay">
-                            <span className="csv-upload-dup-text">
-                              Already exists in database
-                            </span>
-                            <button
-                              type="button"
-                              className="csv-upload-dup-dismiss"
-                              onClick={() => hideRow(row.id)}
-                              title="Hide this row"
-                              aria-label="Hide row"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : null}
                       </td>
                     </tr>
+                    {expanded && !subscribed ? (
+                      <tr className="csv-upload-seg-row">
+                        <td colSpan={5}>
+                          <div className="csv-upload-seg-panel">
+                            <span className="csv-upload-seg-label">Segments</span>
+                            {row.segments.map((segment, segIndex) => (
+                              <span
+                                key={`${row.id}-seg-${segIndex}`}
+                                className="csv-upload-seg-chip"
+                              >
+                                {segmentSummary(segment)}
+                                {segIndex === 0 ? (
+                                  <span className="csv-upload-seg-chip-note">
+                                    primary
+                                  </span>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="csv-upload-seg-chip-remove"
+                                  onClick={() => removeSegment(row, segIndex)}
+                                  title={`Remove ${segmentSummary(segment)}`}
+                                  aria-label={`Remove ${segmentSummary(segment)}`}
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                            <div className="csv-upload-seg-form">
+                              <input
+                                className="csv-upload-input csv-upload-seg-input"
+                                value={segmentDraft.label}
+                                onChange={(event) =>
+                                  updateSegmentDraft(row.id, {
+                                    label: event.target.value
+                                  })
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    addSegment(row);
+                                  }
+                                }}
+                                disabled={busy}
+                                placeholder="Label (e.g. Women)"
+                                aria-label="Segment label"
+                              />
+                              <input
+                                className="csv-upload-input csv-upload-seg-input"
+                                list="csv-upload-markets"
+                                value={segmentDraft.category}
+                                onChange={(event) =>
+                                  updateSegmentDraft(row.id, {
+                                    category: event.target.value
+                                  })
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    addSegment(row);
+                                  }
+                                }}
+                                disabled={busy}
+                                placeholder="Category (e.g. fashion)"
+                                aria-label="Segment category"
+                              />
+                              <input
+                                className="csv-upload-input csv-upload-seg-input csv-upload-seg-input--country"
+                                value={segmentDraft.country}
+                                maxLength={2}
+                                onChange={(event) =>
+                                  updateSegmentDraft(row.id, {
+                                    country: event.target.value.toUpperCase()
+                                  })
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    addSegment(row);
+                                  }
+                                }}
+                                disabled={busy}
+                                placeholder="DK"
+                                aria-label="Segment country"
+                              />
+                              <button
+                                type="button"
+                                className="csv-upload-seg-add-btn"
+                                onClick={() => addSegment(row)}
+                                disabled={busy || !draftReady}
+                              >
+                                Add
+                              </button>
+                            </div>
+                            <p className="csv-upload-seg-hint">
+                              Works like Inboxes &amp; segments on the Companies tab:
+                              the first segment tags the primary inbox, each extra
+                              segment adds another inbox with its own address.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {expanded &&
+                    subscribed &&
+                    row.createdInboxes &&
+                    row.createdInboxes.length > 0 ? (
+                      <tr className="csv-upload-seg-row">
+                        <td colSpan={5}>
+                          <div className="csv-upload-seg-panel">
+                            <span className="csv-upload-seg-label">Inboxes</span>
+                            <div className="csv-upload-seg-inboxes">
+                              {row.createdInboxes.map((inbox) => {
+                                const copyId = `${row.id}-${inbox.id}`;
+                                const tags = inboxSegmentText(inbox);
+                                return (
+                                  <div key={inbox.id} className="csv-upload-seg-inbox">
+                                    <button
+                                      type="button"
+                                      className="csv-upload-email"
+                                      onClick={() =>
+                                        copyEmail(copyId, inbox.emailAddress)
+                                      }
+                                      title="Click to copy"
+                                    >
+                                      <span className="csv-upload-email-text">
+                                        {inbox.emailAddress}
+                                      </span>
+                                      <span className="csv-upload-email-hint">
+                                        {copiedId === copyId ? "Copied" : "Copy"}
+                                      </span>
+                                    </button>
+                                    <span
+                                      className={`csv-upload-seg-inbox-kind${
+                                        inbox.isPrimary ? " primary" : ""
+                                      }`}
+                                    >
+                                      {inbox.isPrimary ? "Primary" : "Extra"}
+                                    </span>
+                                    {tags ? (
+                                      <span className="csv-upload-seg-inbox-tags">
+                                        {tags}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -645,6 +1062,11 @@ export default function CsvBrandUploader({
           </div>
         </>
       )}
+      <datalist id="csv-upload-markets">
+        {existingMarkets.map((market) => (
+          <option key={market} value={market} />
+        ))}
+      </datalist>
     </section>
   );
 }

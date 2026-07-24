@@ -30,6 +30,7 @@ export const COMPARE_SECTIONS = [
   { id: "promo", title: "Discount aggressiveness" },
   { id: "occasions", title: "Seasonal moments they activate" },
   { id: "fingerprint", title: "Creative fingerprint" },
+  { id: "ctas", title: "Top CTAs" },
   { id: "content-mix", title: "What they talk about" },
   { id: "recent", title: "Latest campaigns" }
 ] as const;

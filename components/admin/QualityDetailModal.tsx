@@ -45,7 +45,7 @@ const SUBTITLES: Record<QualityKind, string> = {
   missing_market:
     "No resolved primary market country yet — usually fills in once the brand's HQ is looked up or enough mail lands. Open one to inspect it.",
   logos:
-    "An auto-detected logo that's missing or below the confidence floor, or a manual pick the brand stopped sending. Review to lock in the right image.",
+    "Logo.dev can't cover these brands: a manual pick the brand stopped sending, or no usable domain to resolve a logo from. Review to lock in the right image.",
   low_confidence:
     "The classifier wasn't sure about these. Open one to confirm or correct its category.",
   unattributed:
@@ -59,11 +59,7 @@ function categoryLabel(slug: string | null): string | null {
 
 function logoReason(company: CompanySubscription): string {
   if (company.logoStale) return "Manual pick went stale";
-  if (!company.logoUrl) return "No logo detected yet";
-  if (company.logoConfidence !== null) {
-    return `Low confidence · ${Math.round(company.logoConfidence * 100)}%`;
-  }
-  return "Needs review";
+  return "No domain for Logo.dev";
 }
 
 function getInitials(name: string): string {

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import FigureDownload from "@/components/FigureDownload";
 import type { BrandPageData } from "@/lib/brand-db";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import { COMPARE_AGGREGATE_COLOR, getCompareColor } from "./compareColors";
 import styles from "./compare.module.css";
 import v2 from "./compare-v2.module.css";
@@ -22,6 +24,8 @@ const LOOKBACKS: { id: LookbackId; label: string; days: number }[] = [
 type Bucket = {
   label: string;
   tooltipLabel: string;
+  /** ISO `YYYY-MM-DD` of the bucket's first day, for the CSV export. */
+  isoStart: string;
   counts: number[];
   total: number;
 };
@@ -79,6 +83,7 @@ export default function CadenceStack({ brands }: Props) {
         out.push({
           label: formatDayKey(date, meta.id === "1w" ? "weekday" : "short"),
           tooltipLabel: formatDayKey(date, "long"),
+          isoStart: date,
           counts,
           total
         });
@@ -112,6 +117,7 @@ export default function CadenceStack({ brands }: Props) {
                 lastDate,
                 "short"
               )}`,
+        isoStart: firstDate,
         counts,
         total
       });
@@ -128,6 +134,16 @@ export default function CadenceStack({ brands }: Props) {
   if (brands.length === 0) return null;
   const noData = max === 0;
 
+  const bucketUnit = meta.id === "1w" || meta.id === "1m" ? "Day" : "Week start";
+  const csvRows: CsvValue[][] = [
+    [bucketUnit, ...brands.map((b) => b.brand.name), "Total"],
+    ...buckets.map((bucket): CsvValue[] => [
+      bucket.isoStart,
+      ...bucket.counts,
+      bucket.total
+    ])
+  ];
+
   return (
     <section className={styles.section}>
       <div className={v2.cadenceHead}>
@@ -140,28 +156,34 @@ export default function CadenceStack({ brands }: Props) {
             is stacked by brand; hover to see who sent what.
           </p>
         </div>
-        <div
-          className={v2.lookback}
-          role="tablist"
-          aria-label="Send frequency lookback"
-        >
-          {LOOKBACKS.map((l) => {
-            const isActive = l.id === meta.id;
-            return (
-              <button
-                key={l.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`${v2.lookbackBtn} ${
-                  isActive ? v2.lookbackBtnActive : ""
-                }`}
-                onClick={() => setLookback(l.id)}
-              >
-                {l.label}
-              </button>
-            );
-          })}
+        <div className={v2.cadenceTools}>
+          <div
+            className={v2.lookback}
+            role="tablist"
+            aria-label="Send frequency lookback"
+          >
+            {LOOKBACKS.map((l) => {
+              const isActive = l.id === meta.id;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`${v2.lookbackBtn} ${
+                    isActive ? v2.lookbackBtnActive : ""
+                  }`}
+                  onClick={() => setLookback(l.id)}
+                >
+                  {l.label}
+                </button>
+              );
+            })}
+          </div>
+          <FigureDownload
+            filename={exportSlug("compare", "send-frequency", meta.label)}
+            csvRows={csvRows}
+          />
         </div>
       </div>
 
@@ -170,7 +192,7 @@ export default function CadenceStack({ brands }: Props) {
           No send activity captured in the selected window.
         </p>
       ) : (
-        <div className={v2.stackWrap} ref={containerRef}>
+        <div className={v2.stackWrap} ref={containerRef} data-export-figure="">
           <div
             className={v2.stackChart}
             onMouseLeave={() => setHoverIdx(null)}

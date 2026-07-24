@@ -1912,63 +1912,6 @@ th.sortable-header.is-active .sortable-header-indicator {
   background: #f0fdf4;
 }
 
-/* Positioning context for the "already exists" overlay. position: relative on a
-   table row is honoured by modern browsers, letting the absolutely-positioned
-   overlay below span the full row. */
-.csv-upload-row.is-duplicate {
-  position: relative;
-}
-
-.csv-upload-row.is-duplicate .csv-upload-input,
-.csv-upload-row.is-duplicate .csv-upload-email,
-.csv-upload-row.is-duplicate .csv-upload-cat-chevron {
-  opacity: 0.45;
-}
-
-.csv-upload-dup-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  padding: 0 0.85rem;
-  background: rgba(255, 251, 235, 0.9);
-  border: 1px solid #fcd34d;
-  border-radius: 8px;
-}
-
-.csv-upload-dup-text {
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: #b45309;
-  text-transform: uppercase;
-}
-
-.csv-upload-dup-dismiss {
-  flex-shrink: 0;
-  width: 1.6rem;
-  height: 1.6rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid #fcd34d;
-  background: #fff;
-  color: #b45309;
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.csv-upload-dup-dismiss:hover {
-  background: #b45309;
-  border-color: #b45309;
-  color: #fff;
-}
-
 .csv-upload-input {
   width: 100%;
   min-width: 8rem;
@@ -1994,6 +1937,28 @@ th.sortable-header.is-active .sortable-header-indicator {
 .csv-upload-input:disabled {
   color: #475569;
   cursor: default;
+}
+
+.csv-upload-site {
+  display: flex;
+  align-items: center;
+}
+
+.csv-upload-site-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.75rem;
+  margin-left: -0.25rem;
+  color: #64748b;
+  border-radius: 6px;
+}
+
+.csv-upload-site-link:hover {
+  color: #086e4b;
+  background: #f0fdf4;
 }
 
 .csv-upload-cat {
@@ -2161,6 +2126,214 @@ th.sortable-header.is-active .sortable-header-indicator {
 .csv-upload-cross:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.csv-upload-expand {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.csv-upload-expand svg {
+  transition: transform 120ms ease;
+}
+
+.csv-upload-expand.is-open svg {
+  transform: rotate(180deg);
+}
+
+.csv-upload-expand:hover:not(:disabled),
+.csv-upload-expand.is-open {
+  border-color: #086e4b;
+  color: #086e4b;
+  background: #f0fdf4;
+}
+
+.csv-upload-expand:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csv-upload-expand-count {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #086e4b;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.csv-upload-seg-row td {
+  padding-top: 0;
+}
+
+.csv-upload-seg-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.csv-upload-seg-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-right: 0.2rem;
+}
+
+.csv-upload-seg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #086e4b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.csv-upload-seg-chip-remove {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #086e4b;
+  font-size: 0.65rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.csv-upload-seg-chip-remove:hover {
+  background: #086e4b;
+  color: #fff;
+}
+
+.csv-upload-seg-chip-note {
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #086e4b;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.csv-upload-seg-form {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.csv-upload-seg-input {
+  min-width: 8rem;
+  max-width: 11rem;
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.csv-upload-seg-input--country {
+  min-width: 3.2rem;
+  max-width: 3.6rem;
+  text-transform: uppercase;
+}
+
+.csv-upload-seg-add-btn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #086e4b;
+  border-radius: 6px;
+  background: #086e4b;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.csv-upload-seg-add-btn:hover:not(:disabled) {
+  background: #065a3c;
+  border-color: #065a3c;
+}
+
+.csv-upload-seg-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csv-upload-seg-hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.csv-upload-seg-inboxes {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.csv-upload-seg-inbox {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.csv-upload-seg-inbox-kind {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.csv-upload-seg-inbox-kind.primary {
+  background: #dcfce7;
+  color: #086e4b;
+}
+
+.csv-upload-seg-inbox-tags {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .csv-upload-subscribed-tag {

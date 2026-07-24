@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EmailModal from "@/components/explore/EmailModal";
+import FigureDownload from "@/components/FigureDownload";
 import type { BrandPageData } from "@/lib/brand-db";
 import { formatShortDate, parseDayKey } from "@/lib/datetime";
+import { exportSlug, type CsvValue } from "@/lib/figure-export";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import {
   analyzeSeasonalRunup,
@@ -199,6 +201,20 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
     [cardById]
   );
 
+  const csvRows = useMemo<CsvValue[][]>(
+    () => [
+      ["Occasion", "Event year", "Received at", "Days before event", "Subject"],
+      ...analysis.emails.map((email): CsvValue[] => [
+        selectedEvent.label,
+        email.eventYear,
+        email.receivedAt,
+        email.daysBefore,
+        email.subject
+      ])
+    ],
+    [analysis.emails, selectedEvent.label]
+  );
+
   return (
     <article className={styles.card}>
       <div className={styles.cardHead}>
@@ -211,23 +227,34 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
             marker to open the email.
           </p>
         </div>
-        {years.length > 0 ? (
-          <label className={styles.seasonalYear}>
-            <span className={styles.seasonalYearLabel}>Year</span>
-            <select
-              className={styles.seasonalYearSelect}
-              value={effectiveYear === null ? "" : String(effectiveYear)}
-              onChange={(event) => setSelectedYear(Number(event.target.value))}
-              aria-label="Filter run-up by year"
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        <div className={styles.cardHeadTools}>
+          {years.length > 0 ? (
+            <label className={styles.seasonalYear}>
+              <span className={styles.seasonalYearLabel}>Year</span>
+              <select
+                className={styles.seasonalYearSelect}
+                value={effectiveYear === null ? "" : String(effectiveYear)}
+                onChange={(event) => setSelectedYear(Number(event.target.value))}
+                aria-label="Filter run-up by year"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <FigureDownload
+            filename={exportSlug(
+              brand.name,
+              "event-run-up",
+              selectedEvent.label,
+              effectiveYear !== null ? String(effectiveYear) : null
+            )}
+            csvRows={csvRows}
+          />
+        </div>
       </div>
 
       <div
@@ -399,7 +426,7 @@ function RunupTimeline({
   );
 
   return (
-    <div ref={wrapRef} className={styles.seasonalChartWrap}>
+    <div ref={wrapRef} className={styles.seasonalChartWrap} data-export-figure="">
       <svg
         width={width}
         height={height}
