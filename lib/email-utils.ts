@@ -70,9 +70,11 @@ export function classifyFromRules(subject: string, html: string): {
   // off your first order"), and we don't want those to be miscategorised as
   // `sale`. We also cover Scandinavian "velkommen til <brand>" / "välkommen
   // till" patterns because the dataset is heavily Nordic. The negative
-  // lookahead on "welcome back" preserves loyalty re-engagement classification.
+  // lookahead on "welcome back" preserves loyalty re-engagement classification,
+  // and the season lookahead keeps collection launches ("Welcome to Pre-Fall
+  // 2026") out of `welcome` — those greet a season, not a subscriber.
   if (
-    /\bwelcome to\b|^welcome(?! back\b)|\bvelkommen til\b|\bvälkommen till\b|\bwillkommen bei\b|\bbienvenue (?:à|chez)\b|\bbienvenido a\b|\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bglad you'?re here\b/.test(
+    /\bwelcome to\b(?! (?:pre.?)?(?:fall|spring|summer|winter|autumn|aw ?\d|ss ?\d))|^welcome(?! back\b| to\b)|\bvelkommen til\b|\bvälkommen till\b|\bwillkommen bei\b|\bbienvenue (?:à|chez)\b|\bbienvenido a\b|\bthanks? for (?:signing up|subscribing|joining)\b|\bthank you for (?:signing up|subscribing|joining)\b|\bconfirm your (?:email|subscription)\b|\bdouble opt-?in\b|\byou'?re (?:in|subscribed)\b|\bglad you'?re here\b/.test(
       subjectLc
     )
   ) {

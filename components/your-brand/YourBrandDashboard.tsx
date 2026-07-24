@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type {
   YourBrandInsight,
   YourBrandInsightId
@@ -65,6 +65,9 @@ export default function YourBrandDashboard({
     useState<YourBrandInsightId[]>(initialDismissed);
   const [setId, setSetId] = useState<string | null>(selectedSetId);
   const [showHidden, setShowHidden] = useState(false);
+  // Covers the server re-render after a group change, so the picker can
+  // say "updating" instead of silently showing stale cards.
+  const [isRefreshing, startRefresh] = useTransition();
 
   const visible = useMemo(
     () => insights.filter((insight) => !dismissed.includes(insight.id)),
@@ -93,14 +96,83 @@ export default function YourBrandDashboard({
     void putPrefs({ dismissed, competitorSetId: next }).then(() => {
       // Peer rules are evaluated server-side, so re-render the page with
       // the new comparison group.
-      router.refresh();
+      startRefresh(() => {
+        router.refresh();
+      });
     });
   }
 
   const hasPeers = setId !== null && peerCount >= 2;
 
+  const picker =
+    comparisonOptions.length > 0 ? (
+      <select
+        className={styles.peerSelect}
+        value={setId ?? ""}
+        onChange={(event) => selectSet(event.target.value)}
+        disabled={isRefreshing}
+        aria-label="Comparison group for competitive checks"
+      >
+        <option value="">No comparison selected</option>
+        {comparisonOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name} ({option.brandCount} brand
+            {option.brandCount === 1 ? "" : "s"})
+          </option>
+        ))}
+      </select>
+    ) : null;
+
+  const pickerHint = isRefreshing ? (
+    <span className={styles.peerHint}>Updating checks…</span>
+  ) : setId !== null && !hasPeers ? (
+    <span className={styles.peerHint}>
+      That group needs at least 2 other brands for a fair comparison.
+    </span>
+  ) : setId !== null ? (
+    <span className={styles.peerHint}>Comparing against {peerCount} brands.</span>
+  ) : null;
+
   return (
     <>
+      {setId === null ? (
+        // No group picked yet: the picker leads the page as a real step,
+        // because a third of the checks stay silent until it is done.
+        <section className={styles.section}>
+          <div className={styles.sectionEyebrow}>Step 1 · Competitive checks</div>
+          <h2 className={styles.sectionTitle}>Pick your competitors</h2>
+          <p className={styles.sectionSub}>
+            Checks for cadence, send timing, discounting, urgency, seasonal
+            timing and dark mode all measure you against a group of brands
+            you choose. Pick one of your saved comparisons and those checks
+            join the list below. The rest already run on your own data.
+          </p>
+          <div className={styles.sectionBody}>
+            <div className={styles.peerRow}>
+              {picker ?? (
+                <span className={styles.peerHint}>
+                  You have no saved comparisons yet.
+                </span>
+              )}
+              {pickerHint}
+              <Link href="/compare#build" className={styles.peerCreateLink}>
+                Build a comparison on the Comparisons page
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : (
+        // Group picked: collapse to a slim toolbar above the cards.
+        <div className={styles.peerBar}>
+          <span className={styles.peerBarLabel}>Comparing against</span>
+          {picker}
+          {pickerHint}
+          <Link href="/compare#build" className={styles.peerCreateLink}>
+            Edit comparisons on the Comparisons page
+          </Link>
+        </div>
+      )}
+
       <section className={styles.section}>
         <div className={styles.sectionHeadRow}>
           <div>
@@ -193,58 +265,6 @@ export default function YourBrandDashboard({
         </div>
       </section>
 
-      <section className={styles.section}>
-        <div className={styles.sectionEyebrow}>Competitive checks</div>
-        <h2 className={styles.sectionTitle}>Compare against your competitors</h2>
-        <p className={styles.sectionSub}>
-          Send timing, cadence and urgency checks need a group to compare
-          against. Pick one of your saved comparisons. The checks use its
-          brands as your peer group.
-        </p>
-        <div className={styles.sectionBody}>
-          <div className={styles.peerRow}>
-            {comparisonOptions.length > 0 ? (
-              <>
-                <select
-                  className={styles.peerSelect}
-                  value={setId ?? ""}
-                  onChange={(event) => selectSet(event.target.value)}
-                  aria-label="Comparison group for competitive checks"
-                >
-                  <option value="">No comparison selected</option>
-                  {comparisonOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name} ({option.brandCount} brand
-                      {option.brandCount === 1 ? "" : "s"})
-                    </option>
-                  ))}
-                </select>
-                {setId === null ? (
-                  <span className={styles.peerHint}>
-                    Competitive checks are off until you pick a group.
-                  </span>
-                ) : !hasPeers ? (
-                  <span className={styles.peerHint}>
-                    That group needs at least 2 other brands for a fair
-                    comparison.
-                  </span>
-                ) : (
-                  <span className={styles.peerHint}>
-                    Comparing against {peerCount} brands.
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className={styles.peerHint}>
-                You have no saved comparisons yet.
-              </span>
-            )}
-            <Link href="/compare#build" className={styles.peerCreateLink}>
-              Build a comparison on the Comparisons page
-            </Link>
-          </div>
-        </div>
-      </section>
     </>
   );
 }

@@ -60,7 +60,12 @@ export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
   other: "Other"
 };
 
-export type ClassificationSource = "rules" | "llm" | "manual";
+/**
+ * `timing` = the welcome-timing override in `storeProcessedEmail`: the
+ * email arrived within an hour of its inbox being created, so it is a
+ * welcome email regardless of what the copy-based classifiers said.
+ */
+export type ClassificationSource = "rules" | "llm" | "manual" | "timing";
 
 export type CompanyLogoSource = "email_heuristic" | "email_frequency" | "manual";
 
@@ -139,19 +144,13 @@ export type CompanySubscription = {
   emailCount: number;
   lastEmailAt: string | null;
   /**
-   * Short-lived signed URL into the `email-assets` bucket for a logo we
-   * extracted from one of the brand's emails. `null` until the first
-   * email lands and a candidate clears the heuristic threshold — in that
-   * case the UI renders a monogram fallback.
+   * The logo users actually see, resolved the same way as the app:
+   * a manual pick's short-lived signed URL wins, otherwise the Logo.dev
+   * URL for the brand's domain, otherwise the signed pipeline pick as a
+   * last resort. `null` renders a monogram fallback.
    */
   logoUrl: string | null;
   logoSource: CompanyLogoSource | null;
-  /**
-   * Confidence of the stored logo pick (0–1). `null` when no logo is set.
-   * Heuristic picks score `points / 150`; frequency picks score
-   * `appearances / sampledEmails`. Drives the review queue.
-   */
-  logoConfidence: number | null;
   /**
    * True when a `manual` logo pick has fallen out of the brand's recent
    * emails (likely a rebrand) and should be reviewed again. Drives the
@@ -159,9 +158,9 @@ export type CompanySubscription = {
    */
   logoStale: boolean;
   /**
-   * True when the logo needs an admin's eyes: a non-`manual` pick that is
-   * either missing or below {@link LOGO_REVIEW_MAX_CONFIDENCE}, OR a manual
-   * pick that has gone {@link logoStale}.
+   * True when the logo needs an admin's eyes: a manual pick that has gone
+   * {@link logoStale}, or a non-`manual` brand whose domain Logo.dev can't
+   * resolve (so the raw pipeline pick / monogram shows instead).
    */
   needsLogoReview: boolean;
 };
