@@ -8,6 +8,8 @@ import {
   useState
 } from "react";
 import { countryFlag, countryName } from "@/lib/country";
+import BrandRequestModal from "@/components/brand/BrandRequestModal";
+import requestStyles from "@/components/brand/BrandRequest.module.css";
 import v2 from "./compare-v2.module.css";
 
 /**
@@ -89,6 +91,9 @@ export default function BrandSearchPicker({
   // null = search every region; otherwise restrict to this ISO alpha-2 code.
   // Seeded from the cohort's region but the user can clear it any time.
   const [countryScope, setCountryScope] = useState<string | null>(defaultCountry);
+  // Opens the "Request a brand" modal, prefilled with the current search, when
+  // a search comes up empty — same track-this-brand escape hatch as Explore.
+  const [requestOpen, setRequestOpen] = useState(false);
   const requestSeq = useRef(0);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -327,9 +332,16 @@ export default function BrandSearchPicker({
             </span>
           ) : null}
           {!error && results.length === 0 && !loading ? (
-            <span className={v2.searchEmpty}>
-              No brands match &quot;{trimmedQuery}&quot;.
-            </span>
+            <div className={v2.searchEmpty}>
+              <span>No brands match &quot;{trimmedQuery}&quot;.</span>
+              <button
+                type="button"
+                className={requestStyles.triggerLink}
+                onClick={() => setRequestOpen(true)}
+              >
+                Request a brand?
+              </button>
+            </div>
           ) : null}
           {results.map((brand) => {
             const isAlreadySelected = alreadySelectedIds.has(brand.id);
@@ -403,6 +415,13 @@ export default function BrandSearchPicker({
             );
           })}
         </div>
+      ) : null}
+
+      {requestOpen ? (
+        <BrandRequestModal
+          defaultCompanyName={trimmedQuery}
+          onClose={() => setRequestOpen(false)}
+        />
       ) : null}
     </div>
   );
