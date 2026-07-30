@@ -232,14 +232,14 @@
 }
 
 .overlayPillCopied {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #086e4b;
+  border-color: #086e4b;
   color: #ffffff;
 }
 
 .overlayPillCopied:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: #065a3c;
+  border-color: #065a3c;
 }
 
 .cardMeta {
@@ -549,14 +549,14 @@
 }
 
 .detailButtonCopied {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #086e4b;
+  border-color: #086e4b;
   color: #ffffff;
 }
 
 .detailButtonCopied:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: #065a3c;
+  border-color: #065a3c;
 }
 
 /* ---------- Share dropdown ---------- */

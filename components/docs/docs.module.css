@@ -1140,7 +1140,7 @@
 }
 
 .formStatusOk {
-  color: #15803d;
+  color: #086e4b;
 }
 
 .formSuccess {
@@ -1168,8 +1168,8 @@
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  background: rgba(21, 128, 61, 0.12);
-  color: #15803d;
+  background: rgba(8, 110, 75, 0.12);
+  color: #086e4b;
   display: flex;
   align-items: center;
   justify-content: center;

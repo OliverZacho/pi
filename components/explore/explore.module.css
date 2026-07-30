@@ -441,7 +441,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #c084fc, #6366f1);
+  background: linear-gradient(90deg, #34d399, #086e4b);
   transition: width 220ms ease;
 }
 
@@ -463,7 +463,7 @@
   width: 1rem;
   height: 1rem;
   border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, #f0abfc, #c084fc 60%, #6366f1);
+  background: radial-gradient(circle at 30% 30%, #6ee7b7, #34d399 60%, #086e4b);
   flex-shrink: 0;
 }
 
@@ -1541,14 +1541,14 @@
  * reads as "already in your gallery" rather than "tap to save again".
  */
 .overlayButton.saved {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #086e4b;
+  border-color: #086e4b;
   color: #ffffff;
 }
 
 .overlayButton.saved:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: #065a3c;
+  border-color: #065a3c;
 }
 
 .overlayIcon {
@@ -1576,7 +1576,7 @@
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(22, 163, 74, 0.95);
+  background: rgba(8, 110, 75, 0.95);
   color: #ffffff;
   box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.35);
   z-index: 3;
@@ -2157,14 +2157,14 @@
  * sync with the grid behind it.
  */
 .infoActionIconSaved {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #086e4b;
+  border-color: #086e4b;
   color: #ffffff;
 }
 
 .infoActionIconSaved:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: #065a3c;
+  border-color: #065a3c;
   color: #ffffff;
 }
 
@@ -2705,7 +2705,7 @@ div.infoBrandRow {
 
 .pill_good {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .pill_warn {

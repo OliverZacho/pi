@@ -572,12 +572,12 @@
 }
 
 .brandSearchRow_selected {
-  background: #eef2ff;
-  border-color: #c7d2fe;
+  background: #dcfce7;
+  border-color: #bbf7d0;
 }
 
 .brandSearchRow_selected:hover {
-  background: #e0e7ff;
+  background: #bbf7d0;
 }
 
 .brandSearchRow_disabled {
@@ -641,13 +641,13 @@
 }
 
 .brandSearchAlready {
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.1);
+  color: #086e4b;
+  background: rgba(8, 110, 75, 0.1);
 }
 
 .brandSearchPicked {
-  color: #4338ca;
-  background: rgba(67, 56, 202, 0.1);
+  color: #086e4b;
+  background: rgba(8, 110, 75, 0.1);
 }
 
 .pickerRow {
@@ -2039,7 +2039,7 @@
 }
 
 .leagueTrendUp {
-  color: #15803d;
+  color: #086e4b;
 }
 
 .leagueTrendDown {
