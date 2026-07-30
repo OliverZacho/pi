@@ -1,6 +1,7 @@
 import SiteHeader from "@/components/marketing/SiteHeader";
 import NewsletterFanHero from "@/components/marketing/NewsletterFanHero";
-import OutcomeBlocks from "@/components/marketing/OutcomeBlocks";
+import LibraryBand from "@/components/marketing/LibraryBand";
+import FeatureBento from "@/components/marketing/FeatureBento";
 import BrandTeardown from "@/components/marketing/BrandTeardown";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
@@ -22,7 +23,8 @@ export default function Home() {
       />
       <SiteHeader />
       <NewsletterFanHero />
-      <OutcomeBlocks />
+      <LibraryBand />
+      <FeatureBento />
       <BrandTeardown />
       <PricingTeaser />
       <SiteFooter />

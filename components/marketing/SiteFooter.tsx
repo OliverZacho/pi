@@ -2,9 +2,9 @@ import Link from "next/link";
 import styles from "./home-sections.module.css";
 
 /**
- * Site footer: a final "Browse the archive" prompt plus navigation. Links point
- * only at routes that exist (explore, brands, compare, collections, docs, help,
- * pricing, login, and the legal pages in the bottom bar).
+ * Site footer: a final "Browse the archive" prompt plus navigation. Product
+ * links point at the public surfaces — the archive itself plus the
+ * /features/* explainer pages — never at auth-gated app routes.
  */
 export default function SiteFooter() {
   return (
@@ -22,11 +22,12 @@ export default function SiteFooter() {
 
         <nav className={styles.footerNav} aria-label="Footer">
           <div className={styles.footerCol}>
-            <p className={styles.footerColTitle}>Explore</p>
+            <p className={styles.footerColTitle}>Product</p>
             <Link href="/explore" className={styles.footerLink}>Archive</Link>
-            <Link href="/brands" className={styles.footerLink}>Brands</Link>
-            <Link href="/compare" className={styles.footerLink}>Comparisons</Link>
-            <Link href="/collections" className={styles.footerLink}>Collections</Link>
+            <Link href="/features/brands" className={styles.footerLink}>Brand insights</Link>
+            <Link href="/features/collections" className={styles.footerLink}>Collections</Link>
+            <Link href="/features/comparisons" className={styles.footerLink}>Comparisons</Link>
+            <Link href="/features/following" className={styles.footerLink}>Following</Link>
           </div>
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Resources</p>

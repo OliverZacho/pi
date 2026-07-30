@@ -62,12 +62,12 @@
 }
 
 .copyButtonCopied {
-  background: #16a34a;
+  background: #086e4b;
   color: #ffffff;
 }
 
 .copyButtonCopied:hover {
-  background: #15803d;
+  background: #065a3c;
 }
 
 .main {

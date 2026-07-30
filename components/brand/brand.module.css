@@ -629,7 +629,7 @@
 }
 
 .kpiTrendDot_good {
-  background: #16a34a;
+  background: #086e4b;
 }
 
 .kpiTrendDot_warn {
@@ -1271,7 +1271,7 @@
 }
 
 .flagDot_on {
-  background: #16a34a;
+  background: #086e4b;
 }
 
 .flagShare {
@@ -2210,4 +2210,112 @@
   font-size: 0.82rem;
   color: #64748b;
   line-height: 1.4;
+}
+
+/* ---------- Sender authentication card ---------- */
+
+/*
+ * The tier banner: a coloured status pill plus a one-line explanation. Tone is
+ * driven by a `authStatus_<tone>` modifier so the whole banner (border, tint,
+ * pill) recolours from one class. Light-only, flat — same palette language as
+ * the KPI trend dots.
+ */
+.authStatus {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.authBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  background: #eef2f6;
+  color: #334155;
+}
+
+.authBadgeDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.authBadgeIssuer {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.authExplain {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.4;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+/* Good — verified mark or a live BIMI logo (brand green). */
+.authStatus_good {
+  border-color: #c7e8d8;
+  background: #f2fbf6;
+}
+.authStatus_good .authBadge {
+  background: #086e4b;
+  color: #ffffff;
+}
+.authStatus_good .authBadgeDot {
+  background: #ffffff;
+}
+
+/* Warn — has a BIMI record but DMARC isn't enforced, so it won't render. */
+.authStatus_warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.authStatus_warn .authBadge {
+  background: #fef3c7;
+  color: #92400e;
+}
+.authStatus_warn .authBadgeDot {
+  background: #d97706;
+}
+
+/* Neutral — DMARC enforced and BIMI-eligible, but no logo published yet. */
+.authStatus_info .authBadge {
+  background: #e0f2fe;
+  color: #075985;
+}
+.authStatus_info .authBadgeDot {
+  background: #0284c7;
+}
+
+/* Muted — no enforced DMARC, no BIMI. */
+.authStatus_muted .authBadge {
+  background: #eef2f6;
+  color: #64748b;
+}
+
+.authDomainLine {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.authDomainLine code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  color: #475569;
 }

@@ -34,8 +34,8 @@
 
 .input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  border-color: #086e4b;
+  box-shadow: 0 0 0 3px rgba(8, 110, 75, 0.18);
 }
 
 /* Multi-line variant of `.input`, used by the feature-request message box. */
@@ -52,7 +52,7 @@
   padding: 0.55rem 1.1rem;
   border: none;
   border-radius: 999px;
-  background: #4f46e5;
+  background: #086e4b;
   color: #fff;
   font-size: 0.88rem;
   font-weight: 600;
@@ -61,7 +61,7 @@
 }
 
 .submit:hover {
-  background: #4338ca;
+  background: #065a3c;
 }
 
 .submit:disabled {
@@ -127,7 +127,7 @@
   padding: 0.55rem;
   border: none;
   background: none;
-  color: #4f46e5;
+  color: #086e4b;
   font-size: 0.85rem;
   font-weight: 600;
   text-align: center;

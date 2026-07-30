@@ -129,15 +129,15 @@
 }
 
 .item:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4338ca;
+  background: rgba(8, 110, 75, 0.08);
+  color: #086e4b;
 }
 
 .itemIcon {
   flex: 0 0 auto;
   width: 1.1rem;
   height: 1.1rem;
-  color: #6366f1;
+  color: #086e4b;
 }
 
 .itemBody {
@@ -228,8 +228,8 @@
 }
 
 .chatBack:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4338ca;
+  background: rgba(8, 110, 75, 0.08);
+  color: #086e4b;
 }
 
 .chatBack svg {

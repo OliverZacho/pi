@@ -74,6 +74,80 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_auth_status: {
+        Row: {
+          auth_domain: string | null
+          auth_tier: string
+          bimi_logo_url: string | null
+          bimi_present: boolean
+          checked_at: string
+          company_id: string
+          dmarc_enforced: boolean
+          dmarc_pct: number | null
+          dmarc_policy: string | null
+          error: string | null
+          logo_ok: boolean | null
+          sender_domain: string | null
+          vmc_ca: string | null
+          vmc_invalid_reason: string | null
+          vmc_issuer: string | null
+          vmc_mark_type: string | null
+          vmc_org: string | null
+          vmc_present: boolean
+          vmc_valid: boolean
+        }
+        Insert: {
+          auth_domain?: string | null
+          auth_tier?: string
+          bimi_logo_url?: string | null
+          bimi_present?: boolean
+          checked_at?: string
+          company_id: string
+          dmarc_enforced?: boolean
+          dmarc_pct?: number | null
+          dmarc_policy?: string | null
+          error?: string | null
+          logo_ok?: boolean | null
+          sender_domain?: string | null
+          vmc_ca?: string | null
+          vmc_invalid_reason?: string | null
+          vmc_issuer?: string | null
+          vmc_mark_type?: string | null
+          vmc_org?: string | null
+          vmc_present?: boolean
+          vmc_valid?: boolean
+        }
+        Update: {
+          auth_domain?: string | null
+          auth_tier?: string
+          bimi_logo_url?: string | null
+          bimi_present?: boolean
+          checked_at?: string
+          company_id?: string
+          dmarc_enforced?: boolean
+          dmarc_pct?: number | null
+          dmarc_policy?: string | null
+          error?: string | null
+          logo_ok?: boolean | null
+          sender_domain?: string | null
+          vmc_ca?: string | null
+          vmc_invalid_reason?: string | null
+          vmc_issuer?: string | null
+          vmc_mark_type?: string | null
+          vmc_org?: string | null
+          vmc_present?: boolean
+          vmc_valid?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_auth_status_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_follows: {
         Row: {
           company_id: string
@@ -687,6 +761,30 @@ export type Database = {
         }
         Relationships: []
       }
+      nav_clicks: {
+        Row: {
+          created_at: string
+          id: string
+          nav_id: string
+          path: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nav_id: string
+          path?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nav_id?: string
+          path?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       notification_alerts: {
         Row: {
           alerted_at: string
@@ -1241,6 +1339,7 @@ export type Database = {
           full_name: string | null
           last_active_at: string | null
           last_visit_at: string | null
+          password_set_at: string | null
           plan_selected_at: string | null
           tour_completed_at: string | null
           updated_at: string
@@ -1252,6 +1351,7 @@ export type Database = {
           full_name?: string | null
           last_active_at?: string | null
           last_visit_at?: string | null
+          password_set_at?: string | null
           plan_selected_at?: string | null
           tour_completed_at?: string | null
           updated_at?: string
@@ -1263,6 +1363,7 @@ export type Database = {
           full_name?: string | null
           last_active_at?: string | null
           last_visit_at?: string | null
+          password_set_at?: string | null
           plan_selected_at?: string | null
           tour_completed_at?: string | null
           updated_at?: string
@@ -1418,6 +1519,10 @@ export type Database = {
       record_feature_request: {
         Args: { p_client_key?: string; p_message: string }
         Returns: string
+      }
+      record_nav_click: {
+        Args: { p_nav_id: string; p_path?: string }
+        Returns: undefined
       }
       record_upgrade_click: {
         Args: { p_path?: string; p_source: string }

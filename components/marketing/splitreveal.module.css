@@ -42,8 +42,8 @@
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #16a34a;
-  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+  background: #086e4b;
+  box-shadow: 0 0 0 4px rgba(8, 110, 75, 0.15);
   animation: pulse 2s ease-out infinite;
 }
 
@@ -378,8 +378,8 @@
   gap: 0.35rem;
   padding: 0.25rem 0.55rem;
   font-size: 0.72rem;
-  background: rgba(22, 163, 74, 0.12);
-  color: #16a34a;
+  background: rgba(8, 110, 75, 0.12);
+  color: #086e4b;
   border-radius: 999px;
 }
 

@@ -220,8 +220,247 @@ code {
   background: #f87171;
 }
 
-.admin-sidebar-footer {
+/* ---------- Admin sidebar: recent signups feed ---------- */
+
+.admin-signups {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.15rem 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.admin-signups-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+}
+
+.admin-signups-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.admin-signups-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #086e4b;
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-signups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-signup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  /* Rows are buttons (click → activity popout); reset the button chrome. */
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-signup-row:hover {
+  background: #f8fafc;
+}
+
+.admin-signup-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #086e4b;
+  flex-shrink: 0;
+}
+
+.admin-signup-dot.is-seen {
+  background: #e2e8f0;
+}
+
+.admin-signup-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-signup-name {
+  font-size: 0.78rem;
+  color: #0f172a;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-signup-meta {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.admin-signup-badge {
+  flex-shrink: 0;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.admin-signup-badge.tier-free {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.admin-signup-badge.tier-solo {
+  background: #dcfce7;
+  color: #086e4b;
+}
+
+.admin-signup-badge.tier-team {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* Activity popout opened from a signups-feed row. */
+.user-activity-modal {
+  max-width: 26rem;
+  max-height: min(80vh, 40rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.user-activity-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.user-activity-body {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  overflow-y: auto;
+}
+
+.user-activity-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.user-activity-facts dt {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.user-activity-facts dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
+.user-activity-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.4rem;
+}
+
+.user-activity-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.45rem 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.user-activity-stat-num {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.user-activity-stat-label {
+  font-size: 0.62rem;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.user-activity-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.user-activity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-activity-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
+.user-activity-list li .muted {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.user-activity-inline {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
+.admin-sidebar-footer {
   padding-top: 0.75rem;
   border-top: 1px solid #f1f5f9;
 }
@@ -360,7 +599,7 @@ code {
 
 .brand-request-site {
   font-size: 0.82rem;
-  color: #4f46e5;
+  color: #086e4b;
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -392,13 +631,13 @@ code {
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
-  background: #4f46e5;
+  background: #086e4b;
   color: #fff;
   cursor: pointer;
 }
 
 .brand-request-use:hover {
-  background: #4338ca;
+  background: #065a3c;
 }
 
 .brand-request-done {
@@ -773,7 +1012,7 @@ code {
 }
 
 .growth-axis-label-right {
-  fill: #059669;
+  fill: #086e4b;
 }
 
 .growth-hover-line {
@@ -2330,8 +2569,8 @@ th.sortable-header.is-active .sortable-header-indicator {
 .csv-upload-seg-inbox-tags {
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #4338ca;
+  background: #dcfce7;
+  color: #086e4b;
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -2568,9 +2807,9 @@ th.sortable-header.is-active .sortable-header-indicator {
 }
 
 .inbox-toggle.is-open {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #4338ca;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #086e4b;
 }
 
 .inbox-toggle.is-open .inbox-toggle-chevron {
@@ -2585,14 +2824,14 @@ th.sortable-header.is-active .sortable-header-indicator {
   font-weight: 600;
   border-radius: 999px;
   border: none;
-  background: #eef2ff;
-  color: #4338ca;
+  background: #dcfce7;
+  color: #086e4b;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .segment-pill:hover {
-  background: #e0e7ff;
+  background: #bbf7d0;
 }
 
 /* Expandable management panel: a full-width detail row under the company.
@@ -2735,7 +2974,7 @@ th.sortable-header.is-active .sortable-header-indicator {
 
 .inbox-badge.is-primary {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .add-inbox-button {
@@ -3176,7 +3415,7 @@ tr.is-editing > td {
 
 .badge.gif {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .badge.dark {
@@ -3364,7 +3603,7 @@ tr.is-editing > td {
 }
 
 .list-headers-row-ok .list-headers-marker {
-  color: #15803d;
+  color: #086e4b;
 }
 
 .list-headers-row-warn .list-headers-marker {
@@ -3513,7 +3752,7 @@ tr.is-editing > td {
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: #086e4b;
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -3952,7 +4191,7 @@ button.raw-source-link:hover {
 .logo-confirmed-note {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #15803d;
+  color: #086e4b;
 }
 
 .logo-candidate-grid {
@@ -4552,7 +4791,7 @@ button.raw-source-link:hover {
 
 .probe-stat.is-delivering {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .probe-stat.is-welcome-only,
@@ -4773,7 +5012,7 @@ button.raw-source-link:hover {
 
 .probe-count-strong {
   font-weight: 600;
-  color: #166534;
+  color: #086e4b;
 }
 
 .probe-verdict {
@@ -4786,7 +5025,7 @@ button.raw-source-link:hover {
 
 .probe-verdict.is-delivering {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .probe-verdict.is-welcome-only {
@@ -4915,7 +5154,7 @@ button.raw-source-link:hover {
 
 .probe-mail-kind.is-campaign {
   background: #dcfce7;
-  color: #166534;
+  color: #086e4b;
 }
 
 .probe-mail-kind.is-repeat {

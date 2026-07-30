@@ -9,14 +9,29 @@ type Props = {
   title: string;
   lede: string;
   items: FeatureItem[];
+  /**
+   * Optional large product miniature rendered between the hero and the
+   * what-you-get grid (wrap it in `FeaturePoster` for the card chrome
+   * and scroll-reveal).
+   */
+  poster?: ReactNode;
 };
 
 /**
- * Public, logged-out explainer for a paid feature (Comparisons / Collections).
- * A hero + a grid of what-you-get cards. The closing conversion CTA is the
- * shared PricingTeaser, composed by the page itself.
+ * Public, logged-out explainer for a feature. A hero + optional product
+ * poster + a grid of what-you-get cards. The closing conversion CTA is
+ * the shared PricingTeaser, composed by the page itself.
+ *
+ * CTA order mirrors the homepage's single goal: browse first, sign up
+ * once the archive has done the selling.
  */
-export default function FeatureExplainer({ eyebrow, title, lede, items }: Props) {
+export default function FeatureExplainer({
+  eyebrow,
+  title,
+  lede,
+  items,
+  poster
+}: Props) {
   return (
     <section className={styles.wrap}>
       <header className={styles.hero}>
@@ -24,14 +39,16 @@ export default function FeatureExplainer({ eyebrow, title, lede, items }: Props)
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.lede}>{lede}</p>
         <div className={styles.ctaRow}>
-          <Link href="/signup" className={styles.primaryBtn}>
-            Start free →
+          <Link href="/explore" className={styles.primaryBtn}>
+            Browse the archive →
           </Link>
-          <Link href="/explore" className={styles.secondaryBtn}>
-            Browse the archive
+          <Link href="/signup" className={styles.secondaryBtn}>
+            Start free
           </Link>
         </div>
       </header>
+
+      {poster}
 
       <div className={styles.grid}>
         {items.map((it) => (

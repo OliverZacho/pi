@@ -103,12 +103,12 @@
 }
 
 .searchRowSelected {
-  background: #eef2ff;
-  border-color: #c7d2fe;
+  background: #dcfce7;
+  border-color: #bbf7d0;
 }
 
 .searchRowSelected:hover {
-  background: #e0e7ff;
+  background: #bbf7d0;
 }
 
 .searchRowDisabled {
@@ -172,13 +172,13 @@
 }
 
 .searchAlready {
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.1);
+  color: #086e4b;
+  background: rgba(8, 110, 75, 0.1);
 }
 
 .searchPicked {
-  color: #4338ca;
-  background: rgba(67, 56, 202, 0.1);
+  color: #086e4b;
+  background: rgba(8, 110, 75, 0.1);
 }
 
 /* ---------- KPI tiles ---------- */

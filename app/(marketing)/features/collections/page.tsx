@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import FeatureExplainer from "@/components/marketing/FeatureExplainer";
+import FeaturePoster from "@/components/marketing/FeaturePoster";
+import {
+  CollectionRulesVisual,
+  EventSwimlaneVisual,
+} from "@/components/marketing/feature-visuals";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
@@ -19,6 +24,12 @@ export default function CollectionsFeaturePage() {
         eyebrow="Collections"
         title="A swipe file that fills itself."
         lede="Save the emails worth keeping, or set a rule and let Pirol gather every match across every brand into one living, shareable board."
+        poster={
+          <FeaturePoster stack>
+            <CollectionRulesVisual />
+            <EventSwimlaneVisual />
+          </FeaturePoster>
+        }
         items={[
           {
             mark: <BookmarkIcon />,
@@ -42,8 +53,8 @@ export default function CollectionsFeaturePage() {
           },
           {
             mark: <SearchIcon />,
-            title: "Find it later",
-            body: "Everything you save stays searchable and filterable across every brand.",
+            title: "Event insights",
+            body: "When a collection captures a real moment — like 3daysofdesign — Pirol charts who moved first and how deep the discounts ran.",
           },
           {
             mark: <UsersIcon />,

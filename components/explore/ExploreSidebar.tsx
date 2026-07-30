@@ -11,6 +11,7 @@ import BrandRequestModal from "@/components/brand/BrandRequestModal";
 import FeatureRequestModal from "@/components/feedback/FeatureRequestModal";
 import HelpPane from "@/components/help/HelpPane";
 import BillingGraceCard from "@/components/billing/BillingGraceCard";
+import { trackNavClick } from "@/lib/nav-tracking";
 import SidebarNotices from "./SidebarNotices";
 import styles from "./explore.module.css";
 
@@ -842,6 +843,7 @@ export default function ExploreSidebar({
                 className={className}
                 aria-current={ariaCurrent}
                 data-tour={`nav-${item.id}`}
+                onClick={() => trackNavClick(item.id)}
               >
                 <span className={styles.navIcon}>{item.icon}</span>
                 <span>{item.label}</span>
@@ -856,6 +858,7 @@ export default function ExploreSidebar({
               tabIndex={-1}
               aria-current={ariaCurrent}
               data-tour={`nav-${item.id}`}
+              onClick={() => trackNavClick(item.id)}
             >
               <span className={styles.navIcon}>{item.icon}</span>
               <span>{item.label}</span>
