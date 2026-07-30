@@ -1047,6 +1047,86 @@ function foldBrandName(value: string): string {
     .toLowerCase();
 }
 
+/**
+ * Best-effort re-attribution sweep, run right after a `company_inboxes` row is
+ * created. Attribution is otherwise decided exactly once, at insert time, in
+ * `storeProcessedEmail`, purely by matching an inbound email's recipient
+ * address against `company_inboxes.email_address`.
+ *
+ * The common CSV-uploader ordering breaks that one-shot model: you subscribe a
+ * brand to its newsletter, the welcome mail lands at the Pirol address seconds
+ * later, and only *after* that do you register the brand. By the time the mail
+ * is ingested there's no inbox to match, so it's stored unattributed
+ * (`company_id IS NULL`) and nothing ever revisits it. This claims those
+ * already-landed emails for the freshly created inbox using the very same key
+ * `storeProcessedEmail` uses: `recipient_email == inbox address`.
+ *
+ * Deliberately narrow so it can never mis-file mail:
+ *  - Only touches rows still unattributed (`company_id IS NULL`); it can never
+ *    move an email already assigned to another brand.
+ *  - Matches one exact, freshly-minted, unique inbox address, so it only ever
+ *    picks up mail sent to *this* brand's Pirol address.
+ *  - Skips entirely when the address is a registered signup probe. Probe mail
+ *    also lives in the unattributed bucket (matched by `recipient_email`), and
+ *    must never be reorganised into a brand.
+ *  - Leaves classification untouched — it only moves the email into the brand,
+ *    denormalising the inbox segment the way `storeProcessedEmail` does.
+ *  - Never throws: a failed sweep must not fail brand/inbox creation. The next
+ *    email to this inbox attributes normally regardless.
+ *
+ * Uses the service-role client (like `storeProcessedEmail`) because re-running
+ * attribution is a system-level write, not something scoped to the admin's RLS
+ * session. Returns the number of emails claimed (0 on skip or error).
+ */
+export async function claimUnattributedEmailsForInbox(inbox: {
+  id: string;
+  companyId: string;
+  emailAddress: string;
+  segmentCategory?: string | null;
+  segmentCountry?: string | null;
+}): Promise<number> {
+  const address = inbox.emailAddress.trim().toLowerCase();
+  if (!address) return 0;
+
+  const supabaseAdmin = getSupabaseAdmin();
+
+  try {
+    // Probe addresses are by design kept out of company_inboxes, so a
+    // brand-new inbox address is virtually never a probe — but an admin can
+    // register a pre-existing address as a probe, so guard explicitly. `eq`
+    // (not `ilike`) because probe local-parts may contain `_`, which ilike
+    // would treat as a wildcard. Both sides are stored lower-cased.
+    const { data: probe, error: probeError } = await supabaseAdmin
+      .from("signup_probes")
+      .select("id")
+      .eq("address", address)
+      .maybeSingle();
+    if (probeError) throw probeError;
+    if (probe) return 0;
+
+    const { data: claimed, error: updateError } = await supabaseAdmin
+      .from("captured_emails")
+      .update({
+        company_id: inbox.companyId,
+        inbox_id: inbox.id,
+        segment_category: inbox.segmentCategory ?? null,
+        segment_country: inbox.segmentCountry ?? null
+      })
+      .is("company_id", null)
+      .eq("recipient_email", address)
+      .select("id");
+    if (updateError) throw updateError;
+
+    return claimed?.length ?? 0;
+  } catch (error) {
+    console.error(
+      `[reattribution] sweep failed for inbox ${inbox.id} (${address}):`,
+      error instanceof Error ? error.message : error
+    );
+    return 0;
+  }
+}
+
 export async function createCompanySubscriptionInDb(
   supabase: PirolDb,
   input: {
@@ -1132,6 +1212,17 @@ export async function createCompanySubscriptionInDb(
   if (inboxError) {
     throw inboxError;
   }
+
+  // Claim any mail (typically the welcome email) that already landed at this
+  // address before the brand existed. Best-effort and non-blocking: a failed
+  // sweep never fails brand creation. The primary inbox carries no segment.
+  await claimUnattributedEmailsForInbox({
+    id: inboxRow.id,
+    companyId: company.id,
+    emailAddress: inboxRow.email_address,
+    segmentCategory: null,
+    segmentCountry: null
+  });
 
   // Logos are populated lazily by the ingest pipeline once we have email
   // content for the brand. Until the first email lands the UI renders a
@@ -1245,6 +1336,17 @@ export async function addCompanyInboxInDb(
   if (insertError) {
     throw insertError;
   }
+
+  // Same retroactive claim as the primary-inbox path: mail that landed at this
+  // segment address before it was registered gets pulled out of the
+  // unattributed bucket. Denormalise this inbox's segment onto the claimed rows.
+  await claimUnattributedEmailsForInbox({
+    id: inboxRow.id,
+    companyId: companyRow.id,
+    emailAddress: inboxRow.email_address,
+    segmentCategory: inboxRow.segment_category ?? null,
+    segmentCountry: inboxRow.segment_country ?? null
+  });
 
   return {
     id: inboxRow.id,
