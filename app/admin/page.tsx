@@ -39,6 +39,7 @@ import LogoManagerModal from "@/components/admin/LogoManagerModal";
 import SupportInbox from "@/components/admin/SupportInbox";
 import ProbesBoard from "@/components/admin/ProbesBoard";
 import CsvBrandUploader from "@/components/admin/CsvBrandUploader";
+import AdminSignupsFeed from "@/components/admin/AdminSignupsFeed";
 import QualityDetailModal, {
   type LowConfidenceEmail,
   type QualityKind,
@@ -1731,6 +1732,7 @@ export default function AdminHomePage() {
             <span className="admin-nav-label">Upgrade clicks</span>
           </a>
         </nav>
+        <AdminSignupsFeed />
         <form action="/auth/signout" method="post" className="admin-sidebar-footer">
           <button type="submit" className="sign-out">
             Sign out
