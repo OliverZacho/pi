@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import FeatureExplainer from "@/components/marketing/FeatureExplainer";
+import FeaturePoster from "@/components/marketing/FeaturePoster";
+import { CompareHeatmapVisual } from "@/components/marketing/feature-visuals";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
@@ -19,6 +21,11 @@ export default function ComparisonsFeaturePage() {
         eyebrow="Comparisons"
         title="Put up to six brands side by side."
         lede="Stack the brands you care about and read the patterns at a glance — who sends most, when they go quiet, how deep their discounts run, and what they actually talk about."
+        poster={
+          <FeaturePoster>
+            <CompareHeatmapVisual />
+          </FeaturePoster>
+        }
         items={[
           {
             mark: "⚡",
