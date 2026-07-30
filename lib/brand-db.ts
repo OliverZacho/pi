@@ -241,6 +241,49 @@ export type BrandPageData = {
       provider: string | null;
     };
   };
+  /**
+   * Email-authentication posture from public DNS (DMARC / BIMI / VMC),
+   * populated by the periodic sweep in scripts/check-brand-auth.ts and stored
+   * in `brand_auth_status`. Unlike every other block here it's independent of
+   * the captured-email sample — it's a DNS fact about the brand's sending
+   * domain — so it renders even for brands with no mail yet. `null` when the
+   * brand hasn't been swept.
+   *
+   * `tier` is the derived headline bucket:
+   *   'verified'      BIMI logo + VMC cert + DMARC enforced (verified mark)
+   *   'bimi'          BIMI logo + DMARC enforced, no VMC (logo, no checkmark)
+   *   'bimi_inactive' BIMI record present but DMARC not enforced (won't render)
+   *   'dmarc'         DMARC enforced, no BIMI (eligible but not adopted)
+   *   'none'          neither enforced DMARC nor BIMI
+   */
+  auth: {
+    tier: "verified" | "bimi" | "bimi_inactive" | "dmarc" | "none";
+    dmarcPolicy: string | null;
+    dmarcEnforced: boolean;
+    bimiPresent: boolean;
+    bimiLogoUrl: string | null;
+    /** Whether the l= logo URL actually resolved; null when no BIMI record. */
+    logoOk: boolean | null;
+    /** A VMC is advertised in the record (a= tag present). */
+    vmcPresent: boolean;
+    /**
+     * The advertised VMC was fetched, parsed, is in-date, issued by a mark CA,
+     * and covers the domain. Only this (not vmcPresent) backs the "verified"
+     * tier — an advertised-but-broken cert stays out.
+     */
+    vmcValid: boolean;
+    /** Issuing CA read from the certificate itself (e.g. "DigiCert"). */
+    vmcCa: string | null;
+    /** "VMC" (registered trademark) or "CMC" (common mark), from the cert. */
+    vmcMarkType: string | null;
+    /** Legal entity the mark was issued to (cert subject O). */
+    vmcOrg: string | null;
+    /** The From-header domain evaluated (e.g. "e.arket.com"). */
+    senderDomain: string | null;
+    /** Where the effective record was found after walking up (e.g. "arket.com"). */
+    authDomain: string | null;
+    checkedAt: string | null;
+  } | null;
   subjects: {
     avgLength: number | null;
     /**
@@ -624,6 +667,39 @@ export async function getBrandPageData(
   if (emailError) throw emailError;
   const emailRows: EmailRow[] = (emailRowsRaw ?? []) as EmailRow[];
 
+  // Email-authentication posture is a per-brand DNS fact, independent of the
+  // segment scope and the captured-email sample. A missing row (brand not yet
+  // swept) or a read error both degrade to "no auth section", never a 404.
+  const { data: authRow } = await supabase
+    .from("brand_auth_status")
+    .select(
+      "auth_tier, dmarc_policy, dmarc_enforced, bimi_present, bimi_logo_url, logo_ok, vmc_present, vmc_valid, vmc_ca, vmc_mark_type, vmc_org, sender_domain, auth_domain, checked_at"
+    )
+    .eq("company_id", companyId)
+    .maybeSingle();
+  const auth: BrandPageData["auth"] = authRow
+    ? {
+        tier: (
+          ["verified", "bimi", "bimi_inactive", "dmarc", "none"] as const
+        ).includes(authRow.auth_tier as never)
+          ? (authRow.auth_tier as NonNullable<BrandPageData["auth"]>["tier"])
+          : "none",
+        dmarcPolicy: authRow.dmarc_policy ?? null,
+        dmarcEnforced: Boolean(authRow.dmarc_enforced),
+        bimiPresent: Boolean(authRow.bimi_present),
+        bimiLogoUrl: authRow.bimi_logo_url ?? null,
+        logoOk: authRow.logo_ok ?? null,
+        vmcPresent: Boolean(authRow.vmc_present),
+        vmcValid: Boolean(authRow.vmc_valid),
+        vmcCa: authRow.vmc_ca ?? null,
+        vmcMarkType: authRow.vmc_mark_type ?? null,
+        vmcOrg: authRow.vmc_org ?? null,
+        senderDomain: authRow.sender_domain ?? null,
+        authDomain: authRow.auth_domain ?? null,
+        checkedAt: authRow.checked_at ?? null
+      }
+    : null;
+
   const logoPath = companyRow.logo_storage_path ?? null;
   const signed = logoPath
     ? await getSignedAssets([logoPath], { transform: BRAND_LOGO_TRANSFORM })
@@ -735,6 +811,7 @@ export async function getBrandPageData(
     categories,
     esp,
     design,
+    auth,
     subjects,
     ctas,
     ctaDestinations,

@@ -142,6 +142,7 @@ export default function BrandDashboard({
     categories,
     esp,
     design,
+    auth,
     subjects,
     ctas,
     calendar
@@ -271,6 +272,15 @@ export default function BrandDashboard({
               brand={{ name: brand.name, logoUrl: brand.logoUrl }}
             />
           </section>
+
+          {auth ? (
+            <section
+              className={`${styles.recentSection} ${styles.cardEnter}`}
+              style={{ animationDelay: "440ms" }}
+            >
+              <AuthCard auth={auth} brandName={brand.name} />
+            </section>
+          ) : null}
 
           <section
             className={`${styles.sectionGrid} ${styles.cardEnter}`}
@@ -1371,6 +1381,195 @@ export function DesignCard({
             <div className={styles.inboxFacts}>{flags}</div>
           </div>
         </div>
+      ) : null}
+    </article>
+  );
+}
+
+/* -----------------------------------------------------------------
+   Sender authentication card
+   ----------------------------------------------------------------- */
+
+/**
+ * How each authentication tier reads on the card: a headline label, the tone
+ * that recolours the status banner, and a plain-language explanation of what it
+ * means for a subscriber. Kept out of the component so the copy is easy to
+ * tune in one place. See `BrandPageData["auth"].tier` for the buckets.
+ */
+const AUTH_TIER_PRESENTATION: Record<
+  NonNullable<BrandPageData["auth"]>["tier"],
+  { label: string; tone: "good" | "warn" | "info" | "muted"; explain: string }
+> = {
+  verified: {
+    label: "Verified sender",
+    tone: "good",
+    explain:
+      "Publishes a BIMI logo backed by a verified mark certificate, so inboxes that support it (Gmail, Apple Mail) show the brand's logo with a verified checkmark."
+  },
+  bimi: {
+    label: "BIMI logo",
+    tone: "good",
+    explain:
+      "Publishes a BIMI logo without a valid verified mark certificate, so supporting inboxes can show the brand's logo beside the sender name, but without the verified checkmark."
+  },
+  bimi_inactive: {
+    label: "BIMI not active",
+    tone: "warn",
+    explain:
+      "Has a BIMI record, but its DMARC policy isn't at enforcement yet, so inboxes won't display the logo until it is."
+  },
+  dmarc: {
+    label: "DMARC enforced",
+    tone: "info",
+    explain:
+      "Enforces DMARC and is eligible for BIMI, but hasn't published a logo, so it shows no branded identity in the inbox yet."
+  },
+  none: {
+    label: "No BIMI",
+    tone: "muted",
+    explain:
+      "Doesn't enforce DMARC or publish a BIMI logo, so inboxes show no verified branding for its mail."
+  }
+};
+
+export function AuthCard({
+  auth,
+  brandName
+}: {
+  auth: NonNullable<BrandPageData["auth"]>;
+  brandName?: string;
+}) {
+  const tier = AUTH_TIER_PRESENTATION[auth.tier];
+  const domain = auth.authDomain ?? auth.senderDomain;
+  // The CA and mark type are read from the validated certificate, so they only
+  // appear when the VMC actually checked out (auth.vmcValid gates the tier).
+  const issuerLabel =
+    auth.vmcValid && auth.vmcCa
+      ? `${auth.vmcCa}${auth.vmcMarkType ? ` ${auth.vmcMarkType}` : ""}`
+      : undefined;
+  const csvRows: CsvValue[][] = [
+    ["Signal", "Value"],
+    ["Tier", tier.label],
+    ["DMARC policy", auth.dmarcPolicy ?? "none"],
+    ["DMARC enforced", auth.dmarcEnforced ? "yes" : "no"],
+    ["BIMI logo published", auth.bimiPresent ? "yes" : "no"],
+    ["BIMI logo resolves", auth.logoOk === null ? "" : auth.logoOk ? "yes" : "no"],
+    ["Verified mark valid", auth.vmcValid ? "yes" : "no"],
+    ["Verified mark issuer", auth.vmcValid ? auth.vmcCa ?? "" : ""],
+    ["Verified mark type", auth.vmcValid ? auth.vmcMarkType ?? "" : ""],
+    ["Issued to", auth.vmcValid ? auth.vmcOrg ?? "" : ""],
+    ["Evaluated domain", domain ?? ""],
+    ["Checked", auth.checkedAt ?? ""]
+  ];
+  return (
+    <article className={styles.card}>
+      <div className={styles.cardHead}>
+        <div>
+          <span className={styles.cardEyebrow}>Deliverability</span>
+          <h2 className={styles.cardTitle}>Sender authentication</h2>
+          <p className={styles.cardSub}>
+            Whether this brand proves who it is at the inbox — DMARC
+            enforcement, a BIMI logo, and a verified mark certificate. Read
+            from public DNS, so it reflects the brand&apos;s setup, not our
+            sample.
+          </p>
+        </div>
+        <FigureDownload
+          filename={exportSlug(brandName, "sender-authentication")}
+          csvRows={csvRows}
+        />
+      </div>
+
+      <div
+        className={`${styles.authStatus} ${styles[`authStatus_${tier.tone}`]}`}
+        data-export-figure=""
+      >
+        <span className={styles.authBadge}>
+          <span className={styles.authBadgeDot} />
+          <span>{tier.label}</span>
+          {issuerLabel ? (
+            <span className={styles.authBadgeIssuer}>· {issuerLabel}</span>
+          ) : null}
+        </span>
+        <p className={styles.authExplain}>{tier.explain}</p>
+      </div>
+
+      <div className={styles.flagsRow}>
+        <span
+          className={`${styles.flag} ${styles.flagWithTip}`}
+          tabIndex={0}
+          role="note"
+          aria-label="DMARC tells inboxes to reject or quarantine mail that fails authentication. BIMI only displays once DMARC is at enforcement (quarantine or reject)."
+        >
+          <span
+            className={`${styles.flagDot}${
+              auth.dmarcEnforced ? ` ${styles.flagDot_on}` : ""
+            }`}
+          />
+          <span>DMARC enforced</span>
+          <span className={styles.flagShare}>
+            {auth.dmarcPolicy ? `p=${auth.dmarcPolicy}` : "none"}
+          </span>
+          <span className={styles.flagTooltip} role="tooltip">
+            <strong>DMARC</strong> tells inboxes to reject or quarantine mail
+            that fails authentication. BIMI only displays once the policy is at
+            enforcement (<code>quarantine</code> or <code>reject</code>).
+          </span>
+        </span>
+
+        <span className={styles.flag}>
+          <span
+            className={`${styles.flagDot}${
+              auth.bimiPresent ? ` ${styles.flagDot_on}` : ""
+            }`}
+          />
+          <span>BIMI logo</span>
+          <span className={styles.flagShare}>
+            {auth.bimiPresent ? "Yes" : "No"}
+          </span>
+        </span>
+
+        <span
+          className={`${styles.flag} ${styles.flagWithTip}`}
+          tabIndex={0}
+          role="note"
+          aria-label="A Verified Mark Certificate proves the brand owns its logo as a registered trademark. We fetch and validate the certificate; it only counts when it resolves, is in date, and covers the domain."
+        >
+          <span
+            className={`${styles.flagDot}${
+              auth.vmcValid ? ` ${styles.flagDot_on}` : ""
+            }`}
+          />
+          <span>Verified mark</span>
+          <span className={styles.flagShare}>
+            {auth.vmcValid ? "Yes" : auth.vmcPresent ? "Invalid" : "No"}
+          </span>
+          <span className={styles.flagTooltip} role="tooltip">
+            A <strong>Verified Mark Certificate</strong> proves the brand owns
+            its logo as a registered trademark. We fetch and validate the
+            certificate, so it only counts when it resolves, is in date, and
+            covers the domain.
+            {auth.vmcValid && issuerLabel
+              ? ` Here a valid ${issuerLabel}.`
+              : auth.vmcPresent && !auth.vmcValid
+                ? " This brand advertises one, but it didn't validate, so it isn't counted."
+                : ""}
+          </span>
+        </span>
+      </div>
+
+      {auth.vmcValid && auth.vmcOrg ? (
+        <p className={styles.authDomainLine}>
+          Mark issued to <strong style={{ color: "#475569", fontWeight: 500 }}>{auth.vmcOrg}</strong>
+          {issuerLabel ? ` by ${issuerLabel}` : ""}
+        </p>
+      ) : null}
+
+      {domain ? (
+        <p className={styles.authDomainLine}>
+          Checked against <code>{domain}</code>
+          {auth.checkedAt ? ` · ${formatShortDate(auth.checkedAt)}` : ""}
+        </p>
       ) : null}
     </article>
   );
