@@ -8,6 +8,9 @@ import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
 
 const RENDER_WIDTH = 600;
+// Upper bound for the auto-detected email width. Guards against a stray
+// oversized node inflating `scrollWidth` and shrinking the whole preview.
+const MAX_RENDER_WIDTH = 900;
 
 type Props = {
   email: ExploreEmailCard;
@@ -126,7 +129,15 @@ export default function EmailCard({
     typeof onCreateCollection === "function";
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const [scale, setScale] = useState<number | null>(null);
+  const [previewWidth, setPreviewWidth] = useState<number | null>(null);
+  // The width we lay the email out at inside the iframe. Defaults to 600
+  // (the common design width) but is widened to the email's own natural
+  // width once it loads — many emails are built wider (640/700px) and,
+  // rendered at a fixed 600, their overflow paints as uneven side gutters
+  // under the `transform: scale()` thumbnail. Rendering at the true width
+  // lets the whole layout map edge-to-edge, so it sits centered. See the
+  // load handler below.
+  const [renderWidth, setRenderWidth] = useState(RENDER_WIDTH);
   const [loaded, setLoaded] = useState(false);
   // Off-screen cards must not mount their preview iframe — each one pulls
   // the full email and every image it references (the grid can be hundreds
@@ -157,7 +168,7 @@ export default function EmailCard({
     function recompute() {
       const width = previewEl?.clientWidth ?? 0;
       if (width > 0) {
-        setScale(width / RENDER_WIDTH);
+        setPreviewWidth(width);
       }
     }
 
@@ -188,13 +199,36 @@ export default function EmailCard({
     return () => io.disconnect();
   }, []);
 
+  // Once the email document is ready, mark it loaded and widen the render
+  // width to fit the email's real layout. The render route is same-origin,
+  // so reading `scrollWidth` is safe (guarded for the rare cross-origin
+  // case). We only ever widen past the 600px default and cap the value so a
+  // stray oversized node can't shrink the whole preview to nothing.
+  function handleFrameReady() {
+    setLoaded(true);
+    const frame = frameRef.current;
+    const doc = frame?.contentDocument;
+    if (!doc) return;
+    try {
+      const natural = Math.max(
+        doc.documentElement?.scrollWidth ?? 0,
+        doc.body?.scrollWidth ?? 0
+      );
+      const clamped = Math.min(Math.max(natural, RENDER_WIDTH), MAX_RENDER_WIDTH);
+      setRenderWidth((current) => (clamped > current ? clamped : current));
+    } catch {
+      // Cross-origin document — keep the default render width.
+    }
+  }
+
   useEffect(() => {
     if (!inView) return;
     const frame = frameRef.current;
     if (!frame) return;
     if (frame.contentDocument?.readyState === "complete") {
-      setLoaded(true);
+      handleFrameReady();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inView]);
 
   // `?preview=1` opts the grid thumbnail into CDN-resized body images
@@ -202,12 +236,17 @@ export default function EmailCard({
   // modal pulls. The render route keys its cache on this param.
   const renderUrl = `${renderUrlBase}/${email.id}/render?preview=1`;
 
+  // Scale the natural-width iframe down to the card. Both the width and the
+  // scale key off `renderWidth`, so widening it after load keeps the preview
+  // filling the card exactly (no gutters) instead of clipping the overflow.
+  const scale = previewWidth !== null ? previewWidth / renderWidth : null;
+
   const frameStyle =
     scale !== null
       ? {
           transform: `scale(${scale})`,
-          width: `${RENDER_WIDTH}px`,
-          height: `${RENDER_WIDTH * 1.05}px`
+          width: `${renderWidth}px`,
+          height: `${renderWidth * 1.05}px`
         }
       : { visibility: "hidden" as const };
 
@@ -273,7 +312,7 @@ export default function EmailCard({
             sandbox="allow-popups allow-popups-to-escape-sandbox"
             className={styles.cardFrame}
             style={frameStyle}
-            onLoad={() => setLoaded(true)}
+            onLoad={handleFrameReady}
           />
         ) : null}
         {recommendEnabled ? (
