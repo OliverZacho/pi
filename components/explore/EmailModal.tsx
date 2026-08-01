@@ -112,10 +112,10 @@ export default function EmailModal({
     Array.isArray(collections) &&
     typeof onToggleCollection === "function" &&
     typeof onCreateCollection === "function";
-  // The raw-HTML source tab is hidden in read-only (public) mode.
-  const viewOptions = readOnly
-    ? VIEW_OPTIONS.filter((option) => option.id !== "html")
-    : VIEW_OPTIONS;
+  // Every viewer gets all four tabs. The source itself is no longer the
+  // paywall — unentitled viewers receive it link-stripped from the detail
+  // route, so the HTML tab is readable without handing out destinations.
+  const viewOptions = VIEW_OPTIONS;
   const [view, setView] = useState<ViewMode>("desktop");
   const [detail, setDetail] = useState<CapturedEmailDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
