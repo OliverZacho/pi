@@ -976,6 +976,27 @@
   transform: scale(1);
 }
 
+.axisLabel {
+  fill: #94a3b8;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.bandLabel {
+  fill: #b45309;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.swimCaption {
+  display: block;
+  margin-top: 0.8rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: center;
+}
+
 .eventBand {
   fill: rgba(251, 191, 36, 0.16);
 }
