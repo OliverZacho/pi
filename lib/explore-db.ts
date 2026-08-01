@@ -3,6 +3,7 @@ import { isColorBucketKey } from "./color-buckets";
 import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { buildSearchMatcher, matcherValue } from "./search-term";
 import type { Database } from "@/types/supabase";
 
 export type ExploreEmailCard = {
@@ -130,11 +131,16 @@ const MAX_PAGE_SIZE = 96;
  * email in the table.
  *
  * Brand-name matches are folded into the same query: when `query` is set
- * we first look up companies whose `name ILIKE %q%` and then OR the
- * resulting `company_id` set into the email-level ILIKE filter on
- * subject / preheader / primary CTA text / plain-text body. That keeps
- * the search to two round-trips even though we're effectively searching
- * across joined tables.
+ * we first look up companies whose name matches and then OR the resulting
+ * `company_id` set into the email-level filter on subject / preheader /
+ * primary CTA text / plain-text body. That keeps the search to two
+ * round-trips even though we're effectively searching across joined
+ * tables.
+ *
+ * The comparison operator comes from `buildSearchMatcher` — `ilike` for a
+ * single word, a whitespace-tolerant `imatch` regex for a phrase, so that
+ * a typed space also matches the non-breaking and narrow no-break spaces
+ * that litter marketing HTML. See lib/search-term.ts for the reasoning.
  *
  * Pagination is plain offset (`range(start, end)`) — fine for the table
  * sizes we expect for the foreseeable future. TODO: switch to keyset
@@ -155,14 +161,14 @@ export async function searchExploreEmails(
   // Resolve brand-name matches up front so we can collapse the search
   // into a single OR clause on the email table.
   const trimmedQuery = (params.query ?? "").trim();
+  const queryMatcher = trimmedQuery.length > 0 ? buildSearchMatcher(trimmedQuery) : null;
   let brandIdsFromQuery: string[] | null = null;
   if (trimmedQuery.length > 0) {
-    const sanitizedForCompanies = sanitizeIlikeTerm(trimmedQuery);
-    if (sanitizedForCompanies.length > 0) {
+    if (queryMatcher) {
       const { data, error } = await supabase
         .from("companies")
         .select("id")
-        .ilike("name", `%${sanitizedForCompanies}%`)
+        .filter("name", queryMatcher.operator, matcherValue(queryMatcher, "%"))
         .limit(500);
       if (error) throw error;
       brandIdsFromQuery = (data ?? []).map((row) => row.id);
@@ -341,29 +347,27 @@ export async function searchExploreEmails(
     emailsQuery = emailsQuery.lte("received_at", params.receivedBefore);
   }
 
-  if (trimmedQuery.length > 0) {
-    const sanitized = sanitizeIlikeTerm(trimmedQuery);
-    if (sanitized.length > 0) {
-      const term = `%${sanitized}%`;
-      const clauses = [
-        `subject.ilike.${term}`,
-        `preheader.ilike.${term}`,
-        `primary_cta_text.ilike.${term}`,
-        `plain_text.ilike.${term}`
-      ];
-      if (brandIdsFromQuery && brandIdsFromQuery.length > 0) {
-        // PostgREST `in.()` lists are comma-separated and live inside the
-        // `or()` string, so any comma in the value would break parsing.
-        // UUIDs don't contain commas; this is just defensive.
-        const safeIds = brandIdsFromQuery
-          .filter((id) => /^[0-9a-fA-F-]+$/.test(id))
-          .join(",");
-        if (safeIds.length > 0) {
-          clauses.push(`company_id.in.(${safeIds})`);
-        }
+  if (queryMatcher) {
+    const op = queryMatcher.operator;
+    const term = matcherValue(queryMatcher, "%");
+    const clauses = [
+      `subject.${op}.${term}`,
+      `preheader.${op}.${term}`,
+      `primary_cta_text.${op}.${term}`,
+      `plain_text.${op}.${term}`
+    ];
+    if (brandIdsFromQuery && brandIdsFromQuery.length > 0) {
+      // PostgREST `in.()` lists are comma-separated and live inside the
+      // `or()` string, so any comma in the value would break parsing.
+      // UUIDs don't contain commas; this is just defensive.
+      const safeIds = brandIdsFromQuery
+        .filter((id) => /^[0-9a-fA-F-]+$/.test(id))
+        .join(",");
+      if (safeIds.length > 0) {
+        clauses.push(`company_id.in.(${safeIds})`);
       }
-      emailsQuery = emailsQuery.or(clauses.join(","));
     }
+    emailsQuery = emailsQuery.or(clauses.join(","));
   }
 
   switch (sort) {
@@ -674,17 +678,4 @@ export function normalizeCompanyMarkets(
   return input.filter(
     (value): value is string => typeof value === "string" && value.length > 0
   );
-}
-
-/**
- * Strip characters that would break either the PostgREST `or()` string
- * (commas, parentheses, double quotes) or accidentally turn the user's
- * input into an ILIKE wildcard pattern (`%`, `_`). Returns a trimmed
- * fragment that is safe to splice into ``%${term}%``.
- */
-function sanitizeIlikeTerm(input: string): string {
-  return input
-    .replace(/[%_,(),"]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
