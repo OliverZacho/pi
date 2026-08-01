@@ -481,18 +481,22 @@ export function CollectionRulesVisual() {
    Event detection — 3daysofdesign swimlane
    ----------------------------------------------------------------- */
 
+/* Real 3daysofdesign sends from captured_emails (queried 2026-07-30).
+   Axis runs 12 May to 22 June 2026; each dot is an actual captured
+   email whose subject mentions the festival, ordered by first mover. */
 const SWIM_LANES = [
-  { name: "Fenne", dots: [0.08, 0.26, 0.5, 0.63, 0.79] },
-  { name: "Askvik", dots: [0.3, 0.47, 0.66, 0.82] },
-  { name: "Kalvig", dots: [0.42, 0.6, 0.74, 0.9] },
-  { name: "Brendholt", dots: [0.55, 0.7, 0.86] }
+  { name: "Louis Poulsen", dots: [0.02, 0.37, 0.83] },
+  { name: "New Works", dots: [0.1, 0.32, 0.59, 0.71, 0.76, 0.83] },
+  { name: "Muuto", dots: [0.34, 0.49, 0.68, 0.9] },
+  { name: "Ferm Living", dots: [0.54, 0.71, 0.8] }
 ];
-const SW_W = 300;
-const SW_GUTTER = 78;
+const SW_W = 340;
+const SW_GUTTER = 96;
 const SW_RIGHT = 12;
 const SW_TOP = 22;
-const SW_LANE_H = 26;
+const SW_LANE_H = 30;
 const SW_PLOT_W = SW_W - SW_GUTTER - SW_RIGHT;
+const SW_BAND: [number, number] = [0.78, 0.95];
 
 function swX(f: number) {
   return snap(SW_GUTTER + f * SW_PLOT_W);
@@ -500,9 +504,12 @@ function swX(f: number) {
 
 /** "Who moves first" swimlane inside the detected festival window. */
 export function EventSwimlaneVisual({ badge = true }: { badge?: boolean }) {
-  const height = SW_TOP + SWIM_LANES.length * SW_LANE_H + 6;
-  const bandX1 = swX(0.6);
-  const bandX2 = swX(0.92);
+  const bandTop = SW_TOP - 12;
+  const bandH = SWIM_LANES.length * SW_LANE_H + 4;
+  const axisY = bandTop + bandH + 16;
+  const height = axisY + 6;
+  const bandX1 = swX(SW_BAND[0]);
+  const bandX2 = swX(SW_BAND[1]);
   const ordered = SWIM_LANES.flatMap((lane, li) =>
     lane.dots.map((f) => ({ f, li }))
   ).sort((a, b) => a.f - b.f);
@@ -517,27 +524,27 @@ export function EventSwimlaneVisual({ badge = true }: { badge?: boolean }) {
         className={styles.swimSvg}
         viewBox={`0 0 ${SW_W} ${height}`}
         role="img"
-        aria-label="Which brands started emailing first around 3daysofdesign"
+        aria-label="Real festival emails from Louis Poulsen, New Works, Muuto and Ferm Living in the weeks around 3daysofdesign 2026"
       >
         <rect
           x={bandX1}
-          y={SW_TOP - 12}
+          y={bandTop}
           width={bandX2 - bandX1}
-          height={SWIM_LANES.length * SW_LANE_H + 4}
+          height={bandH}
           className={styles.eventBand}
         />
         <line
           x1={bandX1}
           x2={bandX1}
-          y1={SW_TOP - 12}
-          y2={SW_TOP - 12 + SWIM_LANES.length * SW_LANE_H + 4}
+          y1={bandTop}
+          y2={bandTop + bandH}
           className={styles.eventBandEdge}
         />
         <line
           x1={bandX2}
           x2={bandX2}
-          y1={SW_TOP - 12}
-          y2={SW_TOP - 12 + SWIM_LANES.length * SW_LANE_H + 4}
+          y1={bandTop}
+          y2={bandTop + bandH}
           className={styles.eventBandEdge}
         />
         {SWIM_LANES.map((lane, li) => {
@@ -574,7 +581,24 @@ export function EventSwimlaneVisual({ badge = true }: { badge?: boolean }) {
             </g>
           );
         })}
+        <text x={swX(0.2)} y={axisY} className={styles.axisLabel} textAnchor="middle">
+          May
+        </text>
+        <text x={swX(0.58)} y={axisY} className={styles.axisLabel} textAnchor="middle">
+          June
+        </text>
+        <text
+          x={(bandX1 + bandX2) / 2}
+          y={axisY}
+          className={styles.bandLabel}
+          textAnchor="middle"
+        >
+          Festival week
+        </text>
       </svg>
+      <span className={styles.swimCaption}>
+        Real sends from the archive. Each dot is one captured email.
+      </span>
     </>
   );
 }

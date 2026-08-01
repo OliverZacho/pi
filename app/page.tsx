@@ -1,12 +1,14 @@
 import SiteHeader from "@/components/marketing/SiteHeader";
 import NewsletterFanHero from "@/components/marketing/NewsletterFanHero";
-import LibraryBand from "@/components/marketing/LibraryBand";
-import FeatureBento from "@/components/marketing/FeatureBento";
-import BrandTeardown from "@/components/marketing/BrandTeardown";
+import HomeStory from "@/components/marketing/HomeStory";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import { siteStructuredData } from "@/lib/structured-data";
+import { getArchiveStats } from "@/lib/marketing-stats";
 import styles from "@/components/marketing/landing.module.css";
+
+// Refresh the live archive numbers hourly.
+export const revalidate = 3600;
 
 export const metadata = {
   title: "Pirol — See how the best brands do email",
@@ -14,7 +16,9 @@ export const metadata = {
     "Pirol tracks how real brands run their email marketing. Browse a curated catalogue of newsletters, study what top senders do, and learn how to choose and run your email platform."
 };
 
-export default function Home() {
+export default async function Home() {
+  const stats = await getArchiveStats();
+
   return (
     <main className={styles.page}>
       <script
@@ -23,9 +27,7 @@ export default function Home() {
       />
       <SiteHeader />
       <NewsletterFanHero />
-      <LibraryBand />
-      <FeatureBento />
-      <BrandTeardown />
+      <HomeStory stats={stats} />
       <PricingTeaser />
       <SiteFooter />
     </main>

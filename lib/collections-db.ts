@@ -10,6 +10,7 @@ import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
+import { buildSearchMatcher, matcherValue, type SearchMatcher } from "./search-term";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -1518,7 +1519,7 @@ export async function evaluateCollectionRules(
                 : query.eq("discount_percent", filter.value);
           break;
         case "search":
-          query = query.or(buildSearchOrClause(filter.term, filter.brandIds));
+          query = query.or(buildSearchOrClause(filter.matcher, filter.brandIds));
           break;
       }
     }
@@ -1652,7 +1653,7 @@ export async function evaluateCollectionRuleIds(
                 : query.eq("discount_percent", filter.value);
           break;
         case "search":
-          query = query.or(buildSearchOrClause(filter.term, filter.brandIds));
+          query = query.or(buildSearchOrClause(filter.matcher, filter.brandIds));
           break;
       }
     }
@@ -1676,7 +1677,7 @@ type CompiledFilter =
   | { type: "category_in"; values: string[] }
   | { type: "country_in"; values: string[] }
   | { type: "discount"; op: "gte" | "lte" | "eq"; value: number }
-  | { type: "search"; term: string; brandIds: string[] };
+  | { type: "search"; matcher: SearchMatcher; brandIds: string[] };
 
 type CompiledRules = {
   combinator: CollectionRuleCombinator;
@@ -1744,13 +1745,13 @@ async function compileRules(
         });
         break;
       case "search": {
-        const term = sanitizeIlikeTerm(cond.value);
-        if (term.length === 0) {
+        const matcher = buildSearchMatcher(cond.value);
+        if (!matcher) {
           if (rules.combinator === "AND") return "no_match";
           break;
         }
-        const brandIds = await lookupCompanyIdsByName(client, term);
-        filters.push({ type: "search", term, brandIds });
+        const brandIds = await lookupCompanyIdsByName(client, matcher);
+        filters.push({ type: "search", matcher, brandIds });
         break;
       }
     }
@@ -1794,20 +1795,21 @@ function orParts(filters: CompiledFilter[]): string[] {
         parts.push(`discount_percent.${filter.op}.${filter.value}`);
         break;
       case "search":
-        parts.push(...buildSearchOrParts(filter.term, filter.brandIds));
+        parts.push(...buildSearchOrParts(filter.matcher, filter.brandIds));
         break;
     }
   }
   return parts;
 }
 
-function buildSearchOrParts(term: string, brandIds: string[]): string[] {
-  const wrapped = `*${term}*`;
+function buildSearchOrParts(matcher: SearchMatcher, brandIds: string[]): string[] {
+  const op = matcher.operator;
+  const wrapped = matcherValue(matcher, "*");
   const parts = [
-    `subject.ilike.${wrapped}`,
-    `preheader.ilike.${wrapped}`,
-    `primary_cta_text.ilike.${wrapped}`,
-    `plain_text.ilike.${wrapped}`
+    `subject.${op}.${wrapped}`,
+    `preheader.${op}.${wrapped}`,
+    `primary_cta_text.${op}.${wrapped}`,
+    `plain_text.${op}.${wrapped}`
   ];
   const safe = brandIds.filter((id) => UUID_PATTERN.test(id));
   if (safe.length > 0) {
@@ -1816,8 +1818,8 @@ function buildSearchOrParts(term: string, brandIds: string[]): string[] {
   return parts;
 }
 
-function buildSearchOrClause(term: string, brandIds: string[]): string {
-  return buildSearchOrParts(term, brandIds).join(",");
+function buildSearchOrClause(matcher: SearchMatcher, brandIds: string[]): string {
+  return buildSearchOrParts(matcher, brandIds).join(",");
 }
 
 /**
@@ -1847,12 +1849,12 @@ async function lookupCompanyIdsByMarkets(
 
 async function lookupCompanyIdsByName(
   client: SupabaseClient<Database>,
-  term: string
+  matcher: SearchMatcher
 ): Promise<string[]> {
   const { data, error } = await client
     .from("companies")
     .select("id")
-    .ilike("name", `%${term}%`)
+    .filter("name", matcher.operator, matcherValue(matcher, "%"))
     .limit(500);
   if (error) throw error;
   return (data ?? []).map((row) => row.id);
@@ -1915,18 +1917,6 @@ function safeParseStoredRules(value: unknown): CollectionRules | null {
     console.warn("Ignoring malformed collection rules", err);
     return null;
   }
-}
-
-/**
- * Mirror of `searchExploreEmails`'s ILIKE sanitizer: strip the
- * characters that would either break the PostgREST `or()` parser or
- * accidentally turn the user's input into wildcards.
- */
-function sanitizeIlikeTerm(input: string): string {
-  return input
-    .replace(/[%_,()"]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 // ---------- internal helpers ----------
