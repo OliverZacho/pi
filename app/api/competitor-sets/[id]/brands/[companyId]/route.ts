@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import { removeBrandFromSet, setMemberInboxes } from "@/lib/competitor-db";
 import { competitorSetWriteFailure } from "@/lib/competitor-set-api";
 
@@ -16,7 +16,7 @@ type RouteContext = {
  * unless the set itself doesn't belong to the caller.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -31,7 +31,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   try {
     const result = await removeBrandFromSet(
-      session.supabase,
+      session.client,
       session.user.id,
       id,
       companyId
@@ -55,7 +55,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
  * with an empty array. Owner-only.
  */
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -96,7 +96,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const result = await setMemberInboxes(
-      session.supabase,
+      session.client,
       session.user.id,
       id,
       companyId,

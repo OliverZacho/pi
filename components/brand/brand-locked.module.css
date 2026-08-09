@@ -1,5 +1,14 @@
 /* Lock placeholders for the public/unpaid brand detail view. */
 
+/* Hero CTA cluster: the free viewer's Follow toggle next to the upgrade
+   button; wraps on narrow heroes. */
+.heroCtas {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .upgradeBtn {
   display: inline-flex;
   align-items: center;

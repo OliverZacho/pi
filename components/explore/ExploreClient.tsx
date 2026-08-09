@@ -585,7 +585,14 @@ export default function ExploreClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name })
         });
-        if (!createRes.ok) throw new Error(`Failed (${createRes.status})`);
+        if (!createRes.ok) {
+          // Surface the API's message — for the free-tier collection cap
+          // (409) it's the user-facing upgrade copy.
+          const errBody = (await createRes.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(errBody?.error ?? `Failed (${createRes.status})`);
+        }
         const created = (await createRes.json()) as {
           collection: CollectionSummary;
         };
@@ -1698,6 +1705,12 @@ export default function ExploreClient({
             renderUrlBase={renderUrlBase}
             detailUrlBase="/api/public/emails"
             readOnly
+            // Signed-in free viewers (allowSave) may follow brands and
+            // save from the modal — the caps live server-side. Logged-out
+            // visitors keep the fully read-only teaser.
+            canFollow={allowSave}
+            isSaved={allowSave ? savedIds.has(openEmail.id) : false}
+            onToggleSave={allowSave ? handleToggleSave : undefined}
           />
         ) : (
           <EmailModal

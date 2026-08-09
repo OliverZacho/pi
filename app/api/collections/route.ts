@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
+import { FREE_COLLECTION_LIMIT } from "@/lib/access";
+import { freeQuotaDecision } from "@/lib/free-quota";
 import {
+  countCollections,
   createCollection,
   listCollectionsWithPreviews
 } from "@/lib/collections-db";
@@ -13,14 +16,14 @@ import { isCollectionIcon } from "@/lib/collection-icons";
  * payload than the sidebar list.
  */
 export async function GET() {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
 
   try {
     const items = await listCollectionsWithPreviews(
-      session.supabase,
+      session.client,
       session.user.id
     );
     return NextResponse.json({ items });
@@ -41,7 +44,7 @@ const MAX_NAME_LENGTH = 120;
  * can't pick a predictable URL.
  */
 export async function POST(request: Request) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -82,8 +85,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (!session.hasAccess) {
+      const count = await countCollections(session.client, session.user.id);
+      const decision = freeQuotaDecision({
+        alreadyPresent: false,
+        count,
+        limit: FREE_COLLECTION_LIMIT,
+        code: "COLLECTION_LIMIT_REACHED",
+        error: `Free accounts can create ${FREE_COLLECTION_LIMIT} collection. Upgrade for unlimited collections.`
+      });
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error, code: decision.code },
+          { status: decision.status }
+        );
+      }
+    }
+
     const collection = await createCollection(
-      session.supabase,
+      session.client,
       session.user.id,
       rawName,
       isCollectionIcon(rawIcon) ? rawIcon : null

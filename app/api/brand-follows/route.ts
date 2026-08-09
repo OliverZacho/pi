@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import { listFollowedBrands } from "@/lib/follows-db";
 
 /**
@@ -9,13 +9,13 @@ import { listFollowedBrands } from "@/lib/follows-db";
  * trip.
  */
 export async function GET() {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
 
   try {
-    const items = await listFollowedBrands(session.supabase, session.user.id);
+    const items = await listFollowedBrands(session.client, session.user.id);
     return NextResponse.json({ items });
   } catch (error) {
     console.error("Failed to list followed brands", error);

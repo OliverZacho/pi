@@ -6,6 +6,10 @@ import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
 import type { CompetitorSetSummary } from "@/lib/competitor-db";
 import styles from "./brands-explore.module.css";
 
+// Sentinel message for a follow rejected by the free-tier cap, so the
+// batch summary can tell "quota" apart from a transient failure.
+const FOLLOW_LIMIT_ERROR = "FOLLOW_LIMIT_REACHED";
+
 type Props = {
   /** Currently selected brand ids (owned by the parent's selection state). */
   selectedIds: string[];
@@ -132,7 +136,19 @@ export default function BrandBatchBar({
           method: follow ? "PUT" : "DELETE",
           credentials: "include"
         });
-        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        if (!res.ok) {
+          // Free-tier follow cap — surfaced as its own message below so
+          // the failure reads as an upgrade moment, not a flaky request.
+          if (res.status === 409) {
+            const body = (await res.json().catch(() => null)) as {
+              code?: string;
+            } | null;
+            if (body?.code === "FOLLOW_LIMIT_REACHED") {
+              throw new Error(FOLLOW_LIMIT_ERROR);
+            }
+          }
+          throw new Error(`Failed (${res.status})`);
+        }
         return id;
       })
     );
@@ -151,10 +167,18 @@ export default function BrandBatchBar({
       onAfterFollowChange?.(okIds, follow);
     }
     if (okIds.length < targets.length) {
+      const quotaHit = results.some(
+        (r) =>
+          r.status === "rejected" &&
+          r.reason instanceof Error &&
+          r.reason.message === FOLLOW_LIMIT_ERROR
+      );
       setActionError(
-        `${follow ? "Followed" : "Unfollowed"} ${okIds.length} of ${
-          targets.length
-        } brands — the rest failed, try again.`
+        quotaHit
+          ? `Followed ${okIds.length} of ${targets.length}. Free accounts can follow up to 25 brands, upgrade to follow more.`
+          : `${follow ? "Followed" : "Unfollowed"} ${okIds.length} of ${
+              targets.length
+            } brands — the rest failed, try again.`
       );
     }
     setFollowPending(false);

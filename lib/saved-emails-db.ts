@@ -3,6 +3,7 @@ import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
+import { freeQuotaDecision, type FreeQuotaDecision } from "./free-quota";
 import type { Database } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -19,38 +20,29 @@ import type { ExploreEmailCard } from "./explore-db";
 const MAX_BATCH_LOOKUP = 500;
 
 /**
- * Decide whether a non-entitled (free) user may save another email. Pure
- * so it can be unit-tested without a DB. Entitled users bypass this
- * entirely.
+ * Decide whether a non-entitled (free) user may save another email.
+ * Thin wrapper over the shared `freeQuotaDecision` (see lib/free-quota.ts
+ * for the semantics). Entitled users bypass this entirely.
  *
  * The only free-tier rule is the cap: free users can already view the
  * whole archive's link-stripped previews via the public endpoints, so
  * saving (which renders through those same endpoints) exposes nothing
  * new — there's no curated/content restriction to enforce here.
  */
-export type FreeSaveDecision =
-  | { ok: true }
-  | { ok: false; status: 409; code: string; error: string };
+export type FreeSaveDecision = FreeQuotaDecision;
 
 export function freeSaveDecision(input: {
   alreadySaved: boolean;
   count: number;
   limit: number;
 }): FreeSaveDecision {
-  // Re-saving something already saved is an idempotent no-op — never
-  // blocked by the cap.
-  if (input.alreadySaved) {
-    return { ok: true };
-  }
-  if (input.count >= input.limit) {
-    return {
-      ok: false,
-      status: 409,
-      code: "SAVE_LIMIT_REACHED",
-      error: `Free accounts can save up to ${input.limit} emails. Upgrade to save more.`
-    };
-  }
-  return { ok: true };
+  return freeQuotaDecision({
+    alreadyPresent: input.alreadySaved,
+    count: input.count,
+    limit: input.limit,
+    code: "SAVE_LIMIT_REACHED",
+    error: `Free accounts can save up to ${input.limit} emails. Upgrade to save more.`
+  });
 }
 
 /** Total number of emails the user has saved. */

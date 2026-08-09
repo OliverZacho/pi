@@ -20,6 +20,7 @@ import {
   type ImageFormat
 } from "@/lib/image-stats";
 import AddToCollectionButton from "./AddToCollectionButton";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import { LOCKED_EMAIL_EVENT, LOCKED_EMAIL_FLAG } from "./SidebarNotices";
 import styles from "./explore.module.css";
 
@@ -53,6 +54,13 @@ type Props = {
    * full metadata panel still renders.
    */
   readOnly?: boolean;
+  /**
+   * Show the Follow toggle even in a `readOnly` modal. Signed-in free
+   * users get the link-stripped teaser (`readOnly`) but may follow
+   * brands (capped server-side), so following is decoupled from the
+   * source/link paywall. Defaults to `!readOnly`.
+   */
+  canFollow?: boolean;
   /**
    * Whether the email is currently saved by the viewing user. Drives
    * the bookmark icon's filled / outline state and the active styling
@@ -99,6 +107,7 @@ export default function EmailModal({
   renderUrlBase = "/api/explore/emails",
   detailUrlBase = "/api/public/emails",
   readOnly = false,
+  canFollow = !readOnly,
   isSaved = false,
   onToggleSave,
   collections,
@@ -112,6 +121,9 @@ export default function EmailModal({
     Array.isArray(collections) &&
     typeof onToggleCollection === "function" &&
     typeof onCreateCollection === "function";
+  // Whether a real save handler is wired — lets the read-only modal
+  // still offer Save to signed-in free viewers.
+  const canSave = typeof onToggleSave === "function";
   // Every viewer gets all four tabs. The source itself is no longer the
   // paywall — unentitled viewers receive it link-stripped from the detail
   // route, so the HTML tab is readable without handing out destinations.
@@ -306,6 +318,8 @@ export default function EmailModal({
             compliance={compliance}
             dateLabel={dateLabel}
             readOnly={readOnly}
+            canFollow={canFollow}
+            canSave={canSave}
             isSaved={isSaved}
             savePending={savePending}
             onToggleSave={handleToggleSave}
@@ -332,6 +346,8 @@ type InfoPanelProps = {
   compliance: ReturnType<typeof classifyListHeaders> | null;
   dateLabel: string;
   readOnly: boolean;
+  canFollow: boolean;
+  canSave: boolean;
   isSaved: boolean;
   savePending: boolean;
   onToggleSave: () => void;
@@ -383,6 +399,8 @@ function InfoPanel({
   compliance,
   dateLabel,
   readOnly,
+  canFollow,
+  canSave,
   isSaved,
   savePending,
   onToggleSave,
@@ -401,6 +419,9 @@ function InfoPanel({
   const followCompanyId = email.companyId;
   const [following, setFollowing] = useState(false);
   const [followPending, setFollowPending] = useState(false);
+  // Free users hit the follow cap server-side (409 FOLLOW_LIMIT_REACHED);
+  // surface it as an upgrade nudge instead of a silent revert.
+  const [followLimitHit, setFollowLimitHit] = useState(false);
 
   // Fixed-position tooltip placement, measured on hover / focus — see
   // fixedTipStyle above for why these are not plain absolute tooltips.
@@ -416,7 +437,7 @@ function InfoPanel({
     setSentToTipStyle(fixedTipStyle(event.currentTarget));
 
   useEffect(() => {
-    if (readOnly || !followCompanyId) return;
+    if (!canFollow || !followCompanyId) return;
     let cancelled = false;
     fetch(`/api/brand-follows/${encodeURIComponent(followCompanyId)}`, {
       credentials: "include"
@@ -432,7 +453,7 @@ function InfoPanel({
     return () => {
       cancelled = true;
     };
-  }, [readOnly, followCompanyId]);
+  }, [canFollow, followCompanyId]);
 
   async function handleToggleFollow() {
     if (followPending || !followCompanyId) return;
@@ -444,7 +465,15 @@ function InfoPanel({
         `/api/brand-follows/${encodeURIComponent(followCompanyId)}`,
         { method: next ? "PUT" : "DELETE", credentials: "include" }
       );
-      if (!res.ok) setFollowing(!next);
+      if (!res.ok) {
+        setFollowing(!next);
+        if (res.status === 409) {
+          const body = (await res.json().catch(() => null)) as {
+            code?: string;
+          } | null;
+          if (body?.code === "FOLLOW_LIMIT_REACHED") setFollowLimitHit(true);
+        }
+      }
     } catch {
       setFollowing(!next);
     } finally {
@@ -503,7 +532,7 @@ function InfoPanel({
 
   return (
     <>
-      {readOnly ? null : (
+      {canFollow || canSave || !readOnly ? (
         <div className={styles.infoActions}>
           <button
             type="button"
@@ -516,32 +545,50 @@ function InfoPanel({
           >
             {following ? "Following" : "Follow"}
           </button>
-          <button
-            type="button"
-            className={`${styles.infoActionIcon}${
-              isSaved ? ` ${styles.infoActionIconSaved}` : ""
-            }`}
-            aria-label={isSaved ? "Remove from saved" : "Save email"}
-            aria-pressed={isSaved}
-            disabled={savePending}
-            onClick={onToggleSave}
-          >
-            {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
-          </button>
-          {collectionsEnabled ? (
-            <AddToCollectionButton
-              variant="icon"
-              emailId={email.id}
-              collections={collections ?? []}
-              membershipIds={membershipIds ?? new Set()}
-              onToggleCollection={onToggleCollection!}
-              onCreateCollection={onCreateCollection!}
-              onRequestMemberships={onRequestMemberships}
-              align="right"
-            />
+          {/* Save renders in the read-only modal too when the caller
+              wires a handler (signed-in free users); collections stay
+              behind `collectionsEnabled` (never set in read-only). */}
+          {!readOnly || canSave ? (
+            <>
+              <button
+                type="button"
+                className={`${styles.infoActionIcon}${
+                  isSaved ? ` ${styles.infoActionIconSaved}` : ""
+                }`}
+                aria-label={isSaved ? "Remove from saved" : "Save email"}
+                aria-pressed={isSaved}
+                disabled={savePending}
+                onClick={onToggleSave}
+              >
+                {isSaved ? <BookmarkFilledIcon /> : <BookmarkOutlineIcon />}
+              </button>
+              {collectionsEnabled ? (
+                <AddToCollectionButton
+                  variant="icon"
+                  emailId={email.id}
+                  collections={collections ?? []}
+                  membershipIds={membershipIds ?? new Set()}
+                  onToggleCollection={onToggleCollection!}
+                  onCreateCollection={onCreateCollection!}
+                  onRequestMemberships={onRequestMemberships}
+                  align="right"
+                />
+              ) : null}
+            </>
           ) : null}
         </div>
-      )}
+      ) : null}
+
+      {followLimitHit ? (
+        <div className={styles.saveQuota} role="alert">
+          <span className={styles.saveQuotaText}>
+            You follow the maximum number of brands on the free plan.
+          </span>
+          <TrackedUpgradeLink source="follow_quota" className={styles.saveQuotaCta}>
+            View plans
+          </TrackedUpgradeLink>
+        </div>
+      ) : null}
 
       {/*
         Whole row is a link so it's keyboard-focusable and navigates to

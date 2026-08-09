@@ -18,8 +18,10 @@ import CompareBrandStrip from "@/components/compare/CompareBrandStrip";
 import CompareDashboard from "@/components/compare/CompareDashboard";
 import CompareLandingClient from "@/components/compare/CompareLandingClient";
 import TeamSharedCard from "@/components/team/TeamSharedCard";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import styles from "@/components/compare/compare.module.css";
 import shared from "@/components/team/team-shared.module.css";
+import quota from "@/components/explore/explore.module.css";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 
 export const metadata = {
@@ -47,12 +49,11 @@ type PageProps = {
  * round-trips.
  */
 export default async function ComparePage({ searchParams }: PageProps) {
-  const supabase = await createClient();
   const viewer = await getViewer();
 
-  // Compare is a paid feature — public (non-admin) users get a subscribe
-  // panel instead of the comparison tools.
-  if (!viewer || !viewer.hasAccess) {
+  // Open to every signed-in user (free accounts own one saved
+  // comparison); only logged-out visitors see the teaser.
+  if (!viewer) {
     return (
       <main className={styles.main}>
         <LockedFeature variant="compare" />
@@ -61,6 +62,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
   }
 
   const userId = viewer.userId;
+
+  // Free session tokens have no RLS grants on competitor_sets or the
+  // archive tables the dashboard joins, so free reads run on the
+  // service-role client (helpers filter by user id explicitly).
+  const supabase = viewer.hasAccess ? await createClient() : getSupabaseAdmin();
 
   const params = await searchParams;
   const rawBrands = params.brands;
@@ -81,17 +87,32 @@ export default async function ComparePage({ searchParams }: PageProps) {
   // so a missing table can't break the page. (`setPreviews`/`setActivity`
   // below still run after this batch — they depend on the resolved
   // `sets`.)
-  const [sets, comparison, sectionPrefs, teamShared] = await Promise.all([
+  const [sets, paidComparison, sectionPrefs, teamShared] = await Promise.all([
     listCompetitorSetSummaries(supabase, userId),
-    requestedBrandIds.length > 0
+    viewer.hasAccess && requestedBrandIds.length > 0
       ? getCompetitorComparison(supabase, requestedBrandIds)
       : Promise.resolve({ brands: [], missing: [] }),
     getCompareSectionPrefs(supabase, userId),
-    listTeamSharedSets(supabase, getSupabaseAdmin(), userId).catch((err) => {
-      console.error("Failed to load team-shared comparisons", err);
-      return [] as TeamSharedSet[];
-    })
+    // Teams are a paid feature — skip the read for free viewers.
+    viewer.hasAccess
+      ? listTeamSharedSets(supabase, getSupabaseAdmin(), userId).catch((err) => {
+          console.error("Failed to load team-shared comparisons", err);
+          return [] as TeamSharedSet[];
+        })
+      : ([] as TeamSharedSet[])
   ]);
+
+  // The ad-hoc `?brands=` dashboard is the preview step of creating a
+  // comparison. For free users it only renders while their single
+  // comparison slot is open — otherwise a bookmarked deep link would be
+  // an unlimited comparison tool and the cap would be decorative. (The
+  // free path waits on `sets`, hence the second await.)
+  const adhocAllowed = viewer.hasAccess || sets.length === 0;
+  const adhocBlocked = requestedBrandIds.length > 0 && !adhocAllowed;
+  const comparison =
+    !viewer.hasAccess && requestedBrandIds.length > 0 && adhocAllowed
+      ? await getCompetitorComparison(supabase, requestedBrandIds)
+      : paidComparison;
 
   // Preview brands for each saved set — used by the grid card to show
   // 4 stacked logos. Fetched as a single bulk query so we don't fan
@@ -197,6 +218,21 @@ export default async function ComparePage({ searchParams }: PageProps) {
         setPreviews={setPreviews}
         setActivity={setActivity}
       />
+
+      {adhocBlocked ? (
+        <div className={quota.saveQuota} role="alert">
+          <span className={quota.saveQuotaText}>
+            Free accounts get one comparison, and yours is saved above. Upgrade
+            to compare any group of brands.
+          </span>
+          <TrackedUpgradeLink
+            source="comparison_quota"
+            className={quota.saveQuotaCta}
+          >
+            View plans
+          </TrackedUpgradeLink>
+        </div>
+      ) : null}
 
       {showDashboard ? (
         <section style={{ marginTop: "2rem" }}>

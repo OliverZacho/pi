@@ -19,10 +19,13 @@ import {
   type ExploreSearchResult
 } from "@/lib/explore-db";
 import { listSavedEmailIds } from "@/lib/saved-emails-db";
-import { getViewer } from "@/lib/access";
+import { FREE_FOLLOW_LIMIT, getViewer } from "@/lib/access";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import LockedFeature from "@/components/access/LockedFeature";
 import FollowingClient from "@/components/following/FollowingClient";
+import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import styles from "@/components/brand/brands-explore.module.css";
+import quotaStyles from "@/components/explore/explore.module.css";
 
 export const metadata = {
   title: "Following — Pirol"
@@ -48,18 +51,23 @@ const EMPTY_FACETS: ExploreFacets = {
  * `/api/following/emails`.
  */
 export default async function FollowingPage() {
-  const supabase = await createClient();
   const viewer = await getViewer();
 
-  // Following needs the (admin-only, under RLS) brand + email tables and a
-  // browsable directory to follow from — locked for public users.
-  if (!viewer || !viewer.hasAccess) {
+  // Open to every signed-in user (free accounts follow up to
+  // FREE_FOLLOW_LIMIT brands); only logged-out visitors see the teaser.
+  if (!viewer) {
     return (
       <main className={styles.main}>
         <LockedFeature variant="following" />
       </main>
     );
   }
+
+  // Free session tokens have no RLS grants on brand_follows or the
+  // archive tables, so their reads run on the service-role client —
+  // every helper here filters by user id explicitly. Paid/admin users
+  // stay on their own session client (RLS scopes the rows).
+  const supabase = viewer.hasAccess ? await createClient() : getSupabaseAdmin();
 
   const userId = viewer.userId;
 
@@ -134,11 +142,28 @@ export default async function FollowingPage() {
         <p>
           {followed.length === 0
             ? "Brands you follow will show up here."
-            : `${followed.length} ${
-                followed.length === 1 ? "brand" : "brands"
-              } you follow.`}
+            : viewer.hasAccess
+              ? `${followed.length} ${
+                  followed.length === 1 ? "brand" : "brands"
+                } you follow.`
+              : `${followed.length} of ${FREE_FOLLOW_LIMIT} free follows used.`}
         </p>
       </header>
+
+      {!viewer.hasAccess && followed.length >= FREE_FOLLOW_LIMIT ? (
+        <div className={quotaStyles.saveQuota}>
+          <span className={quotaStyles.saveQuotaText}>
+            You follow all {FREE_FOLLOW_LIMIT} free brands. Upgrade for
+            unlimited follows, collections, and the full archive.
+          </span>
+          <TrackedUpgradeLink
+            source="follow_quota"
+            className={quotaStyles.saveQuotaCta}
+          >
+            View plans
+          </TrackedUpgradeLink>
+        </div>
+      ) : null}
 
       <FollowingClient
         brands={followed}

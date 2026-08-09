@@ -41,11 +41,16 @@ export default async function AppShellLayout({
   let competitorSets: CompetitorSetSummary[] = [];
   let user = null;
 
-  if (viewer && hasAccess) {
-    const supabase = await createClient();
+  if (viewer) {
+    // Free session tokens have no RLS grants on collections /
+    // competitor_sets, so their sidebar lists read through the
+    // service-role client (both helpers filter by user id). Paid users
+    // stay on their own session client.
+    const supabase = hasAccess ? await createClient() : getSupabaseAdmin();
     // Team-shared rows (owned by co-members, read-only for the viewer)
     // ride along in the same sections, appended after the viewer's own
-    // rows and flagged so the sidebar can badge them.
+    // rows and flagged so the sidebar can badge them. Teams are a paid
+    // feature — skipped for free viewers.
     let teamCollections: CollectionSummary[] = [];
     let teamSets: CompetitorSetSummary[] = [];
     [collections, competitorSets, teamCollections, teamSets, user] =
@@ -58,43 +63,47 @@ export default async function AppShellLayout({
           console.error("Failed to load sidebar competitor sets", err);
           return [] as CompetitorSetSummary[];
         }),
-        listTeamSharedCollections(supabase, getSupabaseAdmin(), viewer.userId)
-          .then((shared) =>
-            shared.map((c) => ({
-              id: c.id,
-              name: c.name,
-              icon: c.icon,
-              shareSlug: c.shareSlug,
-              sharedByTeam: true,
-              teamOwnerName: c.ownerName
-            }))
-          )
-          .catch((err) => {
-            console.error("Failed to load sidebar team collections", err);
-            return [] as CollectionSummary[];
-          }),
-        listTeamSharedSets(supabase, getSupabaseAdmin(), viewer.userId)
-          .then((shared) =>
-            shared.map((s) => ({
-              id: s.id,
-              name: s.name,
-              brandCount: s.brandCount,
-              updatedAt: s.updatedAt,
-              sharedByTeam: true,
-              teamOwnerName: s.ownerName
-            }))
-          )
-          .catch((err) => {
-            console.error("Failed to load sidebar team comparisons", err);
-            return [] as CompetitorSetSummary[];
-          }),
+        hasAccess
+          ? listTeamSharedCollections(supabase, getSupabaseAdmin(), viewer.userId)
+              .then((shared) =>
+                shared.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  icon: c.icon,
+                  shareSlug: c.shareSlug,
+                  sharedByTeam: true,
+                  teamOwnerName: c.ownerName
+                }))
+              )
+              .catch((err) => {
+                console.error("Failed to load sidebar team collections", err);
+                return [] as CollectionSummary[];
+              })
+          : ([] as CollectionSummary[]),
+        hasAccess
+          ? listTeamSharedSets(supabase, getSupabaseAdmin(), viewer.userId)
+              .then((shared) =>
+                shared.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  brandCount: s.brandCount,
+                  updatedAt: s.updatedAt,
+                  sharedByTeam: true,
+                  teamOwnerName: s.ownerName
+                }))
+              )
+              .catch((err) => {
+                console.error("Failed to load sidebar team comparisons", err);
+                return [] as CompetitorSetSummary[];
+              })
+          : ([] as CompetitorSetSummary[]),
         getViewerDisplay()
       ]);
     collections = [...collections, ...teamCollections];
     competitorSets = [...competitorSets, ...teamSets];
   } else {
-    // Locked-out viewers (logged-out or unpaid) own no collections or
-    // sets; only the account row needs data.
+    // Logged-out visitors own no collections or sets; only the account
+    // row needs data.
     user = await getViewerDisplay();
   }
 
@@ -105,6 +114,7 @@ export default async function AppShellLayout({
         collections={collections}
         competitorSets={competitorSets}
         hasAccess={hasAccess}
+        signedIn={Boolean(viewer)}
       />
       {children}
     </div>

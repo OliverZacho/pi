@@ -1,8 +1,8 @@
 import type { Viewer } from "@/lib/access";
-import { FREE_SAVE_LIMIT } from "@/lib/access";
+import { FREE_FOLLOW_LIMIT, FREE_SAVE_LIMIT } from "@/lib/access";
 import type { PirolSupabaseClient } from "@/lib/supabase-admin";
 import { countSavedEmails } from "@/lib/saved-emails-db";
-import { listFollowedBrandIds } from "@/lib/follows-db";
+import { countFollows, listFollowedBrandIds } from "@/lib/follows-db";
 import { listHandledBrandRequestsForUser } from "@/lib/brand-requests-db";
 import { getTeamForUser } from "@/lib/teams-db";
 
@@ -68,6 +68,38 @@ export function saveUsageNotice(count: number, limit: number): SidebarNotice {
 }
 
 /**
+ * Free-tier follow meter. Unlike the always-on save card, this one only
+ * appears once the user is close to (or at) the cap — two permanent
+ * meters would crowd the slot, and a user following a handful of brands
+ * doesn't need a countdown. Pure for unit testing; returns `null` while
+ * the user is comfortably under the cap.
+ */
+export function followUsageNotice(
+  count: number,
+  limit: number
+): SidebarNotice | null {
+  const remaining = Math.max(0, limit - count);
+  if (remaining > SAVE_CAP_WARNING_WINDOW) return null;
+  let title: string;
+  if (remaining === 0) {
+    title = `You follow all ${limit} free brands`;
+  } else {
+    title = `Only ${remaining} free ${
+      remaining === 1 ? "follow" : "follows"
+    } left`;
+  }
+  return {
+    id: "follow-usage",
+    kind: "save-usage",
+    title,
+    detail: "Upgrade to follow unlimited brands",
+    cta: { label: "Upgrade", href: "/pricing" },
+    dismissible: false,
+    progress: { count: Math.min(count, limit), limit }
+  };
+}
+
+/**
  * Stable id for the follow-activity notice. Includes the day of the
  * newest matching email so a dismissal holds until newer mail arrives,
  * at which point the id changes and the card resurfaces.
@@ -109,7 +141,7 @@ export async function listSidebarNotices(
   viewer: Viewer,
   now: Date = new Date()
 ): Promise<SidebarNotice[]> {
-  const [brandRequest, teamJoined, followActivity, saveUsage] =
+  const [brandRequest, teamJoined, followActivity, saveUsage, followUsage] =
     await Promise.all([
       brandRequestNotices(admin, viewer.userId, now).catch((err) => {
         console.error("Failed to load brand-request notices", err);
@@ -130,16 +162,27 @@ export async function listSidebarNotices(
             .catch((err) => {
               console.error("Failed to load save usage", err);
               return [];
+            }),
+      viewer.hasAccess
+        ? Promise.resolve([])
+        : countFollows(admin, viewer.userId)
+            .then((count) => {
+              const notice = followUsageNotice(count, FREE_FOLLOW_LIMIT);
+              return notice ? [notice] : [];
+            })
+            .catch((err) => {
+              console.error("Failed to load follow usage", err);
+              return [];
             })
     ]);
 
-  // At the cap, the save card is the most urgent thing in the slot;
-  // otherwise activity news outranks the always-there usage meter.
+  // At the cap, the usage cards are the most urgent things in the slot;
+  // otherwise activity news outranks the always-there meters.
   const usage = saveUsage[0];
   const atCap = usage?.progress && usage.progress.count >= usage.progress.limit;
   return atCap
-    ? [...saveUsage, ...brandRequest, ...teamJoined, ...followActivity]
-    : [...brandRequest, ...teamJoined, ...followActivity, ...saveUsage];
+    ? [...saveUsage, ...followUsage, ...brandRequest, ...teamJoined, ...followActivity]
+    : [...brandRequest, ...teamJoined, ...followActivity, ...followUsage, ...saveUsage];
 }
 
 /**

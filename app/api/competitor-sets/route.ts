@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
+import { FREE_COMPARISON_LIMIT } from "@/lib/access";
+import { freeQuotaDecision } from "@/lib/free-quota";
 import {
+  countCompetitorSets,
   createCompetitorSet,
   parseMemberInputs,
   listCompetitorSetSummaries,
@@ -15,14 +18,14 @@ const MAX_NAME_LENGTH = 120;
  * "Your competitors" section without a per-page server round-trip.
  */
 export async function GET() {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
 
   try {
     const items = await listCompetitorSetSummaries(
-      session.supabase,
+      session.client,
       session.user.id
     );
     return NextResponse.json({ items });
@@ -41,7 +44,7 @@ export async function GET() {
  * `(set_id, company_id)`; bad brand ids are dropped at validation time.
  */
 export async function POST(request: Request) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -82,7 +85,24 @@ export async function POST(request: Request) {
   }
 
   try {
-    const detail = await createCompetitorSet(session.supabase, session.user.id, {
+    if (!session.hasAccess) {
+      const count = await countCompetitorSets(session.client, session.user.id);
+      const decision = freeQuotaDecision({
+        alreadyPresent: false,
+        count,
+        limit: FREE_COMPARISON_LIMIT,
+        code: "COMPARISON_LIMIT_REACHED",
+        error: `Free accounts can create ${FREE_COMPARISON_LIMIT} comparison. Upgrade for unlimited comparisons.`
+      });
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error, code: decision.code },
+          { status: decision.status }
+        );
+      }
+    }
+
+    const detail = await createCompetitorSet(session.client, session.user.id, {
       name: rawName,
       members
     });

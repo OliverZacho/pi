@@ -1,11 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { Database } from "@/types/supabase";
 
 type SessionUser = { id: string; email: string | null };
 type AdminSessionOk = { supabase: SupabaseClient<Database>; user: SessionUser };
 type AdminSessionErr = { response: NextResponse };
+type EntitledSessionOk = AdminSessionOk & {
+  hasAccess: boolean;
+  /**
+   * The client route handlers should run their queries on: the user's own
+   * session client when entitled (RLS scopes rows), the service-role
+   * client when free. Free-tier session tokens have no RLS grants on the
+   * per-user tables, so every free read/write goes through this client
+   * with the app-enforced quota as the only rule — the cap can't be
+   * bypassed via direct PostgREST.
+   */
+  client: SupabaseClient<Database>;
+};
 
 /**
  * Resolve the request's session id by **verifying the JWT locally** with
@@ -45,6 +58,31 @@ export async function requireSession(): Promise<
     };
   }
   return session;
+}
+
+/**
+ * Gate for per-user feature routes open to every signed-in user with
+ * free-tier caps (Following, Collections, Compare). Resolves entitlement
+ * once and hands back the right query client — the same pattern the
+ * save routes established (see app/api/explore/saved). Callers apply
+ * quota checks themselves when `hasAccess` is false.
+ */
+export async function requireSessionWithEntitlement(): Promise<
+  EntitledSessionOk | AdminSessionErr
+> {
+  const session = await resolveSession();
+  if (!session) {
+    return {
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    };
+  }
+  const { data: access } = await session.supabase.rpc("has_archive_access");
+  const hasAccess = Boolean(access);
+  return {
+    ...session,
+    hasAccess,
+    client: hasAccess ? session.supabase : getSupabaseAdmin()
+  };
 }
 
 export async function requireAdminSession(): Promise<

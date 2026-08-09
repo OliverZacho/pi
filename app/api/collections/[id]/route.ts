@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import { getViewer } from "@/lib/access";
 import { hasActiveTeamPlan } from "@/lib/teams-db";
 import {
@@ -62,7 +62,7 @@ async function ownerWriteFailure(
  * plus every email currently in it. Powers `/collections/[id]`.
  */
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -74,7 +74,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const detail = await getCollectionForOwner(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );
@@ -101,7 +101,7 @@ export async function GET(_request: Request, context: RouteContext) {
  * flips the collection back into manual mode.
  */
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -153,6 +153,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: "'notifyNewMatches' must be a boolean" },
       { status: 400 }
+    );
+  }
+
+  // Email notifications are a paid feature. The UI hides the toggle for
+  // free users, but guard the API too; turning notifications off is
+  // always allowed so a lapsed subscriber can still silence them.
+  if (hasNotify && obj.notifyNewMatches === true && !session.hasAccess) {
+    return NextResponse.json(
+      { error: "Email notifications require a paid plan." },
+      { status: 403 }
     );
   }
 
@@ -219,7 +229,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       // adding an extra brand doesn't reset the cutoff.
       if (rules) {
         const existingDetail = await getCollectionForOwner(
-          session.supabase,
+          session.client,
           session.user.id,
           id
         );
@@ -233,7 +243,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
 
       const ok = await setCollectionRules(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         rules
@@ -245,7 +255,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (hasName) {
       const updated = await renameCollection(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         obj.name as string
@@ -257,7 +267,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (hasIcon) {
       const updated = await setCollectionIcon(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         isCollectionIcon(obj.icon) ? obj.icon : null
@@ -269,7 +279,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (hasShared) {
       const updated = await setCollectionShared(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         obj.sharedWithTeam as boolean
@@ -281,7 +291,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (hasNotify) {
       const updated = await setCollectionNotifyNewMatches(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         obj.notifyNewMatches as boolean
@@ -296,7 +306,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     // rules just changed). Cheaper than building the response out of
     // the individual update return values, and a lot less code.
     const detail = await getCollectionForOwner(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );
@@ -321,7 +331,7 @@ export async function PATCH(request: Request, context: RouteContext) {
  * cascades the `collection_emails` rows for free.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -333,7 +343,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   try {
     const removed = await deleteCollection(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );

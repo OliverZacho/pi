@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import { getViewer } from "@/lib/access";
 import { hasActiveTeamPlan } from "@/lib/teams-db";
 import {
@@ -22,7 +22,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  * brand currently in it (with signed logo URLs).
  */
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const detail = await getCompetitorSetForOwner(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );
@@ -57,7 +57,7 @@ export async function GET(_request: Request, context: RouteContext) {
  * read access.
  */
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -134,7 +134,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     if (hasName) {
       const renamed = await renameCompetitorSet(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         obj.name as string
@@ -146,7 +146,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (hasShared) {
       const updated = await setCompetitorSetShared(
-        session.supabase,
+        session.client,
         session.user.id,
         id,
         obj.sharedWithTeam as boolean
@@ -157,7 +157,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const detail = await getCompetitorSetForOwner(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );
@@ -179,7 +179,7 @@ export async function PATCH(request: Request, context: RouteContext) {
  * cascades `competitor_set_members` for free.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -191,7 +191,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   try {
     const removed = await deleteCompetitorSet(
-      session.supabase,
+      session.client,
       session.user.id,
       id
     );
