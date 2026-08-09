@@ -80,7 +80,14 @@ export default function CollectionsGridClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, icon: createIcon })
       });
-      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      if (!res.ok) {
+        // Surface the API's message — for the free-tier collection cap
+        // (409) it's the user-facing upgrade copy.
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errBody?.error ?? `Failed (${res.status})`);
+      }
       const body = await res.json();
       const newId = body?.collection?.id as string | undefined;
       setCreateName("");

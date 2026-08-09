@@ -1263,6 +1263,22 @@ export async function createCollection(
   throw new Error("Failed to allocate a unique share slug after 5 attempts");
 }
 
+/**
+ * Total collections the user owns. Cheap `head:true` count used by the
+ * free-tier cap check.
+ */
+export async function countCollections(
+  supabase: SupabaseClient<Database>,
+  userId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("collections")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function renameCollection(
   supabase: SupabaseClient<Database>,
   userId: string,

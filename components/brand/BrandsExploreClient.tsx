@@ -65,6 +65,12 @@ type Props = {
    */
   isPublic?: boolean;
   /**
+   * Re-enable selection + the batch bar inside the public directory for
+   * signed-in free users — following (capped server-side) and their one
+   * comparison are free features. Ignored outside `isPublic`.
+   */
+  allowFollow?: boolean;
+  /**
    * The user's saved comparisons, powering the batch bar's "Add to…"
    * menu. Empty for public viewers.
    */
@@ -101,9 +107,13 @@ export default function BrandsExploreClient({
   facets,
   searchEndpoint = "/api/brands/list",
   isPublic = false,
+  allowFollow = false,
   comparisons = [],
   initialFollowedBrandIds = []
 }: Props) {
+  // Selection (and with it the batch bar) is available to every
+  // signed-in user; only logged-out visitors browse read-only.
+  const canSelect = !isPublic || allowFollow;
   const [openPopover, setOpenPopover] = useState<PopoverName>(null);
   const [queryInput, setQueryInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -967,7 +977,7 @@ export default function BrandsExploreClient({
           </div>
         </div>
 
-        {isPublic ? null : (
+        {!canSelect ? null : (
           <button
             type="button"
             className={`${styles.selectToggle}${
@@ -1069,7 +1079,7 @@ export default function BrandsExploreClient({
                 // Stagger within the freshly loaded page (existing cards
                 // keep their DOM nodes, so only new arrivals cascade in).
                 enterDelayMs={Math.min(index % pageSize, 16) * 30}
-                selectable={!isPublic}
+                selectable={canSelect}
                 selectMode={selectMode}
                 selected={selectedSet.has(brand.id)}
                 disabled={

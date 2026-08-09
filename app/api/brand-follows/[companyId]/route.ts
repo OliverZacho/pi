@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { FREE_FOLLOW_LIMIT } from "@/lib/access";
+import { freeQuotaDecision } from "@/lib/free-quota";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import {
+  countFollows,
   followBrand,
   isBrandFollowed,
   isValidCompanyId,
@@ -10,12 +13,22 @@ import {
 type RouteContext = { params: Promise<{ companyId: string }> };
 
 /**
+ * Following is open to any signed-in user, but entitlement decides how:
+ *  - Paid / admin (has_archive_access): unrestricted, via their own
+ *    session client (RLS scopes the row).
+ *  - Free: the service-role client performs the operation and the route
+ *    enforces the only free-tier rule — the FREE_FOLLOW_LIMIT cap. Free
+ *    session tokens have no RLS grant on brand_follows, so the cap
+ *    can't be bypassed via direct PostgREST.
+ */
+
+/**
  * `GET /api/brand-follows/[companyId]` — point-check whether the current
  * user follows this brand. The email modal's Follow toggle calls this on
  * open to seed its state (the brand page already knows server-side).
  */
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -27,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const following = await isBrandFollowed(
-      session.supabase,
+      session.client,
       session.user.id,
       companyId
     );
@@ -46,7 +59,7 @@ export async function GET(_request: Request, context: RouteContext) {
  * page's "Follow" toggle uses this.
  */
 export async function PUT(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -57,7 +70,27 @@ export async function PUT(_request: Request, context: RouteContext) {
   }
 
   try {
-    await followBrand(session.supabase, session.user.id, companyId);
+    if (!session.hasAccess) {
+      const [alreadyFollowed, count] = await Promise.all([
+        isBrandFollowed(session.client, session.user.id, companyId),
+        countFollows(session.client, session.user.id)
+      ]);
+      const decision = freeQuotaDecision({
+        alreadyPresent: alreadyFollowed,
+        count,
+        limit: FREE_FOLLOW_LIMIT,
+        code: "FOLLOW_LIMIT_REACHED",
+        error: `Free accounts can follow up to ${FREE_FOLLOW_LIMIT} brands. Upgrade to follow more.`
+      });
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error, code: decision.code },
+          { status: decision.status }
+        );
+      }
+    }
+
+    await followBrand(session.client, session.user.id, companyId);
     return NextResponse.json({ ok: true, following: true });
   } catch (error) {
     console.error("Failed to follow brand", error);
@@ -69,10 +102,11 @@ export async function PUT(_request: Request, context: RouteContext) {
 }
 
 /**
- * `DELETE /api/brand-follows/[companyId]` — remove the follow.
+ * `DELETE /api/brand-follows/[companyId]` — remove the follow. Always
+ * allowed for any signed-in user (frees a slot under the cap).
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -83,7 +117,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   try {
-    await unfollowBrand(session.supabase, session.user.id, companyId);
+    await unfollowBrand(session.client, session.user.id, companyId);
     return NextResponse.json({ ok: true, following: false });
   } catch (error) {
     console.error("Failed to unfollow brand", error);

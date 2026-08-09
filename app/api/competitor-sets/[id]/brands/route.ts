@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import {
   addBrandsToSet,
   parseMemberInputs,
@@ -18,7 +18,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  * client can replace its local state in one go.
  */
 export async function POST(request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -42,7 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const result = await addBrandsToSet(
-      session.supabase,
+      session.client,
       session.user.id,
       id,
       members

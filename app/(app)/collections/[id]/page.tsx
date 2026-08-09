@@ -81,14 +81,12 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const supabase = await createClient();
   const viewer = await getViewer();
 
-  // Collections is a paid feature — public (non-admin) users get a
-  // subscribe panel instead of the collection detail. The one exception is the
-  // onboarding tour's demo collection: unpaid users get its real detail view
-  // (fetched service-side past RLS), read-only (`canEdit=false`).
-  if (!viewer || !viewer.hasAccess) {
+  // Open to every signed-in user; logged-out visitors get the teaser.
+  // The one exception is the onboarding tour's demo collection, which
+  // renders read-only for everyone (fetched service-side past RLS).
+  if (!viewer) {
     if (id === DEMO_COLLECTION_ID) {
       const demo = await demoCollectionView();
       if (demo) return demo;
@@ -102,10 +100,17 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   const userId = viewer.userId;
 
+  // Free session tokens have no RLS grants on collections or the email
+  // tables the detail joins, so free reads run on the service-role
+  // client via the owner-scoped helper (explicit user-id filter).
+  const supabase = viewer.hasAccess ? await createClient() : getSupabaseAdmin();
+
   // Owner path first; fall back to the team-reader path (RLS lets a
-  // co-member read a collection shared with their team).
+  // co-member read a collection shared with their team). The reader
+  // fallback relies on RLS for access control, so it must only ever run
+  // on the viewer's own session client — never the service-role one.
   let collection = await getCollectionForOwner(supabase, userId, id);
-  if (!collection) {
+  if (!collection && viewer.hasAccess) {
     collection = await getCollectionForReader(supabase, id);
   }
   if (!collection) {
@@ -205,7 +210,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
     // Team sharing is a Team-plan feature. Owners without it still see the
     // button — rendered as a locked upsell — so resolve entitlement here.
     // Admins always pass; otherwise it's an active "team" subscription.
-    canEdit
+    canEdit && viewer.hasAccess
       ? viewer.isAdmin
         ? Promise.resolve(true)
         : hasActiveTeamPlan(supabase, userId).catch((err) => {

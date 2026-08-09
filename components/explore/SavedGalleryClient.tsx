@@ -248,7 +248,14 @@ export default function SavedGalleryClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name })
         });
-        if (!createRes.ok) throw new Error(`Failed (${createRes.status})`);
+        if (!createRes.ok) {
+          // Surface the API's message — for the free-tier collection cap
+          // (409) it's the user-facing upgrade copy.
+          const errBody = (await createRes.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(errBody?.error ?? `Failed (${createRes.status})`);
+        }
         const created = (await createRes.json()) as {
           collection: CollectionSummary;
         };
@@ -468,6 +475,12 @@ export default function SavedGalleryClient({
             renderUrlBase="/api/explore/emails"
             detailUrlBase="/api/public/emails"
             readOnly
+            // The public saved view is always a signed-in free user (the
+            // page requires login), so Follow and Save stay live — only
+            // links/source remain paywalled.
+            canFollow
+            isSaved={savedIds.has(openEmail.id)}
+            onToggleSave={handleToggleSave}
           />
         ) : (
           <EmailModal

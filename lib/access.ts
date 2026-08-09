@@ -33,6 +33,21 @@ export const PUBLIC_EXPLORE_LIMIT = 16;
 export const FREE_SAVE_LIMIT = 25;
 
 /**
+ * How many brands a signed-in but unpaid user may follow. Follows are
+ * the return-visit loop (the `/following` feed), so the free cap is
+ * deliberately roomy; paid/admin users are unlimited.
+ */
+export const FREE_FOLLOW_LIMIT = 25;
+
+/**
+ * How many collections / comparisons a free user may own. One of each,
+ * so the feature is genuinely experienced before the paywall: the
+ * second create is the upgrade moment, not the first click.
+ */
+export const FREE_COLLECTION_LIMIT = 1;
+export const FREE_COMPARISON_LIMIT = 1;
+
+/**
  * Resolve the current viewer for this request.
  *
  * Identity comes from `getClaims()`, which **verifies the session JWT

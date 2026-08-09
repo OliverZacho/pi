@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
 import {
   addEmailToCollection,
   removeEmailFromCollection
@@ -16,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string; emailId: string }> };
  * endpoint when the user checks a row.
  */
 export async function PUT(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -28,7 +28,7 @@ export async function PUT(_request: Request, context: RouteContext) {
 
   try {
     const result = await addEmailToCollection(
-      session.supabase,
+      session.client,
       session.user.id,
       id,
       emailId
@@ -54,7 +54,7 @@ export async function PUT(_request: Request, context: RouteContext) {
  * from this collection. Idempotent: no row to delete is still a 200.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireArchiveAccess();
+  const session = await requireSessionWithEntitlement();
   if ("response" in session) {
     return session.response;
   }
@@ -66,7 +66,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   try {
     const ok = await removeEmailFromCollection(
-      session.supabase,
+      session.client,
       session.user.id,
       id,
       emailId

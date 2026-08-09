@@ -17,12 +17,11 @@ export const metadata = {
 };
 
 export default async function CollectionsPage() {
-  const supabase = await createClient();
   const viewer = await getViewer();
 
-  // Collections is a paid feature — public (non-admin) users see a
-  // subscribe panel instead of (their non-existent) collections.
-  if (!viewer || !viewer.hasAccess) {
+  // Open to every signed-in user (free accounts own one collection);
+  // only logged-out visitors see the teaser.
+  if (!viewer) {
     return (
       <main className={styles.main}>
         <LockedFeature variant="collections" />
@@ -32,19 +31,29 @@ export default async function CollectionsPage() {
 
   const userId = viewer.userId;
 
+  // Free session tokens have no RLS grants on collections or the email
+  // tables the previews join, so free reads run on the service-role
+  // client (the helpers filter by user id explicitly). Paid/admin users
+  // stay on their own session client.
+  const supabase = viewer.hasAccess ? await createClient() : getSupabaseAdmin();
+
   // Fan out the page's reads in parallel rather than awaiting them in a
   // chain. The grid's preview payload and the team-shared list are
   // independent; the non-essential source swallows its own error so a
   // broken table never takes down the page.
   const [items, teamShared] = await Promise.all([
     listCollectionsWithPreviews(supabase, userId),
-    // Collections teammates have shared with the viewer's team (read-only).
-    listTeamSharedCollections(supabase, getSupabaseAdmin(), userId).catch(
-      (err) => {
-        console.error("Failed to load team-shared collections", err);
-        return [] as TeamSharedCollection[];
-      }
-    )
+    // Collections teammates have shared with the viewer's team
+    // (read-only). Teams are a paid feature, so skip the read for free
+    // viewers rather than probing team tables they can't be in.
+    viewer.hasAccess
+      ? listTeamSharedCollections(supabase, getSupabaseAdmin(), userId).catch(
+          (err) => {
+            console.error("Failed to load team-shared collections", err);
+            return [] as TeamSharedCollection[];
+          }
+        )
+      : ([] as TeamSharedCollection[])
   ]);
 
   return (

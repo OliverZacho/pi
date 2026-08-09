@@ -5,6 +5,7 @@ import {
   BRAND_PREVIEW_CALENDAR
 } from "@/lib/brand-preview-sample";
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
+import BrandFollowButton from "./BrandFollowButton";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandClockHeatmap from "./BrandClockHeatmap";
 import {
@@ -57,10 +58,17 @@ const sample = BRAND_PREVIEW_SAMPLE;
  */
 export default function BrandLockedDashboard({
   brand,
-  summary
+  summary,
+  follow
 }: {
   brand: LockedBrand;
   summary?: string | null;
+  /**
+   * Follow toggle state for signed-in free viewers — following is a
+   * free feature even though the analytics stay locked. Omitted for
+   * logged-out visitors, who only get the upgrade CTA.
+   */
+  follow?: { brandId: string; initialFollowing: boolean };
 }) {
   return (
     <main className={styles.main}>
@@ -126,10 +134,18 @@ export default function BrandLockedDashboard({
           </div>
         </div>
 
-        <TrackedUpgradeLink source="brand_hero" className={locked.upgradeBtn}>
-          <LockIcon />
-          <span>Upgrade to unlock analytics</span>
-        </TrackedUpgradeLink>
+        <div className={locked.heroCtas}>
+          {follow ? (
+            <BrandFollowButton
+              brandId={follow.brandId}
+              initialFollowing={follow.initialFollowing}
+            />
+          ) : null}
+          <TrackedUpgradeLink source="brand_hero" className={locked.upgradeBtn}>
+            <LockIcon />
+            <span>Upgrade to unlock analytics</span>
+          </TrackedUpgradeLink>
+        </div>
       </header>
 
       {/*

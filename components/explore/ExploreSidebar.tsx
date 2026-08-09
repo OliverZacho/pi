@@ -58,6 +58,13 @@ type Props = {
    */
   hasAccess?: boolean;
   /**
+   * Whether anyone is signed in at all. Free signed-in users own (capped)
+   * collections and comparisons, so the management sections render for
+   * them too — only logged-out visitors lose them. Defaults to
+   * `hasAccess` for backwards compatibility.
+   */
+  signedIn?: boolean;
+  /**
    * Signed-in viewer's display identity (resolved server-side via
    * `getViewerDisplay`). When present, the sidebar footer renders the
    * account row + menu; when null/absent (logged-out preview) it falls
@@ -644,6 +651,7 @@ export default function ExploreSidebar({
   collections = EMPTY_COLLECTIONS,
   competitorSets = EMPTY_COMPETITOR_SETS,
   hasAccess = true,
+  signedIn = hasAccess,
   user = null
 }: Props = {}) {
   const router = useRouter();
@@ -727,7 +735,14 @@ export default function ExploreSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name })
       });
-      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      if (!res.ok) {
+        // Surface the API's message — for the free-tier collection cap
+        // (409) it's the user-facing upgrade copy.
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errBody?.error ?? `Failed (${res.status})`);
+      }
       const body = (await res.json()) as { collection: CollectionSummary };
       setItems((current) => [body.collection, ...current]);
       setCreateName("");
@@ -867,7 +882,7 @@ export default function ExploreSidebar({
         })}
       </div>
 
-      {hasAccess ? (
+      {signedIn ? (
         <>
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>

@@ -120,9 +120,11 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     }
 
     const admin = getSupabaseAdmin();
-    // Identity and summary are independent — fetch together. The summary
-    // is only wasted on a 404, the rare case.
-    const [{ data: company }, summary] = await Promise.all([
+    // Identity, summary, and (for signed-in free viewers) follow state
+    // are independent — fetch together. Follow state reads through the
+    // service-role client because free tokens have no brand_follows
+    // grant; the helper filters by user id explicitly.
+    const [{ data: company }, summary, isFollowing] = await Promise.all([
       admin
         .from("companies")
         .select(
@@ -130,7 +132,13 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
         )
         .eq("id", id)
         .maybeSingle(),
-      loadBrandSummary(id, resolved.name)
+      loadBrandSummary(id, resolved.name),
+      viewer
+        ? isBrandFollowed(admin, viewer.userId, id).catch((err) => {
+            console.error("Failed to load follow state for locked brand", err);
+            return false;
+          })
+        : Promise.resolve(false)
     ]);
 
     if (!company || company.deleted_at) {
@@ -162,6 +170,9 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
           subscribedSince: company.subscribed_since ?? null
         }}
         summary={summary?.paragraph ?? null}
+        follow={
+          viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
+        }
       />
     );
   }

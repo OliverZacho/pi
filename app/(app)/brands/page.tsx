@@ -41,14 +41,31 @@ export default async function BrandsPage() {
   // service-role API), they just can't open a brand's locked analytics.
   if (!viewer || !viewer.hasAccess) {
     const admin = getSupabaseAdmin();
-    const [publicResult, publicFacets] = await Promise.all([
-      searchBrands(admin, {
-        page: 1,
-        pageSize: BRANDS_PAGE_SIZE,
-        sort: "most_active"
-      }),
-      getBrandsFacets(admin)
-    ]);
+    // Signed-in free users can select brands to follow (capped) and fill
+    // their one comparison, so their follow/comparison state loads too —
+    // via the service-role client (free tokens have no RLS grants on
+    // those tables; both helpers filter by user id).
+    const [publicResult, publicFacets, freeComparisons, freeFollowedIds] =
+      await Promise.all([
+        searchBrands(admin, {
+          page: 1,
+          pageSize: BRANDS_PAGE_SIZE,
+          sort: "most_active"
+        }),
+        getBrandsFacets(admin),
+        viewer
+          ? listCompetitorSetSummaries(admin, viewer.userId).catch((err) => {
+              console.error("Failed to load comparisons", err);
+              return [] as CompetitorSetSummary[];
+            })
+          : Promise.resolve([] as CompetitorSetSummary[]),
+        viewer
+          ? listFollowedBrandIds(admin, viewer.userId).catch((err) => {
+              console.error("Failed to load followed brands", err);
+              return new Set<string>();
+            })
+          : Promise.resolve(new Set<string>())
+      ]);
 
     return (
       <main className={styles.main}>
@@ -71,6 +88,9 @@ export default async function BrandsPage() {
           facets={publicFacets}
           searchEndpoint="/api/public/brands/list"
           isPublic
+          allowFollow={Boolean(viewer)}
+          comparisons={freeComparisons}
+          initialFollowedBrandIds={Array.from(freeFollowedIds)}
         />
       </main>
     );
