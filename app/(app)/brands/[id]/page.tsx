@@ -120,26 +120,34 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     }
 
     const admin = getSupabaseAdmin();
-    // Identity, summary, and (for signed-in free viewers) follow state
-    // are independent — fetch together. Follow state reads through the
-    // service-role client because free tokens have no brand_follows
-    // grant; the helper filters by user id explicitly.
-    const [{ data: company }, summary, isFollowing] = await Promise.all([
-      admin
-        .from("companies")
-        .select(
-          "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, logo_source, subscribed_since, deleted_at"
-        )
-        .eq("id", id)
-        .maybeSingle(),
-      loadBrandSummary(id, resolved.name),
-      viewer
-        ? isBrandFollowed(admin, viewer.userId, id).catch((err) => {
-            console.error("Failed to load follow state for locked brand", err);
-            return false;
-          })
-        : Promise.resolve(false)
-    ]);
+    // Identity, summary, and (for signed-in free viewers) follow state +
+    // the real dashboard payload are independent — fetch together. The
+    // service-role client is used throughout because free tokens have no
+    // RLS grants here. The heavy dashboard query only runs for signed-in
+    // viewers, so logged-out / crawler traffic stays on the cheap path.
+    const [{ data: company }, summary, isFollowing, liveData] =
+      await Promise.all([
+        admin
+          .from("companies")
+          .select(
+            "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, logo_source, subscribed_since, deleted_at"
+          )
+          .eq("id", id)
+          .maybeSingle(),
+        loadBrandSummary(id, resolved.name),
+        viewer
+          ? isBrandFollowed(admin, viewer.userId, id).catch((err) => {
+              console.error("Failed to load follow state for locked brand", err);
+              return false;
+            })
+          : Promise.resolve(false),
+        viewer
+          ? getBrandPageData(admin, id).catch((err) => {
+              console.error("Failed to load live teaser data", err);
+              return null;
+            })
+          : Promise.resolve(null)
+      ]);
 
     if (!company || company.deleted_at) {
       notFound();
@@ -172,6 +180,17 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
         summary={summary?.paragraph ?? null}
         follow={
           viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
+        }
+        live={
+          liveData
+            ? {
+                totals: liveData.totals,
+                cadence: liveData.cadence,
+                promo: liveData.promo,
+                esp: liveData.esp,
+                calendar: liveData.calendar
+              }
+            : undefined
         }
       />
     );

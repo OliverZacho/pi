@@ -18,6 +18,7 @@ import {
   CtaCloudCard
 } from "./BrandDashboard";
 import { brandUrlLabel } from "@/lib/brand-url";
+import type { BrandPageData } from "@/lib/brand-db";
 import styles from "./brand.module.css";
 import locked from "./brand-locked.module.css";
 
@@ -59,7 +60,8 @@ const sample = BRAND_PREVIEW_SAMPLE;
 export default function BrandLockedDashboard({
   brand,
   summary,
-  follow
+  follow,
+  live
 }: {
   brand: LockedBrand;
   summary?: string | null;
@@ -69,6 +71,18 @@ export default function BrandLockedDashboard({
    * logged-out visitors, who only get the upgrade CTA.
    */
   follow?: { brandId: string; initialFollowing: boolean };
+  /**
+   * Real data for the free teaser: signed-in free viewers get the KPI
+   * tiles and the send calendar with the brand's actual numbers,
+   * rendered unblurred above the locked region (which then drops its
+   * sample copies of both). Omitted for logged-out visitors — the
+   * heavy dashboard query stays off the SEO/crawler path and they keep
+   * the all-sample preview.
+   */
+  live?: Pick<
+    BrandPageData,
+    "totals" | "cadence" | "promo" | "esp" | "calendar"
+  >;
 }) {
   return (
     <main className={styles.main}>
@@ -149,27 +163,55 @@ export default function BrandLockedDashboard({
       </header>
 
       {/*
-        One paywall, not ten. The real dashboard charts render underneath with a
-        shared sample dataset, blurred, and a single unlock card floats over the
-        whole region — so the page reads as the genuine product, not a stack of
-        empty "subscribe to see this" tiles.
+        The free teaser: signed-in free viewers get the brand's real KPI
+        tiles and send calendar in the clear — enough signal to make
+        following worthwhile — while everything deeper stays locked.
       */}
-      <div className={locked.lockedRegion}>
-        <div className={locked.previewClip} aria-hidden="true">
-          <div className={locked.preview}>
+      {live ? (
+        <>
           <KpiGrid
-            totals={sample.totals}
-            cadence={sample.cadence}
-            promo={sample.promo}
-            esp={sample.esp}
+            totals={live.totals}
+            cadence={live.cadence}
+            promo={live.promo}
+            esp={live.esp}
           />
 
           <section className={styles.recentSection}>
             <BrandActivityCalendar
               brandName={brand.name}
-              calendar={BRAND_PREVIEW_CALENDAR}
+              calendar={live.calendar}
             />
           </section>
+        </>
+      ) : null}
+
+      {/*
+        One paywall, not ten. The real dashboard charts render underneath with a
+        shared sample dataset, blurred, and a single unlock card floats over the
+        whole region — so the page reads as the genuine product, not a stack of
+        empty "subscribe to see this" tiles. When the live teaser above is
+        showing, its sections drop out of the sample so nothing renders twice.
+      */}
+      <div className={locked.lockedRegion}>
+        <div className={locked.previewClip} aria-hidden="true">
+          <div className={locked.preview}>
+          {live ? null : (
+            <>
+              <KpiGrid
+                totals={sample.totals}
+                cadence={sample.cadence}
+                promo={sample.promo}
+                esp={sample.esp}
+              />
+
+              <section className={styles.recentSection}>
+                <BrandActivityCalendar
+                  brandName={brand.name}
+                  calendar={BRAND_PREVIEW_CALENDAR}
+                />
+              </section>
+            </>
+          )}
 
           <section className={styles.recentSection}>
             <BrandClockHeatmap
