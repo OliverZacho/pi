@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EmailModal from "@/components/explore/EmailModal";
+import { emitSavedDelta } from "@/components/explore/SidebarNotices";
 import FigureDownload from "@/components/FigureDownload";
 import type { BrandPageData } from "@/lib/brand-db";
 import { formatShortDate, parseDayKey } from "@/lib/datetime";
@@ -181,6 +182,7 @@ export default function BrandSeasonalRunup({ brand, sample }: Props) {
           credentials: "include"
         });
         if (!res.ok) throw new Error(`Failed (${res.status})`);
+        emitSavedDelta(next ? 1 : -1);
       } catch {
         setSavedIds((current) => {
           const updated = new Set(current);

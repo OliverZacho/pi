@@ -6,6 +6,7 @@ import type { ExploreEmailCard } from "@/lib/explore-db";
 import type { SavedEmailCard } from "@/lib/saved-emails-db";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
+import { emitSavedDelta } from "./SidebarNotices";
 import styles from "./explore.module.css";
 
 type Props = {
@@ -168,6 +169,7 @@ export default function SavedGalleryClient({
           credentials: "include"
         });
         if (!res.ok) throw new Error(`Failed (${res.status})`);
+        emitSavedDelta(-1);
       } catch (err) {
         setEmails(previous);
         setError(err instanceof Error ? err.message : "Failed to unsave");

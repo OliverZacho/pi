@@ -5,6 +5,11 @@ import { countSavedEmails } from "@/lib/saved-emails-db";
 import { countFollows, listFollowedBrandIds } from "@/lib/follows-db";
 import { listHandledBrandRequestsForUser } from "@/lib/brand-requests-db";
 import { getTeamForUser } from "@/lib/teams-db";
+import {
+  followUsageNotice,
+  saveUsageNotice,
+  type SidebarNotice
+} from "@/lib/sidebar-notices-shared";
 
 /**
  * Notices rendered in the sidebar footer slot (above the account row).
@@ -12,22 +17,17 @@ import { getTeamForUser } from "@/lib/teams-db";
  * one the user hasn't dismissed. Dismissals live in localStorage keyed
  * by `id`, so ids must stay stable for the lifetime of a notice and
  * change when the notice should resurface (e.g. new emails arrived).
+ *
+ * The notice type and the pure usage-card builders live in
+ * `sidebar-notices-shared.ts` (client-safe); they're re-exported here so
+ * server code and tests keep a single import path.
  */
-export type SidebarNotice = {
-  id: string;
-  kind: "save-usage" | "brand-request" | "team-joined" | "follow-activity";
-  title: string;
-  /** Muted second line under the title, or `null` for title-only. */
-  detail: string | null;
-  cta: { label: string; href: string } | null;
-  /** Dismissible notices show an ✕; persistent ones (the save cap) don't. */
-  dismissible: boolean;
-  /** Drives the progress bar on the free save-usage card. */
-  progress?: { count: number; limit: number };
-};
-
-/** How close to the cap the copy switches to "only N left" urgency. */
-export const SAVE_CAP_WARNING_WINDOW = 5;
+export {
+  followUsageNotice,
+  saveUsageNotice,
+  SAVE_CAP_WARNING_WINDOW
+} from "@/lib/sidebar-notices-shared";
+export type { SidebarNotice } from "@/lib/sidebar-notices-shared";
 
 /** Handled brand requests older than this stop producing notices. */
 const BRAND_REQUEST_WINDOW_DAYS = 30;
@@ -37,67 +37,6 @@ const TEAM_JOINED_WINDOW_DAYS = 14;
 
 /** PostgREST `.in()` builds a URL — keep the id list bounded. */
 const MAX_FOLLOWED_IDS = 200;
-
-/**
- * The free-tier base card: progress toward the save cap, escalating as
- * the user approaches it. Pure so the threshold copy is unit-testable.
- */
-export function saveUsageNotice(count: number, limit: number): SidebarNotice {
-  const remaining = Math.max(0, limit - count);
-  let title: string;
-  let detail: string;
-  if (remaining === 0) {
-    title = `You've used all ${limit} free saves`;
-    detail = "Upgrade for unlimited saving";
-  } else if (remaining <= SAVE_CAP_WARNING_WINDOW) {
-    title = `Only ${remaining} free ${remaining === 1 ? "save" : "saves"} left`;
-    detail = "Upgrade for unlimited saving";
-  } else {
-    title = `${count} of ${limit} free saves used`;
-    detail = "Upgrade for unlimited use";
-  }
-  return {
-    id: "save-usage",
-    kind: "save-usage",
-    title,
-    detail,
-    cta: { label: "Upgrade", href: "/pricing" },
-    dismissible: false,
-    progress: { count: Math.min(count, limit), limit }
-  };
-}
-
-/**
- * Free-tier follow meter. Unlike the always-on save card, this one only
- * appears once the user is close to (or at) the cap — two permanent
- * meters would crowd the slot, and a user following a handful of brands
- * doesn't need a countdown. Pure for unit testing; returns `null` while
- * the user is comfortably under the cap.
- */
-export function followUsageNotice(
-  count: number,
-  limit: number
-): SidebarNotice | null {
-  const remaining = Math.max(0, limit - count);
-  if (remaining > SAVE_CAP_WARNING_WINDOW) return null;
-  let title: string;
-  if (remaining === 0) {
-    title = `You follow all ${limit} free brands`;
-  } else {
-    title = `Only ${remaining} free ${
-      remaining === 1 ? "follow" : "follows"
-    } left`;
-  }
-  return {
-    id: "follow-usage",
-    kind: "save-usage",
-    title,
-    detail: "Upgrade to follow unlimited brands",
-    cta: { label: "Upgrade", href: "/pricing" },
-    dismissible: false,
-    progress: { count: Math.min(count, limit), limit }
-  };
-}
 
 /**
  * Stable id for the follow-activity notice. Includes the day of the

@@ -24,6 +24,7 @@ import { countryLabel } from "@/lib/country";
 import type { CollectionIcon } from "@/lib/collection-icons";
 import EmailCard from "../explore/EmailCard";
 import EmailModal from "../explore/EmailModal";
+import { emitSavedDelta } from "../explore/SidebarNotices";
 import exploreStyles from "../explore/explore.module.css";
 import CollectionEventInsights from "./CollectionEventInsights";
 import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
@@ -236,6 +237,7 @@ export default function CollectionDetailClient({
           credentials: "include"
         });
         if (!res.ok) throw new Error(`Failed (${res.status})`);
+        emitSavedDelta(next ? 1 : -1);
       } catch (err) {
         setSavedIds((current) => {
           const updated = new Set(current);
