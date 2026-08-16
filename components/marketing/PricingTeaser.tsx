@@ -1,11 +1,16 @@
 import Link from "next/link";
 import styles from "./home-sections.module.css";
+import { TRIAL_PERIOD_DAYS } from "@/lib/trial";
 
 /**
  * Pricing teaser built to convert: it frames the upgrade as Free (look) →
  * Solo (act), shows the real feature delta that unlocks, anchors annual as the
- * better deal, and removes risk (no card to start, 7-day refund). Numbers and
- * feature lists mirror the pricing page (Pricing.tsx).
+ * better deal, and removes risk (browse without a card, then a free trial on
+ * Solo). Numbers and feature lists mirror the pricing page (Pricing.tsx).
+ *
+ * Static, so it always shows the trial pitch rather than checking whether this
+ * visitor still has theirs — /pricing and the in-app plan modal do that check
+ * and correct the label. Checkout is the real gate either way (lib/trial.ts).
  */
 export default function PricingTeaser() {
   return (
@@ -16,9 +21,9 @@ export default function PricingTeaser() {
           Free shows you the archive. Solo hands you the playbook.
         </h2>
         <p className={styles.sectionLede}>
-          Start free, no card required. When you&rsquo;re ready to act on what
-          you find, one upgrade unlocks every email, every brand, and every
-          dashboard.
+          Browse free, no card required. When you&rsquo;re ready to act on what
+          you find, try Solo free for {TRIAL_PERIOD_DAYS} days and unlock every
+          email, every brand, and every dashboard.
         </p>
       </div>
 
@@ -54,7 +59,9 @@ export default function PricingTeaser() {
           <div className={styles.planPrice}>
             <span className={styles.planAmount}>€30</span>
             <span className={styles.planPer}>/ month</span>
-            <span className={styles.planAnnual}>or €300/yr, 2 months free</span>
+            <span className={styles.planAnnual}>
+              free for {TRIAL_PERIOD_DAYS} days, or €300/yr with 2 months free
+            </span>
           </div>
           <p className={styles.planEverything}>Everything in Free, plus:</p>
           <ul className={`${styles.planFeatures} ${styles.planFeaturesUnlock}`}>
@@ -65,7 +72,7 @@ export default function PricingTeaser() {
             <li>Follow brands &amp; catch every new send</li>
           </ul>
           <Link href="/signup" className={styles.planCta}>
-            Get Solo
+            Start {TRIAL_PERIOD_DAYS}-day free trial
           </Link>
         </div>
       </div>
@@ -79,8 +86,8 @@ export default function PricingTeaser() {
       </p>
 
       <ul className={styles.reassure}>
-        <li>No card required to start</li>
-        <li>7-day refund, no questions asked</li>
+        <li>No card required to browse</li>
+        <li>We email you before the trial ends</li>
         <li>Cancel anytime</li>
       </ul>
     </section>

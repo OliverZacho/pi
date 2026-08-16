@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getStripe, priceIdFor, type Billing, type PlanId } from "@/lib/stripe";
+import { trialEligible, TRIAL_PERIOD_DAYS } from "@/lib/trial";
 
 export const CHECKOUT_PLANS: PlanId[] = ["solo", "team"];
 export const CHECKOUT_BILLINGS: Billing[] = ["monthly", "annual"];
@@ -53,7 +54,9 @@ export async function startCheckoutSession(params: {
   // payment) so repeat checkouts don't spawn duplicate customers.
   const { data: existing } = await admin
     .from("subscriptions")
-    .select("stripe_customer_id, status")
+    .select(
+      "stripe_customer_id, status, trial_started_at, stripe_subscription_id"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -99,13 +102,23 @@ export async function startCheckoutSession(params: {
     });
   }
 
+  // First Solo checkout opens with a free trial. Stripe still collects the
+  // card on this session (`payment_method_collection` defaults to "always"
+  // in subscription mode), holds the subscription in `trialing`, then charges
+  // and flips it to `active` by itself — no scheduling on our side. The
+  // webhook stamps `trial_started_at`, which is what makes it a one-off.
+  const withTrial = trialEligible(plan, existing ?? null);
+
   const checkout = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     client_reference_id: userId,
     line_items: [{ price: priceIdFor(plan, billing), quantity: 1 }],
     allow_promotion_codes: true,
-    subscription_data: { metadata: { user_id: userId, plan } },
+    subscription_data: {
+      metadata: { user_id: userId, plan },
+      ...(withTrial ? { trial_period_days: TRIAL_PERIOD_DAYS } : {}),
+    },
     // session_id lets the landing page reconcile entitlement directly with
     // Stripe (lib/stripe-sync.ts) instead of waiting on the webhook.
     success_url: `${origin}/explore?checkout=success&session_id={CHECKOUT_SESSION_ID}`,

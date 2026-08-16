@@ -37,11 +37,19 @@ type Step = "details" | "business" | "verify" | "linkSent";
 export default function CheckoutAuthFlow({
   plan,
   billing,
+  trialDays = null,
   onBack,
   onClose
 }: {
   plan: CheckoutPlan;
   billing: "monthly" | "annual";
+  /**
+   * Length of the free trial this checkout opens with, or null for a plan or
+   * buyer that gets none. Decided by the caller (which has already checked
+   * eligibility); `lib/trial.ts` re-decides it server-side at checkout, so
+   * this only ever affects what the summary says.
+   */
+  trialDays?: number | null;
   /** Return to the plan cards. */
   onBack: () => void;
   /** Dismiss the whole modal (only when opened as a dismissible upgrade). */
@@ -641,16 +649,24 @@ export default function CheckoutAuthFlow({
         {/* RIGHT — the persistent order summary */}
         <aside className={styles.right}>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryEyebrow}>You&apos;re buying</span>
+            <span className={styles.summaryEyebrow}>
+              {trialDays ? "You're starting" : "You're buying"}
+            </span>
             <h3 className={styles.summaryPlan}>Pirol {plan.name}</h3>
             <div className={styles.summaryPrice}>
               <span className={styles.summaryAmount}>€{perMonth}</span>
               <span className={styles.summaryUnit}>/mo</span>
             </div>
             <p className={styles.summaryBilling}>
-              {billing === "annual"
-                ? `€${plan.annual} billed yearly (2 months free)`
-                : "billed monthly"}
+              {trialDays
+                ? `Free for ${trialDays} days, then ${
+                    billing === "annual"
+                      ? `€${plan.annual} billed yearly (2 months free)`
+                      : `€${plan.monthly} billed monthly`
+                  }`
+                : billing === "annual"
+                  ? `€${plan.annual} billed yearly (2 months free)`
+                  : "billed monthly"}
             </p>
             <ul className={styles.summaryFeatures}>
               {plan.features.map((f) => (
@@ -674,11 +690,15 @@ export default function CheckoutAuthFlow({
               ))}
             </ul>
             <p className={styles.summaryFinePrint}>
-              Secure payment through Stripe. Cancel anytime.
+              {trialDays
+                ? `Secure payment through Stripe. Your card is saved now but nothing is charged for ${trialDays} days.`
+                : "Secure payment through Stripe. Cancel anytime."}
             </p>
           </div>
           <p className={styles.summaryRefund}>
-            7 day refund, no questions asked.
+            {trialDays
+              ? "We email you before the trial ends. Cancel any time before then and you pay nothing."
+              : "Cancel any time from your billing settings."}
           </p>
         </aside>
       </div>

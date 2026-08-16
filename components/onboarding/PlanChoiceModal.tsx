@@ -6,6 +6,7 @@ import { Caveat } from "next/font/google";
 import styles from "./plan-choice.module.css";
 import CheckoutAuthFlow from "./CheckoutAuthFlow";
 import { perMonthLabel } from "@/lib/pricing";
+import { useTrialEligibility } from "@/lib/use-trial-eligibility";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -21,6 +22,11 @@ type Plan = {
   annual: number;
   featured?: boolean;
   cta: string;
+  /**
+   * CTA shown instead of `cta` while this account still has its one free
+   * trial. Only Solo carries a trial (see lib/trial.ts).
+   */
+  trialCta?: string;
   features: string[];
 };
 
@@ -47,6 +53,7 @@ const PLANS: Plan[] = [
     monthly: 30,
     annual: 300,
     cta: "Get Solo",
+    trialCta: "Start 14-day free trial",
     features: [
       "Full access to the entire archive",
       "Unlimited saves & collections",
@@ -100,8 +107,30 @@ export default function PlanChoiceModal({
   // inline email-verify step (this holds which plan they're buying) and resume
   // checkout once they have a session.
   const [verifyPlan, setVerifyPlan] = useState<"solo" | "team" | null>(null);
+  // Solo leads with the free trial, but only for an account that still has one.
+  const trial = useTrialEligibility();
 
   const dismissible = typeof onClose === "function";
+
+  /** CTA label for a card, swapping in the trial pitch where it applies. */
+  function ctaLabel(plan: Plan): string {
+    return trial.eligible && plan.trialCta ? plan.trialCta : plan.cta;
+  }
+
+  /**
+   * The line under the price. A trial-eligible Solo card leads with the free
+   * window and still names what follows, so the trial never reads as the
+   * whole deal.
+   */
+  function priceNote(plan: Plan): string {
+    if (plan.monthly === 0 && plan.annual === 0) return "";
+    const charge =
+      billing === "annual" ? `€${plan.annual}/yr` : `€${plan.monthly}/mo`;
+    if (trial.eligible && plan.trialCta) {
+      return `free for ${trial.days} days, then ${charge}`;
+    }
+    return billing === "annual" ? `billed ${charge}` : "";
+  }
 
   // Esc closes the dismissible (upgrade) variant; the forced onboarding variant
   // ignores it so new signups can't skip the choice.
@@ -188,6 +217,7 @@ export default function PlanChoiceModal({
             features: chosen.features
           }}
           billing={billing}
+          trialDays={trial.eligible && chosen.trialCta ? trial.days : null}
           onBack={() => {
             setVerifyPlan(null);
             setPending(null);
@@ -233,9 +263,11 @@ export default function PlanChoiceModal({
             {dismissible ? "Upgrade your plan" : "Welcome to Pirol — pick your plan"}
           </h2>
           <p className={styles.subtitle}>
-            {dismissible
-              ? "Unlock the full archive and every feature. Change or cancel anytime."
-              : "Choose how you want to start. You can change this anytime."}
+            {trial.eligible
+              ? `Unlock the full archive and every feature. Solo is free for ${trial.days} days, and we email you before the trial ends.`
+              : dismissible
+                ? "Unlock the full archive and every feature. Change or cancel anytime."
+                : "Choose how you want to start. You can change this anytime."}
           </p>
 
           <div className={styles.billingToggleWrap}>
@@ -316,11 +348,9 @@ export default function PlanChoiceModal({
                     </>
                   )}
                 </div>
-                {!isFree && billing === "annual" ? (
-                  <p className={styles.priceNote}>billed €{plan.annual}/yr</p>
-                ) : (
-                  <p className={styles.priceNote}>&nbsp;</p>
-                )}
+                {/* Falls back to a non-breaking space so a card with no
+                    note keeps the same height as one that has it. */}
+                <p className={styles.priceNote}>{priceNote(plan) || "\u00a0"}</p>
 
                 <ul className={styles.features}>
                   {plan.features.map((feature) => (
@@ -343,7 +373,7 @@ export default function PlanChoiceModal({
                     ? "One moment…"
                     : dismissible && plan.id === "free"
                       ? "Stay on Free"
-                      : plan.cta}
+                      : ctaLabel(plan)}
                 </button>
               </div>
             );

@@ -36,11 +36,16 @@ export const PRICING_FAQ: PricingFaqItem[] = [
   {
     question: "Do I need a credit card to get started?",
     answer:
-      "No. You can create a free account and start browsing the archive without entering any payment details.",
+      "No. You can create a free account and start browsing the archive without entering any payment details. A card is only needed when you start the Solo trial or buy a paid plan.",
   },
   {
-    question: "What is the refund policy?",
+    question: "Is there a free trial?",
     answer:
-      "If a paid plan isn't for you, email us within 7 days of purchase and you'll get a full refund — no questions asked.",
+      "Yes. Solo starts with a 14-day free trial. You enter your card when you start it, but nothing is charged until the 14 days are up, and we email you before that happens. Cancel any time before the trial ends and you pay nothing. The trial is one per account, and the Team plan does not include one.",
+  },
+  {
+    question: "What happens when the free trial ends?",
+    answer:
+      "Your card is charged for the plan and billing period you picked, and Solo continues without interruption. We send you a reminder email before that first charge. If you cancel during the trial you are never charged, and your account simply returns to the Free plan.",
   },
 ];
