@@ -15,6 +15,14 @@
  * crawlable content, not cloaking.
  */
 
+/**
+ * Below this many captured emails a brand page is thin: not enough sends for
+ * a cadence, a mix, or a calendar worth reading. Thin brands are noindexed
+ * and left out of the sitemap so the strong pages carry the site's quality
+ * signal — the page itself still renders for direct visitors.
+ */
+export const MIN_INDEXABLE_EMAILS = 5;
+
 /** The minimal set of facts the prose needs. Derivable from BrandPageData. */
 export type BrandSummaryFacts = {
   name: string;

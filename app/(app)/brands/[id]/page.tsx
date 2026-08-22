@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -13,6 +14,8 @@ import {
   resolveBrandHandle
 } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
+import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
+import { ORGANIZATION_ID } from "@/lib/structured-data";
 import {
   listCompetitorSetSummaries,
   listSetIdsContainingBrand,
@@ -43,6 +46,64 @@ const loadBrandSummary = cache((id: string, name: string) =>
 );
 
 /**
+ * The public teaser: the brand's real KPI tiles + send calendar, served to
+ * *every* locked viewer — including logged-out visitors and crawlers. This is
+ * what makes each brand page unique, honest content (no shared sample data in
+ * the crawlable HTML). The heavy dashboard query is too expensive to run per
+ * anonymous request, so the subset is cached across requests for an hour —
+ * fine for a teaser that changes at most a few times a day.
+ */
+const loadPublicTeaser = unstable_cache(
+  async (companyId: string) => {
+    const data = await getBrandPageData(getSupabaseAdmin(), companyId);
+    if (!data) return null;
+    return {
+      totals: data.totals,
+      cadence: data.cadence,
+      promo: data.promo,
+      esp: data.esp,
+      calendar: data.calendar
+    };
+  },
+  ["brand-public-teaser"],
+  { revalidate: 3600 }
+);
+
+/**
+ * Same-market brands for the cross-link strip on the public page. Only
+ * brands that clear the indexability threshold are linked — pointing
+ * crawlers at noindexed pages wastes the crawl. Cached hourly; the list
+ * barely changes.
+ */
+const loadRelatedBrands = unstable_cache(
+  async (companyId: string, markets: string[]) => {
+    const admin = getSupabaseAdmin();
+    let query = admin
+      .from("companies")
+      .select("slug, name, company_email_stats(email_count)")
+      .neq("id", companyId)
+      .is("deleted_at", null)
+      .limit(24);
+    if (markets.length > 0) {
+      query = query.overlaps("markets", markets);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? [])
+      .filter((row) => {
+        const stats = Array.isArray(row.company_email_stats)
+          ? row.company_email_stats[0]
+          : row.company_email_stats;
+        return (stats?.email_count ?? 0) >= MIN_INDEXABLE_EMAILS;
+      })
+      .slice(0, 6)
+      .map((row) => ({ slug: row.slug, name: row.name }));
+  },
+  ["brand-related"],
+  { revalidate: 3600 }
+);
+
+/**
  * Per-brand SaaS-style dashboard. The companion to `/explore`: where
  * Explore answers "show me what's hitting inboxes", this page answers
  * "tell me everything you know about this one brand's email program".
@@ -64,14 +125,27 @@ export async function generateMetadata({ params }: RouteParams) {
   // legacy /brands/<uuid> links onto the keyword-bearing slug without us
   // having to 301 (and slow down) internal navigation.
   const canonical = `${SITE_URL}/brands/${resolved.slug}`;
-  const title = `${resolved.name} — Pirol`;
   const summary = await loadBrandSummary(resolved.id, resolved.name);
+
+  // Only pages with enough captured email to say something real are offered
+  // to the index (same threshold as the sitemap). The rest stay reachable but
+  // noindexed — hundreds of near-empty templates would read as scaled thin
+  // content and drag every strong page down with them.
+  const indexable =
+    summary !== null && summary.emailCount >= MIN_INDEXABLE_EMAILS;
+
+  // Keyword-bearing title: people find these pages searching
+  // "<brand> email frequency / newsletter strategy", not "<brand> Pirol".
+  const title = indexable
+    ? `${resolved.name} email marketing: frequency, timing, discounts`
+    : `${resolved.name} — Pirol`;
 
   return {
     title,
     description: summary?.metaDescription ?? undefined,
     alternates: { canonical },
-    openGraph: { url: canonical, title }
+    openGraph: { url: canonical, title },
+    robots: indexable ? undefined : { index: false, follow: true }
   };
 }
 
@@ -142,11 +216,29 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
             })
           : Promise.resolve(false),
         viewer
-          ? getBrandPageData(admin, id).catch((err) => {
-              console.error("Failed to load live teaser data", err);
+          ? getBrandPageData(admin, id)
+              .then((data) =>
+                data
+                  ? {
+                      totals: data.totals,
+                      cadence: data.cadence,
+                      promo: data.promo,
+                      esp: data.esp,
+                      calendar: data.calendar
+                    }
+                  : null
+              )
+              .catch((err) => {
+                console.error("Failed to load live teaser data", err);
+                return null;
+              })
+          : // Logged-out visitors (and crawlers) get the same real teaser,
+            // but from the shared hourly cache — the heavy query never runs
+            // per anonymous request.
+            loadPublicTeaser(id).catch((err) => {
+              console.error("Failed to load public teaser", err);
               return null;
             })
-          : Promise.resolve(null)
       ]);
 
     if (!company || company.deleted_at) {
@@ -166,33 +258,83 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     }
     logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
 
-    return (
-      <BrandLockedDashboard
-        brand={{
-          name: company.name,
-          domain: company.domain ?? null,
-          markets: normalizeCompanyMarkets(company.markets),
-          primaryMarketCountry: company.primary_market_country ?? null,
-          isGlobal: Boolean(company.is_global),
-          logoUrl,
-          subscribedSince: company.subscribed_since ?? null
-        }}
-        summary={summary?.paragraph ?? null}
-        follow={
-          viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
-        }
-        live={
-          liveData
-            ? {
-                totals: liveData.totals,
-                cadence: liveData.cadence,
-                promo: liveData.promo,
-                esp: liveData.esp,
-                calendar: liveData.calendar
+    const marketLabels = normalizeCompanyMarkets(company.markets);
+    const related = await loadRelatedBrands(
+      id,
+      Array.isArray(company.markets) ? company.markets : []
+    ).catch((err) => {
+      console.error("Failed to load related brands", err);
+      return [] as { slug: string; name: string }[];
+    });
+
+    // Structured data for the public page: the breadcrumb trail plus the
+    // brand's email program described as a Dataset published by Pirol.
+    // Only emitted when the page is indexable — schema on a noindexed page
+    // is noise.
+    const indexable =
+      summary !== null && summary.emailCount >= MIN_INDEXABLE_EMAILS;
+    const canonical = `${SITE_URL}/brands/${resolved.slug}`;
+    const jsonLd = indexable
+      ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Brands",
+                item: `${SITE_URL}/brands`
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: company.name,
+                item: canonical
               }
-            : undefined
-        }
-      />
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Dataset",
+            name: `${company.name} email marketing data`,
+            description: summary.paragraph,
+            url: canonical,
+            creator: { "@id": ORGANIZATION_ID },
+            isAccessibleForFree: false
+          }
+        ]
+      : null;
+
+    return (
+      <>
+        {jsonLd ? (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
+        ) : null}
+        <BrandLockedDashboard
+          brand={{
+            name: company.name,
+            domain: company.domain ?? null,
+            markets: marketLabels,
+            primaryMarketCountry: company.primary_market_country ?? null,
+            isGlobal: Boolean(company.is_global),
+            logoUrl,
+            subscribedSince: company.subscribed_since ?? null
+          }}
+          summary={summary?.paragraph ?? null}
+          follow={
+            viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
+          }
+          live={liveData ?? undefined}
+          related={related.map((r) => ({
+            ...r,
+            marketLabel: marketLabels[0] ?? null
+          }))}
+        />
+      </>
     );
   }
 

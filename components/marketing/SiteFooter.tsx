@@ -15,16 +15,21 @@ export default function SiteFooter() {
           <p className={styles.footerTagline}>
             Intelligence and inspiration across thousands of newsletters.
           </p>
-          <Link href="/explore" className={styles.primaryBtn}>
-            Browse the archive
+          {/* Points at /brands, not /explore: the brand directory is the
+              public, crawlable surface — /explore is login-walled and
+              disallowed in robots.txt, so linking it here wastes both the
+              click and the link equity. */}
+          <Link href="/brands" className={styles.primaryBtn}>
+            Browse the brands
           </Link>
         </div>
 
         <nav className={styles.footerNav} aria-label="Footer">
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Product</p>
-            <Link href="/explore" className={styles.footerLink}>Archive</Link>
+            <Link href="/brands" className={styles.footerLink}>Brand directory</Link>
             <Link href="/features/brands" className={styles.footerLink}>Brand insights</Link>
+            <Link href="/features/explore" className={styles.footerLink}>Archive</Link>
             <Link href="/features/collections" className={styles.footerLink}>Collections</Link>
             <Link href="/features/comparisons" className={styles.footerLink}>Comparisons</Link>
             <Link href="/features/following" className={styles.footerLink}>Following</Link>

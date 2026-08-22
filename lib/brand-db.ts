@@ -861,7 +861,7 @@ export async function getBrandSummary(
   supabase: SupabaseClient<Database>,
   companyId: string,
   options: { name: string }
-): Promise<BrandSummary | null> {
+): Promise<(BrandSummary & { emailCount: number }) | null> {
   const [emailsResult, statsResult] = await Promise.all([
     supabase
       .from("captured_emails")
@@ -913,7 +913,7 @@ export async function getBrandSummary(
     .slice(0, 2)
     .map((c) => ({ label: c.label, count: c.count }));
 
-  return buildBrandSummary({
+  const summary = buildBrandSummary({
     name: options.name,
     emailCount,
     avgDaysBetween: cadence.avgDaysBetween,
@@ -924,6 +924,9 @@ export async function getBrandSummary(
     maxDiscount: promo.maxDiscount,
     maxDiscountAt: promo.maxDiscountAt
   });
+  // The count rides along so callers can gate indexability (sitemap listing,
+  // robots meta) on the same threshold without a second query.
+  return summary ? { ...summary, emailCount } : null;
 }
 
 /**

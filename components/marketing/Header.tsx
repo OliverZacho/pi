@@ -150,6 +150,11 @@ export default function Header({ user = null }: { user?: HeaderUser | null }) {
           <Link href="/explore" className={styles.navLink}>
             Explore
           </Link>
+          {/* The public, crawlable brand directory — the header is the one
+              sitewide link that passes equity to all 600 brand pages. */}
+          <Link href="/brands" className={styles.navLink}>
+            Brands
+          </Link>
           <Link href="/learn" className={styles.navLink}>
             Learn
           </Link>
