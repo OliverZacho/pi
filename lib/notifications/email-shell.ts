@@ -8,8 +8,10 @@
  */
 
 export const BRAND_GREEN = "#086e4b";
+// www, matching lib/site.ts: the apex only serves a 307, so email links
+// built on it would bounce every reader through a redirect.
 export const APP_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://pirol.app";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://www.pirol.app";
 
 export function escapeHtml(value: string): string {
   return value
@@ -34,6 +36,13 @@ export function renderEmailShell(opts: {
   /** The notification's body HTML, dropped into the content cell. */
   bodyHtml: string;
   cta: { label: string; url: string };
+  /**
+   * Footer HTML override. The default footer frames the mail as a
+   * follow-digest ("because you follow brands…" + unsubscribe links), which
+   * is wrong for transactional mail like the trial reminder — those pass
+   * their own service-mail footer instead.
+   */
+  footerHtml?: string;
 }): string {
   const settingsUrl = `${APP_URL}/settings/notifications`;
   return `<!doctype html>
@@ -70,7 +79,10 @@ export function renderEmailShell(opts: {
         </tr>
         <tr>
           <td style="padding:16px 24px;border-top:1px solid #ece9e1;background:#faf9f5;border-radius:0 0 12px 12px;">
-            <div style="font-size:12px;color:#888780;line-height:1.6;">You're getting this because you follow brands on Pirol. <a href="${settingsUrl}" style="color:#5f5e5a;">Change frequency</a> &middot; <a href="${settingsUrl}" style="color:#5f5e5a;">Unsubscribe</a></div>
+            <div style="font-size:12px;color:#888780;line-height:1.6;">${
+              opts.footerHtml ??
+              `You're getting this because you follow brands on Pirol. <a href="${settingsUrl}" style="color:#5f5e5a;">Change frequency</a> &middot; <a href="${settingsUrl}" style="color:#5f5e5a;">Unsubscribe</a>`
+            }</div>
           </td>
         </tr>
       </table>
@@ -85,6 +97,8 @@ export function renderTextShell(opts: {
   headerRight: string;
   bodyLines: string[];
   cta: { label: string; url: string };
+  /** Footer line override — see {@link renderEmailShell}'s footerHtml. */
+  footerLine?: string;
 }): string {
   const settingsUrl = `${APP_URL}/settings/notifications`;
   return [
@@ -94,6 +108,6 @@ export function renderTextShell(opts: {
     "",
     `${opts.cta.label}: ${opts.cta.url}`,
     "",
-    `Change frequency or unsubscribe: ${settingsUrl}`
+    opts.footerLine ?? `Change frequency or unsubscribe: ${settingsUrl}`
   ].join("\n");
 }

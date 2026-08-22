@@ -66,10 +66,13 @@ export default function TermsPage() {
         service has been fully performed.
       </p>
       <p>
-        In addition to any statutory rights, we offer a 7-day, no-questions-asked
-        cancellation policy: if you cancel a paid plan within 7 days of the start of a
-        billing period, you can request a full refund for that period, no reason needed.
-        This goodwill policy applies notwithstanding the non-refundable terms above.
+        The Solo plan starts with a 14-day free trial, limited to one per account. You
+        provide payment details when you start the trial, but no payment is taken until
+        the trial ends. We will email you before that first charge. If you cancel at any
+        point before the trial ends, you are not charged and your account returns to the
+        free tier. When the trial ends the plan converts to a paid subscription at the
+        price and billing period you selected, and renews automatically until cancelled.
+        The Team plan does not include a trial.
       </p>
 
       <h2>5. Acceptable use</h2>

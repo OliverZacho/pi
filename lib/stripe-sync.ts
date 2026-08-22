@@ -33,19 +33,24 @@ export async function syncSubscription(
   // status/grace to decide whether this is a *fresh* entry into past_due.
   let userId = userIdHint;
   let prior:
-    | { user_id: string; status: string; grace_until: string | null }
+    | {
+        user_id: string;
+        status: string;
+        grace_until: string | null;
+        trial_started_at: string | null;
+      }
     | null = null;
   if (userId) {
     const { data } = await admin
       .from("subscriptions")
-      .select("user_id, status, grace_until")
+      .select("user_id, status, grace_until, trial_started_at")
       .eq("user_id", userId)
       .maybeSingle();
     prior = data;
   } else {
     const { data } = await admin
       .from("subscriptions")
-      .select("user_id, status, grace_until")
+      .select("user_id, status, grace_until, trial_started_at")
       .eq("stripe_customer_id", customerId)
       .maybeSingle();
     prior = data;
@@ -76,6 +81,17 @@ export async function syncSubscription(
           ).toISOString();
   }
 
+  // One trial per account. Stamped from Stripe's own `trial_start` the first
+  // time we see a subscription that opened with a trial — not at checkout
+  // creation, so an abandoned checkout doesn't burn the trial. Once set it
+  // sticks: an existing stamp always wins, so redeliveries, the success-landing
+  // sync and a later re-subscribe all leave the original date alone.
+  const trialStartedAt =
+    prior?.trial_started_at ??
+    (typeof sub.trial_start === "number"
+      ? new Date(sub.trial_start * 1000).toISOString()
+      : null);
+
   const { error } = await admin.from("subscriptions").upsert(
     {
       user_id: userId,
@@ -85,6 +101,7 @@ export async function syncSubscription(
       stripe_subscription_id: sub.id,
       current_period_end: periodEndIso(sub),
       grace_until: graceUntil,
+      trial_started_at: trialStartedAt,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }

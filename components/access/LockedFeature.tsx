@@ -93,7 +93,8 @@ export default function LockedFeature({
           View plans
         </TrackedUpgradeLink>
         <span className={styles.footnote}>
-          7-day money-back guarantee on every plan.
+          Solo starts with a 14-day free trial. Cancel any time before it ends
+          and you pay nothing.
         </span>
       </div>
     </div>

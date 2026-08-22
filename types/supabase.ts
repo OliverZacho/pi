@@ -250,6 +250,7 @@ export type Database = {
           recipient_email: string
           remote_image_urls: string[]
           resend_message_id: string | null
+          search_text: string | null
           segment_category: string | null
           segment_country: string | null
           sender_email: string
@@ -302,6 +303,7 @@ export type Database = {
           recipient_email: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          search_text?: string | null
           segment_category?: string | null
           segment_country?: string | null
           sender_email: string
@@ -354,6 +356,7 @@ export type Database = {
           recipient_email?: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          search_text?: string | null
           segment_category?: string | null
           segment_country?: string | null
           sender_email?: string
@@ -908,6 +911,8 @@ export type Database = {
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          trial_reminder_sent_at: string | null
+          trial_started_at: string | null
           updated_at: string
           user_id: string
         }
@@ -919,6 +924,8 @@ export type Database = {
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          trial_reminder_sent_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -930,6 +937,8 @@ export type Database = {
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          trial_reminder_sent_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
           user_id?: string
         }

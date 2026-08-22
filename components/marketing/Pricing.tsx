@@ -6,6 +6,7 @@ import { Caveat } from "next/font/google";
 import styles from "./pricing.module.css";
 import PricingCompare from "./PricingCompare";
 import { perMonthLabel } from "@/lib/pricing";
+import { useTrialEligibility } from "@/lib/use-trial-eligibility";
 
 /** Handwritten face for the "2 months free!" annotation by the toggle. */
 const caveat = Caveat({ subsets: ["latin"], weight: "600" });
@@ -21,6 +22,11 @@ type Plan = {
   annual: number;
   featured?: boolean;
   cta: string;
+  /**
+   * CTA shown instead of `cta` while this visitor still has their one free
+   * trial. Only Solo carries a trial (see lib/trial.ts).
+   */
+  trialCta?: string;
   features: string[];
 };
 
@@ -46,6 +52,7 @@ const PLANS: Plan[] = [
     monthly: 30,
     annual: 300,
     cta: "Get Solo",
+    trialCta: "Start 14-day free trial",
     features: [
       "1 seat",
       "Full access to the entire email archive",
@@ -87,6 +94,29 @@ export default function Pricing() {
   // pending label without blocking the other card.
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Solo sells on the free trial, but only to someone who hasn't used theirs.
+  const trial = useTrialEligibility();
+
+  /** The CTA label for a card, swapping in the trial pitch where it applies. */
+  function ctaLabel(plan: Plan): string {
+    return trial.eligible && plan.trialCta ? plan.trialCta : plan.cta;
+  }
+
+  /**
+   * The line under the price. On a trial-eligible Solo card it leads with the
+   * free window and still names the amount that follows, so the card never
+   * reads as if the trial were the whole deal.
+   */
+  function billingNote(plan: Plan): string {
+    if (plan.monthly === 0) return "free forever";
+    const charge =
+      billing === "annual"
+        ? `€${plan.annual.toLocaleString()} billed yearly`
+        : `€${plan.monthly} billed monthly`;
+    return trial.eligible && plan.trialCta
+      ? `free for ${trial.days} days, then ${charge}`
+      : charge;
+  }
 
   async function startCheckout(planId: string) {
     setPending(planId);
@@ -121,8 +151,8 @@ export default function Pricing() {
           Simple pricing. The whole archive.
         </h1>
         <p className={styles.subtitle}>
-          Start free, no card required. One upgrade unlocks everything — every
-          email, every brand, every dashboard.
+          Browse free, no card required. Try Solo free for {trial.days} days
+          and unlock everything: every email, every brand, every dashboard.
         </p>
 
         <div className={styles.toggleWrap}>
@@ -213,13 +243,7 @@ export default function Pricing() {
               <span className={styles.price}>{perMonth(plan, billing)}</span>
               <span className={styles.per}>/mo</span>
             </div>
-            <p className={styles.billingNote}>
-              {plan.monthly === 0
-                ? "free forever"
-                : billing === "annual"
-                  ? `€${plan.annual.toLocaleString()} billed yearly`
-                  : "billed monthly"}
-            </p>
+            <p className={styles.billingNote}>{billingNote(plan)}</p>
 
             {plan.id === "free" ? (
               <Link
@@ -239,7 +263,7 @@ export default function Pricing() {
                   plan.featured ? styles.ctaPrimary : styles.ctaGhost
                 }`}
               >
-                {pending === plan.id ? "Redirecting…" : plan.cta}
+                {pending === plan.id ? "Redirecting…" : ctaLabel(plan)}
               </button>
             )}
 
@@ -275,13 +299,15 @@ export default function Pricing() {
       ) : null}
 
       <p className={styles.guarantee}>
-        Not for you? Email us within 7 days for a full refund — no questions asked.
+        {trial.eligible
+          ? `Solo starts with ${trial.days} free days. We take your card up front, we email you before the trial ends, and nothing is charged if you cancel before then.`
+          : "Cancel any time from your billing settings. Your access runs to the end of the period you've paid for."}
       </p>
 
       <PricingCompare
         plans={PLANS.map((p) => ({
           id: p.id,
-          cta: p.cta,
+          cta: ctaLabel(p),
           featured: Boolean(p.featured),
         }))}
         pending={pending}

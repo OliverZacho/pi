@@ -14,6 +14,7 @@ import { endOfDayInZone, parseDayKey, startOfDayInZone } from "@/lib/datetime";
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import EmailCard from "./EmailCard";
 import EmailModal from "./EmailModal";
+import { emitSavedDelta } from "./SidebarNotices";
 import BrandRequestModal from "@/components/brand/BrandRequestModal";
 import requestStyles from "@/components/brand/BrandRequest.module.css";
 import styles from "./explore.module.css";
@@ -455,6 +456,7 @@ export default function ExploreClient({
           }
           return;
         }
+        emitSavedDelta(next ? 1 : -1);
       } catch {
         rollback();
         setError("Failed to save");

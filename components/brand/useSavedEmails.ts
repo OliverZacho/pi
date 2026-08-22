@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import { emitSavedDelta } from "@/components/explore/SidebarNotices";
 
 /**
  * Shared client hook for the "Saved" toggle used by the brand dashboard's
@@ -51,6 +52,7 @@ export function useSavedEmails() {
           credentials: "include"
         });
         if (!res.ok) throw new Error(`Failed (${res.status})`);
+        emitSavedDelta(next ? 1 : -1);
       } catch {
         setSavedIds((current) => {
           const updated = new Set(current);

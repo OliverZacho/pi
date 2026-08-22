@@ -15,7 +15,10 @@ import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
 import styles from "@/components/brand/brands-explore.module.css";
 
 export const metadata = {
-  title: "Brands — Pirol"
+  title: "Brand directory: email marketing stats by brand — Pirol",
+  description:
+    "Browse every brand Pirol tracks. See how often each one sends email, what they send, when they discount, and which email platform they use.",
+  alternates: { canonical: "/brands" }
 };
 
 export const dynamic = "force-dynamic";

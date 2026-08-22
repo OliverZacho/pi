@@ -5,7 +5,10 @@
  * Override per-environment with NEXT_PUBLIC_SITE_URL (no trailing slash).
  */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://pirol.app"
+  // www is the canonical host: the apex 307s to www (and Stripe webhooks
+  // already depend on www), so every canonical/sitemap URL must say www or
+  // crawlers land on a redirect hop.
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.pirol.app"
 ).replace(/\/$/, "");
 
 /**
@@ -19,8 +22,11 @@ export const PUBLIC_MARKETING_PATHS = [
   "/tutorials",
   "/help",
   "/learn",
+  "/features/brands",
   "/features/collections",
   "/features/comparisons",
+  "/features/explore",
+  "/features/following",
   "/privacy",
   "/terms",
   "/takedown"

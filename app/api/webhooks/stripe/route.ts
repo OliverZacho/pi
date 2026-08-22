@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, getStripeWebhookSecret } from "@/lib/stripe";
 import { syncSubscription } from "@/lib/stripe-sync";
+import { sendTrialEndingReminder } from "@/lib/notifications/trial-reminder";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,6 +62,15 @@ export async function POST(request: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         await syncSubscription(sub, sub.metadata?.user_id ?? null);
+        break;
+      }
+      case "customer.subscription.trial_will_end": {
+        // Fires ~3 days before the trial converts and the card is charged.
+        // Sends the promised "we email you before the first charge" reminder;
+        // once per account, enforced by trial_reminder_sent_at.
+        const sub = event.data.object as Stripe.Subscription;
+        const outcome = await sendTrialEndingReminder(sub);
+        console.log(`trial reminder for ${sub.id}: ${outcome}`);
         break;
       }
       default:

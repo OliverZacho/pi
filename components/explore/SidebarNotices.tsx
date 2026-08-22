@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
-import type { SidebarNotice } from "@/lib/sidebar-notices";
+import {
+  saveUsageNotice,
+  type SidebarNotice
+} from "@/lib/sidebar-notices-shared";
 import styles from "./explore.module.css";
 
 /**
@@ -25,6 +28,21 @@ const DISMISSED_CAP = 50;
  */
 export const LOCKED_EMAIL_FLAG = "pirol:viewed-locked-email";
 export const LOCKED_EMAIL_EVENT = "pirol:locked-email-viewed";
+
+/**
+ * Fired by every Save/Unsave surface after a *successful* write so the
+ * free save-usage meter updates live instead of waiting for the next
+ * page load. Emit only on success — optimistic flips that roll back
+ * must not move the meter.
+ */
+export const SAVED_DELTA_EVENT = "pirol:saved-count-changed";
+
+export function emitSavedDelta(delta: 1 | -1) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(SAVED_DELTA_EVENT, { detail: { delta } })
+  );
+}
 
 function readDismissed(): string[] {
   if (typeof window === "undefined") return [];
@@ -85,6 +103,31 @@ export default function SidebarNotices({ signedIn }: Props) {
     })();
     return () => controller.abort();
   }, [signedIn]);
+
+  // Live-update the free save meter when any surface saves or unsaves.
+  // The card is rebuilt through the same pure builder the server uses,
+  // so the title/urgency copy stays in lockstep with the count. Mirrors
+  // the server's priority rule: at the cap the meter jumps to the front.
+  useEffect(() => {
+    const onSavedDelta = (event: Event) => {
+      const delta = (event as CustomEvent<{ delta?: number }>).detail?.delta;
+      if (delta !== 1 && delta !== -1) return;
+      setNotices((current) => {
+        const index = current.findIndex((n) => n.id === "save-usage");
+        const progress = index === -1 ? null : current[index].progress;
+        if (!progress) return current;
+        const count = Math.max(0, progress.count + delta);
+        const updated = saveUsageNotice(count, progress.limit);
+        const next = [...current];
+        next.splice(index, 1);
+        if (count >= progress.limit) next.unshift(updated);
+        else next.splice(index, 0, updated);
+        return next;
+      });
+    };
+    window.addEventListener(SAVED_DELTA_EVENT, onSavedDelta);
+    return () => window.removeEventListener(SAVED_DELTA_EVENT, onSavedDelta);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -158,3 +158,39 @@
   font-size: 0.78rem;
   color: #94a3b8;
 }
+
+/* Related-brands strip below the paywall: crawlable cross-links so brand
+   pages pass equity to each other instead of every leaf being an island. */
+.related {
+  margin-top: 2.5rem;
+}
+
+.relatedTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+  margin: 0 0 0.75rem;
+}
+
+.relatedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.relatedLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.relatedLink:hover {
+  border-color: #086e4b;
+  color: #086e4b;
+}

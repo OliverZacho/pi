@@ -22,6 +22,13 @@ import type { BrandPageData } from "@/lib/brand-db";
 import styles from "./brand.module.css";
 import locked from "./brand-locked.module.css";
 
+export type RelatedBrand = {
+  slug: string;
+  name: string;
+  /** Pretty label of the market the two brands share, for the heading. */
+  marketLabel: string | null;
+};
+
 export type LockedBrand = {
   name: string;
   domain: string | null;
@@ -40,6 +47,15 @@ function formatMonthYear(value: string | null): string {
 }
 
 const sample = BRAND_PREVIEW_SAMPLE;
+
+/**
+ * Fictional brand name for the blurred sample region. The real brand's name
+ * must never label fabricated numbers — the sample HTML is crawlable, and
+ * "Every email <real brand> sent" over invented data is both dishonest and
+ * near-duplicate boilerplate across all 600 brand pages. Behind the blur the
+ * name is illegible anyway, so nothing changes visually.
+ */
+const SAMPLE_BRAND_NAME = "Fenne";
 
 /**
  * The brand detail page as a logged-out / unpaid visitor sees it.
@@ -61,7 +77,8 @@ export default function BrandLockedDashboard({
   brand,
   summary,
   follow,
-  live
+  live,
+  related
 }: {
   brand: LockedBrand;
   summary?: string | null;
@@ -72,25 +89,28 @@ export default function BrandLockedDashboard({
    */
   follow?: { brandId: string; initialFollowing: boolean };
   /**
-   * Real data for the free teaser: signed-in free viewers get the KPI
-   * tiles and the send calendar with the brand's actual numbers,
-   * rendered unblurred above the locked region (which then drops its
-   * sample copies of both). Omitted for logged-out visitors — the
-   * heavy dashboard query stays off the SEO/crawler path and they keep
-   * the all-sample preview.
+   * Real data for the teaser: every locked viewer — signed-in free
+   * users, logged-out visitors, crawlers — gets the KPI tiles and the
+   * send calendar with the brand's actual numbers, rendered unblurred
+   * above the locked region (which then drops its sample copies of
+   * both). This is the page's unique crawlable content. Absent only
+   * when the data failed to load, in which case the sample copies fill
+   * the layout.
    */
   live?: Pick<
     BrandPageData,
     "totals" | "cadence" | "promo" | "esp" | "calendar"
   >;
+  /**
+   * Same-market brands to cross-link at the bottom of the page, so brand
+   * pages pass link equity to each other instead of each leaf being an
+   * island only the sitemap knows about.
+   */
+  related?: RelatedBrand[];
 }) {
   return (
     <main className={styles.main}>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-        <Link href="/explore" className={styles.breadcrumbLink}>
-          <span>Explore</span>
-        </Link>
-        <span className={styles.breadcrumbSep}>/</span>
         <Link href="/brands" className={styles.breadcrumbLink}>
           <span>Brands</span>
         </Link>
@@ -206,7 +226,7 @@ export default function BrandLockedDashboard({
 
               <section className={styles.recentSection}>
                 <BrandActivityCalendar
-                  brandName={brand.name}
+                  brandName={SAMPLE_BRAND_NAME}
                   calendar={BRAND_PREVIEW_CALENDAR}
                 />
               </section>
@@ -215,7 +235,7 @@ export default function BrandLockedDashboard({
 
           <section className={styles.recentSection}>
             <BrandClockHeatmap
-              brandName={brand.name}
+              brandName={SAMPLE_BRAND_NAME}
               hourly={sample.cadence.hourly}
             />
           </section>
@@ -232,7 +252,7 @@ export default function BrandLockedDashboard({
             <DesignCard
               design={sample.design}
               subjects={sample.subjects}
-              brand={{ name: brand.name, logoUrl: brand.logoUrl }}
+              brand={{ name: SAMPLE_BRAND_NAME, logoUrl: null }}
             />
           </section>
 
@@ -268,6 +288,30 @@ export default function BrandLockedDashboard({
           </div>
         </div>
       </div>
+
+      {related && related.length > 0 ? (
+        <section className={locked.related} aria-label="Related brands">
+          <h2 className={locked.relatedTitle}>
+            {related[0].marketLabel
+              ? `More ${related[0].marketLabel.toLowerCase()} brands`
+              : "More brands on Pirol"}
+          </h2>
+          <div className={locked.relatedList}>
+            {related.map((r) => (
+              <Link
+                key={r.slug}
+                href={`/brands/${r.slug}`}
+                className={locked.relatedLink}
+              >
+                {r.name}
+              </Link>
+            ))}
+            <Link href="/brands" className={locked.relatedLink}>
+              All brands →
+            </Link>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }
