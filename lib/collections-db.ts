@@ -761,7 +761,17 @@ export async function listCollectionsWithPreviews(
  */
 export async function listCollectionSummaries(
   supabase: SupabaseClient<Database>,
-  userId: string
+  userId: string,
+  options?: {
+    /**
+     * Also resolve the sidebar's "new emails" dot for rule-based
+     * collections. This evaluates every smart collection's rules (one
+     * search query each), so only the sidebar — the one place the dot
+     * renders — should ask for it; the "Add to collection" popovers that
+     * also consume summaries stay a single cheap query.
+     */
+    withNewEmailFlags?: boolean;
+  }
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
@@ -777,12 +787,17 @@ export async function listCollectionSummaries(
     rows.map(async (row) => {
       const rules = safeParseStoredRules(row.rules);
       let hasNewEmails = false;
-      if (rules && row.last_viewed_at) {
+      if (options?.withNewEmailFlags && rules && row.last_viewed_at) {
+        // A failed dot check (e.g. a slow search rule timing out) should
+        // cost the dot, not the whole sidebar list.
         hasNewEmails = await ruleCollectionHasEmailsAddedAfter(
           supabase,
           rules,
           row.last_viewed_at
-        );
+        ).catch((err) => {
+          console.error("Failed to check for new rule matches", err);
+          return false;
+        });
       }
       return {
         id: row.id,
@@ -1819,14 +1834,7 @@ function orParts(filters: CompiledFilter[]): string[] {
 }
 
 function buildSearchOrParts(matcher: SearchMatcher, brandIds: string[]): string[] {
-  const op = matcher.operator;
-  const wrapped = matcherValue(matcher, "*");
-  const parts = [
-    `subject.${op}.${wrapped}`,
-    `preheader.${op}.${wrapped}`,
-    `primary_cta_text.${op}.${wrapped}`,
-    `plain_text.${op}.${wrapped}`
-  ];
+  const parts = [`search_text.ilike.${matcherValue(matcher, "*")}`];
   const safe = brandIds.filter((id) => UUID_PATTERN.test(id));
   if (safe.length > 0) {
     parts.push(`company_id.in.(${safe.join(",")})`);
@@ -1870,7 +1878,7 @@ async function lookupCompanyIdsByName(
   const { data, error } = await client
     .from("companies")
     .select("id")
-    .filter("name", matcher.operator, matcherValue(matcher, "%"))
+    .filter("name", "imatch", matcher.nameRegex)
     .limit(500);
   if (error) throw error;
   return (data ?? []).map((row) => row.id);

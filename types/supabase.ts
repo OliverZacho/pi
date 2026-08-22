@@ -250,6 +250,7 @@ export type Database = {
           recipient_email: string
           remote_image_urls: string[]
           resend_message_id: string | null
+          search_text: string | null
           segment_category: string | null
           segment_country: string | null
           sender_email: string
@@ -302,6 +303,7 @@ export type Database = {
           recipient_email: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          search_text?: string | null
           segment_category?: string | null
           segment_country?: string | null
           sender_email: string
@@ -354,6 +356,7 @@ export type Database = {
           recipient_email?: string
           remote_image_urls?: string[]
           resend_message_id?: string | null
+          search_text?: string | null
           segment_category?: string | null
           segment_country?: string | null
           sender_email?: string

@@ -132,15 +132,11 @@ const MAX_PAGE_SIZE = 96;
  *
  * Brand-name matches are folded into the same query: when `query` is set
  * we first look up companies whose name matches and then OR the resulting
- * `company_id` set into the email-level filter on subject / preheader /
- * primary CTA text / plain-text body. That keeps the search to two
- * round-trips even though we're effectively searching across joined
- * tables.
- *
- * The comparison operator comes from `buildSearchMatcher` — `ilike` for a
- * single word, a whitespace-tolerant `imatch` regex for a phrase, so that
- * a typed space also matches the non-breaking and narrow no-break spaces
- * that litter marketing HTML. See lib/search-term.ts for the reasoning.
+ * `company_id` set into the email-level filter on `search_text` — the
+ * write-time-normalized concatenation of subject / preheader / primary CTA
+ * text / plain-text body. That keeps the search to two round-trips even
+ * though we're effectively searching across joined tables. See
+ * lib/search-term.ts for the normalization reasoning.
  *
  * Pagination is plain offset (`range(start, end)`) — fine for the table
  * sizes we expect for the foreseeable future. TODO: switch to keyset
@@ -168,7 +164,7 @@ export async function searchExploreEmails(
       const { data, error } = await supabase
         .from("companies")
         .select("id")
-        .filter("name", queryMatcher.operator, matcherValue(queryMatcher, "%"))
+        .filter("name", "imatch", queryMatcher.nameRegex)
         .limit(500);
       if (error) throw error;
       brandIdsFromQuery = (data ?? []).map((row) => row.id);
@@ -348,14 +344,7 @@ export async function searchExploreEmails(
   }
 
   if (queryMatcher) {
-    const op = queryMatcher.operator;
-    const term = matcherValue(queryMatcher, "%");
-    const clauses = [
-      `subject.${op}.${term}`,
-      `preheader.${op}.${term}`,
-      `primary_cta_text.${op}.${term}`,
-      `plain_text.${op}.${term}`
-    ];
+    const clauses = [`search_text.ilike.${matcherValue(queryMatcher, "%")}`];
     if (brandIdsFromQuery && brandIdsFromQuery.length > 0) {
       // PostgREST `in.()` lists are comma-separated and live inside the
       // `or()` string, so any comma in the value would break parsing.

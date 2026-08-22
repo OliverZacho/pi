@@ -2,44 +2,36 @@
  * Shared search-term preparation for the email search used by Explore
  * (`searchExploreEmails`) and by smart-collection `search` rules.
  *
- * ## Why this isn't a plain ILIKE
+ * ## How email search works
  *
  * Marketing HTML is full of typographic characters that are invisible on
- * screen but are distinct codepoints in the database. Of 4,300 captured
- * emails at the time of writing, 1,555 bodies contain a non-breaking space
- * (U+00A0), 10 contain a narrow no-break space (U+202F), and 721 contain a
- * curly apostrophe (U+2019).
+ * screen but are distinct codepoints in the database: non-breaking spaces
+ * (U+00A0), narrow no-break spaces (U+202F), curly apostrophes (U+2019),
+ * zero-width spaces (U+200B), soft hyphens (U+00AD). A body reading
+ * `Copenhagen Fashion Week` can hold U+202F between two of those words, so
+ * a naive `ILIKE '%Copenhagen Fashion Week%'` silently misses it.
  *
- * A body reading `Copenhagen Fashion Week` can therefore hold U+202F
- * between two of those words. It renders identically to an ordinary space,
- * but `ILIKE '%Copenhagen Fashion Week%'` never matches it, so the email is
- * silently absent from results — the bug this module exists to fix.
+ * We used to bridge the gap at query time with a `~*` regex whose separator
+ * class accepted every space and apostrophe variant. That regex cost ~1s per
+ * term against the trigram index (vs ~90ms for ilike, measured 2026-08-22 at
+ * ~7k emails) because the recheck runs the regex over full email bodies —
+ * enough to push smart-collection evaluation past the authenticated role's
+ * 8s statement timeout and 500 the collection page.
  *
- * ## The two paths
+ * The normalization now happens at WRITE time instead: a trigger on
+ * `captured_emails` maintains `search_text`, the four searched columns
+ * (subject, preheader, primary CTA text, plain text) concatenated with
+ * invisible characters stripped and every separator run collapsed to a
+ * single space (`email_search_text()` in the DB — it must stay in lockstep
+ * with the character classes below). Every query is then one cheap `ilike`
+ * against that single column, and displayed columns keep their original
+ * typography.
  *
- * - **One word** → `ilike`, exactly as before. There is no separator to
- *   normalise, so the results are identical to a regex, and the trigram
- *   index recheck is roughly 7x cheaper (measured: 151ms vs 1010ms for
- *   `sale` across the four searched columns).
+ * ## Brand names
  *
- * - **Two or more words** → `imatch` (Postgres `~*`), joining the words
- *   with a character class that accepts any run of whitespace or
- *   apostrophes. This matches every space variant *and* keeps hyphens out.
- *
- * That last point is why this isn't done with `_`, SQL's single-character
- * wildcard. `_` would also match the hyphen in the collection-nav URLs
- * (`/collections/new-arrivals`) that sit in nearly every email footer, so
- * `new arrivals` would jump from 413 matches to 511 while only 1 of those
- * 98 was a real missed email. `black friday` would go from 0 to 7, all of
- * them `black-friday` nav links. The regex keeps precision intact and still
- * recovers the genuine misses (`don't miss` 42 → 76, `free shipping`
- * 332 → 334).
- *
- * ## Known limit
- *
- * Zero-width characters (U+200B, ~369 bodies) are *inserted* between
- * letters rather than substituted for a separator, so no separator-matching
- * scheme can absorb them. Those bodies stay unmatchable by phrase search.
+ * `companies.name` is raw text with no normalized twin, so brand-name
+ * lookups still use a separator-tolerant `~*` regex (`nameRegex`). The
+ * companies table is small; the regex is cheap there.
  */
 
 /**
@@ -51,64 +43,78 @@
 const OR_SYNTAX = /[,()"]/g;
 
 /**
+ * Invisible characters removed entirely (not treated as separators): they
+ * are inserted INSIDE words (`F​ree`), so stripping them rejoins the
+ * word. Mirrors the strip class in the DB's `email_search_text()`.
+ */
+const STRIP_RUN = /[\u200B\u200C\u200D\uFEFF\u00AD]/g;
+
+/**
  * A run of anything separating two words. `\s` in JavaScript already covers
  * U+00A0, U+202F, U+2009 and the other Unicode space separators; the
  * explicit additions are the apostrophe variants, so `don't` matches a body
- * written `don’t` and vice versa.
+ * written `don’t` and vice versa. Mirrors the separator class in the DB's
+ * `email_search_text()`.
  */
 const SEPARATOR_RUN = /[\s'‘’ʼ´`]+/g;
 
 /**
- * The Postgres-side counterpart of `SEPARATOR_RUN`. `[[:space:]]` matches
- * the Unicode space separators (verified against U+00A0 and U+202F in this
- * database's collation); the listed apostrophes mirror the JS class above.
- * Contains no `,` `(` `)` so it is safe inside an `or()` string.
+ * The Postgres-side counterpart of `SEPARATOR_RUN`, used only for the
+ * brand-name regex. `[[:space:]]` matches the Unicode space separators
+ * (verified against U+00A0 and U+202F in this database's collation); the
+ * listed apostrophes mirror the JS class above. Contains no `,` `(` `)` so
+ * it is safe inside an `or()` string.
  */
 const SEPARATOR_CLASS = "[[:space:]'‘’ʼ´`]+";
 
 /** Characters with meaning in a POSIX extended regular expression. */
 const REGEX_METACHARS = /[\\.\[\]{}()*+?|^$]/g;
 
+/** Characters with meaning in a LIKE/ILIKE pattern. */
+const LIKE_METACHARS = /[\\%_]/g;
+
 export type SearchMatcher = {
-  /** PostgREST operator to use for every searched column. */
-  operator: "ilike" | "imatch";
   /**
-   * For `ilike`, the inner fragment — callers wrap it in their own
+   * ILIKE fragment for the normalized `search_text` column — words joined
+   * by single spaces, LIKE wildcards escaped. Callers wrap it in their own
    * wildcards (`%…%` for the client methods, `*…*` inside an `or()`
-   * string). For `imatch`, the complete regex, which needs no wrapping
-   * because a regex match is already unanchored.
+   * string).
    */
   pattern: string;
+  /**
+   * Separator-tolerant case-insensitive POSIX regex for raw (unnormalized)
+   * text columns — currently only `companies.name`. Needs no wrapping
+   * because a regex match is already unanchored.
+   */
+  nameRegex: string;
 };
 
 /**
- * Turn raw user input into an operator and pattern, or `null` when the
+ * Turn raw user input into the two match patterns, or `null` when the
  * input holds nothing searchable (callers treat that as "no search term").
  */
 export function buildSearchMatcher(input: string): SearchMatcher | null {
-  const words = input.replace(OR_SYNTAX, " ").split(SEPARATOR_RUN).filter(Boolean);
+  const words = input
+    .replace(STRIP_RUN, "")
+    .replace(OR_SYNTAX, " ")
+    .split(SEPARATOR_RUN)
+    .filter(Boolean);
 
   if (words.length === 0) return null;
 
-  // Single word with no SQL wildcards in it: nothing to normalise, so take
-  // the cheaper operator. A stray `%` or `_` would be read as a wildcard
-  // here, so those fall through to the regex path where they are literal.
-  if (words.length === 1 && !/[%_]/.test(words[0])) {
-    return { operator: "ilike", pattern: words[0] };
-  }
-
-  const escaped = words.map((word) => word.replace(REGEX_METACHARS, "\\$&"));
-  return { operator: "imatch", pattern: escaped.join(SEPARATOR_CLASS) };
+  return {
+    pattern: words.map((word) => word.replace(LIKE_METACHARS, "\\$&")).join(" "),
+    nameRegex: words
+      .map((word) => word.replace(REGEX_METACHARS, "\\$&"))
+      .join(SEPARATOR_CLASS)
+  };
 }
 
 /**
- * Convenience for the `or()` builders: the value to place after the
- * operator, with ILIKE patterns wrapped in the caller's wildcard character
- * (`%` for client methods, `*` inside an `or()` string, which PostgREST
- * treats as the same thing).
+ * Convenience for the query builders: the ILIKE value for `search_text`,
+ * wrapped in the caller's wildcard character (`%` for client methods, `*`
+ * inside an `or()` string, which PostgREST treats as the same thing).
  */
 export function matcherValue(matcher: SearchMatcher, wildcard: "%" | "*"): string {
-  return matcher.operator === "ilike"
-    ? `${wildcard}${matcher.pattern}${wildcard}`
-    : matcher.pattern;
+  return `${wildcard}${matcher.pattern}${wildcard}`;
 }

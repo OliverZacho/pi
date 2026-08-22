@@ -54,3 +54,15 @@
   transform: translateY(-1px);
   box-shadow: var(--primary-shadow-hover);
 }
+
+.quietLink {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #475569;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quietLink:hover {
+  color: #086e4b;
+}
