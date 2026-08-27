@@ -8,6 +8,34 @@ const FETCH_TIMEOUT_MS = 5_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
+ * Mirroring runs once at ingest and a miss is permanent — the preview CSP
+ * only allows mirrored hosts, so an image that fails here renders as a
+ * broken box in every card/modal forever. A one-shot attempt lost ~1.5k
+ * images to transient noise (fetch timeouts under the ingest burst,
+ * Storage "Too many connections" while 12 uploads race a busy pool), so
+ * each image gets a few tries with a short pause before we give up.
+ * Permanent failures (4xx from the origin, oversized images) fail fast.
+ */
+const MIRROR_ATTEMPTS = 3;
+const MIRROR_RETRY_DELAY_MS = 750;
+
+/** Fetch-side failures worth retrying: timeouts/aborts, socket errors, and
+ * HTTP statuses that signal load rather than a dead URL. */
+function isRetryableMirrorError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError" || /aborted/i.test(error.message)) return true;
+  if (/fetch failed/i.test(error.message)) return true;
+  const status = /^http (\d{3})$/.exec(error.message)?.[1];
+  if (!status) return false;
+  const code = Number(status);
+  return code === 408 || code === 425 || code === 429 || code === 499 || code >= 500;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Signed URLs live for 7 days. Bumped up from 1 hour so the same URL is
  * reused across many page views, which lets the browser cache and Supabase
  * Storage's CDN edge layer actually do their job. Combined with the
@@ -291,45 +319,63 @@ export async function mirrorRemoteImages(
   const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
 
   for (const url of uniqueUrls) {
-    try {
-      const fetched = await fetchImage(url);
-      const extension = guessExtension(fetched.contentType, url);
-      const digest = createHash("sha1").update(fetched.bytes).digest("hex");
-      // Storage paths are content-addressed by SHA-1 alone — the
-      // same image content embedded in any email costs exactly one
-      // storage object, and `upsert: true` makes a re-mirror a
-      // no-op at the bytes level. See git history for the migration
-      // that flipped this from the historical
-      // `${emailId}/${sha1}${ext}` layout.
-      const storagePath = `${digest}${extension}`;
+    let lastReason = "unknown error";
+    let done = false;
 
-      if (seenPaths.has(storagePath)) {
-        continue;
+    for (let attempt = 1; attempt <= MIRROR_ATTEMPTS && !done; attempt += 1) {
+      if (attempt > 1) {
+        await sleep(MIRROR_RETRY_DELAY_MS * (attempt - 1));
       }
-      seenPaths.add(storagePath);
+      try {
+        const fetched = await fetchImage(url);
+        const extension = guessExtension(fetched.contentType, url);
+        const digest = createHash("sha1").update(fetched.bytes).digest("hex");
+        // Storage paths are content-addressed by SHA-1 alone — the
+        // same image content embedded in any email costs exactly one
+        // storage object, and `upsert: true` makes a re-mirror a
+        // no-op at the bytes level. See git history for the migration
+        // that flipped this from the historical
+        // `${emailId}/${sha1}${ext}` layout.
+        const storagePath = `${digest}${extension}`;
 
-      const { error } = await supabase.storage
-        .from(EMAIL_ASSETS_BUCKET)
-        .upload(storagePath, fetched.bytes, {
+        if (seenPaths.has(storagePath)) {
+          done = true;
+          break;
+        }
+
+        const { error } = await supabase.storage
+          .from(EMAIL_ASSETS_BUCKET)
+          .upload(storagePath, fetched.bytes, {
+            contentType: fetched.contentType,
+            upsert: true,
+            cacheControl: EMAIL_ASSET_CACHE_CONTROL
+          });
+
+        if (error) {
+          // Storage upload errors are pool/gateway hiccups far more often
+          // than anything about this particular image — always retry them.
+          lastReason = `upload failed: ${error.message}`;
+          continue;
+        }
+
+        seenPaths.add(storagePath);
+        stored.push({
+          remoteUrl: url,
+          storagePath,
           contentType: fetched.contentType,
-          upsert: true,
-          cacheControl: EMAIL_ASSET_CACHE_CONTROL
+          byteLength: fetched.bytes.byteLength
         });
-
-      if (error) {
-        failedUrls.push({ url, reason: `upload failed: ${error.message}` });
-        continue;
+        done = true;
+      } catch (error) {
+        lastReason = error instanceof Error ? error.message : "unknown error";
+        if (!isRetryableMirrorError(error)) {
+          break;
+        }
       }
+    }
 
-      stored.push({
-        remoteUrl: url,
-        storagePath,
-        contentType: fetched.contentType,
-        byteLength: fetched.bytes.byteLength
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "unknown error";
-      failedUrls.push({ url, reason });
+    if (!done) {
+      failedUrls.push({ url, reason: lastReason });
     }
   }
 
