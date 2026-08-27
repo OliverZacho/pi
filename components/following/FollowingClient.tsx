@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedBrandCard } from "@/lib/follows-db";
+import type { PendingBrandRequestCard } from "@/lib/brand-requests-db";
 import type { ExploreEmailCard, ExploreFacets } from "@/lib/explore-db";
 import type { CollectionSummary } from "@/lib/collections-db";
 import { MAX_BRANDS_PER_COMPARISON } from "@/lib/competitor-constants";
@@ -36,6 +37,9 @@ type PopoverName = "markets" | "region" | "sort" | null;
 type Props = {
   /** Every brand the user follows, most-recently-followed first. */
   brands: FollowedBrandCard[];
+  /** Brands the user asked us to track that aren't live yet — rendered as
+   *  "Requested" cards below the followed grid. */
+  pendingRequests: PendingBrandRequestCard[];
   /** SSR'd first page of the follow-scoped email flow. */
   initialEmails: ExploreEmailCard[];
   initialHasMore: boolean;
@@ -49,6 +53,7 @@ type Props = {
 
 export default function FollowingClient({
   brands,
+  pendingRequests,
   initialEmails,
   initialHasMore,
   emailPageSize,
@@ -604,6 +609,74 @@ export default function FollowingClient({
           searchEndpoint="/api/following/emails"
         />
       )}
+
+      {view === "brands" && pendingRequests.length > 0 ? (
+        <section aria-label="Requested brands" style={{ marginTop: "2rem" }}>
+          <div className={styles.resultCount}>
+            <strong>Requested</strong>
+            <span className={styles.resultCountMuted}>
+              {" "}
+              · We&apos;re adding {pendingRequests.length === 1 ? "this brand" : "these brands"} to the archive
+            </span>
+          </div>
+          <div className={styles.grid}>
+            {pendingRequests.map((request) => (
+              <div
+                key={request.id}
+                className={styles.card}
+                style={{ cursor: "default" }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: "3rem",
+                    height: "3rem",
+                    borderRadius: "10px",
+                    background: "#f1f5f9",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.2rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                    overflow: "hidden"
+                  }}
+                >
+                  {request.logoUrl ? (
+                    <img
+                      src={request.logoUrl}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain"
+                      }}
+                    />
+                  ) : (
+                    request.companyName.charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                  {request.companyName}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: "#086e4b",
+                    background: "#f0f7f4",
+                    borderRadius: "999px",
+                    padding: "0.15rem 0.6rem"
+                  }}
+                >
+                  Requested
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

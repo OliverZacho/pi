@@ -30,7 +30,7 @@ export function hasLogoDevCoverage(domain: string | null | undefined): boolean {
   return domain != null && normalizeHost(domain) !== null;
 }
 
-function logoDevUrl(domain: string | null | undefined): string | null {
+export function logoDevUrl(domain: string | null | undefined): string | null {
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN;
   const host = domain ? normalizeHost(domain) : null;
   if (!token || !host) return null;
@@ -42,7 +42,7 @@ function logoDevUrl(domain: string | null | undefined): string | null {
  * hostnames ("specta.dk"), so reduce either form to the registrable host
  * Logo.dev expects.
  */
-function normalizeHost(domain: string): string | null {
+export function normalizeHost(domain: string): string | null {
   const raw = domain.trim().toLowerCase();
   if (!raw) return null;
   try {

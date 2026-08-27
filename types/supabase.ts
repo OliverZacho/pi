@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -178,27 +178,33 @@ export type Database = {
         Row: {
           company_name: string
           created_at: string
+          domain: string | null
           handled_at: string | null
           id: string
           requested_by: string | null
+          source: string
           status: string
           website: string
         }
         Insert: {
           company_name: string
           created_at?: string
+          domain?: string | null
           handled_at?: string | null
           id?: string
           requested_by?: string | null
+          source?: string
           status?: string
           website: string
         }
         Update: {
           company_name?: string
           created_at?: string
+          domain?: string | null
           handled_at?: string | null
           id?: string
           requested_by?: string | null
+          source?: string
           status?: string
           website?: string
         }
@@ -1348,6 +1354,10 @@ export type Database = {
           full_name: string | null
           last_active_at: string | null
           last_visit_at: string | null
+          onboarding_categories: string[] | null
+          onboarding_completed_at: string | null
+          onboarding_role: string | null
+          own_brand_domain: string | null
           password_set_at: string | null
           plan_selected_at: string | null
           tour_completed_at: string | null
@@ -1360,6 +1370,10 @@ export type Database = {
           full_name?: string | null
           last_active_at?: string | null
           last_visit_at?: string | null
+          onboarding_categories?: string[] | null
+          onboarding_completed_at?: string | null
+          onboarding_role?: string | null
+          own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
           tour_completed_at?: string | null
@@ -1372,6 +1386,10 @@ export type Database = {
           full_name?: string | null
           last_active_at?: string | null
           last_visit_at?: string | null
+          onboarding_categories?: string[] | null
+          onboarding_completed_at?: string | null
+          onboarding_role?: string | null
+          own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
           tour_completed_at?: string | null
@@ -1498,7 +1516,16 @@ export type Database = {
         }[]
       }
       email_has_account: { Args: { check_email: string }; Returns: boolean }
-      explore_facets: { Args: { restrict_ids?: string[] | null }; Returns: Json }
+      email_search_text: {
+        Args: {
+          plain_text: string
+          preheader: string
+          primary_cta_text: string
+          subject: string
+        }
+        Returns: string
+      }
+      explore_facets: { Args: { restrict_ids?: string[] }; Returns: Json }
       get_team_context: {
         Args: never
         Returns: {
@@ -1512,6 +1539,7 @@ export type Database = {
       }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       has_archive_access: { Args: never; Returns: boolean }
+      marketing_archive_stats: { Args: never; Returns: Json }
       pirol_admin_category_country_frequency: { Args: never; Returns: Json }
       pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }

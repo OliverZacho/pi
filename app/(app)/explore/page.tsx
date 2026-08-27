@@ -16,8 +16,17 @@ import { syncCheckoutSuccess } from "@/lib/stripe-sync";
 import ExploreClient from "@/components/explore/ExploreClient";
 import PlanChoiceModal from "@/components/onboarding/PlanChoiceModal";
 import TeamWelcomeModal from "@/components/onboarding/TeamWelcomeModal";
-import TourStarter from "@/components/onboarding/TourStarter";
 import styles from "@/components/explore/explore.module.css";
+
+/**
+ * Forced plan choice is HELD BACK: new signups go straight into the app
+ * after the onboarding modal (mounted by the app-shell layout) instead of
+ * being routed through the "pick a plan" modal. Kept wired behind this flag
+ * because it may return as an A/B-tested step 4 of onboarding — flipping it
+ * to true restores the old behavior, now gated on `onboarding_completed_at`
+ * instead of the retired tour stamp.
+ */
+const PLAN_CHOICE_ENABLED = false;
 
 export const metadata = {
   title: "Explore — Pirol"
@@ -72,16 +81,11 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     // get no Save button.
     let initialSavedIds: string[] = [];
     let savedCount = 0;
-    // Onboarding gate for new signups. The tour keys on `tour_completed_at`
-    // alone — every new user gets it, paid or free (paid signups take the
-    // paid branch below, which runs the same gate). Existing users were
-    // backfilled with a `tour_completed_at` stamp (migration 20260708210000)
-    // so it never fires for them. The forced plan modal stays unpaid-only:
-    //   - tour done, no plan chosen → force the "pick a plan" modal.
-    //   - never on a checkout=success landing, even if the Stripe reconcile
-    //     above couldn't confirm the sub: someone who just paid must never
-    //     be forced to pick a plan.
-    let showTour = false;
+    // Forced plan modal (currently held back — see PLAN_CHOICE_ENABLED):
+    // unpaid-only, and only once the onboarding modal is done so the two
+    // never stack. Never on a checkout=success landing, even if the Stripe
+    // reconcile above couldn't confirm the sub: someone who just paid must
+    // never be forced to pick a plan.
     let mustChoosePlan = false;
     if (viewer) {
       try {
@@ -90,16 +94,16 @@ export default async function ExplorePage({ searchParams }: PageProps) {
           countSavedEmails(admin, viewer.userId),
           admin
             .from("user_profiles")
-            .select("plan_selected_at, tour_completed_at")
+            .select("plan_selected_at, onboarding_completed_at")
             .eq("user_id", viewer.userId)
             .maybeSingle()
         ]);
         initialSavedIds = Array.from(savedSet);
         savedCount = count;
         const planChosen = Boolean(profile.data?.plan_selected_at);
-        const tourDone = Boolean(profile.data?.tour_completed_at);
-        showTour = !tourDone;
-        mustChoosePlan = !planChosen && tourDone && !checkoutSuccess;
+        const onboarded = Boolean(profile.data?.onboarding_completed_at);
+        mustChoosePlan =
+          PLAN_CHOICE_ENABLED && !planChosen && onboarded && !checkoutSuccess;
       } catch (err) {
         console.error("Failed to load saved email IDs", err);
       }
@@ -107,7 +111,6 @@ export default async function ExplorePage({ searchParams }: PageProps) {
 
     return (
       <>
-        {showTour ? <TourStarter /> : null}
         {mustChoosePlan ? <PlanChoiceModal /> : null}
         <main className={styles.main}>
           <header className={styles.heading}>
@@ -149,7 +152,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   //   - collections: feeds the "Add to collection" popover on every card.
   // The per-source `.catch`es swallow errors so a single broken table
   // (saves / collections) never takes down Explore itself.
-  const [initialResult, facets, savedSet, initialCollections, teamCtx, profile] =
+  const [initialResult, facets, savedSet, initialCollections, teamCtx] =
     await Promise.all([
       searchExploreEmails(supabase, {
         page: 1,
@@ -173,23 +176,12 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             console.error("Failed to load team context for welcome", err);
             return null;
           })
-        : Promise.resolve(null),
-      // Tour flag: paid signups get the onboarding tour too (same gate as
-      // the unpaid branch — `tour_completed_at` only; existing users are
-      // backfilled). Service-role read, matching the unpaid branch.
-      getSupabaseAdmin()
-        .from("user_profiles")
-        .select("tour_completed_at")
-        .eq("user_id", userId)
-        .maybeSingle()
-        .then((r) => r.data)
+        : Promise.resolve(null)
     ]);
   const initialSavedIds = Array.from(savedSet);
-  const showTour = !profile?.tour_completed_at;
 
   return (
     <>
-      {showTour ? <TourStarter /> : null}
       {teamCtx && teamCtx.role === "member" ? (
         <TeamWelcomeModal
           teamName={teamCtx.teamName}

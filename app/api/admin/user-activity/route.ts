@@ -17,7 +17,10 @@ export type UserActivity = {
     createdAt: string;
     lastVisitAt: string | null;
     lastActiveAt: string | null;
-    tourCompletedAt: string | null;
+    /** Onboarding-modal completion; falls back to the retired tour's stamp
+     *  for accounts that predate the cutover, so the funnel column stays
+     *  continuous. */
+    onboardingCompletedAt: string | null;
     planSelectedAt: string | null;
     passwordSetAt: string | null;
   };
@@ -70,7 +73,7 @@ export async function GET(request: Request) {
       admin
         .from("user_profiles")
         .select(
-          "email, full_name, created_at, last_visit_at, last_active_at, tour_completed_at, plan_selected_at, password_set_at"
+          "email, full_name, created_at, last_visit_at, last_active_at, onboarding_completed_at, tour_completed_at, plan_selected_at, password_set_at"
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -169,7 +172,8 @@ export async function GET(request: Request) {
         createdAt: profile.created_at,
         lastVisitAt: profile.last_visit_at,
         lastActiveAt: profile.last_active_at,
-        tourCompletedAt: profile.tour_completed_at,
+        onboardingCompletedAt:
+          profile.onboarding_completed_at ?? profile.tour_completed_at,
         planSelectedAt: profile.plan_selected_at,
         passwordSetAt: profile.password_set_at
       },

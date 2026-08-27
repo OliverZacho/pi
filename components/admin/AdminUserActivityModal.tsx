@@ -142,10 +142,10 @@ export default function AdminUserActivityModal({
                 <dd>{formatWhen(a.profile.lastActiveAt)}</dd>
               </div>
               <div>
-                <dt>Tour</dt>
+                <dt>Onboarding</dt>
                 <dd>
-                  {a.profile.tourCompletedAt
-                    ? `Done ${formatWhen(a.profile.tourCompletedAt)}`
+                  {a.profile.onboardingCompletedAt
+                    ? `Done ${formatWhen(a.profile.onboardingCompletedAt)}`
                     : "Not completed"}
                 </dd>
               </div>

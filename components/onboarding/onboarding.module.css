@@ -1,0 +1,525 @@
+/* New-signup onboarding modal (role -> categories -> follow brands).
+   Same flat, light-only language as the rest of the app: slate palette,
+   solid brand green, 18px radii, no gradients. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 760px);
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  padding: 1.75rem 2rem 1.5rem;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.1rem;
+}
+
+.progressLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: #086e4b;
+  transition: width 0.25s ease;
+}
+
+.title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.subtitle {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #475569;
+  margin: 0 0 1.1rem;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Breathing room so focus rings and card shadows aren't clipped. */
+  padding: 2px;
+  margin: -2px;
+}
+
+/* ---- Step 1: role cards ---- */
+
+.roleGrid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.roleCard {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.roleCard:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.roleCardActive,
+.roleCardActive:hover {
+  border-color: #086e4b;
+  background: #f0f7f4;
+  color: #0f172a;
+}
+
+.roleDot {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 2px solid #cbd5e1;
+  transition: border-color 0.15s ease;
+}
+
+.roleCardActive .roleDot {
+  border-color: #086e4b;
+  border-width: 5px;
+}
+
+.ownBrandWrap {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.ownBrandLabel {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.15rem;
+}
+
+.ownBrandHint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 0.6rem;
+}
+
+.ownBrandPicked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ownBrandClear {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ownBrandClear:hover {
+  color: #0f172a;
+}
+
+/* ---- Step 2: category chips ---- */
+
+.chipWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.chip:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.chipActive,
+.chipActive:hover {
+  border-color: #086e4b;
+  background: #086e4b;
+  color: #ffffff;
+}
+
+/* ---- Step 3: brand picking ---- */
+
+.brandGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.brandCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.85rem 0.6rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.brandCard:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.brandCardActive,
+.brandCardActive:hover {
+  border-color: #086e4b;
+  background: #f0f7f4;
+}
+
+.brandLogo {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #475569;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.brandLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brandName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: center;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.brandMeta {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.brandCheck {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: #086e4b;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brandCheck svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.requestBadge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #086e4b;
+  background: #f0f7f4;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+
+.gridLoading {
+  font-size: 0.88rem;
+  color: #64748b;
+  padding: 1.25rem 0;
+  text-align: center;
+}
+
+/* ---- Brand search (steps 1 + 3) ---- */
+
+.searchWrap {
+  position: relative;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font: inherit;
+  background: #ffffff;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.searchInput:focus {
+  border-color: #086e4b;
+}
+
+.searchDropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  padding: 0.35rem;
+}
+
+.searchSection {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  padding: 0.45rem 0.6rem 0.25rem;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.searchRow:hover {
+  background: #f8fafc;
+}
+
+.searchRowDisabled,
+.searchRowDisabled:hover {
+  opacity: 0.55;
+  cursor: default;
+  background: none;
+}
+
+.searchRowLogo {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.searchRowLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.searchRowName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.searchRowMeta {
+  font-size: 0.78rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.searchRowAdded {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #086e4b;
+  flex-shrink: 0;
+}
+
+.searchEmpty {
+  font-size: 0.88rem;
+  color: #64748b;
+  padding: 0.7rem 0.6rem;
+}
+
+/* ---- Footer ---- */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.skipLink {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.skipLink:hover {
+  color: #475569;
+}
+
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.pickCount {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.back {
+  border: none;
+  border-radius: 10px;
+  padding: 0.62rem 0.9rem;
+  background: transparent;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.back:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.primary {
+  border: none;
+  border-radius: 10px;
+  padding: 0.62rem 1.2rem;
+  background: #086e4b;
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.primary:hover {
+  background: #065a3c;
+}
+
+.primary:disabled {
+  background: #cbd5e1;
+  cursor: default;
+}
+
+.error {
+  font-size: 0.85rem;
+  color: #b91c1c;
+  margin: 0.6rem 0 0;
+}

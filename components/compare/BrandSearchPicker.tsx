@@ -8,6 +8,7 @@ import {
   useState
 } from "react";
 import { countryFlag, countryName } from "@/lib/country";
+import { formatMarketLabel } from "@/lib/market-label";
 import BrandRequestModal from "@/components/brand/BrandRequestModal";
 import requestStyles from "@/components/brand/BrandRequest.module.css";
 import v2 from "./compare-v2.module.css";
@@ -425,13 +426,4 @@ export default function BrandSearchPicker({
       ) : null}
     </div>
   );
-}
-
-function formatMarketLabel(market: string): string {
-  return market
-    .split(/[\s_-]+/)
-    .map((word) =>
-      word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)
-    )
-    .join(" ");
 }
