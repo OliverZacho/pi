@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTour } from "./TourProvider";
 import styles from "./team-welcome.module.css";
 
 const FEATURES = [
@@ -16,11 +15,13 @@ const FEATURES = [
  * One-shot welcome for a freshly invited team member, rendered on /explore
  * when the auth callback lands them with `?team_welcome=1` (set right after
  * their pending invite is claimed). Tells them who added them and what the
- * seat unlocks, and offers the guided tour — the "member" variant, since
- * their seat is already covered and there is no plan to choose.
+ * seat unlocks.
  *
  * Easily dismissed (×, Esc, backdrop, or either button). Dismissing strips
- * the query param so a refresh or back-navigation doesn't re-show it.
+ * the query param so a refresh or back-navigation doesn't re-show it — and,
+ * for a brand-new account, un-suppresses the onboarding modal waiting
+ * underneath (it hides itself while `team_welcome=1` is present), so
+ * teammates flow welcome → onboarding.
  */
 export default function TeamWelcomeModal({
   teamName,
@@ -30,18 +31,12 @@ export default function TeamWelcomeModal({
   ownerName: string | null;
 }) {
   const router = useRouter();
-  const tour = useTour();
   const [open, setOpen] = useState(true);
 
   const dismiss = useCallback(() => {
     setOpen(false);
     router.replace("/explore", { scroll: false });
   }, [router]);
-
-  function startTour() {
-    dismiss();
-    tour?.start({ variant: "member" });
-  }
 
   useEffect(() => {
     if (!open) return;
@@ -99,11 +94,8 @@ export default function TeamWelcomeModal({
           ))}
         </ul>
         <div className={styles.actions}>
-          <button type="button" className={styles.primary} onClick={startTour}>
-            Take the guided tour
-          </button>
-          <button type="button" className={styles.secondary} onClick={dismiss}>
-            Start exploring on my own
+          <button type="button" className={styles.primary} onClick={dismiss}>
+            Get started
           </button>
         </div>
       </div>

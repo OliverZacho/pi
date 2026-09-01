@@ -143,6 +143,29 @@ export async function followBrand(
   if (error) throw error;
 }
 
+/**
+ * Follows several brands in one upsert — the onboarding modal's step-3
+ * batch. Same conflict semantics as {@link followBrand}, so re-follows are
+ * silently ignored and the call is idempotent.
+ */
+export async function followBrandsBatch(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  companyIds: string[]
+): Promise<void> {
+  if (companyIds.length === 0) return;
+  const { error } = await supabase
+    .from("brand_follows")
+    .upsert(
+      companyIds.map((companyId) => ({
+        user_id: userId,
+        company_id: companyId
+      })),
+      { onConflict: "user_id,company_id", ignoreDuplicates: true }
+    );
+  if (error) throw error;
+}
+
 export async function unfollowBrand(
   supabase: SupabaseClient<Database>,
   userId: string,

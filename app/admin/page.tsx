@@ -212,6 +212,10 @@ type BrandRequest = {
   id: string;
   companyName: string;
   website: string;
+  /** Canonical registrable host (from Logo.dev) when known. */
+  domain: string | null;
+  /** 'form' = public request form, 'onboarding' = new-signup onboarding. */
+  source: string;
   status: string;
   createdAt: string;
   handledAt: string | null;
@@ -1476,7 +1480,9 @@ export default function AdminHomePage() {
   // the operator can generate the subscription email in one step.
   function useBrandRequest(req: BrandRequest) {
     setName(req.companyName);
-    setDomain(brandRequestDomain(req.website));
+    // Onboarding requests carry a canonical Logo.dev domain; the public
+    // form only has whatever the visitor typed as the website.
+    setDomain(req.domain ?? brandRequestDomain(req.website));
     if (createFormRef.current) {
       createFormRef.current.scrollIntoView({
         behavior: "smooth",
@@ -2167,18 +2173,39 @@ export default function AdminHomePage() {
               {brandRequests.map((req) => (
                 <li key={req.id} className="brand-request-item">
                   <div className="brand-request-main">
-                    <span className="brand-request-name">{req.companyName}</span>
+                    <span className="brand-request-name">
+                      {req.companyName}
+                      {req.source === "onboarding" ? (
+                        <span
+                          style={{
+                            marginLeft: "0.45rem",
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            color: "#086e4b",
+                            background: "#f0f7f4",
+                            borderRadius: "999px",
+                            padding: "0.1rem 0.5rem",
+                            verticalAlign: "middle"
+                          }}
+                          title="Requested during signup onboarding — the domain is canonical (Logo.dev)."
+                        >
+                          onboarding
+                        </span>
+                      ) : null}
+                    </span>
                     <a
                       className="brand-request-site"
                       href={
-                        req.website.includes("://")
-                          ? req.website
-                          : `https://${req.website}`
+                        req.domain
+                          ? `https://${req.domain}`
+                          : req.website.includes("://")
+                            ? req.website
+                            : `https://${req.website}`
                       }
                       target="_blank"
                       rel="noreferrer noopener"
                     >
-                      {req.website}
+                      {req.domain ?? req.website}
                     </a>
                   </div>
                   <span className="brand-request-time">

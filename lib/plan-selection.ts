@@ -36,3 +36,36 @@ export async function stampTourCompleted(
     .eq("user_id", userId);
   if (error) throw error;
 }
+
+/**
+ * Record that the user has finished (or skipped) the new-signup onboarding
+ * modal, along with whatever answers they gave — skips persist partial
+ * answers too. Once stamped, the modal never shows again. Service-role
+ * client for the same reason as the stampers above. Deliberately does NOT
+ * touch `tour_completed_at`: the tour is retired and the two columns stay
+ * independent for historical data.
+ */
+export async function stampOnboardingCompleted(
+  admin: PirolSupabaseClient,
+  userId: string,
+  answers: {
+    role?: string | null;
+    categories?: string[] | null;
+    ownBrandDomain?: string | null;
+  } = {}
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("user_profiles")
+    .update({
+      onboarding_completed_at: now,
+      onboarding_role: answers.role ?? null,
+      onboarding_categories: answers.categories?.length
+        ? answers.categories
+        : null,
+      own_brand_domain: answers.ownBrandDomain ?? null,
+      updated_at: now
+    })
+    .eq("user_id", userId);
+  if (error) throw error;
+}

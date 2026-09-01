@@ -12,6 +12,10 @@ import {
   type FollowedBrandCard
 } from "@/lib/follows-db";
 import {
+  listPendingBrandRequestsForUser,
+  type PendingBrandRequestCard
+} from "@/lib/brand-requests-db";
+import {
   EXPLORE_PAGE_SIZE,
   getExploreFacets,
   searchExploreEmails,
@@ -75,7 +79,7 @@ export default async function FollowingPage() {
   // including the saved-id set, which would otherwise wait a round trip
   // for no reason. Collections feed the "Add to collection" popover and
   // comparisons the batch bar's "Add to comparison" action.
-  const [followed, collections, comparisons, savedIds] = await Promise.all([
+  const [followed, collections, comparisons, savedIds, pendingRequests] = await Promise.all([
     listFollowedBrandCards(supabase, userId).catch((err) => {
       console.error("Failed to load followed brands", err);
       return [] as FollowedBrandCard[];
@@ -93,7 +97,15 @@ export default async function FollowingPage() {
       .catch((err) => {
         console.error("Failed to load saved email IDs", err);
         return [] as string[];
-      })
+      }),
+    // "Requested" cards for brands the user asked us to track (onboarding
+    // picks we don't have yet). Always the service-role client — RLS on
+    // brand_requests grants nothing to non-admin session tokens, paid
+    // included.
+    listPendingBrandRequestsForUser(getSupabaseAdmin(), userId).catch((err) => {
+      console.error("Failed to load pending brand requests", err);
+      return [] as PendingBrandRequestCard[];
+    })
   ]);
 
   const followedIds = followed.map((brand) => brand.id);
@@ -167,6 +179,7 @@ export default async function FollowingPage() {
 
       <FollowingClient
         brands={followed}
+        pendingRequests={pendingRequests}
         initialEmails={emailResult.items}
         initialHasMore={emailResult.hasMore}
         emailPageSize={EXPLORE_PAGE_SIZE}

@@ -11,7 +11,10 @@ import {
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getBrandsFacets, searchBrands } from "@/lib/brands-explore-db";
 import ExploreSidebar from "@/components/explore/ExploreSidebar";
+import OnboardingModal from "@/components/onboarding/OnboardingModal";
+import type { OnboardingTrackedBrand } from "@/components/onboarding/OnboardingBrandSearch";
 import { getViewerDisplay } from "@/lib/viewer-display";
 import styles from "@/components/explore/explore.module.css";
 
@@ -40,6 +43,12 @@ export default async function AppShellLayout({
   let collections: CollectionSummary[] = [];
   let competitorSets: CompetitorSetSummary[] = [];
   let user = null;
+  // Props for the new-signup onboarding modal — non-null only while the
+  // viewer's `onboarding_completed_at` is unset.
+  let onboardingProps: {
+    markets: string[];
+    initialPopular: OnboardingTrackedBrand[];
+  } | null = null;
 
   if (viewer) {
     // Free session tokens have no RLS grants on collections /
@@ -53,7 +62,8 @@ export default async function AppShellLayout({
     // feature — skipped for free viewers.
     let teamCollections: CollectionSummary[] = [];
     let teamSets: CompetitorSetSummary[] = [];
-    [collections, competitorSets, teamCollections, teamSets, user] =
+    let needsOnboarding = false;
+    [collections, competitorSets, teamCollections, teamSets, user, needsOnboarding] =
       await Promise.all([
         listCollectionSummaries(supabase, viewer.userId, {
           // The sidebar is the one surface that renders the "new emails"
@@ -101,10 +111,59 @@ export default async function AppShellLayout({
                 return [] as CompetitorSetSummary[];
               })
           : ([] as CompetitorSetSummary[]),
-        getViewerDisplay()
+        getViewerDisplay(),
+        // New-signup onboarding gate: brand-new profiles (created after the
+        // onboarding migration) have a null `onboarding_completed_at`;
+        // everyone older was backfilled. Service-role read — free session
+        // tokens can't select the column — and any failure counts as
+        // "completed" so a profile hiccup never locks the app behind the
+        // modal.
+        (async () => {
+          try {
+            const { data, error } = await getSupabaseAdmin()
+              .from("user_profiles")
+              .select("onboarding_completed_at")
+              .eq("user_id", viewer.userId)
+              .maybeSingle();
+            if (error || !data) return false;
+            return data.onboarding_completed_at === null;
+          } catch (err) {
+            console.error("Failed to load onboarding state", err);
+            return false;
+          }
+        })()
       ]);
     collections = [...collections, ...teamCollections];
     competitorSets = [...competitorSets, ...teamSets];
+
+    if (needsOnboarding) {
+      // Seed the modal: category chips from the live market facets, and the
+      // most active brands as step 3's initial suggestion grid. Failures
+      // degrade to empty lists — the modal still works via its typeahead.
+      const admin = getSupabaseAdmin();
+      const [facets, popular] = await Promise.all([
+        getBrandsFacets(admin).catch((err) => {
+          console.error("Failed to load onboarding facets", err);
+          return null;
+        }),
+        searchBrands(admin, { sort: "most_active", pageSize: 24 }).catch(
+          (err) => {
+            console.error("Failed to load onboarding suggestions", err);
+            return null;
+          }
+        )
+      ]);
+      onboardingProps = {
+        markets: facets?.markets ?? [],
+        initialPopular: (popular?.items ?? []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          markets: item.markets,
+          domain: null,
+          logoUrl: item.logoUrl
+        }))
+      };
+    }
   } else {
     // Logged-out visitors own no collections or sets; only the account
     // row needs data.
@@ -120,6 +179,12 @@ export default async function AppShellLayout({
         hasAccess={hasAccess}
         signedIn={Boolean(viewer)}
       />
+      {onboardingProps ? (
+        <OnboardingModal
+          markets={onboardingProps.markets}
+          initialPopular={onboardingProps.initialPopular}
+        />
+      ) : null}
       {children}
     </div>
   );

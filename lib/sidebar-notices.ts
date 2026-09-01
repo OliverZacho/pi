@@ -143,8 +143,10 @@ async function brandRequestNotices(
   );
   if (recent.length === 0) return [];
 
+  // Prefer the canonical domain (stamped by the onboarding flow via
+  // Logo.dev) over parsing whatever the requester typed into the form.
   const hosts = recent
-    .map((request) => websiteHost(request.website))
+    .map((request) => request.domain ?? websiteHost(request.website))
     .filter((host): host is string => Boolean(host));
 
   const { data: companies, error } = await admin
@@ -161,7 +163,7 @@ async function brandRequestNotices(
 
   const notices: SidebarNotice[] = [];
   for (const request of recent) {
-    const host = websiteHost(request.website);
+    const host = request.domain ?? websiteHost(request.website);
     const company = host ? byDomain.get(host) : undefined;
     if (!company) continue;
     notices.push({

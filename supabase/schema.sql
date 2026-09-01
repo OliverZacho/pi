@@ -487,13 +487,25 @@ create table if not exists public.brand_requests (
   id uuid primary key default gen_random_uuid(),
   company_name text not null,
   website text not null,
+  -- Canonical registrable host (from Logo.dev search) when known.
+  domain text,
+  -- 'form' = public request form, 'onboarding' = new-signup onboarding picks.
+  source text not null default 'form',
   status text not null default 'pending',
+  requested_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   handled_at timestamptz
 );
 
 create index if not exists brand_requests_status_created_idx
   on public.brand_requests (status, created_at desc);
+
+create index if not exists brand_requests_requested_by_status_idx
+  on public.brand_requests (requested_by, status);
+
+create unique index if not exists brand_requests_pending_user_domain_uidx
+  on public.brand_requests (requested_by, lower(domain))
+  where status = 'pending' and domain is not null and requested_by is not null;
 
 alter table public.brand_requests enable row level security;
 

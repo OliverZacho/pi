@@ -7,6 +7,7 @@ import {
   type EspProvider
 } from "./admin-types";
 import { defaultBrandAccent, pickBrandAccent, type BrandAccent } from "./brand-accent";
+import { formatMarketLabel } from "./market-label";
 import { buildBrandSummary, type BrandSummary } from "./brand-summary";
 import {
   classifyCtaDestination,
@@ -503,16 +504,6 @@ function segmentDisplayLabel(inbox: {
   return parts.join(" · ") || "Segment";
 }
 
-function formatMarketLabel(market: string): string {
-  const trimmed = market.trim();
-  if (!trimmed) return market;
-  return trimmed
-    .split(/[\s_-]+/)
-    .map((word) =>
-      word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)
-    )
-    .join(" ");
-}
 
 /** One selectable mailing list (segment) on a brand, with the category it
  *  maps to. Mirrors {@link BrandPageData.brand.listTabs} but is fetched
