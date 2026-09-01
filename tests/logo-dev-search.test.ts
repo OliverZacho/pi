@@ -45,4 +45,67 @@ describe("mergeBrandSearchResults", () => {
   it("returns empty for empty Logo.dev input", () => {
     expect(mergeBrandSearchResults(["arket.com"], [])).toEqual([]);
   });
+
+  it("drops popular-but-unrelated hits when a query is given", () => {
+    const merged = mergeBrandSearchResults(
+      [],
+      [
+        { name: "Walmart", domain: "walmart.com" },
+        { name: "Wal", domain: "wal-mart.com" },
+        { name: "Walmart Canada", domain: "walmart.ca" },
+        { name: "LinkedIn", domain: "linkedin.com" },
+        { name: "Walmart IO", domain: "walmart.io" }
+      ],
+      { query: "Walmart", limit: 10 }
+    );
+    expect(merged.map((item) => item.domain)).toEqual([
+      "walmart.com",
+      "wal-mart.com",
+      "walmart.ca",
+      "walmart.io"
+    ]);
+  });
+
+  it("caps the list at three by default, in Logo.dev order", () => {
+    const merged = mergeBrandSearchResults(
+      [],
+      [
+        { name: "Walmart", domain: "walmart.com" },
+        { name: "Wal", domain: "wal-mart.com" },
+        { name: "Walmart Canada", domain: "walmart.ca" },
+        { name: "Walmart IO", domain: "walmart.io" }
+      ],
+      { query: "Walmart" }
+    );
+    expect(merged).toHaveLength(3);
+    expect(merged[2].domain).toBe("walmart.ca");
+  });
+
+  it("does not let filtered or tracked rows eat into the cap", () => {
+    const merged = mergeBrandSearchResults(
+      ["walmart.com"],
+      [
+        { name: "Walmart", domain: "walmart.com" },
+        { name: "LinkedIn", domain: "linkedin.com" },
+        { name: "Wal", domain: "wal-mart.com" },
+        { name: "Walmart Canada", domain: "walmart.ca" },
+        { name: "Walmart IO", domain: "walmart.io" }
+      ],
+      { query: "Walmart" }
+    );
+    expect(merged.map((item) => item.domain)).toEqual([
+      "wal-mart.com",
+      "walmart.ca",
+      "walmart.io"
+    ]);
+  });
+
+  it("matches on the query containing the brand name (short queries)", () => {
+    const merged = mergeBrandSearchResults(
+      [],
+      [{ name: "Ganni", domain: "ganni.com" }],
+      { query: "ganni studio" }
+    );
+    expect(merged).toHaveLength(1);
+  });
 });

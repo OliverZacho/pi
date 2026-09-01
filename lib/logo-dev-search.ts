@@ -50,16 +50,47 @@ export async function searchLogoDevBrands(query: string): Promise<LogoDevBrand[]
   }
 }
 
+/** Default cap on requestable Logo.dev rows shown in the typeahead. */
+export const MAX_UNTRACKED_RESULTS = 3;
+
+/**
+ * Lowercases and strips everything but letters and digits so "Wal-Mart",
+ * "wal-mart.com" and "Walmart" all compare as "walmart".
+ */
+function comparable(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/**
+ * Logo.dev ranks by popularity rather than relevance, so a query like
+ * "Walmart" comes back with LinkedIn in the mix. Keep a row only when the
+ * query and the brand (name or registrable host) overlap textually.
+ */
+function isRelevant(query: string, item: LogoDevBrand): boolean {
+  const q = comparable(query);
+  if (!q) return true;
+  const name = comparable(item.name);
+  const host = comparable(item.domain.split(".").slice(0, -1).join("."));
+  return (
+    name.includes(q) ||
+    host.includes(q) ||
+    (name.length >= 3 && q.includes(name)) ||
+    (host.length >= 3 && q.includes(host))
+  );
+}
+
 /**
  * Drops Logo.dev results that duplicate a tracked brand (same registrable
  * host) — those should surface as the followable tracked row, not as a
- * request — and dedupes the remainder by host, keeping Logo.dev's own
- * popularity order.
+ * request — filters out hits unrelated to the query, dedupes the remainder
+ * by host, and caps the list at `limit`, keeping Logo.dev's own order.
  */
 export function mergeBrandSearchResults(
   trackedDomains: Array<string | null | undefined>,
-  logoDevItems: LogoDevBrand[]
+  logoDevItems: LogoDevBrand[],
+  options: { query?: string; limit?: number } = {}
 ): LogoDevBrand[] {
+  const { query = "", limit = MAX_UNTRACKED_RESULTS } = options;
   const seen = new Set<string>();
   for (const domain of trackedDomains) {
     if (!domain) continue;
@@ -68,10 +99,13 @@ export function mergeBrandSearchResults(
   }
   const merged: LogoDevBrand[] = [];
   for (const item of logoDevItems) {
+    if (merged.length >= limit) break;
     const host = normalizeHost(item.domain);
     if (!host || seen.has(host)) continue;
+    const candidate = { name: item.name, domain: host };
+    if (!isRelevant(query, candidate)) continue;
     seen.add(host);
-    merged.push({ name: item.name, domain: host });
+    merged.push(candidate);
   }
   return merged;
 }
