@@ -73,7 +73,8 @@ export async function GET(request: Request) {
       if (error) throw error;
       untracked = mergeBrandSearchResults(
         (domains ?? []).map((row) => row.domain),
-        logoDevItems
+        logoDevItems,
+        { query: q }
       ).map((item) => ({
         name: item.name,
         domain: item.domain,
