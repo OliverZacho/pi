@@ -1549,6 +1549,7 @@ export type Database = {
         Args: {
           p_client_key?: string
           p_company_name: string
+          p_domain?: string
           p_website: string
         }
         Returns: string

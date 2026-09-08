@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { clientRateKey } from "@/lib/rate-limit";
 import { MAX_BRAND_REQUEST_FIELD } from "@/lib/brand-requests-db";
+import { normalizeHost } from "@/lib/logo-dev";
 
 /**
  * POST `/api/brand-requests` — public endpoint for the "Request a brand"
@@ -14,6 +15,10 @@ import { MAX_BRAND_REQUEST_FIELD } from "@/lib/brand-requests-db";
  * credential: the function is the only write path, it can only insert into
  * `brand_requests`, and it stamps the caller's own `auth.uid()` (null when
  * logged out).
+ *
+ * `domain` is optional: the form sends it when the visitor picked a Logo.dev
+ * suggestion, so the request carries a canonical host for its logo and the
+ * per-user pending dedupe. It is re-normalized here rather than trusted.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -28,6 +33,8 @@ export async function POST(request: Request) {
     typeof record.companyName === "string" ? record.companyName.trim() : "";
   const website =
     typeof record.website === "string" ? record.website.trim() : "";
+  const domain =
+    typeof record.domain === "string" ? normalizeHost(record.domain) : null;
 
   if (!companyName || !website) {
     return NextResponse.json(
@@ -50,7 +57,8 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.rpc("record_brand_request", {
       p_company_name: companyName,
       p_website: website,
-      p_client_key: clientRateKey(request)
+      p_client_key: clientRateKey(request),
+      ...(domain ? { p_domain: domain } : {})
     });
     if (error) throw error;
     if (data === "rate_limited") {
