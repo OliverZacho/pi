@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { finishAuthRedirect } from "@/lib/finish-auth-redirect";
 import CodeInput from "@/components/onboarding/CodeInput";
 import styles from "../login/login.module.css";
 
@@ -146,8 +147,7 @@ export default function SignupForm() {
       setPending(false);
       return;
     }
-    router.push(safeNext);
-    router.refresh();
+    finishAuthRedirect(router, safeNext);
   }
 
   if (step === "code") {

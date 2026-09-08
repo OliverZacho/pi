@@ -1,6 +1,6 @@
 import Link from "next/link";
 import styles from "./home-sections.module.css";
-import { TRIAL_PERIOD_DAYS } from "@/lib/trial";
+import { SOLO_TRIAL_CHECKOUT_HREF, TRIAL_PERIOD_DAYS } from "@/lib/trial";
 
 /**
  * Pricing teaser built to convert: it frames the upgrade as Free (look) →
@@ -11,6 +11,10 @@ import { TRIAL_PERIOD_DAYS } from "@/lib/trial";
  * Static, so it always shows the trial pitch rather than checking whether this
  * visitor still has theirs — /pricing and the in-app plan modal do that check
  * and correct the label. Checkout is the real gate either way (lib/trial.ts).
+ *
+ * The Solo button goes into Stripe Checkout, not just to /signup: a fresh
+ * visitor creates their account and is redirected straight on to Checkout,
+ * a signed-in one lands in Checkout immediately (see /api/checkout/continue).
  */
 export default function PricingTeaser() {
   return (
@@ -71,9 +75,10 @@ export default function PricingTeaser() {
             <li>Stats &amp; analytics dashboards</li>
             <li>Follow brands &amp; catch every new send</li>
           </ul>
-          <Link href="/signup" className={styles.planCta}>
+          {/* Plain anchor on purpose: see SOLO_TRIAL_CHECKOUT_HREF. */}
+          <a href={SOLO_TRIAL_CHECKOUT_HREF} className={styles.planCta}>
             Start {TRIAL_PERIOD_DAYS}-day free trial
-          </Link>
+          </a>
         </div>
       </div>
 

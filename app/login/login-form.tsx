@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { finishAuthRedirect } from "@/lib/finish-auth-redirect";
 import styles from "./login.module.css";
 
 /**
@@ -96,8 +97,7 @@ export default function LoginForm() {
       setError("Wrong email or password.");
       return;
     }
-    router.push(safeNext);
-    router.refresh();
+    finishAuthRedirect(router, safeNext);
   }
 
   if (magicSent) {
