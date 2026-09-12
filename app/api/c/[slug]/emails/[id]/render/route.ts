@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getEmailDetailFromDb } from "@/lib/admin-db";
 import { isEmailInPublicCollection } from "@/lib/collections-db";
-import { rewriteEmailHtml, emailPreviewCsp } from "@/lib/email-render";
+import {
+  emailPreviewCsp,
+  injectPreviewMeasureScript,
+  rewriteEmailHtml
+} from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
 
@@ -86,7 +90,10 @@ export async function GET(request: Request, context: RouteContext) {
     stripLinks: true
   });
 
-  const document = wrapHtml(html, email.subject);
+  // The thumbnail cards need the document's natural width; the frame is
+  // an opaque origin, so the document reports it itself (see
+  // lib/preview-width.ts). Allowed by hash in emailPreviewCsp().
+  const document = injectPreviewMeasureScript(wrapHtml(html, email.subject));
 
   return new NextResponse(document, {
     status: 200,

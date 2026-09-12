@@ -1,3 +1,9 @@
+import { createHash } from "node:crypto";
+import {
+  PREVIEW_MEASURE_REQUEST,
+  PREVIEW_WIDTH_MESSAGE
+} from "./preview-width";
+
 /**
  * Helpers for turning a stored captured-email HTML payload into something safe
  * to render in the admin viewer. The main job is to swap out the original
@@ -26,6 +32,11 @@
  * the tracking pixel) once at ingest (`mirrorRemoteImages`), which is what
  * registers the open with the sender — the per-view re-fire this blocks was
  * redundant.
+ *
+ * The only script allowed is {@link PREVIEW_MEASURE_SCRIPT}, by hash, so the
+ * thumbnail frames (sandboxed with `allow-scripts` but no origin) can report
+ * their natural width while the email's own scripts, inline handlers and
+ * javascript: URLs remain blocked.
  */
 export function emailPreviewCsp(): string {
   const imgHosts = [
@@ -39,9 +50,46 @@ export function emailPreviewCsp(): string {
   return [
     "default-src 'none'",
     `img-src ${imgHosts}`,
+    `script-src '${PREVIEW_MEASURE_SCRIPT_HASH}'`,
     "style-src 'unsafe-inline'",
     "font-src data:"
   ].join("; ");
+}
+
+/**
+ * The one script a preview document may run: reports the document's natural
+ * width to the embedding page (see lib/preview-width.ts). Sends when it runs,
+ * again on `load` (images can widen the layout), and whenever the parent asks.
+ * A fixed string, so its hash is stable across cached responses; changing it
+ * changes the CSP hash with it.
+ */
+export const PREVIEW_MEASURE_SCRIPT =
+  "(function(){var d=document;" +
+  "function w(){var e=d.documentElement,b=d.body;return Math.max(e?e.scrollWidth:0,b?b.scrollWidth:0)}" +
+  `function s(){try{parent.postMessage({type:${JSON.stringify(PREVIEW_WIDTH_MESSAGE)},width:w()},"*")}catch(e){}}` +
+  `window.addEventListener("message",function(m){if(m.data&&m.data.type===${JSON.stringify(PREVIEW_MEASURE_REQUEST)})s()});` +
+  'window.addEventListener("load",s);s()})();';
+
+/** CSP source expression matching {@link PREVIEW_MEASURE_SCRIPT} exactly. */
+export const PREVIEW_MEASURE_SCRIPT_HASH =
+  "sha256-" + createHash("sha256").update(PREVIEW_MEASURE_SCRIPT, "utf8").digest("base64");
+
+const BODY_CLOSE_RE = /<\/body\s*>/gi;
+
+/**
+ * Append the measuring script to a rendered preview document, just before
+ * the last `</body>` (or at the end when the email has none).
+ */
+export function injectPreviewMeasureScript(html: string): string {
+  const tag = `<script>${PREVIEW_MEASURE_SCRIPT}</script>`;
+  let last: RegExpExecArray | null = null;
+  for (const match of html.matchAll(BODY_CLOSE_RE)) {
+    last = match as RegExpExecArray;
+  }
+  if (last && last.index !== undefined) {
+    return html.slice(0, last.index) + tag + html.slice(last.index);
+  }
+  return html + tag;
 }
 
 const IMG_TAG_RE = /<img\b[^>]*>/gi;

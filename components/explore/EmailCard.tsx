@@ -5,9 +5,9 @@ import type { CollectionSummary } from "@/lib/collections-db";
 import { formatShortDate, formatTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import {
-  measureNaturalWidth,
   PREVIEW_FRAME_SANDBOX,
-  RENDER_WIDTH
+  RENDER_WIDTH,
+  subscribeToPreviewWidth
 } from "@/lib/preview-width";
 import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
@@ -199,25 +199,17 @@ export default function EmailCard({
     return () => io.disconnect();
   }, []);
 
-  // Once the email document is ready, mark it loaded and widen the render
-  // width to fit the email's real layout (lib/preview-width.ts explains why
-  // the frame must be same-origin for this to work). We only ever widen
-  // past the 600px default.
-  function handleFrameReady() {
-    setLoaded(true);
-    const natural = measureNaturalWidth(frameRef.current);
-    if (natural === null) return;
-    setRenderWidth((current) => (natural > current ? natural : current));
-  }
-
+  // Widen the render width to the email's real layout once the frame
+  // reports it. The frame is an opaque origin (see lib/preview-width.ts), so
+  // we never read its document; the render route's embedded script posts the
+  // width and we only ever widen past the 600px default.
   useEffect(() => {
     if (!inView) return;
     const frame = frameRef.current;
     if (!frame) return;
-    if (frame.contentDocument?.readyState === "complete") {
-      handleFrameReady();
-    }
-     
+    return subscribeToPreviewWidth(frame, (natural) => {
+      setRenderWidth((current) => (natural > current ? natural : current));
+    });
   }, [inView]);
 
   // `?preview=1` opts the grid thumbnail into CDN-resized body images
@@ -306,7 +298,7 @@ export default function EmailCard({
             scrolling="no"
             className={styles.cardFrame}
             style={frameStyle}
-            onLoad={handleFrameReady}
+            onLoad={() => setLoaded(true)}
           />
         ) : null}
         {recommendEnabled ? (
