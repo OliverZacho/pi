@@ -178,6 +178,8 @@ export default function CollectionCard({
                     loading="lazy"
                     sandbox="allow-popups allow-popups-to-escape-sandbox"
                     referrerPolicy="no-referrer"
+                    // Mosaic tile — no scrollbars on the inner document.
+                    scrolling="no"
                     tabIndex={-1}
                   />
                 ) : (
