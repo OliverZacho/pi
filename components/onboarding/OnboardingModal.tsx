@@ -131,7 +131,7 @@ function OnboardingModalInner({ markets, initialPopular }: Props) {
 
   async function skip() {
     if (submitting) return;
-    const ok = await post({ skipped: true, ...answerFields });
+    const ok = await post({ skipped: true, skippedStep: step, ...answerFields });
     if (ok) {
       setDone(true);
       router.refresh();

@@ -1357,6 +1357,7 @@ export type Database = {
           onboarding_categories: string[] | null
           onboarding_completed_at: string | null
           onboarding_role: string | null
+          onboarding_skipped_step: number | null
           own_brand_domain: string | null
           password_set_at: string | null
           plan_selected_at: string | null
@@ -1373,6 +1374,7 @@ export type Database = {
           onboarding_categories?: string[] | null
           onboarding_completed_at?: string | null
           onboarding_role?: string | null
+          onboarding_skipped_step?: number | null
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
@@ -1389,6 +1391,7 @@ export type Database = {
           onboarding_categories?: string[] | null
           onboarding_completed_at?: string | null
           onboarding_role?: string | null
+          onboarding_skipped_step?: number | null
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null

@@ -35,6 +35,31 @@ const RECENCY: {
   { key: "neverOnboarded", label: "Never onboarded", color: "#94a3b8" }
 ];
 
+/** Outcome buckets for the onboarding-modal bar. */
+const ONBOARDING_OUTCOMES: { key: "completed" | 1 | 2 | 3 | "pending"; label: string; color: string }[] = [
+  { key: "completed", label: "Completed", color: "#086e4b" },
+  { key: 1, label: "Skipped at step 1 · role", color: "#dc2626" },
+  { key: 2, label: "Skipped at step 2 · categories", color: "#ea580c" },
+  { key: 3, label: "Skipped at step 3 · brands", color: "#d97706" },
+  { key: "pending", label: "Not answered yet", color: "#94a3b8" }
+];
+
+const SINCE_DATE = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric"
+});
+
+function sinceLabel(iso: string): string {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? "launch" : SINCE_DATE.format(parsed);
+}
+
+/** Title-case a category slug ("home & living" → "Home & living"). */
+function categoryLabel(slug: string): string {
+  return slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
 const ENGAGEMENT: { key: "dau" | "wau" | "mau"; label: string }[] = [
   { key: "dau", label: "Daily (DAU)" },
   { key: "wau", label: "Weekly (WAU)" },
@@ -61,10 +86,21 @@ export default function UserMetricsPanels({
     );
   }
 
-  const { totals, growth, retention, subscription, pmf, funnel } = metrics;
+  const { totals, growth, retention, subscription, pmf, funnel, onboarding } = metrics;
   const recencyTotal = Math.max(retention.realTotal, 1);
   const engagementMax = Math.max(pmf.mau, 1);
   const funnelTop = Math.max(funnel[0]?.count ?? 0, 1);
+  const onboardingTotal = Math.max(onboarding.total, 1);
+  const onboardingCount = (key: (typeof ONBOARDING_OUTCOMES)[number]["key"]): number =>
+    key === "completed"
+      ? onboarding.completed
+      : key === "pending"
+        ? onboarding.pending
+        : onboarding.skippedByStep[key - 1];
+  const decided = onboarding.completed + onboarding.skipped;
+  const roleMax = Math.max(...onboarding.roles.map((r) => r.count), 1);
+  const categoryMax = Math.max(...onboarding.categories.map((c) => c.count), 1);
+  const skipPeak = onboarding.skippedByStep.indexOf(Math.max(...onboarding.skippedByStep)) + 1;
 
   return (
     <>
@@ -249,7 +285,123 @@ export default function UserMetricsPanels({
         </div>
       </section>
 
-      {/* 4 — Activation funnel (my pick). */}
+      {/* 4 — Onboarding modal: finished, skipped (where), or still pending. */}
+      <section className="card dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2>Onboarding modal</h2>
+          <span className="muted">
+            non-team signups since {sinceLabel(onboarding.since)} · {int(onboarding.total)} shown it
+          </span>
+        </div>
+
+        <div className="stats-grid">
+          <article className="card card-inset">
+            <h2>Completed</h2>
+            <p>
+              {pct(onboarding.completionRate)}
+              <span className="card-sub">
+                {int(onboarding.completed)} of {int(decided)} who answered · {int(onboarding.completedPaid)} paid
+              </span>
+            </p>
+          </article>
+          <article className="card card-inset">
+            <h2>Skipped</h2>
+            <p>
+              {int(onboarding.skipped)}
+              <span className="card-sub">
+                {onboarding.skipped > 0 ? `most leave at step ${skipPeak}` : "nobody yet"} · {int(onboarding.skippedPaid)} paid
+              </span>
+            </p>
+          </article>
+          <article className="card card-inset">
+            <h2>Not answered yet</h2>
+            <p>
+              {int(onboarding.pending)}
+              <span className="card-sub">signed up, haven&apos;t reached the modal</span>
+            </p>
+          </article>
+          <article className="card card-inset">
+            <h2>Named their brand</h2>
+            <p>
+              {int(onboarding.ownBrand)}
+              <span className="card-sub">answered &ldquo;which brand do you work on?&rdquo;</span>
+            </p>
+          </article>
+        </div>
+
+        <div className="metric-segments" role="img" aria-label="Onboarding outcomes">
+          {ONBOARDING_OUTCOMES.map((bucket) => {
+            const value = onboardingCount(bucket.key);
+            const share = value / onboardingTotal;
+            if (share <= 0) return null;
+            return (
+              <div
+                key={String(bucket.key)}
+                className="metric-segment"
+                style={{ width: `${share * 100}%`, background: bucket.color }}
+                title={`${bucket.label}: ${int(value)}`}
+              >
+                {share >= 0.08 ? int(value) : null}
+              </div>
+            );
+          })}
+        </div>
+        <div className="metric-legend">
+          {ONBOARDING_OUTCOMES.map((bucket) => (
+            <span key={String(bucket.key)} className="metric-legend-item">
+              <span className="metric-legend-swatch" style={{ background: bucket.color }} />
+              {bucket.label}: <strong>{int(onboardingCount(bucket.key))}</strong>
+            </span>
+          ))}
+        </div>
+
+        <div className="stats-grid">
+          <article className="card card-inset">
+            <h2>Roles</h2>
+            {onboarding.roles.length === 0 ? (
+              <p className="muted">No answers yet.</p>
+            ) : (
+              <div className="metric-bars">
+                {onboarding.roles.map((row) => (
+                  <div key={row.role} className="metric-bar-row">
+                    <span className="metric-bar-label">{row.label}</span>
+                    <span className="metric-bar-track">
+                      <span
+                        className="metric-bar-fill"
+                        style={{ width: `${Math.max(row.count / roleMax, 0.04) * 100}%` }}
+                      />
+                    </span>
+                    <span className="metric-bar-value">{int(row.count)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+          <article className="card card-inset">
+            <h2>Categories picked</h2>
+            {onboarding.categories.length === 0 ? (
+              <p className="muted">No answers yet.</p>
+            ) : (
+              <div className="metric-bars">
+                {onboarding.categories.map((row) => (
+                  <div key={row.category} className="metric-bar-row">
+                    <span className="metric-bar-label">{categoryLabel(row.category)}</span>
+                    <span className="metric-bar-track">
+                      <span
+                        className="metric-bar-fill"
+                        style={{ width: `${Math.max(row.count / categoryMax, 0.04) * 100}%` }}
+                      />
+                    </span>
+                    <span className="metric-bar-value">{int(row.count)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        </div>
+      </section>
+
+      {/* 5 — Activation funnel (my pick). */}
       <section className="card dashboard-panel">
         <div className="dashboard-panel-header">
           <h2>Activation funnel</h2>

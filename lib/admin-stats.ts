@@ -7,11 +7,13 @@ import {
   type EmailCategory,
   type FunnelStage,
   type GrowthPoint,
+  type OnboardingMetrics,
   type UsageFeature,
   type UserGrowthPoint,
   type UserMetrics
 } from "./admin-types";
 import type { Database } from "@/types/supabase";
+import { ONBOARDING_ROLE_LABELS, type OnboardingRole } from "./onboarding";
 
 type PirolDb = SupabaseClient<Database>;
 
@@ -120,6 +122,7 @@ function shapeUserMetrics(raw: unknown): UserMetrics {
   const retention = obj(root.retention);
   const subscription = obj(root.subscription);
   const pmf = obj(root.pmf);
+  const onboarding = obj(root.onboarding);
 
   return {
     generatedAt: str(root.generated_at),
@@ -170,7 +173,41 @@ function shapeUserMetrics(raw: unknown): UserMetrics {
         const o = obj(item);
         return { key: str(o.key), label: str(o.label), count: num(o.count) };
       })
-      .filter((stage) => stage.key.length > 0)
+      .filter((stage) => stage.key.length > 0),
+    onboarding: shapeOnboarding(onboarding)
+  };
+}
+
+function shapeOnboarding(o: Record<string, unknown>): OnboardingMetrics {
+  const bySteps = arr(o.skipped_by_step).map(num);
+  return {
+    since: str(o.since),
+    total: num(o.total),
+    pending: num(o.pending),
+    completed: num(o.completed),
+    skipped: num(o.skipped),
+    completionRate: numOrNull(o.completion_rate),
+    skippedByStep: [bySteps[0] ?? 0, bySteps[1] ?? 0, bySteps[2] ?? 0],
+    ownBrand: num(o.own_brand),
+    completedPaid: num(o.completed_paid),
+    skippedPaid: num(o.skipped_paid),
+    roles: arr(o.roles)
+      .map((item) => {
+        const r = obj(item);
+        const role = str(r.role);
+        return {
+          role,
+          label: ONBOARDING_ROLE_LABELS[role as OnboardingRole] ?? role,
+          count: num(r.count)
+        };
+      })
+      .filter((r) => r.role.length > 0),
+    categories: arr(o.categories)
+      .map((item) => {
+        const c = obj(item);
+        return { category: str(c.category), count: num(c.count) };
+      })
+      .filter((c) => c.category.length > 0)
   };
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { onboardingOutcomeOf, type OnboardingOutcome } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export type RecentSignup = {
   email: string;
   tier: SignupTier;
   createdAt: string;
+  /** Onboarding-modal outcome (see `onboardingOutcomeOf`). */
+  onboarding: OnboardingOutcome;
 };
 
 /**
@@ -38,7 +41,9 @@ export async function GET() {
 
   const { data: profiles, error: profilesError } = await admin
     .from("user_profiles")
-    .select("user_id, email, full_name, created_at")
+    .select(
+      "user_id, email, full_name, created_at, onboarding_completed_at, onboarding_skipped_step"
+    )
     .order("created_at", { ascending: false })
     .limit(FEED_LIMIT);
 
@@ -77,7 +82,8 @@ export async function GET() {
     name: r.full_name,
     email: r.email,
     tier: tierById.get(r.user_id) ?? "free",
-    createdAt: r.created_at
+    createdAt: r.created_at,
+    onboarding: onboardingOutcomeOf(r)
   }));
 
   return NextResponse.json({ signups });

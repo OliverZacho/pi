@@ -674,4 +674,31 @@ export type UserMetrics = {
     stickiness: number | null;
   };
   funnel: FunnelStage[];
+  onboarding: OnboardingMetrics;
+};
+
+/**
+ * How non-team signups handled the 3-step onboarding modal (role →
+ * categories → follow brands). Cohort is accounts created since the modal
+ * launched (`since`); older accounts were backfilled as completed and never
+ * saw it. `pending` accounts have signed up but not answered or skipped yet,
+ * so they sit outside `completionRate`'s denominator.
+ */
+export type OnboardingMetrics = {
+  /** ISO date the modal launched; the cohort starts here. */
+  since: string;
+  total: number;
+  pending: number;
+  completed: number;
+  skipped: number;
+  /** completed / (completed + skipped), null while nobody has decided. */
+  completionRate: number | null;
+  /** Skips taken from step 1, 2 and 3, in that order. */
+  skippedByStep: [number, number, number];
+  /** Cohort members who named the brand they work on. */
+  ownBrand: number;
+  completedPaid: number;
+  skippedPaid: number;
+  roles: { role: string; label: string; count: number }[];
+  categories: { category: string; count: number }[];
 };

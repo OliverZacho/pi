@@ -49,8 +49,38 @@ export type OnboardingRequestPick = {
   domain: string;
 };
 
+/** Modal step (1 role, 2 categories, 3 follows) a skip was taken from. */
+export type OnboardingSkippedStep = 1 | 2 | 3;
+
+/**
+ * Where an account stands with the modal, as the admin panel reports it:
+ * finished all 3 steps, hit "Skip for now" (with the step they left from),
+ * or hasn't answered yet.
+ */
+export type OnboardingOutcome =
+  | { state: "completed" }
+  | { state: "skipped"; step: number | null }
+  | { state: "pending" };
+
+export function onboardingOutcomeOf(profile: {
+  onboarding_completed_at: string | null;
+  onboarding_skipped_step: number | null;
+}): OnboardingOutcome {
+  if (!profile.onboarding_completed_at) return { state: "pending" };
+  if (profile.onboarding_skipped_step !== null) {
+    return { state: "skipped", step: profile.onboarding_skipped_step };
+  }
+  return { state: "completed" };
+}
+
 export type OnboardingCompletion = {
   skipped: boolean;
+  /**
+   * Which step the user skipped from; null for a completed onboarding. Sent
+   * by the modal, and otherwise inferred from the answers left behind (a
+   * role is required to leave step 1, a category to leave step 2).
+   */
+  skippedStep: OnboardingSkippedStep | null;
   role: OnboardingRole | null;
   categories: string[];
   ownBrandDomain: string | null;
@@ -103,6 +133,22 @@ export function parseOnboardingCompletion(body: unknown): ParseResult {
       if (!value || value.length > MAX_CATEGORY_LENGTH) continue;
       if (!categories.includes(value)) categories.push(value);
       if (categories.length >= MAX_CATEGORIES) break;
+    }
+  }
+
+  let skippedStep: OnboardingSkippedStep | null = null;
+  if (skipped) {
+    if (input.skippedStep != null) {
+      if (
+        input.skippedStep !== 1 &&
+        input.skippedStep !== 2 &&
+        input.skippedStep !== 3
+      ) {
+        return { ok: false, error: "Invalid skipped step" };
+      }
+      skippedStep = input.skippedStep;
+    } else {
+      skippedStep = role === null ? 1 : categories.length === 0 ? 2 : 3;
     }
   }
 
@@ -178,6 +224,14 @@ export function parseOnboardingCompletion(body: unknown): ParseResult {
 
   return {
     ok: true,
-    payload: { skipped, role, categories, ownBrandDomain, follows, requests }
+    payload: {
+      skipped,
+      skippedStep,
+      role,
+      categories,
+      ownBrandDomain,
+      follows,
+      requests
+    }
   };
 }

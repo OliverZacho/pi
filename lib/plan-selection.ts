@@ -52,6 +52,8 @@ export async function stampOnboardingCompleted(
     role?: string | null;
     categories?: string[] | null;
     ownBrandDomain?: string | null;
+    /** Step the user skipped from (1-3); omit / null for a completion. */
+    skippedStep?: number | null;
   } = {}
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -59,6 +61,7 @@ export async function stampOnboardingCompleted(
     .from("user_profiles")
     .update({
       onboarding_completed_at: now,
+      onboarding_skipped_step: answers.skippedStep ?? null,
       onboarding_role: answers.role ?? null,
       onboarding_categories: answers.categories?.length
         ? answers.categories
