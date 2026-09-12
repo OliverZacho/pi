@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
 import {
-  measureNaturalWidth,
   PREVIEW_FRAME_SANDBOX,
-  RENDER_WIDTH
+  RENDER_WIDTH,
+  subscribeToPreviewWidth
 } from "@/lib/preview-width";
 import exploreStyles from "../explore/explore.module.css";
 
@@ -62,20 +62,14 @@ export default function PublicEmailCard({
     return () => ro.disconnect();
   }, []);
 
-  // Same natural-width detection as EmailCard (see lib/preview-width.ts).
-  function handleFrameReady() {
-    setLoaded(true);
-    const natural = measureNaturalWidth(frameRef.current);
-    if (natural === null) return;
-    setRenderWidth((current) => (natural > current ? natural : current));
-  }
-
-  // A cached frame can finish loading before React attaches `onLoad`, so
-  // also check once on mount.
+  // Same natural-width detection as EmailCard: the frame's embedded script
+  // posts its width (see lib/preview-width.ts); we only ever widen.
   useEffect(() => {
-    if (frameRef.current?.contentDocument?.readyState === "complete") {
-      handleFrameReady();
-    }
+    const frame = frameRef.current;
+    if (!frame) return;
+    return subscribeToPreviewWidth(frame, (natural) => {
+      setRenderWidth((current) => (natural > current ? natural : current));
+    });
   }, []);
 
   const scale = previewWidth !== null ? previewWidth / renderWidth : null;
@@ -125,7 +119,7 @@ export default function PublicEmailCard({
           scrolling="no"
           className={exploreStyles.cardFrame}
           style={frameStyle}
-          onLoad={handleFrameReady}
+          onLoad={() => setLoaded(true)}
         />
         <div className={exploreStyles.cardOverlay}>
           <button

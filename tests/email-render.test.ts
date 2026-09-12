@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { rewriteEmailHtml, stripEmailLinks } from "@/lib/email-render";
+import { createHash } from "node:crypto";
+import {
+  emailPreviewCsp,
+  injectPreviewMeasureScript,
+  PREVIEW_MEASURE_SCRIPT,
+  PREVIEW_MEASURE_SCRIPT_HASH,
+  rewriteEmailHtml,
+  stripEmailLinks
+} from "@/lib/email-render";
+import { PREVIEW_MEASURE_REQUEST, PREVIEW_WIDTH_MESSAGE } from "@/lib/preview-width";
 
 const MIRROR_MAP = {
   "https://cdn.example.com/banner.png": "em-1/abc.png",
@@ -207,5 +216,34 @@ describe("stripEmailLinks", () => {
 
   it("returns an empty result for empty html", () => {
     expect(stripEmailLinks("")).toEqual({ html: "", stripped: 0 });
+  });
+});
+
+describe("preview measuring script", () => {
+  it("is allowed by the CSP through its exact hash and nothing else", () => {
+    const expected =
+      "sha256-" + createHash("sha256").update(PREVIEW_MEASURE_SCRIPT, "utf8").digest("base64");
+    expect(PREVIEW_MEASURE_SCRIPT_HASH).toBe(expected);
+    const csp = emailPreviewCsp();
+    expect(csp).toContain(`script-src '${expected}'`);
+    const scriptSrc = csp.split("; ").find((d) => d.startsWith("script-src"));
+    expect(scriptSrc).toBe(`script-src '${expected}'`);
+    expect(csp).toContain("default-src 'none'");
+  });
+
+  it("speaks the message types the cards listen for", () => {
+    expect(PREVIEW_MEASURE_SCRIPT).toContain(JSON.stringify(PREVIEW_WIDTH_MESSAGE));
+    expect(PREVIEW_MEASURE_SCRIPT).toContain(JSON.stringify(PREVIEW_MEASURE_REQUEST));
+    expect(PREVIEW_MEASURE_SCRIPT).not.toContain("</script");
+  });
+
+  it("injects before the last </body>, case-insensitively, else appends", () => {
+    const tag = `<script>${PREVIEW_MEASURE_SCRIPT}</script>`;
+    expect(injectPreviewMeasureScript("<html><body><p>x</p></BODY ></html>")).toBe(
+      `<html><body><p>x</p>${tag}</BODY ></html>`
+    );
+    const twoBodies = "<body>a</body><body>b</body>";
+    expect(injectPreviewMeasureScript(twoBodies)).toBe(`<body>a</body><body>b${tag}</body>`);
+    expect(injectPreviewMeasureScript("<p>bare fragment</p>")).toBe(`<p>bare fragment</p>${tag}`);
   });
 });
