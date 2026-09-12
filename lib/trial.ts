@@ -18,6 +18,20 @@ import type { PlanId } from "@/lib/stripe";
 export const TRIAL_PERIOD_DAYS = 14;
 
 /**
+ * Where a "start your free trial" link sends the visitor. The route opens
+ * Stripe Checkout for Solo straight away when they're signed in, and
+ * otherwise routes them through /signup (or /login) and back into Checkout
+ * once the session exists. Monthly, because the marketing cards quote the
+ * €/month price next to the button; Checkout itself shows the annual option.
+ *
+ * Link to it with a plain `<a>`, not next/link: a Link would prefetch the
+ * route handler and open a Stripe session for every signed-in visitor who
+ * merely scrolled past the button.
+ */
+export const SOLO_TRIAL_CHECKOUT_HREF =
+  "/api/checkout/continue?plan=solo&billing=monthly";
+
+/**
  * Which plans open with a trial. Solo only: a trialing Team owner would hand
  * five other people free access for two weeks, and team member entitlement is
  * derived from the owner's subscription, so an unconverted team trial would

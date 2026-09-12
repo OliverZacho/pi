@@ -7,11 +7,19 @@ import {
   type EmailCategory,
   type FunnelStage,
   type GrowthPoint,
+  type OnboardingMetrics,
+  type OnboardingOutcomeRow,
+  type SignupSourceStat,
+  type TimeToFirstAction,
+  type UpgradePromptStat,
   type UsageFeature,
   type UserGrowthPoint,
   type UserMetrics
 } from "./admin-types";
 import type { Database } from "@/types/supabase";
+import { ONBOARDING_ROLE_LABELS, type OnboardingRole } from "./onboarding";
+import { labelForUpgradeSource } from "./upgrade-clicks-db";
+import { labelForSignupSource } from "./signup-source";
 
 type PirolDb = SupabaseClient<Database>;
 
@@ -120,6 +128,7 @@ function shapeUserMetrics(raw: unknown): UserMetrics {
   const retention = obj(root.retention);
   const subscription = obj(root.subscription);
   const pmf = obj(root.pmf);
+  const onboarding = obj(root.onboarding);
 
   return {
     generatedAt: str(root.generated_at),
@@ -170,7 +179,109 @@ function shapeUserMetrics(raw: unknown): UserMetrics {
         const o = obj(item);
         return { key: str(o.key), label: str(o.label), count: num(o.count) };
       })
-      .filter((stage) => stage.key.length > 0)
+      .filter((stage) => stage.key.length > 0),
+    onboarding: shapeOnboarding(onboarding),
+    timeToFirstAction: shapeTimeToFirstAction(obj(root.time_to_first_action)),
+    upgradePrompts: arr(root.upgrade_prompts)
+      .map((item): UpgradePromptStat => {
+        const u = obj(item);
+        const source = str(u.source);
+        return {
+          source,
+          label: labelForUpgradeSource(source),
+          clicks: num(u.clicks),
+          clicks30d: num(u.clicks_30d),
+          users: num(u.users),
+          converted: num(u.converted),
+          lastAt: typeof u.last_at === "string" ? u.last_at : null
+        };
+      })
+      .filter((u) => u.source.length > 0),
+    signupSources: arr(root.signup_sources)
+      .map((item): SignupSourceStat => {
+        const s = obj(item);
+        const source = str(s.source);
+        return {
+          source,
+          label: labelForSignupSource(source),
+          total: num(s.total),
+          last30d: num(s.last_30d),
+          paid: num(s.paid)
+        };
+      })
+      .filter((s) => s.source.length > 0)
+  };
+}
+
+function shapeTimeToFirstAction(o: Record<string, unknown>): TimeToFirstAction {
+  return {
+    total: num(o.total),
+    acted: num(o.acted),
+    never: num(o.never),
+    within1h: num(o.within_1h),
+    within24h: num(o.within_24h),
+    within7d: num(o.within_7d),
+    later: num(o.later),
+    medianMinutes: numOrNull(o.median_minutes),
+    p75Minutes: numOrNull(o.p75_minutes)
+  };
+}
+
+function shapeOnboarding(o: Record<string, unknown>): OnboardingMetrics {
+  const bySteps = arr(o.skipped_by_step).map(num);
+  return {
+    since: str(o.since),
+    total: num(o.total),
+    pending: num(o.pending),
+    completed: num(o.completed),
+    skipped: num(o.skipped),
+    completionRate: numOrNull(o.completion_rate),
+    skippedByStep: [bySteps[0] ?? 0, bySteps[1] ?? 0, bySteps[2] ?? 0],
+    ownBrand: num(o.own_brand),
+    completedPaid: num(o.completed_paid),
+    skippedPaid: num(o.skipped_paid),
+    roles: arr(o.roles)
+      .map((item) => {
+        const r = obj(item);
+        const role = str(r.role);
+        return {
+          role,
+          label: ONBOARDING_ROLE_LABELS[role as OnboardingRole] ?? role,
+          count: num(r.count)
+        };
+      })
+      .filter((r) => r.role.length > 0),
+    categories: arr(o.categories)
+      .map((item) => {
+        const c = obj(item);
+        return { category: str(c.category), count: num(c.count) };
+      })
+      .filter((c) => c.category.length > 0),
+    byOutcome: arr(o.by_outcome)
+      .map((item) => {
+        const r = obj(item);
+        const outcome = str(r.outcome);
+        return {
+          outcome: outcome as OnboardingOutcomeRow["outcome"],
+          total: num(r.total),
+          acted: num(r.acted),
+          savedAny: num(r.saved_any),
+          followedLater: num(r.followed_later),
+          madeCollection: num(r.made_collection),
+          active7d: num(r.active_7d),
+          paid: num(r.paid)
+        };
+      })
+      .filter((r) => ["completed", "skipped", "pending"].includes(r.outcome)),
+    requests: (() => {
+      const r = obj(o.requests);
+      return {
+        total: num(r.total),
+        pending: num(r.pending),
+        handled: num(r.handled),
+        users: num(r.users)
+      };
+    })()
   };
 }
 

@@ -106,7 +106,11 @@ export default function CheckoutAuthFlow({
       }
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { shouldCreateUser: true, emailRedirectTo, data: buyerData() }
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo,
+          data: { ...buyerData(), signup_source: "plan_modal" }
+        }
       });
       if (otpError) throw new Error(otpError.message);
     } else {
@@ -116,7 +120,10 @@ export default function CheckoutAuthFlow({
         // password_signup tells the on_auth_user_change trigger to stamp
         // user_profiles.password_set_at (OTP signups get a random hash, so
         // the hash itself can't distinguish real passwords).
-        options: { emailRedirectTo, data: { ...buyerData(), password_signup: true } }
+        options: {
+          emailRedirectTo,
+          data: { ...buyerData(), password_signup: true, signup_source: "plan_modal" }
+        }
       });
       if (signUpError) {
         if (/already registered|already exists/i.test(signUpError.message)) {
@@ -143,7 +150,7 @@ export default function CheckoutAuthFlow({
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}&signup_source=plan_modal`
       }
     });
     if (oauthError) {

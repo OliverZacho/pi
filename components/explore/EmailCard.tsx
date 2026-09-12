@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
 import { formatShortDate, formatTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
+import {
+  measureNaturalWidth,
+  PREVIEW_FRAME_SANDBOX,
+  RENDER_WIDTH
+} from "@/lib/preview-width";
 import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
-
-const RENDER_WIDTH = 600;
-// Upper bound for the auto-detected email width. Guards against a stray
-// oversized node inflating `scrollWidth` and shrinking the whole preview.
-const MAX_RENDER_WIDTH = 900;
 
 type Props = {
   email: ExploreEmailCard;
@@ -200,25 +200,14 @@ export default function EmailCard({
   }, []);
 
   // Once the email document is ready, mark it loaded and widen the render
-  // width to fit the email's real layout. The render route is same-origin,
-  // so reading `scrollWidth` is safe (guarded for the rare cross-origin
-  // case). We only ever widen past the 600px default and cap the value so a
-  // stray oversized node can't shrink the whole preview to nothing.
+  // width to fit the email's real layout (lib/preview-width.ts explains why
+  // the frame must be same-origin for this to work). We only ever widen
+  // past the 600px default.
   function handleFrameReady() {
     setLoaded(true);
-    const frame = frameRef.current;
-    const doc = frame?.contentDocument;
-    if (!doc) return;
-    try {
-      const natural = Math.max(
-        doc.documentElement?.scrollWidth ?? 0,
-        doc.body?.scrollWidth ?? 0
-      );
-      const clamped = Math.min(Math.max(natural, RENDER_WIDTH), MAX_RENDER_WIDTH);
-      setRenderWidth((current) => (clamped > current ? clamped : current));
-    } catch {
-      // Cross-origin document — keep the default render width.
-    }
+    const natural = measureNaturalWidth(frameRef.current);
+    if (natural === null) return;
+    setRenderWidth((current) => (natural > current ? natural : current));
   }
 
   useEffect(() => {
@@ -228,7 +217,7 @@ export default function EmailCard({
     if (frame.contentDocument?.readyState === "complete") {
       handleFrameReady();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [inView]);
 
   // `?preview=1` opts the grid thumbnail into CDN-resized body images
@@ -309,7 +298,12 @@ export default function EmailCard({
             title={`${email.companyName} — ${email.subject}`}
             loading="lazy"
             referrerPolicy="no-referrer"
-            sandbox="allow-popups allow-popups-to-escape-sandbox"
+            sandbox={PREVIEW_FRAME_SANDBOX}
+            // The email is taller than the frame, so the frame's own document
+            // is scrollable. Browsers with classic (non-overlay) scrollbars,
+            // Edge in particular, then paint a scrollbar over every card.
+            // The thumbnail is never meant to scroll, so switch it off.
+            scrolling="no"
             className={styles.cardFrame}
             style={frameStyle}
             onLoad={handleFrameReady}

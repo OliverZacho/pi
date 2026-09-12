@@ -49,7 +49,8 @@ export async function POST(request: Request) {
   const answers = {
     role: payload.role,
     categories: payload.categories,
-    ownBrandDomain: payload.ownBrandDomain
+    ownBrandDomain: payload.ownBrandDomain,
+    skippedStep: payload.skippedStep
   };
 
   try {

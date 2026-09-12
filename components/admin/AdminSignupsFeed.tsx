@@ -5,6 +5,8 @@ import type {
   RecentSignup,
   SignupTier
 } from "@/app/api/admin/recent-signups/route";
+import type { OnboardingOutcome } from "@/lib/onboarding";
+import { SIGNUP_SOURCE_SHORT_LABELS } from "@/lib/signup-source";
 import AdminUserActivityModal from "./AdminUserActivityModal";
 
 /**
@@ -33,6 +35,15 @@ function readLastSeen(): number {
   } catch {
     return 0;
   }
+}
+
+/** Short onboarding-modal outcome for the row's meta line. */
+function onboardingLabel(o: OnboardingOutcome): string {
+  if (o.state === "completed") return "onboarded";
+  if (o.state === "skipped") {
+    return o.step ? `skipped at step ${o.step}` : "skipped onboarding";
+  }
+  return "onboarding pending";
 }
 
 function relativeTime(iso: string): string {
@@ -134,7 +145,8 @@ export default function AdminSignupsFeed() {
                     {display}
                   </span>
                   <span className="admin-signup-meta">
-                    {relativeTime(s.createdAt)}
+                    {relativeTime(s.createdAt)} · {onboardingLabel(s.onboarding)}
+                    {s.source ? ` · ${SIGNUP_SOURCE_SHORT_LABELS[s.source]}` : ""}
                   </span>
                 </span>
                 <span className={`admin-signup-badge tier-${s.tier}`}>

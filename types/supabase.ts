@@ -1357,9 +1357,11 @@ export type Database = {
           onboarding_categories: string[] | null
           onboarding_completed_at: string | null
           onboarding_role: string | null
+          onboarding_skipped_step: number | null
           own_brand_domain: string | null
           password_set_at: string | null
           plan_selected_at: string | null
+          signup_source: string | null
           tour_completed_at: string | null
           updated_at: string
           user_id: string
@@ -1373,9 +1375,11 @@ export type Database = {
           onboarding_categories?: string[] | null
           onboarding_completed_at?: string | null
           onboarding_role?: string | null
+          onboarding_skipped_step?: number | null
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
+          signup_source?: string | null
           tour_completed_at?: string | null
           updated_at?: string
           user_id: string
@@ -1389,9 +1393,11 @@ export type Database = {
           onboarding_categories?: string[] | null
           onboarding_completed_at?: string | null
           onboarding_role?: string | null
+          onboarding_skipped_step?: number | null
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
+          signup_source?: string | null
           tour_completed_at?: string | null
           updated_at?: string
           user_id?: string
@@ -1549,6 +1555,7 @@ export type Database = {
         Args: {
           p_client_key?: string
           p_company_name: string
+          p_domain?: string
           p_website: string
         }
         Returns: string

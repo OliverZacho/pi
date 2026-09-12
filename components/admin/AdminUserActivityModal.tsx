@@ -33,6 +33,25 @@ function formatWhen(value: string | null): string {
   return Number.isNaN(parsed.getTime()) ? "—" : DATE_TIME.format(parsed);
 }
 
+/** "Done Sep 3, 10:12" / "Skipped at step 2 · Sep 3, 10:12" / "Not answered yet". */
+function onboardingSummary(a: UserActivity): string {
+  const when = formatWhen(a.profile.onboardingCompletedAt);
+  if (a.onboarding.state === "completed") return `Done ${when}`;
+  if (a.onboarding.state === "skipped") {
+    const where = a.onboarding.step ? `Skipped at step ${a.onboarding.step}` : "Skipped";
+    return `${where} · ${when}`;
+  }
+  return "Not answered yet";
+}
+
+function hasOnboardingAnswers(a: UserActivity): boolean {
+  return Boolean(
+    a.onboarding.roleLabel ||
+      a.onboarding.ownBrandDomain ||
+      a.onboarding.categories.length > 0
+  );
+}
+
 function providerLabel(provider: string | null): string | null {
   if (!provider) return null;
   if (provider === "google") return "Google";
@@ -131,6 +150,9 @@ export default function AdminUserActivityModal({
                   {providerLabel(a.auth.provider)
                     ? ` via ${providerLabel(a.auth.provider)}`
                     : ""}
+                  {a.profile.signupSourceLabel
+                    ? ` · ${a.profile.signupSourceLabel}`
+                    : ""}
                 </dd>
               </div>
               <div>
@@ -143,13 +165,37 @@ export default function AdminUserActivityModal({
               </div>
               <div>
                 <dt>Onboarding</dt>
-                <dd>
-                  {a.profile.onboardingCompletedAt
-                    ? `Done ${formatWhen(a.profile.onboardingCompletedAt)}`
-                    : "Not completed"}
-                </dd>
+                <dd>{onboardingSummary(a)}</dd>
               </div>
             </dl>
+
+            {hasOnboardingAnswers(a) ? (
+              <section className="user-activity-section">
+                <h3>Onboarding answers</h3>
+                <ul className="user-activity-list">
+                  {a.onboarding.roleLabel ? (
+                    <li>
+                      <span>Role</span>
+                      <span className="muted">{a.onboarding.roleLabel}</span>
+                    </li>
+                  ) : null}
+                  {a.onboarding.ownBrandDomain ? (
+                    <li>
+                      <span>Own brand</span>
+                      <span className="muted">{a.onboarding.ownBrandDomain}</span>
+                    </li>
+                  ) : null}
+                  {a.onboarding.categories.length > 0 ? (
+                    <li>
+                      <span>Categories</span>
+                      <span className="muted">
+                        {a.onboarding.categories.join(", ")}
+                      </span>
+                    </li>
+                  ) : null}
+                </ul>
+              </section>
+            ) : null}
 
             <div className="user-activity-stats">
               <div className="user-activity-stat">

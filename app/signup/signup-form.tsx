@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { finishAuthRedirect } from "@/lib/finish-auth-redirect";
+import { signupSourceForNext } from "@/lib/signup-source";
 import CodeInput from "@/components/onboarding/CodeInput";
 import styles from "../login/login.module.css";
 
@@ -26,6 +28,10 @@ export default function SignupForm() {
   // plan choice) on arrival.
   const nextPath = searchParams.get("next") ?? "/explore";
   const safeNext = nextPath.startsWith("/") ? nextPath : "/explore";
+  // Which button brought them here (plain sign-up vs the free-trial button
+  // vs a checkout), for the admin signups panel. Rides along as auth
+  // metadata on email signups and as a callback param on Google ones.
+  const signupSource = signupSourceForNext(safeNext);
 
   const [step, setStep] = useState<Step>("details");
   const [fullName, setFullName] = useState("");
@@ -41,7 +47,7 @@ export default function SignupForm() {
   // Google comes back through /auth/callback, which exchanges the PKCE
   // `code` for a session. Preserve `next` so the user lands where intended.
   function callbackUrl() {
-    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}&signup_source=${signupSource}`;
   }
 
   async function onGoogle() {
@@ -74,7 +80,7 @@ export default function SignupForm() {
       options: {
         shouldCreateUser: true,
         // The name lands in user_profiles via the on_auth_user_change trigger.
-        data: { full_name: fullName.trim() }
+        data: { full_name: fullName.trim(), signup_source: signupSource }
       }
     });
     if (otpError) throw new Error(otpError.message);
@@ -146,8 +152,7 @@ export default function SignupForm() {
       setPending(false);
       return;
     }
-    router.push(safeNext);
-    router.refresh();
+    finishAuthRedirect(router, safeNext);
   }
 
   if (step === "code") {

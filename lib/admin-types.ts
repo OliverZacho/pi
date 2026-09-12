@@ -674,4 +674,93 @@ export type UserMetrics = {
     stickiness: number | null;
   };
   funnel: FunnelStage[];
+  onboarding: OnboardingMetrics;
+  timeToFirstAction: TimeToFirstAction;
+  upgradePrompts: UpgradePromptStat[];
+  signupSources: SignupSourceStat[];
+};
+
+/**
+ * Minutes from signup to a user's first meaningful action — a save, a
+ * collection, a comparison, or a follow made on their own (the onboarding
+ * modal's batch of follows is excluded). Non-team users; `never` have not
+ * acted yet.
+ */
+export type TimeToFirstAction = {
+  total: number;
+  acted: number;
+  never: number;
+  within1h: number;
+  /** 1–24 hours. */
+  within24h: number;
+  /** 1–7 days. */
+  within7d: number;
+  /** More than a week. */
+  later: number;
+  medianMinutes: number | null;
+  p75Minutes: number | null;
+};
+
+/** One upgrade CTA source tag, ranked by clicks. `converted` = distinct
+ *  clickers who hold a live subscription today. */
+export type UpgradePromptStat = {
+  source: string;
+  label: string;
+  clicks: number;
+  clicks30d: number;
+  users: number;
+  converted: number;
+  lastAt: string | null;
+};
+
+/** Signups (non-team) by the button/flow that created the account. */
+export type SignupSourceStat = {
+  source: string;
+  label: string;
+  total: number;
+  last30d: number;
+  paid: number;
+};
+
+export type OnboardingOutcomeRow = {
+  outcome: "completed" | "skipped" | "pending";
+  total: number;
+  /** Took any first action (see {@link TimeToFirstAction}). */
+  acted: number;
+  savedAny: number;
+  /** Followed a brand outside the onboarding batch. */
+  followedLater: number;
+  madeCollection: number;
+  active7d: number;
+  paid: number;
+};
+
+/**
+ * How non-team signups handled the 3-step onboarding modal (role →
+ * categories → follow brands). Cohort is accounts created since the modal
+ * launched (`since`); older accounts were backfilled as completed and never
+ * saw it. `pending` accounts have signed up but not answered or skipped yet,
+ * so they sit outside `completionRate`'s denominator.
+ */
+export type OnboardingMetrics = {
+  /** ISO date the modal launched; the cohort starts here. */
+  since: string;
+  total: number;
+  pending: number;
+  completed: number;
+  skipped: number;
+  /** completed / (completed + skipped), null while nobody has decided. */
+  completionRate: number | null;
+  /** Skips taken from step 1, 2 and 3, in that order. */
+  skippedByStep: [number, number, number];
+  /** Cohort members who named the brand they work on. */
+  ownBrand: number;
+  completedPaid: number;
+  skippedPaid: number;
+  roles: { role: string; label: string; count: number }[];
+  categories: { category: string; count: number }[];
+  /** Activation by outcome, so the modal's effect can be read directly. */
+  byOutcome: OnboardingOutcomeRow[];
+  /** Untracked brands asked for in step 3 (brand_requests, source onboarding). */
+  requests: { total: number; pending: number; handled: number; users: number };
 };

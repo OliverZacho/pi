@@ -1,4 +1,5 @@
 import type { PirolSupabaseClient } from "@/lib/supabase-admin";
+import type { SignupSource } from "@/lib/signup-source";
 
 /**
  * Record that the user has made their onboarding plan choice. Once stamped,
@@ -52,6 +53,8 @@ export async function stampOnboardingCompleted(
     role?: string | null;
     categories?: string[] | null;
     ownBrandDomain?: string | null;
+    /** Step the user skipped from (1-3); omit / null for a completion. */
+    skippedStep?: number | null;
   } = {}
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -59,6 +62,7 @@ export async function stampOnboardingCompleted(
     .from("user_profiles")
     .update({
       onboarding_completed_at: now,
+      onboarding_skipped_step: answers.skippedStep ?? null,
       onboarding_role: answers.role ?? null,
       onboarding_categories: answers.categories?.length
         ? answers.categories
@@ -67,5 +71,29 @@ export async function stampOnboardingCompleted(
       updated_at: now
     })
     .eq("user_id", userId);
+  if (error) throw error;
+}
+
+/**
+ * Record which door a brand-new account came through. OTP signups carry the
+ * source in their auth metadata and the auth trigger stamps it at insert;
+ * this is for landings that can only be attributed once the session exists
+ * (Google OAuth via /auth/callback, and team invites). Never overwrites an
+ * existing value unless `overwrite` is set (an invite claim wins).
+ */
+export async function stampSignupSource(
+  admin: PirolSupabaseClient,
+  userId: string,
+  source: SignupSource,
+  options: { overwrite?: boolean } = {}
+): Promise<void> {
+  let query = admin
+    .from("user_profiles")
+    .update({ signup_source: source, updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  if (!options.overwrite) {
+    query = query.is("signup_source", null);
+  }
+  const { error } = await query;
   if (error) throw error;
 }

@@ -9,10 +9,109 @@
 }
 
 .field {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   text-align: left;
+}
+
+/* Logo.dev typeahead under the company-name field. */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+.section {
+  padding: 0.45rem 0.6rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #0f172a;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.rowLogo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #f1f5f9;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  overflow: hidden;
+}
+
+.rowLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.rowName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.rowMeta {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.rowLink {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #086e4b;
+}
+
+.empty {
+  padding: 0.6rem 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #64748b;
 }
 
 .label {

@@ -3,6 +3,13 @@ import { requireAdminSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { labelForUpgradeSource } from "@/lib/upgrade-clicks-db";
 import { labelForNavId } from "@/lib/nav-clicks-db";
+import {
+  ONBOARDING_ROLE_LABELS,
+  onboardingOutcomeOf,
+  type OnboardingOutcome,
+  type OnboardingRole
+} from "@/lib/onboarding";
+import { labelForSignupSource } from "@/lib/signup-source";
 import type { SignupTier } from "@/app/api/admin/recent-signups/route";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +30,14 @@ export type UserActivity = {
     onboardingCompletedAt: string | null;
     planSelectedAt: string | null;
     passwordSetAt: string | null;
+    /** Which button/flow created the account (label), null before tracking. */
+    signupSourceLabel: string | null;
+  };
+  /** The onboarding modal: outcome plus whatever they answered on the way. */
+  onboarding: OnboardingOutcome & {
+    roleLabel: string | null;
+    categories: string[];
+    ownBrandDomain: string | null;
   };
   auth: {
     provider: string | null;
@@ -73,7 +88,7 @@ export async function GET(request: Request) {
       admin
         .from("user_profiles")
         .select(
-          "email, full_name, created_at, last_visit_at, last_active_at, onboarding_completed_at, tour_completed_at, plan_selected_at, password_set_at"
+          "email, full_name, created_at, last_visit_at, last_active_at, onboarding_completed_at, onboarding_skipped_step, onboarding_role, onboarding_categories, own_brand_domain, signup_source, tour_completed_at, plan_selected_at, password_set_at"
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -175,7 +190,19 @@ export async function GET(request: Request) {
         onboardingCompletedAt:
           profile.onboarding_completed_at ?? profile.tour_completed_at,
         planSelectedAt: profile.plan_selected_at,
-        passwordSetAt: profile.password_set_at
+        passwordSetAt: profile.password_set_at,
+        signupSourceLabel: profile.signup_source
+          ? labelForSignupSource(profile.signup_source)
+          : null
+      },
+      onboarding: {
+        ...onboardingOutcomeOf(profile),
+        roleLabel: profile.onboarding_role
+          ? ONBOARDING_ROLE_LABELS[profile.onboarding_role as OnboardingRole] ??
+            profile.onboarding_role
+          : null,
+        categories: profile.onboarding_categories ?? [],
+        ownBrandDomain: profile.own_brand_domain
       },
       auth: {
         provider,

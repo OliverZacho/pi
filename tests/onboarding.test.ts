@@ -20,6 +20,44 @@ function follows(count: number): string[] {
   return Array.from({ length: count }, (_, i) => uuid(i + 1));
 }
 
+describe("parseOnboardingCompletion skipped step", () => {
+  it("keeps the step the modal reports", () => {
+    for (const step of [1, 2, 3] as const) {
+      const result = parseOnboardingCompletion({ skipped: true, skippedStep: step });
+      expect(result.ok && result.payload.skippedStep).toBe(step);
+    }
+  });
+
+  it("rejects steps outside 1-3", () => {
+    for (const step of [0, 4, "2", 2.5]) {
+      expect(parseOnboardingCompletion({ skipped: true, skippedStep: step }).ok).toBe(false);
+    }
+  });
+
+  it("infers the step from the answers when none is sent", () => {
+    const bare = parseOnboardingCompletion({ skipped: true });
+    expect(bare.ok && bare.payload.skippedStep).toBe(1);
+    const withRole = parseOnboardingCompletion({ skipped: true, role: "founder" });
+    expect(withRole.ok && withRole.payload.skippedStep).toBe(2);
+    const withCats = parseOnboardingCompletion({
+      skipped: true,
+      role: "founder",
+      categories: ["fashion"]
+    });
+    expect(withCats.ok && withCats.payload.skippedStep).toBe(3);
+  });
+
+  it("is null for a completion, even if a step is sent", () => {
+    const result = parseOnboardingCompletion({
+      skippedStep: 3,
+      role: "founder",
+      categories: ["fashion"],
+      follows: follows(MIN_ONBOARDING_FOLLOWS)
+    });
+    expect(result.ok && result.payload.skippedStep).toBe(null);
+  });
+});
+
 describe("parseOnboardingCompletion", () => {
   it("rejects non-object bodies", () => {
     for (const body of [null, undefined, "x", 42, []]) {

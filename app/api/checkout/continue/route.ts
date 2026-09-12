@@ -12,12 +12,17 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * GET `/api/checkout/continue?plan=&billing=` — the resume point after a
- * Google OAuth round-trip. The upgrade modal sends `redirectTo` through
- * `/auth/callback?next=/api/checkout/continue?...`, so once the callback has
- * established the session it lands here, and we redirect straight into Stripe
- * Checkout for the plan they picked before signing in. A top-level navigation
- * (not fetch), so everything is a redirect rather than JSON.
+ * GET `/api/checkout/continue?plan=&billing=` — a linkable way into Stripe
+ * Checkout. Two callers:
+ *  - The resume point after a Google OAuth round-trip. The upgrade modal
+ *    sends `redirectTo` through `/auth/callback?next=/api/checkout/continue?...`,
+ *    so once the callback has established the session it lands here.
+ *  - Marketing "start your free trial" links (SOLO_TRIAL_CHECKOUT_HREF), which
+ *    may be clicked by anyone. Without a session we bounce through /signup with
+ *    this URL as `next`, so account creation flows straight on into Checkout;
+ *    /signup offers "log in instead" (same `next`) for existing accounts.
+ * A top-level navigation (not fetch), so everything is a redirect rather than
+ * JSON.
  */
 export async function GET(request: Request) {
   const origin = originOf(request);
@@ -27,10 +32,11 @@ export async function GET(request: Request) {
 
   const session = await requireSession();
   if ("response" in session) {
-    // Session didn't stick — send them to log in, then back here.
+    // No session yet (a marketing link, or an OAuth session that didn't
+    // stick) — create an account or log in, then come back here.
     const next = `/api/checkout/continue?plan=${plan}&billing=${billing}`;
     return NextResponse.redirect(
-      `${origin}/login?next=${encodeURIComponent(next)}`
+      `${origin}/signup?next=${encodeURIComponent(next)}`
     );
   }
 

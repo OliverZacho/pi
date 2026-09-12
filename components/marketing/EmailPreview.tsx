@@ -98,6 +98,9 @@ export default function EmailPreview({ email = HERO_EMAIL }: Props) {
           sandbox="allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="no-referrer"
           loading="eager"
+          // Presentational preview — suppress the inner document's scrollbars
+          // (visible in browsers that don't use overlay ones, e.g. Edge).
+          scrolling="no"
           className={styles.emailRenderIframe}
           style={{
             width: `${NOMINAL_EMAIL_WIDTH}px`,
