@@ -1361,6 +1361,7 @@ export type Database = {
           own_brand_domain: string | null
           password_set_at: string | null
           plan_selected_at: string | null
+          signup_source: string | null
           tour_completed_at: string | null
           updated_at: string
           user_id: string
@@ -1378,6 +1379,7 @@ export type Database = {
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
+          signup_source?: string | null
           tour_completed_at?: string | null
           updated_at?: string
           user_id: string
@@ -1395,6 +1397,7 @@ export type Database = {
           own_brand_domain?: string | null
           password_set_at?: string | null
           plan_selected_at?: string | null
+          signup_source?: string | null
           tour_completed_at?: string | null
           updated_at?: string
           user_id?: string

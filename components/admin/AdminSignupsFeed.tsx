@@ -6,6 +6,7 @@ import type {
   SignupTier
 } from "@/app/api/admin/recent-signups/route";
 import type { OnboardingOutcome } from "@/lib/onboarding";
+import { SIGNUP_SOURCE_SHORT_LABELS } from "@/lib/signup-source";
 import AdminUserActivityModal from "./AdminUserActivityModal";
 
 /**
@@ -145,6 +146,7 @@ export default function AdminSignupsFeed() {
                   </span>
                   <span className="admin-signup-meta">
                     {relativeTime(s.createdAt)} · {onboardingLabel(s.onboarding)}
+                    {s.source ? ` · ${SIGNUP_SOURCE_SHORT_LABELS[s.source]}` : ""}
                   </span>
                 </span>
                 <span className={`admin-signup-badge tier-${s.tier}`}>

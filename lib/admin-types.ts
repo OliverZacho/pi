@@ -675,6 +675,64 @@ export type UserMetrics = {
   };
   funnel: FunnelStage[];
   onboarding: OnboardingMetrics;
+  timeToFirstAction: TimeToFirstAction;
+  upgradePrompts: UpgradePromptStat[];
+  signupSources: SignupSourceStat[];
+};
+
+/**
+ * Minutes from signup to a user's first meaningful action — a save, a
+ * collection, a comparison, or a follow made on their own (the onboarding
+ * modal's batch of follows is excluded). Non-team users; `never` have not
+ * acted yet.
+ */
+export type TimeToFirstAction = {
+  total: number;
+  acted: number;
+  never: number;
+  within1h: number;
+  /** 1–24 hours. */
+  within24h: number;
+  /** 1–7 days. */
+  within7d: number;
+  /** More than a week. */
+  later: number;
+  medianMinutes: number | null;
+  p75Minutes: number | null;
+};
+
+/** One upgrade CTA source tag, ranked by clicks. `converted` = distinct
+ *  clickers who hold a live subscription today. */
+export type UpgradePromptStat = {
+  source: string;
+  label: string;
+  clicks: number;
+  clicks30d: number;
+  users: number;
+  converted: number;
+  lastAt: string | null;
+};
+
+/** Signups (non-team) by the button/flow that created the account. */
+export type SignupSourceStat = {
+  source: string;
+  label: string;
+  total: number;
+  last30d: number;
+  paid: number;
+};
+
+export type OnboardingOutcomeRow = {
+  outcome: "completed" | "skipped" | "pending";
+  total: number;
+  /** Took any first action (see {@link TimeToFirstAction}). */
+  acted: number;
+  savedAny: number;
+  /** Followed a brand outside the onboarding batch. */
+  followedLater: number;
+  madeCollection: number;
+  active7d: number;
+  paid: number;
 };
 
 /**
@@ -701,4 +759,8 @@ export type OnboardingMetrics = {
   skippedPaid: number;
   roles: { role: string; label: string; count: number }[];
   categories: { category: string; count: number }[];
+  /** Activation by outcome, so the modal's effect can be read directly. */
+  byOutcome: OnboardingOutcomeRow[];
+  /** Untracked brands asked for in step 3 (brand_requests, source onboarding). */
+  requests: { total: number; pending: number; handled: number; users: number };
 };

@@ -150,6 +150,9 @@ export default function AdminUserActivityModal({
                   {providerLabel(a.auth.provider)
                     ? ` via ${providerLabel(a.auth.provider)}`
                     : ""}
+                  {a.profile.signupSourceLabel
+                    ? ` · ${a.profile.signupSourceLabel}`
+                    : ""}
                 </dd>
               </div>
               <div>

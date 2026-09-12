@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { onboardingOutcomeOf, type OnboardingOutcome } from "@/lib/onboarding";
+import { isSignupSource, type SignupSource } from "@/lib/signup-source";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export type RecentSignup = {
   createdAt: string;
   /** Onboarding-modal outcome (see `onboardingOutcomeOf`). */
   onboarding: OnboardingOutcome;
+  /** Which button/flow created the account; null before tracking began. */
+  source: SignupSource | null;
 };
 
 /**
@@ -42,7 +45,7 @@ export async function GET() {
   const { data: profiles, error: profilesError } = await admin
     .from("user_profiles")
     .select(
-      "user_id, email, full_name, created_at, onboarding_completed_at, onboarding_skipped_step"
+      "user_id, email, full_name, created_at, onboarding_completed_at, onboarding_skipped_step, signup_source"
     )
     .order("created_at", { ascending: false })
     .limit(FEED_LIMIT);
@@ -83,7 +86,8 @@ export async function GET() {
     email: r.email,
     tier: tierById.get(r.user_id) ?? "free",
     createdAt: r.created_at,
-    onboarding: onboardingOutcomeOf(r)
+    onboarding: onboardingOutcomeOf(r),
+    source: isSignupSource(r.signup_source) ? r.signup_source : null
   }));
 
   return NextResponse.json({ signups });

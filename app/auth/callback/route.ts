@@ -3,6 +3,8 @@ import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { claimPendingInvites, resolveTeamGate } from "@/lib/teams-db";
+import { isFreshSignup, isSignupSource } from "@/lib/signup-source";
+import { stampSignupSource } from "@/lib/plan-selection";
 
 const EMAIL_OTP_TYPES: EmailOtpType[] = [
   "signup",
@@ -33,6 +35,10 @@ export async function GET(request: Request) {
   const tokenHash = searchParams.get("token_hash");
   const rawType = searchParams.get("type");
   const next = safeNext(searchParams.get("next"));
+  // Set by /signup and the plan modal on their Google buttons, so an OAuth
+  // signup is attributed like an email one (whose metadata the auth trigger
+  // reads). Only ever applied to an account created moments ago.
+  const requestedSource = searchParams.get("signup_source");
 
   const supabase = await createClient();
   let user: User | null = null;
@@ -60,6 +66,23 @@ export async function GET(request: Request) {
         joinedTeam = await claimPendingInvites(admin, user.id, user.email);
       } catch (err) {
         console.error("Failed to claim team invites", err);
+      }
+    }
+
+    // Attribute a brand-new account to the door it came through. An invite
+    // claim wins over whatever button they clicked.
+    const source = joinedTeam
+      ? "invite"
+      : isSignupSource(requestedSource)
+        ? requestedSource
+        : null;
+    if (source && isFreshSignup(user.created_at)) {
+      try {
+        await stampSignupSource(admin, user.id, source, {
+          overwrite: source === "invite"
+        });
+      } catch (err) {
+        console.error("Failed to stamp signup source", err);
       }
     }
 
