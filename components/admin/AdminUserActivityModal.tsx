@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { UserActivity } from "@/app/api/admin/user-activity/route";
 import type {
   RecentSignup,
@@ -12,6 +13,12 @@ import type {
  * on them — profile timeline, plan, engagement counts (saves, collections,
  * follows, comparisons), sidebar nav clicks and upgrade-CTA clicks. Reuses
  * the global `.modal-backdrop` / `.modal` shell (see QualityDetailModal).
+ *
+ * Portaled to `document.body`: the feed lives inside the sticky, scrolling
+ * admin sidebar, and a fixed-position overlay rendered in there gets caught
+ * by the sidebar's stacking context and scroll clip, so the backdrop showed
+ * but the dialog itself never did. Only ever mounted after a click, so there
+ * is no SSR pass to guard.
  */
 
 const TIER_LABEL: Record<SignupTier, string> = {
@@ -109,7 +116,7 @@ export default function AdminUserActivityModal({
       a.navClicks.length > 0 ||
       a.upgradeClicks.total > 0);
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className="modal user-activity-modal"
@@ -304,6 +311,7 @@ export default function AdminUserActivityModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
