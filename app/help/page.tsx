@@ -1,5 +1,6 @@
 import Link from "next/link";
-import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
+import SiteHeader from "@/components/marketing/SiteHeader";
+import SiteFooter from "@/components/marketing/SiteFooter";
 import ContactForm from "@/components/docs/ContactForm";
 import { SUPPORT_EMAIL, SALES_EMAIL } from "@/lib/docs/support";
 import styles from "@/components/docs/docs.module.css";
@@ -13,13 +14,14 @@ export const metadata = {
 export default function HelpPage() {
   return (
     <div className={styles.shell}>
-      <DocsSiteHeader />
-      <div>
+      <SiteHeader />
+      <main>
         <div className={styles.simpleLayout} style={{ paddingBottom: 0 }}>
           <header className={styles.pageHeader}>
+            <p className={styles.pageEyebrow}>Help</p>
             <h1 className={styles.pageTitle}>How can we help?</h1>
             <p className={styles.pageLead}>
-              Send us a message and we&apos;ll get back to you by email — usually
+              Send us a message and we&apos;ll get back to you by email, usually
               within one business day. Prefer email? Reach us directly using the
               addresses on the right.
             </p>
@@ -62,7 +64,7 @@ export default function HelpPage() {
                     <path d="M8 10h8M8 14h5M21 12a9 9 0 1 1-3.5-7.1L21 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span>
-                    Browse the <Link href="/learn">documentation</Link> for guides on ESPs,
+                    Browse the <Link href="/learn">Learn library</Link> for guides on ESPs,
                     deliverability, and strategy.
                   </span>
                 </li>
@@ -79,7 +81,8 @@ export default function HelpPage() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

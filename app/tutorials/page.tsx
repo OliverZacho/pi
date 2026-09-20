@@ -1,4 +1,5 @@
-import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
+import SiteHeader from "@/components/marketing/SiteHeader";
+import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
@@ -108,10 +109,11 @@ const SECTIONS: TutorialSection[] = [
 export default function TutorialsPage() {
   return (
     <div className={styles.shell}>
-      <DocsSiteHeader />
-      <div className={styles.simpleLayout}>
+      <SiteHeader />
+      <main className={styles.simpleLayout}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>Tutorials</h1>
+          <p className={styles.pageEyebrow}>Tutorials</p>
+          <h1 className={styles.pageTitle}>See every feature in action</h1>
           <p className={styles.pageLead}>
             Short video tutorials for everything you can do in Pirol. Watch end to
             end, or jump to the feature you are working on.
@@ -142,7 +144,8 @@ export default function TutorialsPage() {
             </div>
           </section>
         ))}
-      </div>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import DocsSiteHeader from "@/components/docs/DocsSiteHeader";
-import DocsSidebar from "@/components/docs/DocsSidebar";
+import SiteHeader from "@/components/marketing/SiteHeader";
+import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/docs/docs.module.css";
 
 export const metadata = {
@@ -9,14 +9,18 @@ export const metadata = {
     "Guides on choosing an ESP, email strategy, deliverability, and measuring performance."
 };
 
-export default function DocsLayout({ children }: { children: ReactNode }) {
+/**
+ * Learn shell: the marketing header and footer wrap every page under
+ * /learn so the library reads as part of the site. The landing page is
+ * a full-width marketing layout; article pages add their own
+ * sidebar + table-of-contents grid.
+ */
+export default function LearnLayout({ children }: { children: ReactNode }) {
   return (
     <div className={styles.shell}>
-      <DocsSiteHeader />
-      <div className={styles.docsLayout}>
-        <DocsSidebar />
-        {children}
-      </div>
+      <SiteHeader />
+      {children}
+      <SiteFooter />
     </div>
   );
 }

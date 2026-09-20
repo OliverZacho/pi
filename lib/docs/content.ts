@@ -77,7 +77,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
     id: "benchmarks",
     title: "Benchmarks",
     blurb:
-      "What the brands we track actually do — live numbers from the archive, updated as more email lands.",
+      "What the brands we track actually do: live numbers from the archive, updated as more email lands.",
     articles: [
       {
         slug: "which-esp-do-brands-use",
@@ -590,7 +590,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
   {
     id: "choosing-an-esp",
     title: "Choosing an ESP",
-    blurb: "Frameworks for picking a platform — grounded in what brands actually run.",
+    blurb: "Frameworks for picking a platform, grounded in what brands actually run.",
     articles: [
       {
         slug: "which-esp-should-you-choose",

@@ -1,4 +1,5 @@
 import { normalizeHost } from "./logo-dev";
+import { looksAdult } from "./adult-brand-filter";
 
 /**
  * Server-side client for the Logo.dev Brand Search API, used by the
@@ -21,7 +22,8 @@ const SEARCH_TIMEOUT_MS = 2500;
 export async function searchLogoDevBrands(query: string): Promise<LogoDevBrand[]> {
   const key = process.env.LOGO_DEV_SECRET_KEY;
   const q = query.trim();
-  if (!key || !q) return [];
+  // An adult query only ever yields adult brands; skip the call and the quota.
+  if (!key || !q || looksAdult(q)) return [];
 
   try {
     const res = await fetch(
@@ -70,7 +72,7 @@ function isRelevant(query: string, item: LogoDevBrand): boolean {
   const q = comparable(query);
   if (!q) return true;
   const name = comparable(item.name);
-  const host = comparable(item.domain.split(".").slice(0, -1).join("."));
+  const host = comparable(hostLabel(item.domain));
   return (
     name.includes(q) ||
     host.includes(q) ||
@@ -79,11 +81,17 @@ function isRelevant(query: string, item: LogoDevBrand): boolean {
   );
 }
 
+/** Registrable host minus its TLD, so "porno.biz" is judged on "porno". */
+function hostLabel(domain: string): string {
+  return domain.split(".").slice(0, -1).join(".");
+}
+
 /**
  * Drops Logo.dev results that duplicate a tracked brand (same registrable
  * host) — those should surface as the followable tracked row, not as a
- * request — filters out hits unrelated to the query, dedupes the remainder
- * by host, and caps the list at `limit`, keeping Logo.dev's own order.
+ * request — filters out hits unrelated to the query and adult-industry
+ * brands, dedupes the remainder by host, and caps the list at `limit`,
+ * keeping Logo.dev's own order.
  */
 export function mergeBrandSearchResults(
   trackedDomains: Array<string | null | undefined>,
@@ -104,6 +112,7 @@ export function mergeBrandSearchResults(
     if (!host || seen.has(host)) continue;
     const candidate = { name: item.name, domain: host };
     if (!isRelevant(query, candidate)) continue;
+    if (looksAdult(candidate.name) || looksAdult(hostLabel(host))) continue;
     seen.add(host);
     merged.push(candidate);
   }
