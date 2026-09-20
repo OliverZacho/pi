@@ -10,37 +10,39 @@ export const metadata = {
 
 export default function DocsHome() {
   return (
-    <main className={styles.content}>
-      <div className={styles.landing}>
+    <main className={styles.landing}>
+      <header className={styles.landingHero}>
         <p className={styles.landingEyebrow}>Learn</p>
         <h1 className={styles.landingTitle}>Email marketing, by the numbers</h1>
         <p className={styles.landingLead}>
-          Practical guides on email marketing — backed by live benchmarks from the
+          Practical guides on email marketing, backed by live benchmarks from the
           brands Pirol tracks. See which platforms brands actually use, when they
           send, how often, and how deep they discount, then turn it into your own
           edge. Start with a benchmark or jump to whatever you are working on.
         </p>
+      </header>
 
-        {DOC_CATEGORIES.map((category) => (
-          <section key={category.id} className={styles.categoryBlock}>
+      {DOC_CATEGORIES.map((category) => (
+        <section key={category.id} className={styles.categoryBlock}>
+          <div className={styles.categoryHead}>
             <h2 className={styles.categoryTitle}>{category.title}</h2>
             <p className={styles.categoryBlurb}>{category.blurb}</p>
-            <div className={styles.cardGrid}>
-              {category.articles.map((article) => (
-                <Link
-                  key={article.slug}
-                  href={`/learn/${article.slug}`}
-                  className={styles.card}
-                >
-                  <span className={styles.cardTitle}>{article.title}</span>
-                  <p className={styles.cardDesc}>{article.description}</p>
-                  <span className={styles.cardMeta}>{article.readingTime}</span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+          </div>
+          <div className={styles.cardGrid}>
+            {category.articles.map((article) => (
+              <Link
+                key={article.slug}
+                href={`/learn/${article.slug}`}
+                className={styles.card}
+              >
+                <span className={styles.cardTitle}>{article.title}</span>
+                <p className={styles.cardDesc}>{article.description}</p>
+                <span className={styles.cardMeta}>{article.readingTime}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
     </main>
   );
 }
