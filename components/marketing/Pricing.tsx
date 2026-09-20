@@ -128,9 +128,12 @@ export default function Pricing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: planId, billing }),
       });
-      // Not signed in — send them to sign up, then back to pricing.
+      // Not signed in — sign up (or log in), then straight into Checkout for
+      // the plan they picked. /api/checkout/continue owns that round-trip,
+      // including the Google OAuth path via /auth/callback?next=.
       if (res.status === 401) {
-        window.location.assign("/signup?next=/pricing");
+        const next = `/api/checkout/continue?plan=${planId}&billing=${billing}`;
+        window.location.assign(`/signup?next=${encodeURIComponent(next)}`);
         return;
       }
       const data: { url?: string; error?: string } = await res.json();
