@@ -26,6 +26,68 @@ const OFFER_END_MAX_DAYS = 120;
 
 const CATEGORY_VALUES: EmailCategory[] = [...EMAIL_CATEGORIES];
 
+// The system prompt + tool schema are byte-identical on every call, so they are
+// served from the prompt cache. Ingest is bursty (in Aug 2026, 39% of calls
+// came more than 5 minutes after the previous one but only 3% more than an
+// hour after), so the 1-hour TTL is what keeps the entry warm; its 2× write
+// price is paid ~4 times a day instead of ~50.
+//
+// Haiku 4.5 only caches a prefix of at least 4,096 tokens. The instructions
+// alone are ~3,300, so REGION_REFERENCE below is what lifts the prefix over
+// the line. If you trim the prompt, re-check `cache_creation_input_tokens` /
+// `cache_read_input_tokens` on anthropic_usage rows: both at zero means the
+// prefix fell under the minimum and every call is being billed in full again.
+const SYSTEM_CACHE_CONTROL = { type: "ephemeral", ttl: "1h" } as const;
+
+/**
+ * Deterministic lookup the model uses for the region signals it is told to
+ * weigh (footer phone/VAT, copy language, ccTLD). One line per market:
+ * ISO country, language(s) of marketing copy, ccTLD, phone calling code, and
+ * the VAT / company-registration prefix that shows up in legal footers.
+ */
+const REGION_REFERENCE =
+  "Region signal reference (ISO country | copy language | ccTLD | phone code | VAT or registration id in footers): " +
+  "DK Denmark | Danish (da) | .dk | +45 | CVR 8 digits, VAT DK + 8 digits. " +
+  "SE Sweden | Swedish (sv) | .se | +46 | Org.nr 10 digits, VAT SE + 12 digits ending 01. " +
+  "NO Norway | Norwegian (nb/nn) | .no | +47 | Org.nr 9 digits, often followed by MVA. " +
+  "FI Finland | Finnish (fi), Swedish (sv) | .fi | +358 | Y-tunnus 7 digits-1, VAT FI + 8 digits. " +
+  "IS Iceland | Icelandic (is) | .is | +354 | Kennitala 10 digits, VSK number. " +
+  "DE Germany | German (de) | .de | +49 | USt-IdNr DE + 9 digits, HRB register, Impressum block. " +
+  "AT Austria | German (de) | .at | +43 | UID ATU + 8 characters, Firmenbuch FN. " +
+  "CH Switzerland | German (de), French (fr), Italian (it) | .ch | +41 | UID CHE-123.456.789 MWST. " +
+  "NL Netherlands | Dutch (nl) | .nl | +31 | KvK 8 digits, VAT NL + 9 digits B01. " +
+  "BE Belgium | Dutch (nl), French (fr) | .be | +32 | BTW/TVA BE 0 + 9 digits. " +
+  "LU Luxembourg | French (fr), German (de) | .lu | +352 | TVA LU + 8 digits. " +
+  "FR France | French (fr) | .fr | +33 | SIREN 9 digits, SIRET 14 digits, TVA FR + 11 characters. " +
+  "ES Spain | Spanish (es) | .es | +34 | NIF/CIF letter + 8 characters, IVA ES prefix. " +
+  "PT Portugal | Portuguese (pt) | .pt | +351 | NIF 9 digits, contribuinte. " +
+  "IT Italy | Italian (it) | .it | +39 | Partita IVA IT + 11 digits, Codice Fiscale, REA. " +
+  "GB United Kingdom | English (en) | .co.uk, .uk | +44 | Company No. 8 characters, VAT GB + 9 digits, registered in England and Wales. " +
+  "IE Ireland | English (en) | .ie | +353 | CRO number, VAT IE + 8 or 9 characters. " +
+  "PL Poland | Polish (pl) | .pl | +48 | NIP 10 digits, KRS, REGON. " +
+  "CZ Czechia | Czech (cs) | .cz | +420 | ICO 8 digits, DIC CZ + 8 to 10 digits. " +
+  "HU Hungary | Hungarian (hu) | .hu | +36 | Adoszam 8-1-2 digits. " +
+  "RO Romania | Romanian (ro) | .ro | +40 | CUI/CIF, RO prefix, J registration. " +
+  "GR Greece | Greek (el) | .gr | +30 | AFM 9 digits, EL prefix. " +
+  "EE Estonia | Estonian (et) | .ee | +372 | Registrikood 8 digits, KMKR EE + 9 digits. " +
+  "LV Latvia | Latvian (lv) | .lv | +371 | PVN LV + 11 digits. " +
+  "LT Lithuania | Lithuanian (lt) | .lt | +370 | PVM LT + 9 or 12 digits. " +
+  "US United States | English (en) | .com, .us | +1 | no VAT; street address with 2-letter state and 5-digit ZIP, CAN-SPAM postal footer. " +
+  "CA Canada | English (en), French (fr) | .ca | +1 | GST/HST number 9 digits RT0001, province code and postal code A1A 1A1. " +
+  "AU Australia | English (en) | .com.au, .au | +61 | ABN 11 digits, ACN 9 digits, state and 4-digit postcode. " +
+  "NZ New Zealand | English (en) | .co.nz, .nz | +64 | NZBN 13 digits, GST number. " +
+  "JP Japan | Japanese (ja) | .jp, .co.jp | +81 | T + 13 digit invoice registration number. " +
+  "KR South Korea | Korean (ko) | .kr, .co.kr | +82 | business registration 3-2-5 digits. " +
+  "SG Singapore | English (en) | .sg, .com.sg | +65 | UEN, GST registration. " +
+  "IN India | English (en), Hindi (hi) | .in, .co.in | +91 | GSTIN 15 characters, CIN. " +
+  "BR Brazil | Portuguese (pt) | .com.br, .br | +55 | CNPJ 14 digits formatted 00.000.000/0000-00. " +
+  "MX Mexico | Spanish (es) | .mx, .com.mx | +52 | RFC 12 or 13 characters. " +
+  "ZA South Africa | English (en) | .co.za, .za | +27 | VAT 10 digits starting with 4, registration number 0000/000000/07. " +
+  "Notes: +1 is shared by US and Canada, so decide between them with the address (state + ZIP vs province + postal code). " +
+  "German copy alone cannot separate DE, AT and CH; use the phone code, VAT prefix or ccTLD. " +
+  "Likewise Dutch (NL vs BE), French (FR vs BE vs CH vs CA), Swedish (SE vs FI), English (GB vs IE vs US vs AU vs NZ vs CA vs SG) and Spanish (ES vs MX). " +
+  "A .com, .eu, .io, .co, .shop or .store domain carries no country signal at all.";
+
 export type ClassifierInput = {
   subject: string;
   html: string;
@@ -249,7 +311,11 @@ async function classifyWithAnthropic(
     model: getModel(),
     max_tokens: 512,
     temperature: 0,
-    system:
+    system: [
+      {
+        type: "text",
+        cache_control: SYSTEM_CACHE_CONTROL,
+        text:
       "You analyze marketing emails sent by competitor brands. " +
       "You must always call the classify_email tool exactly once; never reply with prose. " +
       "Pick the single category that best matches the email's primary purpose. " +
@@ -289,7 +355,10 @@ async function classifyWithAnthropic(
       "CRITICAL: never default to US (or GB) just because the copy is in English. English is the global default and is NOT evidence of a US audience. If the only thing you can observe is 'English copy from a .com with no readable address', return country null with a low confidence — do NOT return US. Only name a country when a concrete positive signal supports it (a readable address/VAT/phone, a non-English language, or a real country-code TLD). " +
       "language: the ISO 639-1 code (lowercase, e.g. da, sv, de, en) of the copy, or null. " +
       "country_confidence: 0–1, how sure you are about country. Use a LOW value (<0.5) for generic English emails from a .com with no address — it is better to be unsure than wrong. " +
-      "country_source: which signal actually drove the country pick — one of footer_address, vat, phone, language, tld, mixed, or none. Only answer 'tld' when a real country-code TLD is shown in the hint below; if no TLD hint is given, never claim 'tld'. Use 'none' when you are returning null.",
+      "country_source: which signal actually drove the country pick — one of footer_address, vat, phone, language, tld, mixed, or none. Only answer 'tld' when a real country-code TLD is shown in the hint below; if no TLD hint is given, never claim 'tld'. Use 'none' when you are returning null. " +
+      REGION_REFERENCE
+      }
+    ],
     tools: [
       {
         name: "classify_email",
