@@ -31,27 +31,35 @@ export type UsageFeature =
 export type AnthropicUsage = {
   inputTokens: number;
   outputTokens: number;
+  /** All cache writes (5-minute + 1-hour TTL). */
   cacheCreationInputTokens: number;
+  /**
+   * The 1-hour-TTL share of {@link cacheCreationInputTokens}, priced at 2×
+   * input instead of 1.25×. Zero when the API omits the per-TTL breakdown.
+   */
+  cacheCreation1hInputTokens: number;
   cacheReadInputTokens: number;
   webSearchRequests: number;
 };
 
 /**
  * Per-million-token USD prices, current as of the 2026 rate card. `cacheWrite`
- * is the 5-minute-TTL write price (1.25× input); `cacheRead` is 0.1× input.
+ * is the 5-minute-TTL write price (1.25× input), `cacheWrite1h` the 1-hour-TTL
+ * write price (2× input); `cacheRead` is 0.1× input regardless of TTL.
  * Web search is billed separately at {@link WEB_SEARCH_USD_PER_REQUEST}.
  */
 type ModelRate = {
   inputPerMillion: number;
   outputPerMillion: number;
   cacheWritePerMillion: number;
+  cacheWrite1hPerMillion: number;
   cacheReadPerMillion: number;
 };
 
 const MODEL_PRICING: Record<string, ModelRate> = {
-  haiku: { inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheReadPerMillion: 0.1 },
-  sonnet: { inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheReadPerMillion: 0.3 },
-  opus: { inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheReadPerMillion: 0.5 }
+  haiku: { inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheWrite1hPerMillion: 2, cacheReadPerMillion: 0.1 },
+  sonnet: { inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheWrite1hPerMillion: 6, cacheReadPerMillion: 0.3 },
+  opus: { inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheWrite1hPerMillion: 10, cacheReadPerMillion: 0.5 }
 };
 
 /** $10 per 1,000 web searches. */
@@ -87,11 +95,18 @@ export function extractAnthropicUsage(json: unknown): AnthropicUsage {
     u.server_tool_use && typeof u.server_tool_use === "object"
       ? (u.server_tool_use as Record<string, unknown>)
       : {};
+  // `cache_creation` splits the write total by TTL; only present when the
+  // request used caching.
+  const cacheCreation =
+    u.cache_creation && typeof u.cache_creation === "object"
+      ? (u.cache_creation as Record<string, unknown>)
+      : {};
 
   return {
     inputTokens: toCount(u.input_tokens),
     outputTokens: toCount(u.output_tokens),
     cacheCreationInputTokens: toCount(u.cache_creation_input_tokens),
+    cacheCreation1hInputTokens: toCount(cacheCreation.ephemeral_1h_input_tokens),
     cacheReadInputTokens: toCount(u.cache_read_input_tokens),
     webSearchRequests: toCount(serverToolUse.web_search_requests)
   };
@@ -100,10 +115,13 @@ export function extractAnthropicUsage(json: unknown): AnthropicUsage {
 /** USD cost of one call, priced against {@link MODEL_PRICING}. */
 export function computeCostUsd(model: string, usage: AnthropicUsage): number {
   const rate = rateForModel(model);
+  const cacheWrite1h = Math.min(usage.cacheCreation1hInputTokens, usage.cacheCreationInputTokens);
+  const cacheWrite5m = usage.cacheCreationInputTokens - cacheWrite1h;
   const cost =
     (usage.inputTokens * rate.inputPerMillion) / 1_000_000 +
     (usage.outputTokens * rate.outputPerMillion) / 1_000_000 +
-    (usage.cacheCreationInputTokens * rate.cacheWritePerMillion) / 1_000_000 +
+    (cacheWrite5m * rate.cacheWritePerMillion) / 1_000_000 +
+    (cacheWrite1h * rate.cacheWrite1hPerMillion) / 1_000_000 +
     (usage.cacheReadInputTokens * rate.cacheReadPerMillion) / 1_000_000 +
     usage.webSearchRequests * WEB_SEARCH_USD_PER_REQUEST;
   // Round to 6dp to match the numeric(12,6) column and avoid float noise.
