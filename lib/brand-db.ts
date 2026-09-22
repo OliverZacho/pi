@@ -393,6 +393,8 @@ const STATS_ROW_CAP = 500;
 const RECENT_CARD_COUNT = 8;
 /** How many weeks of history power the cadence sparkline. */
 const WEEKS_IN_CADENCE = 26;
+/** How far back the "Send cadence" KPI's avg-days-between-sends looks. */
+const CADENCE_AVG_WINDOW_DAYS = 90;
 /**
  * Length of the daily-cadence timeline (in days) shipped to the
  * compare dashboard. 365 covers the longest lookback the comparison
@@ -857,7 +859,7 @@ export async function getBrandSummary(
     supabase
       .from("captured_emails")
       .select(
-        "id, received_at, category, discount_percent, promo_code, offer_ends_on, offer_is_extension"
+        "id, received_at, subject, category, discount_percent, promo_code, offer_ends_on, offer_is_extension"
       )
       .eq("company_id", companyId)
       .is("duplicate_of", null)
@@ -875,6 +877,7 @@ export async function getBrandSummary(
     EmailRow,
     | "id"
     | "received_at"
+    | "subject"
     | "category"
     | "discount_percent"
     | "promo_code"
@@ -1003,8 +1006,17 @@ function computeCalendar(rows: EmailRow[]): BrandPageData["calendar"] {
   return { start: startISO, end: endISO, days };
 }
 
+/**
+ * Collapses the cosmetic differences between copies of one campaign landing
+ * in several inboxes — casing and stray whitespace (a trailing space is
+ * enough to slip past the `duplicate_of` check) — so they share a key.
+ */
+function normalizeSubjectKey(subject: string | null): string {
+  return (subject ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function computeCadence(
-  rows: Pick<EmailRow, "received_at" | "category">[]
+  rows: Pick<EmailRow, "received_at" | "category" | "subject">[]
 ): BrandPageData["cadence"] {
   // The very first email a brand ever sends us is the signup/welcome mail
   // our own subscription triggers — it lands at whatever moment we happened
@@ -1041,17 +1053,41 @@ function computeCadence(
     .filter((d) => !Number.isNaN(d.getTime()))
     .sort((a, b) => a.getTime() - b.getTime());
 
-  // Average days between sends — use the median-resistant mean for now,
-  // an arithmetic average is good enough at the volumes we see and easier
-  // for users to reason about ("about 4 days between emails").
+  const zone = getActiveTimeZone();
+
+  // Average days between sends. Two corrections keep this honest:
+  //
+  //  1. Only the last 90 days count, so a brand that used to send weekly
+  //     but has since slowed to biweekly reads as its *current* rhythm
+  //     rather than an all-time blend.
+  //  2. Copies of one campaign count once. The same send reaches us in every
+  //     subscribed inbox and only some of those copies get flagged
+  //     `duplicate_of`, so an undeduped twin landing an hour later would
+  //     contribute a 0-day gap and halve the apparent cadence. Same day plus
+  //     same subject is the signature of a copy; collapsing on the day alone
+  //     would instead erase the second of two genuinely different campaigns
+  //     from a brand that really does send twice a day.
+  //
+  // Dates are already ascending, so the mean gap is just the span over the
+  // number of gaps.
+  const windowStart = Date.now() - CADENCE_AVG_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const sendByKey = new Map<string, Date>();
+  for (const row of campaignRows) {
+    const date = new Date(row.received_at);
+    if (Number.isNaN(date.getTime()) || date.getTime() < windowStart) continue;
+    const sendKey = `${formatDayKey(date, zone)}|${normalizeSubjectKey(row.subject)}`;
+    const seen = sendByKey.get(sendKey);
+    if (!seen || date.getTime() < seen.getTime()) sendByKey.set(sendKey, date);
+  }
+  const windowDates = [...sendByKey.values()].sort(
+    (a, b) => a.getTime() - b.getTime()
+  );
+
   let avgDaysBetween: number | null = null;
-  if (dates.length >= 2) {
-    let total = 0;
-    for (let i = 1; i < dates.length; i++) {
-      total += dates[i].getTime() - dates[i - 1].getTime();
-    }
-    const meanMs = total / (dates.length - 1);
-    avgDaysBetween = meanMs / (1000 * 60 * 60 * 24);
+  if (windowDates.length >= 2) {
+    const spanMs =
+      windowDates[windowDates.length - 1].getTime() - windowDates[0].getTime();
+    avgDaysBetween = spanMs / (windowDates.length - 1) / (1000 * 60 * 60 * 24);
   }
 
   // Bucket emails into the last `WEEKS_IN_CADENCE` weeks anchored on
@@ -1059,7 +1095,6 @@ function computeCadence(
   // "this week" so the chart's right edge is always today; using
   // `addDaysInZone` (rather than ms-arithmetic) keeps the boundary at
   // local midnight even when a DST transition falls inside the window.
-  const zone = getActiveTimeZone();
   const now = new Date();
   const buckets: { weekStart: string; count: number }[] = [];
   const thisWeekStart = startOfWeekInZone(now, zone);
