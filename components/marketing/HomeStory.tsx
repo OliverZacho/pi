@@ -405,8 +405,7 @@ function StatTicker({ stats }: { stats: ArchiveStats }) {
   const tickerStats = [
     { value: stats.emails30d, label: "emails read" },
     { value: stats.brandsActive30d, label: "brands sending" },
-    { value: stats.discounts30d, label: "discounts measured" },
-    { value: stats.deadlines30d, label: "deadlines checked" }
+    { value: stats.discounts30d, label: "discounts measured" }
   ];
 
   return (
