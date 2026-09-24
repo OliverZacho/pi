@@ -4,12 +4,14 @@ import SiteFooter from "@/components/marketing/SiteFooter";
 import ContactForm from "@/components/docs/ContactForm";
 import { SUPPORT_EMAIL, SALES_EMAIL } from "@/lib/docs/support";
 import styles from "@/components/docs/docs.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Help & Contact — Pirol",
   description:
-    "Get in touch with the Pirol team. Send us a message or email us directly — we usually reply within one business day."
-};
+    "Get in touch with the Pirol team. Send us a message or email us directly — we usually reply within one business day.",
+  path: "/help"
+});
 
 export default function HelpPage() {
   return (

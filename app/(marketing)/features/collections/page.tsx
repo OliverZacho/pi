@@ -9,12 +9,14 @@ import {
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Collections — Pirol",
   description:
     "Save the emails worth keeping, or set a rule and let Pirol gather every match across every brand into one living, shareable board.",
-};
+  path: "/features/collections"
+});
 
 export default function CollectionsFeaturePage() {
   return (

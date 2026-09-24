@@ -6,12 +6,14 @@ import { LibraryShowcase } from "@/components/marketing/feature-visuals";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Explore the archive — Pirol",
   description:
     "Search thousands of real marketing emails from the brands worth watching. Filter by brand, category, content type, colour, GIF, or date — every email rendered exactly as it landed.",
-};
+  path: "/features/explore"
+});
 
 export default function ExploreFeaturePage() {
   return (

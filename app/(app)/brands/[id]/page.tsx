@@ -14,6 +14,7 @@ import {
   resolveBrandHandle
 } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
+import { canonicalUrl } from "@/lib/page-metadata";
 import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
 import { ORGANIZATION_ID } from "@/lib/structured-data";
 import {
@@ -124,7 +125,7 @@ export async function generateMetadata({ params }: RouteParams) {
   // Canonical always points at the slug URL, so Google consolidates any
   // legacy /brands/<uuid> links onto the keyword-bearing slug without us
   // having to 301 (and slow down) internal navigation.
-  const canonical = `${SITE_URL}/brands/${resolved.slug}`;
+  const canonical = canonicalUrl(`/brands/${resolved.slug}`);
   const summary = await loadBrandSummary(resolved.id, resolved.name);
 
   // Only pages with enough captured email to say something real are offered
@@ -140,11 +141,25 @@ export async function generateMetadata({ params }: RouteParams) {
     ? `${resolved.name} email marketing: frequency, timing, discounts`
     : `${resolved.name} — Pirol`;
 
+  const description = summary?.metaDescription ?? undefined;
+
   return {
     title,
-    description: summary?.metaDescription ?? undefined,
+    description,
     alternates: { canonical },
-    openGraph: { url: canonical, title },
+    // Full card rather than the bare url+title this used to ship: Next
+    // replaces the root layout's openGraph wholesale when a page sets its own,
+    // so every field has to be repeated here. See lib/page-metadata.ts for why
+    // there's no og:image.
+    openGraph: {
+      type: "website",
+      url: canonical,
+      siteName: "Pirol",
+      locale: "en",
+      title,
+      description
+    },
+    twitter: { card: "summary", title, description },
     robots: indexable ? undefined : { index: false, follow: true }
   };
 }

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import LegalPage from "@/components/marketing/LegalPage";
 import styles from "@/components/marketing/legal.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms of Service — Pirol",
   description:
     "The terms that govern your use of Pirol, including accounts, subscriptions, acceptable use, intellectual property, and liability.",
-};
+  path: "/terms"
+});
 
 export default function TermsPage() {
   return (

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import LegalPage from "@/components/marketing/LegalPage";
 import styles from "@/components/marketing/legal.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy — Pirol",
   description:
     "How Pirol collects, uses, and protects personal data, your rights under the GDPR, and how to contact us about privacy.",
-};
+  path: "/privacy"
+});
 
 export default function PrivacyPage() {
   return (
