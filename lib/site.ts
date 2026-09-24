@@ -5,9 +5,16 @@
  * Override per-environment with NEXT_PUBLIC_SITE_URL (no trailing slash).
  */
 export const SITE_URL = (
-  // www is the canonical host: the apex 307s to www (and Stripe webhooks
+  // www is the canonical host: the apex redirects to www (and Stripe webhooks
   // already depend on www), so every canonical/sitemap URL must say www or
   // crawlers land on a redirect hop.
+  //
+  // The apex redirect is a Vercel *domain* redirect, configured in the
+  // dashboard (Project → Settings → Domains → pirol.app), not in
+  // next.config.ts — a Next redirect can't fire because the edge answers the
+  // apex before the app runs. It must be set to permanent (308); a 307 tells
+  // Google the apex is the real URL and www is the temporary one, which is how
+  // the homepage ended up indexed as https://pirol.app.
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.pirol.app"
 ).replace(/\/$/, "");
 

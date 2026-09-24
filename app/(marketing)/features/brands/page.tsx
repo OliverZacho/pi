@@ -6,12 +6,14 @@ import { BrandDashboardVisual } from "@/components/marketing/feature-visuals";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Brand insights — Pirol",
   description:
     "See exactly how any brand runs email — send cadence, send hours, design DNA, discount depth, and stated offer deadlines, tracked from every campaign they send.",
-};
+  path: "/features/brands"
+});
 
 export default function BrandsFeaturePage() {
   return (

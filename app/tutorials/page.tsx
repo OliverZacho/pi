@@ -1,12 +1,14 @@
 import SiteHeader from "@/components/marketing/SiteHeader";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/docs/docs.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Tutorials — Pirol",
   description:
-    "Video tutorials for everything you can do in Pirol — exploring competitor email, building collections, comparing brands, and more."
-};
+    "Video tutorials for everything you can do in Pirol — exploring competitor email, building collections, comparing brands, and more.",
+  path: "/tutorials"
+});
 
 type Tutorial = {
   chapter: string;

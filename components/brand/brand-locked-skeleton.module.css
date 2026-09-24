@@ -1,0 +1,323 @@
+/*
+  Shapes for the blurred paywall preview (BrandLockedPreviewSkeleton).
+
+  Everything here is decorative filler standing in for text and charts. It is
+  only ever seen through `filter: blur(5px)`, so the goal is the right density
+  and rhythm rather than crisp detail. Flat and light-only, matching the app:
+  no gradients, no dark-mode block.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+/* --- generic placeholders ------------------------------------------------ */
+
+.root :is(.eyebrow, .title, .sub, .kpiLabel, .kpiValue, .kpiFoot, .statLabel,
+  .statValue, .listLabel, .lineWide, .lineNarrow) {
+  display: block;
+  border-radius: 4px;
+  background: #e2e8f0;
+}
+
+/* --- card ---------------------------------------------------------------- */
+
+.card {
+  padding: 1.1rem 1.25rem 1.35rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.cardWide {
+  width: 100%;
+}
+
+.cardHead {
+  margin-bottom: 1.1rem;
+}
+
+.eyebrow {
+  width: 4.5rem;
+  height: 0.5rem;
+  margin-bottom: 0.55rem;
+  background: #cbd5e1;
+}
+
+.title {
+  width: 9rem;
+  height: 0.95rem;
+  margin-bottom: 0.6rem;
+  background: #cbd5e1;
+}
+
+.sub {
+  width: min(32rem, 90%);
+  height: 0.6rem;
+}
+
+/* --- KPI row ------------------------------------------------------------- */
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.kpi {
+  padding: 1rem 1.1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.kpiLabel {
+  width: 5.5rem;
+  height: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.kpiValue {
+  width: 4rem;
+  height: 1.5rem;
+  margin-bottom: 0.7rem;
+  background: #cbd5e1;
+}
+
+.kpiFoot {
+  width: 6.5rem;
+  height: 0.45rem;
+}
+
+/* --- calendar grid ------------------------------------------------------- */
+
+.calendar {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: #f1f5f9;
+}
+
+.cellLow {
+  background: #a7d5c2;
+}
+
+.cellHigh {
+  background: var(--brand-accent, #086e4b);
+}
+
+/* --- send-hours dial ----------------------------------------------------- */
+
+.dialRow {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.dial {
+  position: relative;
+  flex: 0 0 auto;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: #f8fafc;
+}
+
+.wedge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 16px;
+  height: 50%;
+  margin-left: -8px;
+  transform-origin: 50% 100%;
+  border-radius: 8px 8px 0 0;
+  background: var(--brand-accent, #086e4b);
+}
+
+.dialHub {
+  position: absolute;
+  inset: 32%;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.dialStats {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.statLabel {
+  width: 6rem;
+  height: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.statValue {
+  width: 3.5rem;
+  height: 1.1rem;
+  background: #cbd5e1;
+}
+
+/* --- two-up grid --------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem;
+}
+
+@media (max-width: 860px) {
+  .grid,
+  .kpiRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --- bar chart ----------------------------------------------------------- */
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+}
+
+.bar {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--brand-accent, #086e4b);
+  opacity: 0.85;
+}
+
+/* --- list rows ----------------------------------------------------------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.listLabel {
+  flex: 0 0 auto;
+  width: 5rem;
+  height: 0.55rem;
+}
+
+.listTrack {
+  display: block;
+  flex: 1 1 auto;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+
+.listFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand-accent, #086e4b);
+  opacity: 0.8;
+}
+
+/* --- palette + inbox previews -------------------------------------------- */
+
+.swatches {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.swatch {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 8px;
+  background: #cbd5e1;
+}
+
+.swatch:nth-child(2) {
+  background: #94a3b8;
+}
+.swatch:nth-child(4) {
+  background: #a7d5c2;
+}
+.swatch:nth-child(6) {
+  background: var(--brand-accent, #086e4b);
+}
+.swatch:nth-child(7) {
+  background: #e2e8f0;
+}
+
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inboxRow {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: #e2e8f0;
+}
+
+.inboxLines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lineWide {
+  width: 62%;
+  height: 0.6rem;
+}
+
+.lineNarrow {
+  width: 38%;
+  height: 0.5rem;
+  background: #eef2f6;
+}
+
+/* --- CTA cloud ----------------------------------------------------------- */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.pill {
+  height: 1.9rem;
+  border-radius: 999px;
+  background: #eef2f6;
+}
+
+.pill:nth-child(3n) {
+  background: #d7e9e1;
+}

@@ -6,12 +6,14 @@ import { CompareHeatmapVisual } from "@/components/marketing/feature-visuals";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import styles from "@/components/marketing/landing.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Comparisons — Pirol",
   description:
     "Put up to six brands side by side and read the patterns at a glance — send cadence, quiet zones, discount depth, seasonal moments, creative fingerprint, and what they talk about.",
-};
+  path: "/features/comparisons"
+});
 
 export default function ComparisonsFeaturePage() {
   return (

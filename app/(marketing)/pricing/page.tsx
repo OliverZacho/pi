@@ -5,12 +5,14 @@ import PricingFaq from "@/components/marketing/PricingFaq";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import { PRICING_FAQ } from "@/lib/marketing/pricing-faq";
 import styles from "@/components/marketing/landing.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Pricing — Pirol",
   description:
     "Start free, no card required. One upgrade unlocks the entire archive — every email, every brand, every dashboard.",
-};
+  path: "/pricing"
+});
 
 // FAQPage structured data, built from the same list the visible FAQ renders.
 const faqJsonLd = {

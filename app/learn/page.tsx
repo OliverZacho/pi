@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { DOC_CATEGORIES } from "@/lib/docs/content";
 import styles from "@/components/docs/docs.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Learn — Pirol",
   description:
-    "Everything you need to choose an email platform, plan your sending strategy, stay out of spam, and measure what works."
-};
+    "Everything you need to choose an email platform, plan your sending strategy, stay out of spam, and measure what works.",
+  path: "/learn"
+});
 
 export default function DocsHome() {
   return (

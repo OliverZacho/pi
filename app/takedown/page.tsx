@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import LegalPage from "@/components/marketing/LegalPage";
 import styles from "@/components/marketing/legal.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Takedown Policy — Pirol",
   description:
     "How brands and rights holders can request removal of content from the Pirol email archive, and how we handle takedown requests.",
-};
+  path: "/takedown"
+});
 
 export default function TakedownPage() {
   return (

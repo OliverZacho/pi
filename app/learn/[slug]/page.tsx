@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,6 +14,7 @@ import {
 import InsightFigure from "@/components/docs/InsightFigure";
 import DocsSidebar from "@/components/docs/DocsSidebar";
 import { SITE_URL } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import styles from "@/components/docs/docs.module.css";
 
 type PageProps = {
@@ -79,14 +81,25 @@ function resolveString(text: string, tokens: Record<string, string>): string | n
   return ok ? out : null;
 }
 
-export async function generateMetadata({ params }: PageProps) {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const entry = getArticle(slug);
+  // The page itself calls notFound() for an unknown slug, so this 404 title
+  // never wants a canonical.
   if (!entry) return { title: "Not found — Pirol Learn" };
-  return {
+  const meta = pageMetadata({
     title: `${entry.article.title} — Pirol Learn`,
-    description: entry.article.description
-  };
+    description: entry.article.description,
+    path: `/learn/${slug}`,
+    socialTitle: entry.article.title,
+    type: "article"
+  });
+  // Draft articles are already held out of the sitemap and the Article JSON-LD
+  // below; keep them out of the index too rather than self-canonicalising
+  // unfinished copy.
+  return entry.article.draft
+    ? { ...meta, robots: { index: false, follow: true } }
+    : meta;
 }
 
 // Flat, ordered list across every category — powers prev / next navigation.
