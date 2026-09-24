@@ -238,6 +238,26 @@
   color: #475569;
 }
 
+/*
+  The generated narrative below the hero. Reads as prose, so it keeps a
+  measure rather than filling the full page width.
+*/
+.narrative {
+  margin: 0 0 1.5rem;
+  max-width: 72ch;
+}
+
+.narrativeParagraph {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.narrativeParagraph:last-child {
+  margin-bottom: 0;
+}
+
 .heroDomain {
   color: #086e4b;
   text-decoration: none;

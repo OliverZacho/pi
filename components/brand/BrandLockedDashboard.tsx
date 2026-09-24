@@ -76,12 +76,20 @@ const SAMPLE_BRAND_NAME = "Fenne";
 export default function BrandLockedDashboard({
   brand,
   summary,
+  narrative,
   follow,
   live,
   related
 }: {
   brand: LockedBrand;
   summary?: string | null;
+  /**
+   * Generated narrative paragraphs (lib/brand-claims.ts), when the brand has
+   * enough campaigns to say something distinctive. The first paragraph replaces
+   * `summary` in the hero; the rest render as their own visible section above
+   * the locked region. Absent for thin brands, which fall back to `summary`.
+   */
+  narrative?: string[] | null;
   /**
    * Follow toggle state for signed-in free viewers — following is a
    * free feature even though the analytics stay locked. Omitted for
@@ -108,6 +116,14 @@ export default function BrandLockedDashboard({
    */
   related?: RelatedBrand[];
 }) {
+  // The hero carries one line so it stays the same height it is today; the rest
+  // of the narrative gets its own section below. When there is no narrative the
+  // hero falls back to the single-sentence summary, which is what every brand
+  // under the campaign floor gets.
+  const paragraphs = narrative ?? [];
+  const heroLine = paragraphs[0] ?? summary ?? null;
+  const restOfNarrative = paragraphs.slice(1);
+
   return (
     <main className={styles.main}>
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
@@ -164,7 +180,7 @@ export default function BrandLockedDashboard({
               <span className={styles.heroDot} aria-hidden="true" />
               <span>Tracked since {formatMonthYear(brand.subscribedSince)}</span>
             </div>
-            {summary ? <p className={styles.heroSummary}>{summary}</p> : null}
+            {heroLine ? <p className={styles.heroSummary}>{heroLine}</p> : null}
           </div>
         </div>
 
@@ -181,6 +197,24 @@ export default function BrandLockedDashboard({
           </TrackedUpgradeLink>
         </div>
       </header>
+
+      {/*
+        The rest of the generated narrative. Rendered visibly and unblurred: this
+        is the page's unique crawlable prose, and it is what makes 450 brand
+        pages read differently from each other rather than differing only in the
+        numbers inside one template. Never hidden or meta-only — that would be
+        cloaking, and the whole point is that a human reading it gets the same
+        thing a crawler does.
+      */}
+      {restOfNarrative.length > 0 ? (
+        <section className={styles.narrative} aria-label="What the data shows">
+          {restOfNarrative.map((paragraph, index) => (
+            <p key={index} className={styles.narrativeParagraph}>
+              {paragraph}
+            </p>
+          ))}
+        </section>
+      ) : null}
 
       {/*
         The free teaser: signed-in free viewers get the brand's real KPI

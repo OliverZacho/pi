@@ -8,6 +8,7 @@ import { normalizeCompanyMarkets } from "@/lib/explore-db";
 import { resolveBrandLogo } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
+import { getBrandNarrative } from "@/lib/brand-claim-facts";
 import {
   getBrandPageData,
   getBrandSummary,
@@ -54,6 +55,23 @@ const loadBrandSummary = cache((id: string, name: string) =>
  * anonymous request, so the subset is cached across requests for an hour —
  * fine for a teaser that changes at most a few times a day.
  */
+/**
+ * The generated narrative (lib/brand-claims.ts). Reads the three claim-facts
+ * views, which are keyed lookups rather than scans, but a brand's prose changes
+ * at most a few times a day and crawler traffic hits this path 450 times, so it
+ * is cached across requests for an hour alongside the teaser.
+ */
+const loadBrandNarrative = unstable_cache(
+  async (companyId: string, name: string) => {
+    const narrative = await getBrandNarrative(getSupabaseAdmin(), companyId, {
+      name
+    });
+    return narrative?.paragraphs ?? null;
+  },
+  ["brand-narrative"],
+  { revalidate: 3600 }
+);
+
 const loadPublicTeaser = unstable_cache(
   async (companyId: string) => {
     const data = await getBrandPageData(getSupabaseAdmin(), companyId);
@@ -214,7 +232,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     // service-role client is used throughout because free tokens have no
     // RLS grants here. The heavy dashboard query only runs for signed-in
     // viewers, so logged-out / crawler traffic stays on the cheap path.
-    const [{ data: company }, summary, isFollowing, liveData] =
+    const [{ data: company }, summary, narrative, isFollowing, liveData] =
       await Promise.all([
         admin
           .from("companies")
@@ -224,6 +242,10 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
           .eq("id", id)
           .maybeSingle(),
         loadBrandSummary(id, resolved.name),
+        loadBrandNarrative(id, resolved.name).catch((err) => {
+          console.error("Failed to load brand narrative", err);
+          return null;
+        }),
         viewer
           ? isBrandFollowed(admin, viewer.userId, id).catch((err) => {
               console.error("Failed to load follow state for locked brand", err);
@@ -340,6 +362,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
             subscribedSince: company.subscribed_since ?? null
           }}
           summary={summary?.paragraph ?? null}
+          narrative={narrative}
           follow={
             viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
           }
