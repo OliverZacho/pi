@@ -1,22 +1,10 @@
 import Link from "next/link";
 import { countryFlag, countryName } from "@/lib/country";
-import {
-  BRAND_PREVIEW_SAMPLE,
-  BRAND_PREVIEW_CALENDAR
-} from "@/lib/brand-preview-sample";
 import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import BrandFollowButton from "./BrandFollowButton";
 import BrandActivityCalendar from "./BrandActivityCalendar";
-import BrandClockHeatmap from "./BrandClockHeatmap";
-import {
-  KpiGrid,
-  CadenceCard,
-  CategoryCard,
-  PromoCard,
-  EmojiCard,
-  DesignCard,
-  CtaCloudCard
-} from "./BrandDashboard";
+import BrandLockedPreviewSkeleton from "./BrandLockedPreviewSkeleton";
+import { KpiGrid } from "./BrandDashboard";
 import { brandUrlLabel } from "@/lib/brand-url";
 import type { BrandPageData } from "@/lib/brand-db";
 import styles from "./brand.module.css";
@@ -46,26 +34,16 @@ function formatMonthYear(value: string | null): string {
   return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
-const sample = BRAND_PREVIEW_SAMPLE;
-
-/**
- * Fictional brand name for the blurred sample region. The real brand's name
- * must never label fabricated numbers — the sample HTML is crawlable, and
- * "Every email <real brand> sent" over invented data is both dishonest and
- * near-duplicate boilerplate across all 600 brand pages. Behind the blur the
- * name is illegible anyway, so nothing changes visually.
- */
-const SAMPLE_BRAND_NAME = "Fenne";
-
 /**
  * The brand detail page as a logged-out / unpaid visitor sees it.
  *
- * It renders the *real* dashboard chart components — the same cadence chart,
- * category mix, design DNA, send calendar, etc. a paying user gets — but fed a
- * single shared sample dataset ({@link BRAND_PREVIEW_SAMPLE}) rather than the
- * brand's real numbers, which we never ship to an unpaid client. The whole
- * preview is blurred and a single unlock card floats over it, so the page looks
- * exactly like the paid product instead of an obvious placeholder.
+ * The brand's real numbers are never shipped to an unpaid client, so behind the
+ * paywall we show {@link BrandLockedPreviewSkeleton}: the dashboard's shape and
+ * density as pure decorative geometry, blurred, with a single unlock card over
+ * it. It used to be the real chart components fed a shared fake dataset, which
+ * put ~780 words of identical fabricated text — invented subject lines, a
+ * fictional brand name, made-up figures — into all 450 brand pages. None of it
+ * was ever legible through `blur(5px)`.
  *
  * `summary` is the one exception: a short, data-driven paragraph rendered
  * *visibly* in the hero. It's the page's real crawlable content — what makes it
@@ -100,9 +78,9 @@ export default function BrandLockedDashboard({
    * Real data for the teaser: every locked viewer — signed-in free
    * users, logged-out visitors, crawlers — gets the KPI tiles and the
    * send calendar with the brand's actual numbers, rendered unblurred
-   * above the locked region (which then drops its sample copies of
-   * both). This is the page's unique crawlable content. Absent only
-   * when the data failed to load, in which case the sample copies fill
+   * above the locked region (which then drops its placeholder copies
+   * of both). This is the page's unique crawlable content. Absent only
+   * when the data failed to load, in which case the placeholders fill
    * the layout.
    */
   live?: Pick<
@@ -249,55 +227,7 @@ export default function BrandLockedDashboard({
       <div className={locked.lockedRegion}>
         <div className={locked.previewClip} aria-hidden="true">
           <div className={locked.preview}>
-          {live ? null : (
-            <>
-              <KpiGrid
-                totals={sample.totals}
-                cadence={sample.cadence}
-                promo={sample.promo}
-                esp={sample.esp}
-              />
-
-              <section className={styles.recentSection}>
-                <BrandActivityCalendar
-                  brandName={SAMPLE_BRAND_NAME}
-                  calendar={BRAND_PREVIEW_CALENDAR}
-                />
-              </section>
-            </>
-          )}
-
-          <section className={styles.recentSection}>
-            <BrandClockHeatmap
-              brandName={SAMPLE_BRAND_NAME}
-              hourly={sample.cadence.hourly}
-            />
-          </section>
-
-          <section className={styles.sectionGrid}>
-            <CadenceCard cadence={sample.cadence} totals={sample.totals} />
-            <CategoryCard
-              categories={sample.categories}
-              sample={sample.totals.sampleSize}
-            />
-          </section>
-
-          <section className={styles.recentSection}>
-            <DesignCard
-              design={sample.design}
-              subjects={sample.subjects}
-              brand={{ name: SAMPLE_BRAND_NAME, logoUrl: null }}
-            />
-          </section>
-
-          <section className={styles.sectionGrid}>
-            <PromoCard promo={sample.promo} sample={sample.totals.sampleSize} />
-            <EmojiCard emojis={sample.emojis} sample={sample.totals.sampleSize} />
-          </section>
-
-          <section className={styles.recentSection}>
-            <CtaCloudCard ctas={sample.ctas} sample={sample.totals.sampleSize} />
-          </section>
+            <BrandLockedPreviewSkeleton includeTopRows={!live} />
           </div>
         </div>
 
