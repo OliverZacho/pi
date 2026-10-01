@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ESP_LABELS, type EspProvider } from "./admin-types";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { fetchAllRows } from "./supabase-paging";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -179,29 +180,6 @@ export async function searchBrands(
   );
   const sort: BrandsSortKey = params.sort ?? "most_active";
 
-  let query = supabase
-    .from("companies")
-    .select(
-      "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, company_email_stats(email_count, last_received_at)"
-    )
-    .is("deleted_at", null);
-
-  if (params.markets && params.markets.length > 0) {
-    // `overlaps` matches any brand whose `markets` array shares at least
-    // one tag with the user's selection — so a brand tagged
-    // `["fashion", "ecommerce"]` is returned under both filters.
-    query = query.overlaps("markets", params.markets);
-  }
-
-  if (params.global) {
-    query = query.eq("is_global", true);
-  } else if (params.country) {
-    // Restrict to one audience so peer comparisons stay same-market. Brands
-    // whose region we couldn't determine (NULL) are intentionally excluded
-    // when a country filter is active.
-    query = query.eq("primary_market_country", params.country);
-  }
-
   // Free-text term is matched in memory (below) rather than pushed to the
   // DB. The term needs to match a brand's *category* too (e.g. "kids" →
   // "baby & kids"), and PostgREST can't do a partial `ilike` against a
@@ -211,15 +189,42 @@ export async function searchBrands(
   // category all searchable.
   const searchTerm = (params.query ?? "").trim().toLowerCase();
 
-  if (params.subscribedAfter) {
-    query = query.gte("subscribed_since", params.subscribedAfter);
-  }
-  if (params.subscribedBefore) {
-    query = query.lte("subscribed_since", params.subscribedBefore);
-  }
+  // Paged: the structural match set is the whole catalogue when no filter
+  // is set, and PostgREST stops at 1,000 rows. A fresh builder per page,
+  // since postgrest-js builders mutate in place.
+  const data = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from("companies")
+      .select(
+        "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, company_email_stats(email_count, last_received_at)"
+      )
+      .is("deleted_at", null);
 
-  const { data, error } = await query;
-  if (error) throw error;
+    if (params.markets && params.markets.length > 0) {
+      // `overlaps` matches any brand whose `markets` array shares at least
+      // one tag with the user's selection — so a brand tagged
+      // `["fashion", "ecommerce"]` is returned under both filters.
+      query = query.overlaps("markets", params.markets);
+    }
+
+    if (params.global) {
+      query = query.eq("is_global", true);
+    } else if (params.country) {
+      // Restrict to one audience so peer comparisons stay same-market. Brands
+      // whose region we couldn't determine (NULL) are intentionally excluded
+      // when a country filter is active.
+      query = query.eq("primary_market_country", params.country);
+    }
+
+    if (params.subscribedAfter) {
+      query = query.gte("subscribed_since", params.subscribedAfter);
+    }
+    if (params.subscribedBefore) {
+      query = query.lte("subscribed_since", params.subscribedBefore);
+    }
+
+    return query.order("id").range(from, to);
+  });
 
   type EnrichedRow = CompanyRow & {
     emailCount: number;
@@ -235,7 +240,7 @@ export async function searchBrands(
   // the cost would still be a single fetch per call.
   const aggregates = await computeBrandAggregates(supabase);
 
-  const enriched: EnrichedRow[] = (data ?? []).map((row) => {
+  const enriched: EnrichedRow[] = data.map((row) => {
     const stats = relationFirst(row.company_email_stats);
     const emailCount = stats?.email_count ?? 0;
     const lastReceivedMs = stats?.last_received_at
@@ -397,24 +402,27 @@ export async function computeBrandAggregates(
   supabase: SupabaseClient<Database>,
   companyIds?: string[]
 ): Promise<AggregateResult> {
-  let statsQuery = supabase
-    .from("brand_send_stats")
-    .select("company_id, primary_esp, avg_days_between");
+  // One row per brand, so the unscoped read is the whole catalogue: paged,
+  // since PostgREST stops at 1,000 rows.
+  const data = await fetchAllRows((from, to) => {
+    let statsQuery = supabase
+      .from("brand_send_stats")
+      .select("company_id, primary_esp, avg_days_between");
 
-  // When the caller only needs a known set of brands (e.g. the user's
-  // follow list), scope to those companies.
-  if (companyIds && companyIds.length > 0) {
-    statsQuery = statsQuery.in("company_id", companyIds);
-  }
+    // When the caller only needs a known set of brands (e.g. the user's
+    // follow list), scope to those companies.
+    if (companyIds && companyIds.length > 0) {
+      statsQuery = statsQuery.in("company_id", companyIds);
+    }
 
-  const { data, error } = await statsQuery;
-  if (error) throw error;
+    return statsQuery.order("company_id").range(from, to);
+  });
 
   const perBrand = new Map<string, BrandAggregate>();
   const espIdsInUse = new Set<EspProvider>();
   let cadenceMaxObserved = 0;
 
-  for (const row of data ?? []) {
+  for (const row of data) {
     if (!row.company_id) continue;
     const primaryEsp = (row.primary_esp as EspProvider | null) ?? null;
     if (primaryEsp) espIdsInUse.add(primaryEsp);
@@ -437,21 +445,23 @@ export async function computeBrandAggregates(
 export async function getBrandsFacets(
   supabase: SupabaseClient<Database>
 ): Promise<BrandsFacets> {
-  const [companiesResult, aggregates] = await Promise.all([
-    supabase
-      .from("companies")
-      .select("id, markets, primary_market_country, company_email_stats(email_count)")
-      .is("deleted_at", null),
+  const [companies, aggregates] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from("companies")
+        .select("id, markets, primary_market_country, company_email_stats(email_count)")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to)
+    ),
     computeBrandAggregates(supabase)
   ]);
-
-  if (companiesResult.error) throw companiesResult.error;
 
   const marketSet = new Set<string>();
   const countrySet = new Set<string>();
   let totalBrands = 0;
   let brandsWithEmails = 0;
-  for (const row of companiesResult.data ?? []) {
+  for (const row of companies) {
     totalBrands += 1;
     if (Array.isArray(row.markets)) {
       for (const market of row.markets) {
@@ -497,4 +507,22 @@ export async function getBrandsFacets(
     totalBrands,
     brandsWithEmails
   };
+}
+
+/**
+ * Every tracked brand's domain, for deduping external brand search results
+ * against the catalogue. Paged: PostgREST stops at 1,000 rows.
+ */
+export async function listTrackedDomains(
+  supabase: SupabaseClient<Database>
+): Promise<(string | null)[]> {
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("companies")
+      .select("domain")
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, to)
+  );
+  return rows.map((row) => row.domain);
 }

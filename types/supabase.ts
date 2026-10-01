@@ -1480,6 +1480,18 @@ export type Database = {
       }
     }
     Functions: {
+      brand_cohort_benchmark: {
+        Args: { p_markets?: string[] }
+        Returns: Json
+      }
+      brand_max_discounts: {
+        Args: { p_company_ids: string[]; p_since: string }
+        Returns: {
+          company_id: string
+          company_name: string
+          max_discount: number
+        }[]
+      }
       bump_invite_resend: { Args: { p_invite_id: string }; Returns: undefined }
       bump_rate_limit: {
         Args: { p_bucket: string; p_limit: number; p_window: string }
@@ -1531,6 +1543,10 @@ export type Database = {
         }
         Returns: string
       }
+      esp_cohort_shares: {
+        Args: { p_country?: string; p_markets?: string[] }
+        Returns: Json
+      }
       explore_facets: { Args: { restrict_ids?: string[] }; Returns: Json }
       get_team_context: {
         Args: never
@@ -1546,6 +1562,16 @@ export type Database = {
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       has_archive_access: { Args: never; Returns: boolean }
       marketing_archive_stats: { Args: never; Returns: Json }
+      nav_click_stats: {
+        Args: { p_recent_since: string; p_user_id?: string }
+        Returns: {
+          last_click_at: string
+          nav_id: string
+          recent: number
+          total: number
+          unique_users: number
+        }[]
+      }
       pirol_admin_category_country_frequency: { Args: never; Returns: Json }
       pirol_admin_category_frequency: { Args: never; Returns: Json }
       pirol_admin_dashboard_stats: { Args: never; Returns: Json }
@@ -1579,6 +1605,10 @@ export type Database = {
       touch_user_visit: {
         Args: { p_gap?: string; p_user_id: string }
         Returns: string
+      }
+      upgrade_click_stats: {
+        Args: { p_daily_since: string; p_recent_since: string }
+        Returns: Json
       }
       user_has_password: { Args: never; Returns: boolean }
     }

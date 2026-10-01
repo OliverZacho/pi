@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/require-admin-api";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { searchBrands } from "@/lib/brands-explore-db";
+import { listTrackedDomains, searchBrands } from "@/lib/brands-explore-db";
 import { logoDevUrl, normalizeHost } from "@/lib/logo-dev";
 import {
   mergeBrandSearchResults,
@@ -66,13 +66,8 @@ export async function GET(request: Request) {
     if (logoDevItems.length > 0) {
       // Dedupe against every tracked domain, not just this query's matches —
       // Logo.dev may know a brand under a name our text matcher missed.
-      const { data: domains, error } = await admin
-        .from("companies")
-        .select("domain")
-        .is("deleted_at", null);
-      if (error) throw error;
       untracked = mergeBrandSearchResults(
-        (domains ?? []).map((row) => row.domain),
+        await listTrackedDomains(admin),
         logoDevItems,
         { query: q }
       ).map((item) => ({

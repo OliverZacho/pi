@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/require-admin-api";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 /**
  * Admin → Probes: signup probe diagnostics.
@@ -73,16 +74,25 @@ export async function GET() {
     return session.response;
   }
 
-  const [probesResult, companiesResult] = await Promise.all([
+  const [probesResult, companies] = await Promise.all([
     session.supabase
       .from("signup_probes")
       .select("id, company_id, address, note, surface_type, created_at, companies(name)")
       .order("created_at", { ascending: true }),
-    session.supabase
-      .from("companies")
-      .select("id, name")
-      .is("deleted_at", null)
-      .order("name", { ascending: true })
+    // Paged: the brand picker needs the whole catalogue, and PostgREST stops
+    // at 1,000 rows.
+    fetchAllRows((from, to) =>
+      session.supabase
+        .from("companies")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ).catch((error) => {
+      console.error("Failed to load probe brand list", error);
+      return [];
+    })
   ]);
 
   if (probesResult.error) {
@@ -95,20 +105,26 @@ export async function GET() {
 
   let mailsByAddress = new Map<string, ProbeMail[]>();
   if (addresses.length > 0) {
-    const { data: mailRows, error: mailError } = await session.supabase
-      .from("captured_emails")
-      .select("id, recipient_email, sender_email, subject, received_at")
-      .in("recipient_email", addresses)
-      .order("received_at", { ascending: true })
-      .limit(2000);
-
-    if (mailError) {
+    // Paged, oldest first: a capped read would drop the newest mail, which
+    // is exactly what flips a probe from "welcome only" to "delivering".
+    let mailRows;
+    try {
+      mailRows = await fetchAllRows((from, to) =>
+        session.supabase
+          .from("captured_emails")
+          .select("id, recipient_email, sender_email, subject, received_at")
+          .in("recipient_email", addresses)
+          .order("received_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
+    } catch (mailError) {
       console.error("Failed to load probe mail", mailError);
       return NextResponse.json({ error: "Failed to load probe mail" }, { status: 500 });
     }
 
-    const grouped = new Map<string, NonNullable<typeof mailRows>>();
-    for (const row of mailRows ?? []) {
+    const grouped = new Map<string, typeof mailRows>();
+    for (const row of mailRows) {
       const key = row.recipient_email.toLowerCase();
       const bucket = grouped.get(key);
       if (bucket) {
@@ -157,7 +173,7 @@ export async function GET() {
 
   return NextResponse.json({
     probes: enriched,
-    companies: companiesResult.data ?? []
+    companies
   });
 }
 

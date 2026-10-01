@@ -9,6 +9,7 @@ import {
   parseOnboardingCompletion
 } from "@/lib/onboarding";
 import { stampOnboardingCompleted } from "@/lib/plan-selection";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,15 +63,20 @@ export async function POST(request: Request) {
     // Verify the tracked picks against live companies, and resolve any
     // "untracked" request whose domain we actually track into a follow —
     // Logo.dev and our catalogue can disagree on how a brand was found.
-    const { data: companies, error: companiesError } = await admin
-      .from("companies")
-      .select("id, domain")
-      .is("deleted_at", null);
-    if (companiesError) throw companiesError;
+    // Paged: PostgREST stops at 1,000 rows, and a truncated list would drop
+    // valid follows for brands past the cut.
+    const companies = await fetchAllRows((from, to) =>
+      admin
+        .from("companies")
+        .select("id, domain")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to)
+    );
 
     const liveIds = new Set<string>();
     const byHost = new Map<string, string>();
-    for (const row of companies ?? []) {
+    for (const row of companies) {
       liveIds.add(row.id);
       const host = row.domain ? normalizeHost(row.domain) : null;
       if (host && !byHost.has(host)) byHost.set(host, row.id);

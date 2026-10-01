@@ -121,12 +121,11 @@ export async function GET(request: Request) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(200),
-      admin
-        .from("nav_clicks")
-        .select("nav_id, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(2000)
+      // Counted in SQL: a row scan here would stop at PostgREST's 1,000 cap.
+      admin.rpc("nav_click_stats", {
+        p_recent_since: new Date().toISOString(),
+        p_user_id: userId
+      })
     ]);
 
     if (profileRes.error) throw profileRes.error;
@@ -160,22 +159,12 @@ export async function GET(request: Request) {
         : null;
 
     // Per-button totals, ordered by most clicked.
-    const navByButton = new Map<string, { count: number; lastAt: string }>();
-    for (const row of navRes.data ?? []) {
-      const cur = navByButton.get(row.nav_id);
-      if (cur) {
-        cur.count += 1;
-        if (row.created_at > cur.lastAt) cur.lastAt = row.created_at;
-      } else {
-        navByButton.set(row.nav_id, { count: 1, lastAt: row.created_at });
-      }
-    }
-    const navClicks = Array.from(navByButton.entries())
-      .map(([navId, v]) => ({
-        navId,
-        label: labelForNavId(navId),
-        count: v.count,
-        lastAt: v.lastAt
+    const navClicks = (navRes.data ?? [])
+      .map((row) => ({
+        navId: row.nav_id,
+        label: labelForNavId(row.nav_id),
+        count: row.total,
+        lastAt: row.last_click_at
       }))
       .sort((a, b) => b.count - a.count);
 

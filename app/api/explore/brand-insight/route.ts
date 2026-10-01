@@ -33,85 +33,39 @@ type Bench = {
 };
 
 /**
- * Average weekly send-rate and discount share across the curated cohort —
- * the brand's own market when there are enough peers, otherwise all tracked
- * brands. Computed from a single light column scan, not per-peer aggregation.
+ * Average weekly send-rate and discount share across the cohort: the brand's
+ * own market when there are enough peers, otherwise all tracked brands.
+ * Aggregated in SQL (brand_cohort_benchmark) over the WHOLE archive, not just
+ * curated brands, so the numbers represent our real scale even though we only
+ * surface emails from curated brands. It used to scan rows into the route,
+ * which PostgREST cut off at the newest 1,000 sends.
  */
 async function cohortBenchmark(
   admin: SupabaseClient<Database>,
   markets: string[]
 ): Promise<Bench | null> {
   const market = (markets ?? []).filter(Boolean);
-  let ids: string[] = [];
-  let label = "the brands we track";
-  let scope: "category" | "all" = "all";
-
-  // Benchmarks reflect the WHOLE archive (not just curated brands) so the
-  // numbers represent our real scale — even though we only surface emails from
-  // curated brands.
-  if (market.length) {
-    const { data } = await admin
-      .from("companies")
-      .select("id")
-      .is("deleted_at", null)
-      .overlaps("markets", market);
-    if ((data?.length ?? 0) >= 8) {
-      ids = (data ?? []).map((r) => r.id);
-      label = `${market[0]} brands`;
-      scope = "category";
-    }
+  const { data, error } = await admin.rpc("brand_cohort_benchmark", {
+    p_markets: market.length ? market : undefined,
+  });
+  if (error) {
+    console.error("[brand-insight] cohort benchmark failed", error);
+    return null;
   }
+  const row = data as {
+    scope: "category" | "all";
+    brands: number;
+    per_week: number | null;
+    discount_share: number | null;
+  } | null;
+  if (!row || !row.brands || row.per_week == null) return null;
 
-  if (ids.length === 0) {
-    const { data } = await admin
-      .from("companies")
-      .select("id")
-      .is("deleted_at", null);
-    ids = (data ?? []).map((r) => r.id);
-  }
-  if (ids.length === 0) return null;
-
-  const { data: rows } = await admin
-    .from("captured_emails")
-    .select("company_id, received_at, discount_percent")
-    .in("company_id", ids)
-    .is("duplicate_of", null)
-    .order("received_at", { ascending: false })
-    .limit(40000);
-
-  const by = new Map<string, { n: number; disc: number; min: number; max: number }>();
-  for (const r of rows ?? []) {
-    if (!r.company_id) continue;
-    const b = by.get(r.company_id) ?? { n: 0, disc: 0, min: Infinity, max: -Infinity };
-    b.n++;
-    if ((r.discount_percent ?? 0) > 0) b.disc++;
-    const t = new Date(r.received_at).getTime();
-    if (t < b.min) b.min = t;
-    if (t > b.max) b.max = t;
-    by.set(r.company_id, b);
-  }
-
-  const rates: number[] = [];
-  const shares: number[] = [];
-  for (const b of by.values()) {
-    if (b.n < 4) continue;
-    // Clamp the active span to ≥7 days (matching the per-brand weeklySendRate
-    // window) so a brand with a few sends over a couple of days doesn't read as
-    // "10 emails/week", while keeping the benchmark comparable to each brand's
-    // own rate.
-    const days = Math.max(7, (b.max - b.min) / 86_400_000);
-    rates.push((7 * b.n) / days);
-    shares.push((100 * b.disc) / b.n);
-  }
-  if (rates.length === 0) return null;
-
-  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
   return {
-    perWeek: avg(rates),
-    discountShare: avg(shares),
-    brands: rates.length,
-    label,
-    scope,
+    perWeek: Number(row.per_week),
+    discountShare: Number(row.discount_share ?? 0),
+    brands: row.brands,
+    label: row.scope === "category" ? `${market[0]} brands` : "the brands we track",
+    scope: row.scope,
   };
 }
 
@@ -149,47 +103,29 @@ async function espCohort(
   for (const a of attempts) {
     // The "field" spans the WHOLE archive, not just curated brands, so it
     // reflects our real scale (hundreds of brands), not the handful we surface.
-    let q = admin.from("companies").select("id").is("deleted_at", null);
-    if (a.markets) q = q.overlaps("markets", a.markets);
-    if (a.country) q = q.eq("primary_market_country", a.country);
-    const { data: comps } = await q;
-    const ids = (comps ?? []).map((c) => c.id);
-    if (ids.length < 6) continue;
-
-    const { data: rows } = await admin
-      .from("captured_emails")
-      .select("company_id, esp_provider")
-      .in("company_id", ids)
-      .is("duplicate_of", null)
-      .not("esp_provider", "is", null)
-      .limit(20000);
-
-    const byBrand = new Map<string, Map<string, number>>();
-    for (const r of rows ?? []) {
-      if (!r.company_id || !r.esp_provider) continue;
-      let mm = byBrand.get(r.company_id);
-      if (!mm) {
-        mm = new Map();
-        byBrand.set(r.company_id, mm);
-      }
-      mm.set(r.esp_provider, (mm.get(r.esp_provider) ?? 0) + 1);
+    // Each brand's top ESP is picked in SQL (esp_cohort_shares).
+    const { data, error } = await admin.rpc("esp_cohort_shares", {
+      p_markets: a.markets ?? undefined,
+      p_country: a.country ?? undefined,
+    });
+    if (error) {
+      console.error("[brand-insight] ESP cohort failed", error);
+      return null;
     }
-    if (byBrand.size < 5) continue;
+    const cohort = data as {
+      companies: number;
+      brands: number;
+      items: { esp: string; brands: number }[];
+    } | null;
+    if (!cohort || cohort.companies < 6 || cohort.brands < 5) continue;
 
-    const espBrands = new Map<string, number>();
-    for (const mm of byBrand.values()) {
-      let top: string | null = null;
-      let tc = -1;
-      for (const [esp, c] of mm) if (c > tc) { tc = c; top = esp; }
-      if (top) espBrands.set(top, (espBrands.get(top) ?? 0) + 1);
-    }
-
-    const items = [...espBrands.entries()]
-      .map(([esp, c]) => ({ label: ESP_LABELS[esp as keyof typeof ESP_LABELS] ?? esp, count: c }))
-      .sort((a2, b2) => b2.count - a2.count)
+    const items = cohort.items
       .slice(0, 5)
-      .map((it) => ({ ...it, isThis: it.label === thisLabel }));
-    if (items.length) return { brands: byBrand.size, scope: a.scope, items };
+      .map((it) => {
+        const label = ESP_LABELS[it.esp as keyof typeof ESP_LABELS] ?? it.esp;
+        return { label, count: it.brands, isThis: label === thisLabel };
+      });
+    if (items.length) return { brands: cohort.brands, scope: a.scope, items };
   }
   return null;
 }

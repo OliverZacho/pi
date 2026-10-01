@@ -60,12 +60,10 @@ export type UpgradeClickStats = {
   windowDays: number;
 };
 
-/** Cap on rows scanned for the dashboard — generous, aggregation is in-JS. */
-const STATS_ROW_CAP = 100_000;
-
 /**
  * Aggregates clicks for the admin dashboard: per-source totals (all-time and
- * last 7 days) plus a daily time series across the lookback window.
+ * last 7 days) plus a daily time series across the lookback window. Counted
+ * in SQL (upgrade_click_stats), so there's no row cap to outgrow.
  */
 export async function getUpgradeClickStats(
   supabase: PirolSupabaseClient,
@@ -76,57 +74,38 @@ export async function getUpgradeClickStats(
   const windowStart = new Date(now.getTime() - windowDays * 86_400_000);
   const sevenAgo = new Date(now.getTime() - 7 * 86_400_000);
 
-  // All-time per-source counts + last click. Fetch the window for the time
-  // series; for all-time totals we scan everything (capped).
-  const { data, error } = await supabase
-    .from("upgrade_clicks")
-    .select("source, created_at")
-    .order("created_at", { ascending: false })
-    .limit(STATS_ROW_CAP);
+  const { data, error } = await supabase.rpc("upgrade_click_stats", {
+    p_recent_since: sevenAgo.toISOString(),
+    p_daily_since: windowStart.toISOString()
+  });
   if (error) throw error;
 
-  const rows = data ?? [];
-  const bySource = new Map<
-    string,
-    { total: number; last7: number; lastClickAt: string | null }
-  >();
-  const dayBuckets = new Map<string, number>();
+  const result = (data ?? { sources: [], daily: [] }) as unknown as {
+    sources: {
+      source: string;
+      total: number;
+      recent: number;
+      last_click_at: string | null;
+    }[];
+    daily: { date: string; count: number }[];
+  };
 
   let total = 0;
   let total7 = 0;
-  for (const row of rows) {
-    total += 1;
-    const created = new Date(row.created_at);
-    const isLast7 = created >= sevenAgo;
-    if (isLast7) total7 += 1;
-
-    const cur = bySource.get(row.source) ?? {
-      total: 0,
-      last7: 0,
-      lastClickAt: null as string | null
-    };
-    cur.total += 1;
-    if (isLast7) cur.last7 += 1;
-    if (!cur.lastClickAt || row.created_at > cur.lastClickAt) {
-      cur.lastClickAt = row.created_at;
-    }
-    bySource.set(row.source, cur);
-
-    if (created >= windowStart) {
-      const day = row.created_at.slice(0, 10);
-      dayBuckets.set(day, (dayBuckets.get(day) ?? 0) + 1);
-    }
-  }
-
-  const sources: UpgradeSourceStat[] = Array.from(bySource.entries())
-    .map(([source, v]) => ({
-      source,
-      label: labelForUpgradeSource(source),
-      total: v.total,
-      last7: v.last7,
-      lastClickAt: v.lastClickAt
-    }))
+  const sources: UpgradeSourceStat[] = result.sources
+    .map((row) => {
+      total += row.total;
+      total7 += row.recent;
+      return {
+        source: row.source,
+        label: labelForUpgradeSource(row.source),
+        total: row.total,
+        last7: row.recent,
+        lastClickAt: row.last_click_at
+      };
+    })
     .sort((a, b) => b.total - a.total);
+  const dayBuckets = new Map(result.daily.map((d) => [d.date, d.count]));
 
   // Build a dense daily series so the chart has no gaps.
   const daily: { date: string; count: number }[] = [];

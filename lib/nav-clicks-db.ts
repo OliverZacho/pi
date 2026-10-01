@@ -47,12 +47,10 @@ export type NavClickStats = {
   windowDays: number;
 };
 
-/** Cap on rows scanned for the dashboard — generous, aggregation is in-JS. */
-const STATS_ROW_CAP = 100_000;
-
 /**
  * Aggregates nav clicks for an admin readout: per-button totals (all-time and
  * last 7 days) plus the count of distinct signed-in users who clicked each.
+ * Counted in SQL (nav_click_stats), so there's no row cap to outgrow.
  */
 export async function getNavClickStats(
   supabase: PirolSupabaseClient,
@@ -61,55 +59,26 @@ export async function getNavClickStats(
   const now = options.now ?? new Date();
   const sevenAgo = new Date(now.getTime() - 7 * 86_400_000);
 
-  const { data, error } = await supabase
-    .from("nav_clicks")
-    .select("nav_id, user_id, created_at")
-    .order("created_at", { ascending: false })
-    .limit(STATS_ROW_CAP);
+  const { data, error } = await supabase.rpc("nav_click_stats", {
+    p_recent_since: sevenAgo.toISOString()
+  });
   if (error) throw error;
-
-  const rows = data ?? [];
-  const byNav = new Map<
-    string,
-    {
-      total: number;
-      last7: number;
-      users: Set<string>;
-      lastClickAt: string | null;
-    }
-  >();
 
   let total = 0;
   let total7 = 0;
-  for (const row of rows) {
-    total += 1;
-    const isLast7 = new Date(row.created_at) >= sevenAgo;
-    if (isLast7) total7 += 1;
-
-    const cur = byNav.get(row.nav_id) ?? {
-      total: 0,
-      last7: 0,
-      users: new Set<string>(),
-      lastClickAt: null as string | null
-    };
-    cur.total += 1;
-    if (isLast7) cur.last7 += 1;
-    if (row.user_id) cur.users.add(row.user_id);
-    if (!cur.lastClickAt || row.created_at > cur.lastClickAt) {
-      cur.lastClickAt = row.created_at;
-    }
-    byNav.set(row.nav_id, cur);
-  }
-
-  const items: NavClickStat[] = Array.from(byNav.entries())
-    .map(([navId, v]) => ({
-      navId,
-      label: labelForNavId(navId),
-      total: v.total,
-      last7: v.last7,
-      uniqueUsers: v.users.size,
-      lastClickAt: v.lastClickAt
-    }))
+  const items: NavClickStat[] = (data ?? [])
+    .map((row) => {
+      total += row.total;
+      total7 += row.recent;
+      return {
+        navId: row.nav_id,
+        label: labelForNavId(row.nav_id),
+        total: row.total,
+        last7: row.recent,
+        uniqueUsers: row.unique_users,
+        lastClickAt: row.last_click_at
+      };
+    })
     .sort((a, b) => b.total - a.total);
 
   return { total, total7, items, windowDays: 7 };

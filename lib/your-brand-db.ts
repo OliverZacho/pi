@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { getSupabaseAdmin } from "./supabase-admin";
+import { fetchAllRows } from "./supabase-paging";
 import { isConsumerEmailDomain } from "./email-domains";
 import { normalizeDomain } from "./suggest-companies";
 import type { ListHeaders } from "./admin-types";
@@ -57,16 +58,24 @@ export const getYourBrandMatch = cache(
     const emailDomain = normalizeDomain(email.slice(at + 1));
     if (!emailDomain || isConsumerEmailDomain(emailDomain)) return null;
 
-    const { data, error } = await getSupabaseAdmin()
-      .from("companies")
-      .select("id, slug, name, domain")
-      .is("deleted_at", null);
-    if (error) {
+    // Paged: PostgREST stops at 1,000 rows, and a brand past the cut would
+    // silently never match.
+    let data;
+    try {
+      data = await fetchAllRows((from, to) =>
+        getSupabaseAdmin()
+          .from("companies")
+          .select("id, slug, name, domain")
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to)
+      );
+    } catch (error) {
       console.error("Failed to load companies for your-brand match", error);
       return null;
     }
 
-    for (const row of data ?? []) {
+    for (const row of data) {
       if (!row.slug) continue;
       if (normalizeDomain(row.domain) === emailDomain) {
         return {
@@ -107,17 +116,23 @@ export async function getYourBrandBySlug(
 export async function listYourBrandPreviewBrands(): Promise<
   { slug: string; name: string }[]
 > {
-  const { data, error } = await getSupabaseAdmin()
-    .from("companies")
-    .select("slug, name")
-    .is("deleted_at", null)
-    .not("slug", "is", null)
-    .order("name");
-  if (error) {
+  let data;
+  try {
+    data = await fetchAllRows((from, to) =>
+      getSupabaseAdmin()
+        .from("companies")
+        .select("slug, name")
+        .is("deleted_at", null)
+        .not("slug", "is", null)
+        .order("name")
+        .order("id")
+        .range(from, to)
+    );
+  } catch (error) {
     console.error("Failed to list brands for admin preview", error);
     return [];
   }
-  return (data ?? []).flatMap((row) =>
+  return data.flatMap((row) =>
     row.slug ? [{ slug: row.slug, name: row.name }] : []
   );
 }

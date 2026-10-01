@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { searchBrands } from "@/lib/brands-explore-db";
+import { listTrackedDomains, searchBrands } from "@/lib/brands-explore-db";
 import { logoDevUrl } from "@/lib/logo-dev";
 import {
   mergeBrandSearchResults,
@@ -78,12 +78,11 @@ export async function GET(request: Request) {
     const [logoDevItems, trackedResult, domainsResult] = await Promise.all([
       searchLogoDevBrands(q),
       searchBrands(admin, { query: q, sort: "name_asc", pageSize: MAX_TRACKED }),
-      admin.from("companies").select("domain").is("deleted_at", null)
+      listTrackedDomains(admin)
     ]);
-    if (domainsResult.error) throw domainsResult.error;
 
     const suggestions: BrandRequestSuggestion[] = mergeBrandSearchResults(
-      (domainsResult.data ?? []).map((row) => row.domain),
+      domainsResult,
       logoDevItems,
       { query: q, limit: MAX_SUGGESTIONS }
     ).map((item) => ({

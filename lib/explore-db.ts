@@ -4,6 +4,7 @@ import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { buildSearchMatcher, matcherValue } from "./search-term";
+import { fetchAllRows } from "./supabase-paging";
 import type { Database } from "@/types/supabase";
 
 export type ExploreEmailCard = {
@@ -187,12 +188,17 @@ export async function searchExploreEmails(
   ) {
     const ids = new Set<string>(params.brandIds ?? []);
     if (params.markets && params.markets.length > 0) {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("id")
-        .overlaps("markets", params.markets);
-      if (error) throw error;
-      for (const row of data ?? []) ids.add(row.id);
+      // Paged: PostgREST stops at 1,000 rows.
+      const markets = params.markets;
+      const rows = await fetchAllRows((from, to) =>
+        supabase
+          .from("companies")
+          .select("id")
+          .overlaps("markets", markets)
+          .order("id")
+          .range(from, to)
+      );
+      for (const row of rows) ids.add(row.id);
     }
     effectiveBrandIds = Array.from(ids);
     // If markets resolved to zero companies and no brands were picked,
@@ -471,17 +477,21 @@ export type SearchFacets = {
 export async function getSearchFacets(
   supabase: SupabaseClient<Database>
 ): Promise<SearchFacets> {
-  const { data, error } = await supabase
-    .from("companies")
-    .select("id, name, is_curated, markets, primary_market_country")
-    .is("deleted_at", null);
-
-  if (error) throw error;
+  // Paged: the brand picker lists the whole catalogue, and PostgREST stops
+  // at 1,000 rows.
+  const data = await fetchAllRows((from, to) =>
+    supabase
+      .from("companies")
+      .select("id, name, is_curated, markets, primary_market_country")
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, to)
+  );
 
   const marketSet = new Set<string>();
   const countrySet = new Set<string>();
 
-  const brands = (data ?? [])
+  const brands = data
     .map((row) => {
       if (Array.isArray(row.markets)) {
         for (const market of row.markets) {
