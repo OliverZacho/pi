@@ -11,6 +11,7 @@ import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import { buildSearchMatcher, matcherValue, type SearchMatcher } from "./search-term";
+import { fetchAllRows } from "./supabase-paging";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -37,10 +38,6 @@ const PREVIEW_EMAIL_COUNT = 4;
 const MAX_RULE_CONDITIONS = 12;
 const MAX_RULE_VALUE_LENGTH = 200;
 const RULE_EVAL_LIMIT = 200;
-// Discount rows pulled for the 12-month per-brand benchmark. Only emails
-// with a parsed discount from the collection's brands count, so this is a
-// generous ceiling rather than an expected volume.
-const BENCHMARK_ROW_LIMIT = 5000;
 
 // ---------- Rule schema ----------
 //
@@ -1162,25 +1159,20 @@ export async function getBrandDiscountBenchmarks(
   const ids = Array.from(new Set(companyIds.filter(Boolean)));
   if (ids.length === 0) return {};
 
-  const { data, error } = await supabase
-    .from("captured_emails")
-    .select("discount_percent, companies(id, name)")
-    .in("company_id", ids)
-    .not("discount_percent", "is", null)
-    .gte("received_at", sinceIso)
-    .limit(BENCHMARK_ROW_LIMIT);
+  // Aggregated in SQL: the row scan this replaced was cut off at PostgREST's
+  // 1,000-row cap, in no particular order, so a collection spanning a dozen
+  // promo-heavy brands lost an arbitrary slice of each brand's discounts.
+  const { data, error } = await supabase.rpc("brand_max_discounts", {
+    p_company_ids: ids,
+    p_since: sinceIso
+  });
   if (error) throw error;
 
   const benchmarks: Record<string, number> = {};
   for (const row of data ?? []) {
-    const name = pickCompany(row.companies)?.name;
-    if (!name) continue;
-    const pct =
-      row.discount_percent === null || row.discount_percent === undefined
-        ? null
-        : Number(row.discount_percent);
-    if (pct === null || !Number.isFinite(pct) || pct <= 0) continue;
-    benchmarks[name] = Math.max(benchmarks[name] ?? 0, pct);
+    const pct = Number(row.max_discount);
+    if (!row.company_name || !Number.isFinite(pct) || pct <= 0) continue;
+    benchmarks[row.company_name] = Math.max(benchmarks[row.company_name] ?? 0, pct);
   }
   return benchmarks;
 }
@@ -1862,13 +1854,15 @@ async function lookupCompanyIdsByMarkets(
   markets: string[]
 ): Promise<string[]> {
   if (markets.length === 0) return [];
-  const { data, error } = await client
-    .from("companies")
-    .select("id")
-    .overlaps("markets", markets)
-    .limit(2000);
-  if (error) throw error;
-  return (data ?? []).map((row) => row.id);
+  const rows = await fetchAllRows((from, to) =>
+    client
+      .from("companies")
+      .select("id")
+      .overlaps("markets", markets)
+      .order("id")
+      .range(from, to)
+  );
+  return rows.map((row) => row.id);
 }
 
 async function lookupCompanyIdsByName(

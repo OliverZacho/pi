@@ -29,6 +29,7 @@ import {
   type ImageTransform
 } from "./storage";
 import { getSupabaseAdmin } from "./supabase-admin";
+import { fetchAllRows } from "./supabase-paging";
 import type { Database, Json } from "@/types/supabase";
 
 type PirolDb = SupabaseClient<Database>;
@@ -150,26 +151,29 @@ export async function getOverviewFromDb(
     emailsQuery = emailsQuery.in("company_id", recentIds);
   }
 
-  const [{ data: companiesRaw, error: companiesError }, { data: emailsRaw, error: emailsError }] =
+  // The brand list is the whole catalogue: paged, since PostgREST stops at
+  // 1,000 rows.
+  const [companiesRaw, { data: emailsRaw, error: emailsError }] =
     await Promise.all([
-      supabase
-        .from("companies")
-        .select(
-          "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
-        )
-        .is("deleted_at", null)
-        .order("subscribed_since", { ascending: false }),
+      fetchAllRows((from, to) =>
+        supabase
+          .from("companies")
+          .select(
+            "id, name, domain, markets, primary_market_country, is_global, is_curated, hq_country, market_source, market_citation, subscribed_since, logo_storage_path, logo_source, logo_stale, company_inboxes(id, email_address, is_primary, created_at, segment_label, segment_category, segment_country), company_email_stats(email_count, last_received_at)"
+          )
+          .is("deleted_at", null)
+          .order("subscribed_since", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to)
+      ),
       emailsQuery
     ]);
 
-  if (companiesError) {
-    throw companiesError;
-  }
   if (emailsError) {
     throw emailsError;
   }
 
-  const companies = await resolveCompanyLogos((companiesRaw ?? []).map(rowToCompany));
+  const companies = await resolveCompanyLogos(companiesRaw.map(rowToCompany));
 
   const emailRows = emailsRaw ?? [];
   const hasMore = emailRows.length > pageSize;
@@ -1149,18 +1153,21 @@ export async function createCompanySubscriptionInDb(
   // `https://operasport.net/` vs `operasport.net` — resolve to one key and
   // can't spawn a duplicate brand. Names are folded to a diacritic-insensitive
   // key so `OperáSPORT` and `OpéraSport` collapse together too.
-  const { data: activeCompanies, error: dupCheckError } = await supabase
-    .from("companies")
-    .select("name, domain")
-    .is("deleted_at", null);
-
-  if (dupCheckError) {
-    throw dupCheckError;
-  }
+  //
+  // Both reads below are paged: PostgREST stops at 1,000 rows, and a
+  // truncated list would let a duplicate brand or inbox address through.
+  const activeCompanies = await fetchAllRows((from, to) =>
+    supabase
+      .from("companies")
+      .select("name, domain")
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, to)
+  );
 
   const domainKey = normalizeDomain(normalizedDomain);
   const nameKey = foldBrandName(normalizedName);
-  for (const existing of activeCompanies ?? []) {
+  for (const existing of activeCompanies) {
     if (domainKey && normalizeDomain(existing.domain ?? "") === domainKey) {
       throw new DuplicateCompanyError("domain", existing.name);
     }
@@ -1169,17 +1176,17 @@ export async function createCompanySubscriptionInDb(
     }
   }
 
-  const { data: existingInboxes, error: inboxesError } = await supabase
-    .from("company_inboxes")
-    .select("email_address");
-
-  if (inboxesError) {
-    throw inboxesError;
-  }
+  const existingInboxes = await fetchAllRows((from, to) =>
+    supabase
+      .from("company_inboxes")
+      .select("email_address")
+      .order("id")
+      .range(from, to)
+  );
 
   const subscriptionEmail = buildUniqueSubscriptionEmail(
     normalizedName,
-    (existingInboxes ?? []).map((item) => item.email_address)
+    existingInboxes.map((item) => item.email_address)
   );
 
   const { data: company, error: companyError } = await supabase

@@ -3,6 +3,7 @@ import { SITE_URL, PUBLIC_MARKETING_PATHS } from "@/lib/site";
 import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
 import { DOC_CATEGORIES } from "@/lib/docs/content";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 // The brand list is DB-backed, so regenerate hourly rather than freezing the
 // sitemap at build time — new brands then appear without needing a redeploy.
@@ -53,12 +54,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   ];
   try {
-    const { data, error } = await getSupabaseAdmin()
-      .from("companies")
-      .select("slug, updated_at, company_email_stats(email_count)")
-      .is("deleted_at", null);
-    if (error) throw error;
-    for (const company of data ?? []) {
+    // Paged: PostgREST stops at 1,000 rows, and an unpaged read would quietly
+    // drop every brand past that from the sitemap.
+    const companies = await fetchAllRows((from, to) =>
+      getSupabaseAdmin()
+        .from("companies")
+        .select("slug, updated_at, company_email_stats(email_count)")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to)
+    );
+    for (const company of companies) {
       const stats = Array.isArray(company.company_email_stats)
         ? company.company_email_stats[0]
         : company.company_email_stats;

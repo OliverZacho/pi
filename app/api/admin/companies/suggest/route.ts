@@ -7,6 +7,7 @@ import {
   suggestCompanies,
   verifyDomains
 } from "@/lib/suggest-companies";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 type SuggestBody = {
   market?: string;
@@ -40,23 +41,26 @@ export async function POST(request: Request) {
   const count = Math.max(1, Math.min(MAX_COUNT, Math.floor(rawCount)));
 
   try {
-    const [companiesRes, skipsRes] = await Promise.all([
-      session.supabase
-        .from("companies")
-        .select("domain")
-        .is("deleted_at", null),
+    // Paged: PostgREST stops at 1,000 rows, and a truncated list would let
+    // already-tracked brands back into the suggestions.
+    const [companies, skipsRes] = await Promise.all([
+      fetchAllRows((from, to) =>
+        session.supabase
+          .from("companies")
+          .select("domain")
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to)
+      ),
       session.supabase.from("suggestion_skips").select("domain, market")
     ]);
 
-    if (companiesRes.error) {
-      throw companiesRes.error;
-    }
     if (skipsRes.error) {
       throw skipsRes.error;
     }
 
     const baselineExclude = new Set<string>();
-    for (const row of companiesRes.data ?? []) {
+    for (const row of companies) {
       const normalized = normalizeDomain(row.domain);
       if (normalized) {
         baselineExclude.add(normalized);
