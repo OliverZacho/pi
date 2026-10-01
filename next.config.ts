@@ -24,7 +24,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/docs", destination: "/learn", permanent: true },
-      { source: "/docs/:slug", destination: "/learn/:slug", permanent: true }
+      { source: "/docs/:slug", destination: "/learn/:slug", permanent: true },
+      // The video tutorials page was retired; it was in the sitemap, so send
+      // anyone (or any crawler) still holding the URL to the help hub.
+      { source: "/tutorials", destination: "/help", permanent: true }
     ];
   }
 };

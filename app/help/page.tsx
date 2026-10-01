@@ -70,15 +70,6 @@ export default function HelpPage() {
                     deliverability, and strategy.
                   </span>
                 </li>
-                <li className={styles.contactListItem}>
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M8 5v14l11-7z" fill="currentColor" />
-                  </svg>
-                  <span>
-                    Watch a <a href="/tutorials">video tutorial</a> for step-by-step
-                    walkthroughs of every feature.
-                  </span>
-                </li>
               </ul>
             </div>
           </div>
