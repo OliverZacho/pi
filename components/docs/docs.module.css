@@ -1170,3 +1170,43 @@
     padding: 3rem 1.25rem 2.5rem;
   }
 }
+
+/* ---------- Brand examples ----------
+   The real brands behind an article's numbers, each linking to its brand
+   page with its own figure. Two-column ruled list in the FAQ's idiom. */
+
+.exampleList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  column-gap: 1.5rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exampleLink {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.exampleName {
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.exampleStat {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.exampleLink:hover .exampleName {
+  color: var(--accent);
+}

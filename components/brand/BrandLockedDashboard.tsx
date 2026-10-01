@@ -270,8 +270,8 @@ export default function BrandLockedDashboard({
                 {r.name}
               </Link>
             ))}
-            <Link href="/brands" className={locked.relatedLink}>
-              All brands →
+            <Link href="/brands/a-z" className={locked.relatedLink}>
+              All brands A to Z →
             </Link>
           </div>
         </section>

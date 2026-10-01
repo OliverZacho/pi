@@ -26,7 +26,6 @@ export const SITE_URL = (
 export const PUBLIC_MARKETING_PATHS = [
   "/",
   "/pricing",
-  "/tutorials",
   "/help",
   "/learn",
   "/features/brands",
@@ -89,6 +88,7 @@ export const DISALLOWED_PATHS = [
   "/saved",
   "/dashboard",
   "/following",
+  "/your-brand",
   "/explore",
   "/collections",
   "/compare",

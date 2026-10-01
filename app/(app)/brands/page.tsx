@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -81,6 +82,9 @@ export default async function BrandsPage() {
                 Search every tracked brand and filter by what we know.
               </p>
             </div>
+            <Link href="/brands/a-z" className={styles.azLink}>
+              All brands A to Z
+            </Link>
           </div>
         </header>
 
@@ -135,6 +139,9 @@ export default async function BrandsPage() {
             <h1>Brands</h1>
             <p>Search every tracked brand and filter by what we know.</p>
           </div>
+          <Link href="/brands/a-z" className={styles.azLink}>
+            All brands A to Z
+          </Link>
         </div>
       </header>
 

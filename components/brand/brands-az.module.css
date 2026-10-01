@@ -1,0 +1,147 @@
+/*
+ * /brands/a-z: every indexable brand as a plain link, grouped by letter.
+ * The page's job is to give crawlers (and anyone who'd rather scan than
+ * search) one hop to every brand page, so it stays a quiet text index.
+ */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 2.4rem 2.6rem 4rem;
+  overflow-x: hidden;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.breadcrumb a {
+  color: #64748b;
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: #086e4b;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.heading p {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
+}
+
+.letterNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.letterNav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.4rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.letterNav a:hover {
+  border-color: #086e4b;
+  color: #086e4b;
+}
+
+.group {
+  margin-top: 2rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.group h2 {
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 4 13rem;
+  column-gap: 1.5rem;
+}
+
+.list li {
+  break-inside: avoid;
+  padding: 0.22rem 0;
+}
+
+.list a {
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.list a:hover {
+  color: #086e4b;
+  text-decoration: underline;
+}
+
+.market {
+  margin-left: 0.4rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* Loading state: the real heading plus placeholder rows in the list's box. */
+.placeholderRow {
+  height: 0.9rem;
+  margin: 0.5rem 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f8fafc 0%, #eef2f7 50%, #f8fafc 100%);
+  background-size: 200% 100%;
+  animation: azShimmer 1.6s linear infinite;
+}
+
+@keyframes azShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placeholderRow {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 1.5rem 1rem 3rem;
+  }
+}

@@ -21,7 +21,8 @@ import {
   getContentMixInsights,
   getDiscountInsights,
   getEspInsights,
-  getSendTimeInsights
+  getSendTimeInsights,
+  type ExampleBrand
 } from "./insights";
 
 export type FigureData =
@@ -50,9 +51,20 @@ export type FigureData =
       }[];
     };
 
+/**
+ * The real brands behind an article's numbers, each linked to its brand page
+ * with that brand's own figure. Absent when no brand clears the example floor.
+ */
+export type ArticleExamples = {
+  heading: string;
+  intro: string;
+  brands: { slug: string; name: string; stat: string }[];
+};
+
 export type ArticleInsights = {
   tokens: Record<string, string>;
   figures: Record<string, FigureData>;
+  examples?: ArticleExamples;
 };
 
 const EMPTY: ArticleInsights = { tokens: {}, figures: {} };
@@ -68,6 +80,24 @@ function joinList(parts: string[]): string {
   if (parts.length <= 1) return parts.join("");
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Builds the examples block, or nothing when there are too few brands to make
+ * a list worth reading (or the cached insight predates the field).
+ */
+function examplesBlock(
+  heading: string,
+  intro: string,
+  brands: ExampleBrand[] | undefined,
+  stat: (b: ExampleBrand) => string
+): ArticleExamples | undefined {
+  if (!brands || brands.length < 3) return undefined;
+  return {
+    heading,
+    intro,
+    brands: brands.map((b) => ({ slug: b.slug, name: b.name, stat: stat(b) }))
+  };
 }
 
 /** Assigns only defined, non-empty values so missing tokens drop their paragraph. */
@@ -144,7 +174,19 @@ async function buildEsp(): Promise<ArticleInsights> {
     };
   }
 
-  return { tokens, figures };
+  const leaders = [...new Set((d.examples ?? []).map((b) => b.label))].filter(
+    (l): l is string => Boolean(l)
+  );
+  const examples = examplesBlock(
+    leaders.length === 2
+      ? `Brands sending on ${leaders[0]} and ${leaders[1]}`
+      : "Brands by sending platform",
+    "The busiest tracked brands on the two most used platforms. Open any of them to see its full sending pattern.",
+    d.examples,
+    (b) => b.label ?? ""
+  );
+
+  return { tokens, figures, examples };
 }
 
 async function buildSendTime(): Promise<ArticleInsights> {
@@ -192,7 +234,14 @@ async function buildSendTime(): Promise<ArticleInsights> {
     }
   };
 
-  return { tokens, figures };
+  const examples = examplesBlock(
+    `Brands that send at ${d.peak.label}`,
+    "Brands whose own busiest hour is the archive's peak, ranked by how much of their email lands in it.",
+    d.examples,
+    (b) => `${b.value}% of sends`
+  );
+
+  return { tokens, figures, examples };
 }
 
 async function buildCadence(): Promise<ArticleInsights> {
@@ -229,7 +278,14 @@ async function buildCadence(): Promise<ArticleInsights> {
     }
   };
 
-  return { tokens, figures };
+  const examples = examplesBlock(
+    "The busiest senders in the archive",
+    "Brands with at least a month of tracked history, ranked by how many emails they send a week.",
+    d.examples,
+    (b) => `${one(b.value)} a week`
+  );
+
+  return { tokens, figures, examples };
 }
 
 async function buildDiscount(): Promise<ArticleInsights> {
@@ -274,7 +330,14 @@ async function buildDiscount(): Promise<ArticleInsights> {
     }
   };
 
-  return { tokens, figures };
+  const examples = examplesBlock(
+    "The brands that discount most often",
+    "Tracked brands ranked by the share of their emails that name a discount.",
+    d.examples,
+    (b) => `${b.value}% of sends`
+  );
+
+  return { tokens, figures, examples };
 }
 
 async function buildContentMix(): Promise<ArticleInsights> {
@@ -310,5 +373,12 @@ async function buildContentMix(): Promise<ArticleInsights> {
     }
   };
 
-  return { tokens, figures };
+  const examples = examplesBlock(
+    "What the busiest brands lead with",
+    "The highest volume brands in the archive and the campaign type that makes up most of their inbox.",
+    d.examples,
+    (b) => `${b.value}% ${(b.label ?? "").toLowerCase()}`
+  );
+
+  return { tokens, figures, examples };
 }

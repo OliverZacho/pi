@@ -206,6 +206,26 @@ export default async function ArticlePage({ params }: PageProps) {
             );
           })}
 
+          {insights.examples ? (
+            <section id="brand-examples" className={styles.section}>
+              <h2>{insights.examples.heading}</h2>
+              <p>{insights.examples.intro}</p>
+              <ul className={styles.exampleList}>
+                {insights.examples.brands.map((brand) => (
+                  <li key={brand.slug}>
+                    <Link
+                      href={`/brands/${brand.slug}`}
+                      className={styles.exampleLink}
+                    >
+                      <span className={styles.exampleName}>{brand.name}</span>
+                      <span className={styles.exampleStat}>{brand.stat}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           {faqs.length > 0 ? (
             <section id="faq" className={styles.section}>
               <h2>Frequently asked questions</h2>
@@ -253,6 +273,13 @@ export default async function ArticlePage({ params }: PageProps) {
                 </a>
               </li>
             ))}
+            {insights.examples ? (
+              <li>
+                <a href="#brand-examples" className={styles.tocLink}>
+                  {insights.examples.heading}
+                </a>
+              </li>
+            ) : null}
             {faqs.length > 0 ? (
               <li>
                 <a href="#faq" className={styles.tocLink}>

@@ -32,9 +32,12 @@ import {
   getZonedParts
 } from "@/lib/datetime";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { loadIndexableBrands } from "@/lib/brand-link-index";
 
 /** Rows aggregated per scan. Generous — the math is linear and cached. */
 const SCAN_CAP = 40000;
+/** PostgREST's max rows per response (Supabase default). */
+const PAGE_SIZE = 1000;
 /** A brand needs at least this many sends to count toward a benchmark. */
 const MIN_SENDS_PER_BRAND = 4;
 /** An industry needs at least this many brands before we quote it. */
@@ -72,7 +75,7 @@ type ArchiveSample = {
 const loadArchiveSample = cache(async (): Promise<ArchiveSample | null> => {
   try {
     const admin = getSupabaseAdmin();
-    const [companiesRes, countRes, emailsRes] = await Promise.all([
+    const [companiesRes, countRes] = await Promise.all([
       admin
         .from("companies")
         .select("id, markets, primary_market_country")
@@ -80,17 +83,32 @@ const loadArchiveSample = cache(async (): Promise<ArchiveSample | null> => {
       admin
         .from("captured_emails")
         .select("id", { count: "exact", head: true })
-        .is("duplicate_of", null),
-      admin
-        .from("captured_emails")
-        .select("company_id, received_at, esp_provider, discount_percent, category")
         .is("duplicate_of", null)
-        .order("received_at", { ascending: false })
-        .limit(SCAN_CAP)
     ]);
 
     const companies = companiesRes.data;
     if (!companies) return null;
+
+    // PostgREST caps every response at PAGE_SIZE rows whatever `limit` asks
+    // for, so a single `.limit(SCAN_CAP)` silently returned only the newest
+    // 1,000 sends (a few days of mail) and every benchmark was computed from
+    // that. Page through the scan instead, in parallel since the count is
+    // known. `id` breaks received_at ties so pages can't overlap or skip.
+    const scanSize = Math.min(countRes.count ?? 0, SCAN_CAP);
+    const pages = await Promise.all(
+      Array.from({ length: Math.ceil(scanSize / PAGE_SIZE) }, (_, i) =>
+        admin
+          .from("captured_emails")
+          .select("company_id, received_at, esp_provider, discount_percent, category")
+          .is("duplicate_of", null)
+          .order("received_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(i * PAGE_SIZE, Math.min((i + 1) * PAGE_SIZE, scanSize) - 1)
+      )
+    );
+    const failed = pages.find((page) => page.error);
+    if (failed?.error) throw failed.error;
+    const emailsRes = { data: pages.flatMap((page) => page.data ?? []) };
 
     const brands = new Map<string, BrandMeta>();
     for (const c of companies) {
@@ -235,6 +253,54 @@ function categoryLabel(id: string): string {
 const avg = (xs: number[]): number =>
   xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
 
+/* ----------------------------- brand examples ----------------------------- */
+
+/**
+ * A real brand behind a benchmark, linked from the article to its brand page.
+ * `value` is the brand's own figure for the article's metric (formatted by
+ * `article-insights.ts`); `label` carries a name where the metric needs one
+ * (the ESP, the campaign type).
+ */
+export type ExampleBrand = {
+  slug: string;
+  name: string;
+  value: number;
+  label?: string;
+};
+
+/** How many brands an article names. */
+const EXAMPLE_COUNT = 8;
+/**
+ * Sends a brand needs before we quote its own figure. Far above the benchmark
+ * floor: an article naming a brand should be quoting a settled number, not
+ * four emails.
+ */
+const EXAMPLE_MIN_SENDS = 20;
+
+/**
+ * Resolves ranked brand ids to linkable examples, keeping only brands whose
+ * page is indexable (linking to a noindexed page wastes the crawl). A lookup
+ * failure costs the article its examples, never the article.
+ */
+async function toExamples(
+  ranked: { id: string; value: number; label?: string }[],
+  limit = EXAMPLE_COUNT
+): Promise<ExampleBrand[]> {
+  const index = await loadIndexableBrands().catch((error) => {
+    console.error("[docs/insights] brand index load failed", error);
+    return [];
+  });
+  const byId = new Map(index.map((b) => [b.id, b]));
+  const out: ExampleBrand[] = [];
+  for (const r of ranked) {
+    const brand = byId.get(r.id);
+    if (!brand) continue;
+    out.push({ slug: brand.slug, name: brand.name, value: r.value, label: r.label });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 /* ------------------------------- ESP usage -------------------------------- */
 
 export type EspInsights = {
@@ -247,6 +313,8 @@ export type EspInsights = {
   /** Top platforms by share of brands, descending. */
   ranking: { label: string; share: number }[];
   byIndustry: { industry: string; topEsp: string; share: number }[];
+  /** The busiest brands on each of the two leading platforms. */
+  examples: ExampleBrand[];
 };
 
 export const getEspInsights = unstable_cache(
@@ -298,16 +366,30 @@ export const getEspInsights = unstable_cache(
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  const leaders = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([esp]) => esp);
+  const examples: ExampleBrand[] = [];
+  for (const esp of leaders) {
+    const ranked = [...brandEsp.entries()]
+      .filter(([id, e]) => e === esp && (agg.get(id)?.n ?? 0) >= EXAMPLE_MIN_SENDS)
+      .sort((a, b) => (agg.get(b[0])?.n ?? 0) - (agg.get(a[0])?.n ?? 0))
+      .map(([id]) => ({ id, value: agg.get(id)?.n ?? 0, label: espLabel(esp) }));
+    examples.push(...(await toExamples(ranked, EXAMPLE_COUNT / 2)));
+  }
+
   return {
     brandCount: sample.brandCount,
     espBrandCount: total,
     top: ranking[0],
     second: ranking[1] ?? null,
     ranking,
-    byIndustry
+    byIndustry,
+    examples
   };
   },
-  ["docs-insights:esp"],
+  ["docs-insights:esp:v3"],
   { revalidate: INSIGHT_TTL }
 );
 
@@ -324,6 +406,8 @@ export type SendTimeInsights = {
   eveningShare: number;
   topHours: { label: string; value: number; display: string }[];
   byIndustry: { industry: string; peakLabel: string }[];
+  /** Brands whose own busiest hour is the archive's peak, most concentrated first. */
+  examples: ExampleBrand[];
 };
 
 export const getSendTimeInsights = unstable_cache(
@@ -334,6 +418,7 @@ export const getSendTimeInsights = unstable_cache(
     const zone = getActiveTimeZone();
     const hourly = new Array<number>(24).fill(0);
     const indHourly = new Map<string, number[]>();
+    const brandHourly = new Map<string, number[]>();
 
     for (const row of sample.rows) {
       let hour: number;
@@ -343,6 +428,12 @@ export const getSendTimeInsights = unstable_cache(
         continue;
       }
       hourly[hour] += 1;
+      let own = brandHourly.get(row.companyId);
+      if (!own) {
+        own = new Array<number>(24).fill(0);
+        brandHourly.set(row.companyId, own);
+      }
+      own[hour] += 1;
       const meta = sample.brands.get(row.companyId);
       if (!meta) continue;
       for (const tag of meta.markets) {
@@ -392,6 +483,15 @@ export const getSendTimeInsights = unstable_cache(
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
+    const atPeak: { id: string; value: number }[] = [];
+    for (const [id, counts] of brandHourly) {
+      const n = counts.reduce((a, b) => a + b, 0);
+      if (n < EXAMPLE_MIN_SENDS) continue;
+      if (counts.indexOf(Math.max(...counts)) !== peakH) continue;
+      atPeak.push({ id, value: Math.round((100 * counts[peakH]) / n) });
+    }
+    atPeak.sort((a, b) => b.value - a.value);
+
     return {
       sendCount: totalSends,
       peak: { label: label(peakH), share: Math.round((100 * hourly[peakH]) / totalSends) },
@@ -401,10 +501,11 @@ export const getSendTimeInsights = unstable_cache(
       afternoonShare: windowShare(12, 16),
       eveningShare: windowShare(17, 21),
       topHours,
-      byIndustry
+      byIndustry,
+      examples: await toExamples(atPeak)
     };
   },
-  ["docs-insights:send-time"],
+  ["docs-insights:send-time:v3"],
   { revalidate: INSIGHT_TTL }
 );
 
@@ -416,6 +517,8 @@ export type CadenceInsights = {
   busiest: { industry: string; perWeek: number } | null;
   calmest: { industry: string; perWeek: number } | null;
   byIndustry: { industry: string; perWeek: number }[];
+  /** The busiest senders with a settled history, by emails per week. */
+  examples: ExampleBrand[];
 };
 
 export const getCadenceInsights = unstable_cache(
@@ -444,15 +547,25 @@ export const getCadenceInsights = unstable_cache(
 
     const sorted = [...byIndustry].sort((a, b) => b.perWeek - a.perWeek);
 
+    // A month of history at least, so a launch-week burst can't top the list.
+    const busiest = [...agg.entries()]
+      .filter(
+        ([, a]) =>
+          a.n >= EXAMPLE_MIN_SENDS && a.maxMs - a.minMs >= 28 * 86_400_000
+      )
+      .map(([id, a]) => ({ id, value: brandPerWeek(a) }))
+      .sort((a, b) => b.value - a.value);
+
     return {
       brandCount: rates.length,
       avgPerWeek: avg(rates),
       busiest: sorted[0] ?? null,
       calmest: sorted.length > 1 ? sorted[sorted.length - 1] : null,
-      byIndustry
+      byIndustry,
+      examples: await toExamples(busiest)
     };
   },
-  ["docs-insights:cadence"],
+  ["docs-insights:cadence:v3"],
   { revalidate: INSIGHT_TTL }
 );
 
@@ -464,6 +577,8 @@ export type DiscountInsights = {
   avgDepth: number;
   maxDepth: number;
   byIndustry: { industry: string; share: number; avgDepth: number }[];
+  /** Brands with the largest share of sends carrying an offer. */
+  examples: ExampleBrand[];
 };
 
 export const getDiscountInsights = unstable_cache(
@@ -511,14 +626,20 @@ export const getDiscountInsights = unstable_cache(
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
+    const heaviest = [...agg.entries()]
+      .filter(([, a]) => a.n >= EXAMPLE_MIN_SENDS && a.discCount > 0)
+      .map(([id, a]) => ({ id, value: Math.round((100 * a.discCount) / a.n) }))
+      .sort((a, b) => b.value - a.value);
+
     return {
       discountShare: Math.round(100 * avg(shares)),
       avgDepth: depthN > 0 ? Math.round(depthSum / depthN) : 0,
       maxDepth: Math.round(maxDepth),
-      byIndustry
+      byIndustry,
+      examples: await toExamples(heaviest)
     };
   },
-  ["docs-insights:discount"],
+  ["docs-insights:discount:v3"],
   { revalidate: INSIGHT_TTL }
 );
 
@@ -534,6 +655,8 @@ export type ContentMixInsights = {
   /** Top campaign types by share of all campaign sends. */
   ranking: { label: string; share: number }[];
   byIndustry: { industry: string; topType: string; share: number }[];
+  /** The highest-volume brands and the campaign type each leads with. */
+  examples: ExampleBrand[];
 };
 
 export const getContentMixInsights = unstable_cache(
@@ -542,12 +665,19 @@ export const getContentMixInsights = unstable_cache(
     if (!sample) return null;
 
     const counts = new Map<string, number>();
+    const brandCounts = new Map<string, Map<string, number>>();
     let total = 0;
     for (const row of sample.rows) {
       const cat = row.category;
       if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
       counts.set(cat, (counts.get(cat) ?? 0) + 1);
       total += 1;
+      let own = brandCounts.get(row.companyId);
+      if (!own) {
+        own = new Map();
+        brandCounts.set(row.companyId, own);
+      }
+      own.set(cat, (own.get(cat) ?? 0) + 1);
     }
     if (total === 0) return null;
 
@@ -586,15 +716,34 @@ export const getContentMixInsights = unstable_cache(
 
     const saleEntry = ranking.find((r) => r.label === categoryLabel("sale"));
 
+    const leading = [...brandCounts.entries()]
+      .map(([id, own]) => {
+        let n = 0;
+        let top = "";
+        let best = 0;
+        for (const [cat, c] of own) {
+          n += c;
+          if (c > best) {
+            best = c;
+            top = cat;
+          }
+        }
+        return { id, n, top, share: n > 0 ? Math.round((100 * best) / n) : 0 };
+      })
+      .filter((b) => b.n >= EXAMPLE_MIN_SENDS && b.top)
+      .sort((a, b) => b.n - a.n)
+      .map((b) => ({ id: b.id, value: b.share, label: categoryLabel(b.top) }));
+
     return {
       sampleSize: total,
       top: { label: ranking[0].label, share: ranking[0].share },
       second: ranking[1] ? { label: ranking[1].label, share: ranking[1].share } : null,
       saleShare: saleEntry?.share ?? 0,
       ranking: ranking.slice(0, 6).map(({ label, share }) => ({ label, share })),
-      byIndustry
+      byIndustry,
+      examples: await toExamples(leading)
     };
   },
-  ["docs-insights:content-mix"],
+  ["docs-insights:content-mix:v3"],
   { revalidate: INSIGHT_TTL }
 );
