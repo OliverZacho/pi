@@ -9,6 +9,7 @@ import { resolveBrandLogo } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import { getBrandNarrative } from "@/lib/brand-claim-facts";
+import { loadIndexableBrands, pickRelatedBrands } from "@/lib/brand-link-index";
 import {
   getBrandPageData,
   getBrandSummary,
@@ -85,40 +86,6 @@ const loadPublicTeaser = unstable_cache(
     };
   },
   ["brand-public-teaser"],
-  { revalidate: 3600 }
-);
-
-/**
- * Same-market brands for the cross-link strip on the public page. Only
- * brands that clear the indexability threshold are linked — pointing
- * crawlers at noindexed pages wastes the crawl. Cached hourly; the list
- * barely changes.
- */
-const loadRelatedBrands = unstable_cache(
-  async (companyId: string, markets: string[]) => {
-    const admin = getSupabaseAdmin();
-    let query = admin
-      .from("companies")
-      .select("slug, name, company_email_stats(email_count)")
-      .neq("id", companyId)
-      .is("deleted_at", null)
-      .limit(24);
-    if (markets.length > 0) {
-      query = query.overlaps("markets", markets);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data ?? [])
-      .filter((row) => {
-        const stats = Array.isArray(row.company_email_stats)
-          ? row.company_email_stats[0]
-          : row.company_email_stats;
-        return (stats?.email_count ?? 0) >= MIN_INDEXABLE_EMAILS;
-      })
-      .slice(0, 6)
-      .map((row) => ({ slug: row.slug, name: row.name }));
-  },
-  ["brand-related"],
   { revalidate: 3600 }
 );
 
@@ -296,13 +263,20 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
     logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
 
     const marketLabels = normalizeCompanyMarkets(company.markets);
-    const related = await loadRelatedBrands(
-      id,
-      Array.isArray(company.markets) ? company.markets : []
-    ).catch((err) => {
-      console.error("Failed to load related brands", err);
-      return [] as { slug: string; name: string }[];
-    });
+    // Same-market brands for the cross-link strip, picked as a ring so every
+    // indexable brand is linked from its neighbours (lib/brand-link-index.ts).
+    const related = await loadIndexableBrands()
+      .then((index) =>
+        pickRelatedBrands(index, {
+          id,
+          name: company.name,
+          markets: marketLabels
+        })
+      )
+      .catch((err) => {
+        console.error("Failed to load related brands", err);
+        return { brands: [], sharedMarket: null };
+      });
 
     // Structured data for the public page: the breadcrumb trail plus the
     // brand's email program described as a Dataset published by Pirol.
@@ -367,9 +341,9 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
             viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
           }
           live={liveData ?? undefined}
-          related={related.map((r) => ({
+          related={related.brands.map((r) => ({
             ...r,
-            marketLabel: marketLabels[0] ?? null
+            marketLabel: related.sharedMarket
           }))}
         />
       </>

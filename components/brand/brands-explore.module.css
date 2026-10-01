@@ -1281,3 +1281,18 @@
   color: #64748b;
   text-align: center;
 }
+
+/* Header link to /brands/a-z, the crawlable full list. Quiet text link so it
+   doesn't compete with search; aligned with the title's baseline row. */
+.azLink {
+  margin-top: 0.3rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #086e4b;
+  text-decoration: none;
+}
+
+.azLink:hover {
+  color: #065a3c;
+  text-decoration: underline;
+}
