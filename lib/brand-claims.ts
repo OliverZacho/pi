@@ -251,6 +251,18 @@ function share(count: number, total: number): number {
   return total > 0 ? count / total : 0;
 }
 
+/**
+ * "no campaign carries" / "only 1 campaign carries" / "only 4 campaigns carry",
+ * or "only 4 of 58 campaigns carry" when `total` is given.
+ */
+function codeCarriers(count: number, total?: number): string {
+  if (count === 0) return "no campaign carries";
+  if (total !== undefined) {
+    return `only ${count} of ${total} campaigns ${count === 1 ? "carries" : "carry"}`;
+  }
+  return count === 1 ? "only 1 campaign carries" : `only ${count} campaigns carry`;
+}
+
 /** Share of campaigns landing on the single busiest weekday. */
 function topWeekdayShare(f: BrandClaimFacts): number {
   const index = argMax(f.weekdayCounts);
@@ -261,6 +273,11 @@ function topWeekdayShare(f: BrandClaimFacts): number {
 function topHourShare(f: BrandClaimFacts): number {
   const index = argMax(f.hourCounts);
   return index < 0 ? 0 : share(f.hourCounts[index], f.campaigns);
+}
+
+/** 6am through 9pm: hours a person plausibly schedules a campaign for. */
+function isDaytimeHour(hour: number): boolean {
+  return hour >= 6 && hour <= 21;
 }
 
 function weekendShare(f: BrandClaimFacts): number {
@@ -431,7 +448,12 @@ export const CLAIMS: Claim[] = [
     group: "hour",
     minCampaigns: 15,
     weight: 7,
-    applies: (f) => topHourShare(f) >= 0.4,
+    // A peak in the small hours of the brand's market zone almost always means
+    // the ESP timed the send to our (European) inbox's local morning, e.g.
+    // Todd Snyder at 05:00 UTC every day: true as "1am New York time", but
+    // misleading as a claim about the brand's schedule. Say nothing instead.
+    applies: (f) =>
+      topHourShare(f) >= 0.4 && isDaytimeHour(argMax(f.hourCounts)),
     surprise: (f) => Math.min((topHourShare(f) - 0.4) * 3, 1.5),
     render: (f, b, pick) => {
       const hour = argMax(f.hourCounts);
@@ -691,8 +713,10 @@ export const CLAIMS: Claim[] = [
       f.discountCount >= 5 && share(f.promoCodeCount, f.campaigns) <= 0.1,
     render: (f, b, pick) =>
       pick([
-        `Almost none of it is gated: ${f.promoCodeCount === 0 ? "no campaign carries" : `only ${f.promoCodeCount} campaigns carry`} a promo code, so the offer applies automatically.`,
-        `The discount is applied for you rather than typed in, with codes appearing in only ${pct(share(f.promoCodeCount, f.campaigns))} of campaigns.`
+        `Almost none of it is gated: ${codeCarriers(f.promoCodeCount)} a promo code, so the offer applies automatically.`,
+        // A percentage here rounds a handful of codes down to "0%", so this
+        // phrasing counts campaigns instead.
+        `The discount is applied for you rather than typed in: ${codeCarriers(f.promoCodeCount, f.campaigns)} a code.`
       ])
   },
   {

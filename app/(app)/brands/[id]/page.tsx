@@ -10,14 +10,10 @@ import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import { getBrandNarrative } from "@/lib/brand-claim-facts";
 import { loadIndexableBrands, pickRelatedBrands } from "@/lib/brand-link-index";
-import {
-  getBrandPageData,
-  getBrandSummary,
-  resolveBrandHandle
-} from "@/lib/brand-db";
+import { getBrandPageData, getBrandSummary } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
 import { canonicalUrl } from "@/lib/page-metadata";
-import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
+import { MIN_INDEXABLE_EMAILS, proseDescription } from "@/lib/brand-summary";
 import { ORGANIZATION_ID } from "@/lib/structured-data";
 import {
   listCompetitorSetSummaries,
@@ -27,6 +23,7 @@ import {
 import { isBrandFollowed } from "@/lib/follows-db";
 import { DEMO_BRAND_SLUG } from "@/lib/demo";
 import BrandDashboard from "@/components/brand/BrandDashboard";
+import { resolveHandle } from "./resolve-handle";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +33,10 @@ type RouteParams = {
 };
 
 /**
- * Request-memoised handle→identity resolve and summary build, so
- * `generateMetadata` and the page body each run once per request rather than
- * twice. `getSupabaseAdmin` is a singleton, so keying on the string args is
- * stable.
+ * Request-memoised summary build, so `generateMetadata` and the page body each
+ * run it once per request rather than twice. `getSupabaseAdmin` is a
+ * singleton, so keying on the string args is stable.
  */
-const resolveHandle = cache((handle: string) =>
-  resolveBrandHandle(getSupabaseAdmin(), handle)
-);
 const loadBrandSummary = cache((id: string, name: string) =>
   getBrandSummary(getSupabaseAdmin(), id, { name })
 );
@@ -111,7 +104,10 @@ export async function generateMetadata({ params }: RouteParams) {
   // legacy /brands/<uuid> links onto the keyword-bearing slug without us
   // having to 301 (and slow down) internal navigation.
   const canonical = canonicalUrl(`/brands/${resolved.slug}`);
-  const summary = await loadBrandSummary(resolved.id, resolved.name);
+  const [summary, narrative] = await Promise.all([
+    loadBrandSummary(resolved.id, resolved.name),
+    loadBrandNarrative(resolved.id, resolved.name).catch(() => null)
+  ]);
 
   // Only pages with enough captured email to say something real are offered
   // to the index (same threshold as the sitemap). The rest stay reachable but
@@ -126,7 +122,11 @@ export async function generateMetadata({ params }: RouteParams) {
     ? `${resolved.name} email marketing: frequency, timing, discounts`
     : `${resolved.name} — Pirol`;
 
-  const description = summary?.metaDescription ?? undefined;
+  // The narrative's opening sentences when the brand has one: they vary in
+  // what they say per brand, where the summary only varies in its numbers.
+  const description = narrative?.length
+    ? proseDescription(narrative.join(" "))
+    : summary?.metaDescription ?? undefined;
 
   return {
     title,

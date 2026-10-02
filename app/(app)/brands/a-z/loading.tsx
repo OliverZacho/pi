@@ -2,8 +2,7 @@ import styles from "@/components/brand/brands-az.module.css";
 
 /**
  * Matches the A to Z page's box: real breadcrumb and heading (static copy),
- * then placeholder rows where the letter groups land. Without this file the
- * parent `/brands` skeleton (toolbar + card grid) would flash first.
+ * then placeholder rows where the letter groups land.
  */
 export default function Loading() {
   return (

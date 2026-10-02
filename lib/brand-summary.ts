@@ -98,6 +98,22 @@ function clamp(text: string, max: number): string {
 }
 
 /**
+ * Packs whole sentences of `text` into a meta description of at most `max`
+ * characters. Falls back to a word-boundary cut only when the first sentence
+ * alone is too long.
+ */
+export function proseDescription(text: string, max = 160): string {
+  const sentences = text.trim().split(/(?<=[.!?])\s+/);
+  let out = "";
+  for (const sentence of sentences) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if (next.length > max) break;
+    out = next;
+  }
+  return out || clamp(sentences[0] ?? "", max);
+}
+
+/**
  * Builds the visible summary + meta description for a brand. Returns null when
  * there isn't enough signal to say anything useful (no emails, or neither a
  * cadence nor a campaign mix) — better to render nothing than a thin,
@@ -142,14 +158,9 @@ export function buildBrandSummary(facts: BrandSummaryFacts): BrandSummary | null
 
   const paragraph = sentences.join(" ");
 
-  // --- Meta description (compact, keyword-led, ~160 chars) ---
-  const metaParts: string[] = [`${name} email marketing`];
-  if (freq) metaParts.push(`sends ${freq}`);
-  if (mix) metaParts.push(`mostly ${mix}`);
-  if (facts.maxDiscount !== null && facts.maxDiscount > 0) {
-    metaParts.push(`up to ${Math.round(facts.maxDiscount)}% off`);
-  }
-  const metaDescription = clamp(`${metaParts.join(" — ")}.`, 160);
+  // --- Meta description: the same prose, so every brand reads as a sentence
+  // about itself rather than one shared "Brand — sends X — mostly Y" shape.
+  const metaDescription = proseDescription(paragraph);
 
   return { paragraph, metaDescription };
 }
