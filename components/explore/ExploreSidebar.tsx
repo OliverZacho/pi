@@ -966,12 +966,6 @@ export default function ExploreSidebar({
                 ) : (
                   <CollectionIcon />
                 )}
-                {collection.hasNewEmails && !isActive ? (
-                  <span
-                    className={styles.navNewDot}
-                    aria-label="New emails in this collection"
-                  />
-                ) : null}
               </span>
               <span className={styles.navItemLabel}>{collection.name}</span>
               {collection.sharedByTeam ? (

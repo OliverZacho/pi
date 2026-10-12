@@ -431,12 +431,10 @@ export type Database = {
         Row: {
           created_at: string
           event_detection: Json | null
-          has_new_matches: boolean
           icon: string | null
           id: string
           last_viewed_at: string | null
           name: string
-          new_matches_checked_at: string | null
           notify_new_matches: boolean
           rules: Json | null
           share_slug: string
@@ -447,12 +445,10 @@ export type Database = {
         Insert: {
           created_at?: string
           event_detection?: Json | null
-          has_new_matches?: boolean
           icon?: string | null
           id?: string
           last_viewed_at?: string | null
           name: string
-          new_matches_checked_at?: string | null
           notify_new_matches?: boolean
           rules?: Json | null
           share_slug: string
@@ -463,12 +459,10 @@ export type Database = {
         Update: {
           created_at?: string
           event_detection?: Json | null
-          has_new_matches?: boolean
           icon?: string | null
           id?: string
           last_viewed_at?: string | null
           name?: string
-          new_matches_checked_at?: string | null
           notify_new_matches?: boolean
           rules?: Json | null
           share_slug?: string

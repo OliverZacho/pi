@@ -218,18 +218,6 @@
   line-height: 1;
 }
 
-.navNewDot {
-  position: absolute;
-  top: -2px;
-  right: -3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ef4444;
-  border: 1.5px solid #fff;
-  pointer-events: none;
-}
-
 .navItem.active .navIcon {
   color: #0f172a;
 }

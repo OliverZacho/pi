@@ -65,11 +65,7 @@ export default async function AppShellLayout({
     let needsOnboarding = false;
     [collections, competitorSets, teamCollections, teamSets, user, needsOnboarding] =
       await Promise.all([
-        listCollectionSummaries(supabase, viewer.userId, {
-          // The sidebar is the one surface that renders the "new emails"
-          // dot, so it alone pays for the per-rule checks behind it.
-          withNewEmailFlags: true
-        }).catch((err) => {
+        listCollectionSummaries(supabase, viewer.userId).catch((err) => {
           console.error("Failed to load sidebar collections", err);
           return [] as CollectionSummary[];
         }),
