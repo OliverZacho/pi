@@ -216,20 +216,21 @@ async function teamJoinedNotice(
  * there's no prior visit to compare against. The notice id carries the
  * newest email's date, so a dismissal lasts exactly until fresher mail
  * shows up.
+ *
+ * The heartbeat must run for every viewer, not just followers: it is
+ * also the only writer of `user_profiles.last_active_at`, which feeds
+ * the admin "Last active" field and DAU/WAU/MAU.
  */
 async function followActivityNotice(
   admin: PirolSupabaseClient,
   userId: string
 ): Promise<SidebarNotice[]> {
-  const followedIds = await listFollowedBrandIds(admin, userId);
-  if (followedIds.size === 0) return [];
-
-  const { data: since, error: visitError } = await admin.rpc(
-    "touch_user_visit",
-    { p_user_id: userId }
-  );
+  const [{ data: since, error: visitError }, followedIds] = await Promise.all([
+    admin.rpc("touch_user_visit", { p_user_id: userId }),
+    listFollowedBrandIds(admin, userId)
+  ]);
   if (visitError) throw visitError;
-  if (!since) return [];
+  if (!since || followedIds.size === 0) return [];
 
   const { data, count, error } = await admin
     .from("captured_emails")
