@@ -619,6 +619,12 @@ export type CollectionSummary = {
   icon: CollectionIcon | null;
   shareSlug: string;
   /**
+   * True when a matching email was ingested after the owner last opened
+   * this rule-based collection. Set by the ingest hook
+   * (`flagCollectionsMatchingEmail`), cleared by viewing the collection.
+   */
+  hasNewEmails?: boolean;
+  /**
    * True when the row belongs to a teammate who shared it with the
    * team (read-only for the viewer). The sidebar marks these rows with
    * a small team badge.
@@ -757,7 +763,7 @@ export async function listCollectionSummaries(
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, icon, share_slug")
+    .select("id, name, icon, share_slug, has_new_matches")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
@@ -766,7 +772,8 @@ export async function listCollectionSummaries(
     id: row.id,
     name: row.name,
     icon: readIcon(row.icon),
-    shareSlug: row.share_slug
+    shareSlug: row.share_slug,
+    ...(row.has_new_matches ? { hasNewEmails: true } : {})
   }));
 }
 
@@ -796,8 +803,10 @@ export async function saveCollectionEventDetection(
 }
 
 /**
- * Marks a collection as viewed by its owner. The write also bumps
- * `updated_at`, which floats the collection to the top of the sidebar.
+ * Marks a collection as viewed by its owner: clears the sidebar "new
+ * emails" dot until the ingest hook flags another match. The write also
+ * bumps `updated_at`, which floats the collection to the top of the
+ * sidebar.
  */
 export async function markCollectionViewed(
   supabase: SupabaseClient<Database>,
@@ -806,7 +815,7 @@ export async function markCollectionViewed(
 ): Promise<void> {
   const { error } = await supabase
     .from("collections")
-    .update({ last_viewed_at: new Date().toISOString() })
+    .update({ last_viewed_at: new Date().toISOString(), has_new_matches: false })
     .eq("id", collectionId)
     .eq("user_id", userId);
   if (error) throw error;
@@ -1320,7 +1329,10 @@ export async function setCollectionRules(
   const { data, error } = await supabase
     .from("collections")
     .update({
-      rules: rules === null ? null : (rules as unknown as Json)
+      rules: rules === null ? null : (rules as unknown as Json),
+      // Matches flagged under the old rules no longer mean anything, and
+      // what the new rules match is on screen as the user saves.
+      has_new_matches: false
     })
     .eq("id", collectionId)
     .eq("user_id", userId)
@@ -1540,6 +1552,63 @@ export async function evaluateCollectionRules(
   return cards;
 }
 
+/** Rule checks run concurrently per ingested email, in batches this big. */
+const MATCH_FLAG_CONCURRENCY = 8;
+
+/**
+ * Ingest hook behind the sidebar "new emails" dot. Tests one freshly stored
+ * email against every rule-based collection that isn't already flagged and
+ * flags the ones it matches. Each test is pinned to the email's id, so it
+ * costs a primary-key lookup however broad the rule, and page renders only
+ * read the flag. Returns how many collections it flagged.
+ */
+export async function flagCollectionsMatchingEmail(
+  admin: SupabaseClient<Database>,
+  emailId: string
+): Promise<number> {
+  const rows = await fetchAllRows((from, to) =>
+    admin
+      .from("collections")
+      .select("id, rules")
+      .not("rules", "is", null)
+      .eq("has_new_matches", false)
+      .order("id")
+      .range(from, to)
+  );
+
+  const candidates = rows.flatMap((row) => {
+    const rules = safeParseStoredRules(row.rules);
+    return rules && rules.conditions.length > 0 ? [{ id: row.id, rules }] : [];
+  });
+
+  const matched: string[] = [];
+  for (let i = 0; i < candidates.length; i += MATCH_FLAG_CONCURRENCY) {
+    const batch = candidates.slice(i, i + MATCH_FLAG_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((c) =>
+        evaluateCollectionRuleIds(admin, c.rules, { emailId, limit: 1 })
+          .then((ids) => ids.length > 0)
+          .catch((err) => {
+            console.error(`Failed to match email against collection ${c.id}`, err);
+            return false;
+          })
+      )
+    );
+    batch.forEach((c, j) => {
+      if (results[j]) matched.push(c.id);
+    });
+  }
+  if (matched.length === 0) return 0;
+
+  const { error } = await admin
+    .from("collections")
+    .update({ has_new_matches: true })
+    .in("id", matched)
+    .eq("has_new_matches", false);
+  if (error) throw error;
+  return matched.length;
+}
+
 /**
  * Same evaluator as above but only resolves the matching email ids.
  * Used by the public-render guard which only needs to know whether a
@@ -1554,6 +1623,8 @@ type RuleIdQueryOptions = {
    * newly added to a rule-based collection.
    */
   createdAfter?: string;
+  /** Test this one email only (a primary-key lookup whatever the rules). */
+  emailId?: string;
   limit?: number;
 };
 
@@ -1573,6 +1644,9 @@ export async function evaluateCollectionRuleIds(
 
   if (options?.createdAfter) {
     query = query.gt("created_at", options.createdAfter);
+  }
+  if (options?.emailId) {
+    query = query.eq("id", options.emailId);
   }
 
   if (rules.scope === "future" && rules.appliedAt) {
