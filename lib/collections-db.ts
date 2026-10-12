@@ -38,16 +38,6 @@ const PREVIEW_EMAIL_COUNT = 4;
 const MAX_RULE_CONDITIONS = 12;
 const MAX_RULE_VALUE_LENGTH = 200;
 const RULE_EVAL_LIMIT = 200;
-// Sidebar "new emails" dot. Each check only scans emails created since the
-// collection's cursor, at most NEW_MATCH_MAX_WINDOW_MS of them per render,
-// so a collection left unopened for weeks catches up over a few page loads
-// instead of one scan that times out. The cursor trails now by
-// NEW_MATCH_SETTLE_MS because created_at is stamped when a (sometimes 20s)
-// ingest insert starts, not when it commits. Checks closer together than
-// NEW_MATCH_RECHECK_MS are skipped outright.
-const NEW_MATCH_MAX_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
-const NEW_MATCH_SETTLE_MS = 2 * 60 * 1000;
-const NEW_MATCH_RECHECK_MS = 60 * 1000;
 
 // ---------- Rule schema ----------
 //
@@ -629,11 +619,6 @@ export type CollectionSummary = {
   icon: CollectionIcon | null;
   shareSlug: string;
   /**
-   * True when the collection has automatic rules and at least one
-   * matching email arrived after the owner last opened the collection.
-   */
-  hasNewEmails?: boolean;
-  /**
    * True when the row belongs to a teammate who shared it with the
    * team (read-only for the viewer). The sidebar marks these rows with
    * a small team badge.
@@ -768,107 +753,21 @@ export async function listCollectionsWithPreviews(
  */
 export async function listCollectionSummaries(
   supabase: SupabaseClient<Database>,
-  userId: string,
-  options?: {
-    /**
-     * Also resolve the sidebar's "new emails" dot for rule-based
-     * collections. This evaluates every smart collection's rules (one
-     * search query each), so only the sidebar — the one place the dot
-     * renders — should ask for it; the "Add to collection" popovers that
-     * also consume summaries stay a single cheap query.
-     */
-    withNewEmailFlags?: boolean;
-  }
+  userId: string
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select(
-      "id, name, icon, share_slug, rules, last_viewed_at, has_new_matches, new_matches_checked_at"
-    )
+    .select("id, name, icon, share_slug")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  const rows = data ?? [];
-  if (rows.length === 0) return [];
-
-  const summaries = await Promise.all(
-    rows.map(async (row) => {
-      const rules = safeParseStoredRules(row.rules);
-      let hasNewEmails = false;
-      if (options?.withNewEmailFlags && rules && row.last_viewed_at) {
-        // A failed dot check (e.g. a slow search rule timing out) should
-        // cost the dot, not the whole sidebar list.
-        hasNewEmails = await refreshNewMatchFlag(supabase, userId, rules, {
-          id: row.id,
-          lastViewedAt: row.last_viewed_at,
-          hasNewMatches: row.has_new_matches,
-          checkedAt: row.new_matches_checked_at
-        }).catch((err) => {
-          console.error("Failed to check for new rule matches", err);
-          return false;
-        });
-      }
-      return {
-        id: row.id,
-        name: row.name,
-        icon: readIcon(row.icon),
-        shareSlug: row.share_slug,
-        ...(hasNewEmails ? { hasNewEmails: true } : {})
-      };
-    })
-  );
-  return summaries;
-}
-
-/**
- * Resolves the sidebar dot for one rule-based collection. A found match
- * latches `has_new_matches` until the collection is viewed; otherwise the
- * rules run over the emails created since the cursor and the cursor moves
- * forward, so each render scans minutes of ingest rather than everything
- * since the last visit.
- */
-async function refreshNewMatchFlag(
-  client: SupabaseClient<Database>,
-  userId: string,
-  rules: CollectionRules,
-  row: {
-    id: string;
-    lastViewedAt: string;
-    hasNewMatches: boolean;
-    checkedAt: string | null;
-  }
-): Promise<boolean> {
-  if (row.hasNewMatches) return true;
-
-  const viewedMs = Date.parse(row.lastViewedAt);
-  const checkedMs = row.checkedAt ? Date.parse(row.checkedAt) : Number.NaN;
-  const fromMs = Number.isFinite(checkedMs) ? Math.max(viewedMs, checkedMs) : viewedMs;
-  if (!Number.isFinite(fromMs)) return false;
-  const toMs = Math.min(Date.now() - NEW_MATCH_SETTLE_MS, fromMs + NEW_MATCH_MAX_WINDOW_MS);
-  if (toMs - fromMs < NEW_MATCH_RECHECK_MS) return false;
-
-  const from = new Date(fromMs).toISOString();
-  const to = new Date(toMs).toISOString();
-  const ids = await evaluateCollectionRuleIds(client, rules, {
-    createdAfter: from,
-    createdAtOrBefore: to,
-    limit: 1
-  });
-  const found = ids.length > 0;
-
-  // Only move the cursor forward: viewing the collection (or saving its
-  // rules) mid-check stamps a later cursor and clears the dot, and this
-  // stale result must not overwrite that.
-  const { error } = await client
-    .from("collections")
-    .update({ has_new_matches: found, new_matches_checked_at: to })
-    .eq("id", row.id)
-    .eq("user_id", userId)
-    .or(`new_matches_checked_at.is.null,new_matches_checked_at.lt.${to}`);
-  if (error) console.error("Failed to store new-match check", error);
-
-  return found;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    icon: readIcon(row.icon),
+    shareSlug: row.share_slug
+  }));
 }
 
 /**
@@ -897,22 +796,17 @@ export async function saveCollectionEventDetection(
 }
 
 /**
- * Marks a collection as viewed by its owner. Clears the sidebar "new
- * emails" dot for rule-based collections until another match arrives.
+ * Marks a collection as viewed by its owner. The write also bumps
+ * `updated_at`, which floats the collection to the top of the sidebar.
  */
 export async function markCollectionViewed(
   supabase: SupabaseClient<Database>,
   userId: string,
   collectionId: string
 ): Promise<void> {
-  const now = new Date().toISOString();
   const { error } = await supabase
     .from("collections")
-    .update({
-      last_viewed_at: now,
-      has_new_matches: false,
-      new_matches_checked_at: now
-    })
+    .update({ last_viewed_at: new Date().toISOString() })
     .eq("id", collectionId)
     .eq("user_id", userId);
   if (error) throw error;
@@ -1423,21 +1317,10 @@ export async function setCollectionRules(
   collectionId: string,
   rules: CollectionRules | null
 ): Promise<boolean> {
-  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("collections")
     .update({
-      rules: rules === null ? null : (rules as unknown as Json),
-      // Treat the current membership snapshot as "seen" so saving
-      // rules does not light up the sidebar dot for emails already
-      // in the collection.
-      ...(rules !== null
-        ? {
-            last_viewed_at: now,
-            has_new_matches: false,
-            new_matches_checked_at: now
-          }
-        : {})
+      rules: rules === null ? null : (rules as unknown as Json)
     })
     .eq("id", collectionId)
     .eq("user_id", userId)
@@ -1671,8 +1554,6 @@ type RuleIdQueryOptions = {
    * newly added to a rule-based collection.
    */
   createdAfter?: string;
-  /** Upper bound on `created_at`, inclusive. */
-  createdAtOrBefore?: string;
   limit?: number;
 };
 
@@ -1692,9 +1573,6 @@ export async function evaluateCollectionRuleIds(
 
   if (options?.createdAfter) {
     query = query.gt("created_at", options.createdAfter);
-  }
-  if (options?.createdAtOrBefore) {
-    query = query.lte("created_at", options.createdAtOrBefore);
   }
 
   if (rules.scope === "future" && rules.appliedAt) {
