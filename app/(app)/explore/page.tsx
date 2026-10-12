@@ -4,7 +4,8 @@ import { FREE_SAVE_LIMIT, getViewer, PUBLIC_EXPLORE_LIMIT } from "@/lib/access";
 import {
   EXPLORE_PAGE_SIZE,
   getExploreFacets,
-  searchExploreEmails
+  searchExploreEmails,
+  type ExploreFacets
 } from "@/lib/explore-db";
 import { countSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
 import {
@@ -35,6 +36,16 @@ export const metadata = {
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+/**
+ * The filter dropdowns are a nicety over the grid: when the facets scan
+ * times out under load, render Explore with empty filters rather than the
+ * error page.
+ */
+function facetsFallback(err: unknown): ExploreFacets {
+  console.error("Failed to load explore facets", err);
+  return { brands: [], markets: [], categories: [], countries: [] };
+}
 
 export default async function ExplorePage({ searchParams }: PageProps) {
   const supabase = await createClient();
@@ -71,7 +82,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         pageSize: PUBLIC_EXPLORE_LIMIT,
         sort: "recommended"
       }),
-      getExploreFacets(admin)
+      getExploreFacets(admin).catch(facetsFallback)
     ]);
 
     // A signed-in but unpaid viewer gets the same limited teaser, but with
@@ -159,7 +170,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         pageSize: EXPLORE_PAGE_SIZE,
         sort: "recommended"
       }),
-      getExploreFacets(supabase),
+      getExploreFacets(supabase).catch(facetsFallback),
       listSavedEmailIds(supabase, userId).catch((err) => {
         console.error("Failed to load saved email IDs", err);
         return new Set<string>();
