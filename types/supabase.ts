@@ -431,6 +431,7 @@ export type Database = {
         Row: {
           created_at: string
           event_detection: Json | null
+          has_new_matches: boolean
           icon: string | null
           id: string
           last_viewed_at: string | null
@@ -445,6 +446,7 @@ export type Database = {
         Insert: {
           created_at?: string
           event_detection?: Json | null
+          has_new_matches?: boolean
           icon?: string | null
           id?: string
           last_viewed_at?: string | null
@@ -459,6 +461,7 @@ export type Database = {
         Update: {
           created_at?: string
           event_detection?: Json | null
+          has_new_matches?: boolean
           icon?: string | null
           id?: string
           last_viewed_at?: string | null
