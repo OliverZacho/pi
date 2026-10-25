@@ -77,7 +77,7 @@ export async function GET(request: Request) {
   try {
     const [logoDevItems, trackedResult, domainsResult] = await Promise.all([
       searchLogoDevBrands(q),
-      searchBrands(admin, { query: q, sort: "name_asc", pageSize: MAX_TRACKED }),
+      searchBrands({ query: q, sort: "name_asc", pageSize: MAX_TRACKED }),
       listTrackedDomains(admin)
     ]);
 

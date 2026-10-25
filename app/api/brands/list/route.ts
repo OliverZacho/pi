@@ -68,7 +68,7 @@ export async function GET(request: Request) {
   };
 
   try {
-    const result = await searchBrands(session.supabase, search);
+    const result = await searchBrands(search);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to search brands", error);

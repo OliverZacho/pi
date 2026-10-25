@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getBrandsFacets } from "@/lib/brands-explore-db";
 
 /**
@@ -9,7 +8,7 @@ import { getBrandsFacets } from "@/lib/brands-explore-db";
  */
 export async function GET() {
   try {
-    const facets = await getBrandsFacets(getSupabaseAdmin());
+    const facets = await getBrandsFacets();
     return NextResponse.json(facets);
   } catch (error) {
     console.error("Failed to load public Brands facets", error);

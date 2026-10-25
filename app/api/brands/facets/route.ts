@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   try {
-    const facets = await getBrandsFacets(session.supabase);
+    const facets = await getBrandsFacets();
     return NextResponse.json(facets);
   } catch (error) {
     console.error("Failed to load Brands facets", error);

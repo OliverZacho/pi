@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/access";
 import {
@@ -27,16 +28,36 @@ import styles from "@/components/explore/explore.module.css";
  * rendered its own sidebar copy, so each navigation unmounted and
  * remounted it (visible as a flash of the skeleton's gray placeholder).
  *
+ * The layout itself awaits nothing: all viewer and sidebar data loads
+ * inside {@link AppSidebar} behind its own Suspense boundary. If the
+ * layout awaited it, a hard load would stream no HTML at all (not even
+ * the page's `loading.tsx` skeleton) until every sidebar query returned,
+ * which is a blank screen whenever the database is slow.
+ */
+export default function AppShellLayout({
+  children
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={styles.shell}>
+      <Suspense fallback={<ExploreSidebar pending />}>
+        <AppSidebar />
+      </Suspense>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The sidebar (and the new-signup onboarding modal) with their data.
+ *
  * `getViewer` / `getViewerDisplay` are request-cached, so pages that
  * also need them don't pay a second query. The collection / comparison
  * lists refresh whenever a mutation calls `router.refresh()` (rename,
  * delete, create all do), which re-renders layouts as well as pages.
  */
-export default async function AppShellLayout({
-  children
-}: {
-  children: React.ReactNode;
-}) {
+async function AppSidebar() {
   const viewer = await getViewer();
   const hasAccess = Boolean(viewer?.hasAccess);
 
@@ -138,11 +159,11 @@ export default async function AppShellLayout({
       // degrade to empty lists — the modal still works via its typeahead.
       const admin = getSupabaseAdmin();
       const [facets, popular] = await Promise.all([
-        getBrandsFacets(admin).catch((err) => {
+        getBrandsFacets().catch((err) => {
           console.error("Failed to load onboarding facets", err);
           return null;
         }),
-        searchBrands(admin, { sort: "most_active", pageSize: 24 }).catch(
+        searchBrands({ sort: "most_active", pageSize: 24 }).catch(
           (err) => {
             console.error("Failed to load onboarding suggestions", err);
             return null;
@@ -167,7 +188,7 @@ export default async function AppShellLayout({
   }
 
   return (
-    <div className={styles.shell}>
+    <>
       <ExploreSidebar
         user={user}
         collections={collections}
@@ -181,7 +202,6 @@ export default async function AppShellLayout({
           initialPopular={onboardingProps.initialPopular}
         />
       ) : null}
-      {children}
-    </div>
+    </>
   );
 }
