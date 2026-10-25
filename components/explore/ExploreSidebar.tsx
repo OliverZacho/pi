@@ -71,6 +71,13 @@ type Props = {
    * back to the plain Settings link.
    */
   user?: ViewerDisplay | null;
+  /**
+   * Placeholder render while the layout is still resolving the viewer:
+   * logo, top bar and the static nav only, with the per-viewer sections
+   * and footer left out so nothing wrong flashes before the real sidebar
+   * streams in.
+   */
+  pending?: boolean;
 };
 
 // Number of collection/comparison rows surfaced in the collapsed section
@@ -652,7 +659,8 @@ export default function ExploreSidebar({
   competitorSets = EMPTY_COMPETITOR_SETS,
   hasAccess = true,
   signedIn = hasAccess,
-  user = null
+  user = null,
+  pending = false
 }: Props = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -882,7 +890,7 @@ export default function ExploreSidebar({
         })}
       </div>
 
-      {signedIn ? (
+      {signedIn && !pending ? (
         <>
       <div className={styles.navGroup}>
         <div className={styles.sectionLabel}>
@@ -1107,6 +1115,7 @@ export default function ExploreSidebar({
 
       <div className={styles.spacer} />
 
+      {pending ? null : (
       <div className={styles.sidebarFooter}>
         <SidebarNotices signedIn={Boolean(user)} />
 
@@ -1127,6 +1136,7 @@ export default function ExploreSidebar({
           </Link>
         )}
       </div>
+      )}
     </aside>
     </>
   );

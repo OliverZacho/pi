@@ -46,8 +46,8 @@ export async function GET(request: Request) {
 
   try {
     const trackedPromise = q
-      ? searchBrands(admin, { query: q, sort: "name_asc", pageSize: 20 })
-      : searchBrands(admin, {
+      ? searchBrands({ query: q, sort: "name_asc", pageSize: 20 })
+      : searchBrands({
           markets: markets.length > 0 ? markets : undefined,
           sort: "most_active",
           pageSize: 24

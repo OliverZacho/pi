@@ -52,12 +52,12 @@ export default async function BrandsPage() {
     // those tables; both helpers filter by user id).
     const [publicResult, publicFacets, freeComparisons, freeFollowedIds] =
       await Promise.all([
-        searchBrands(admin, {
+        searchBrands({
           page: 1,
           pageSize: BRANDS_PAGE_SIZE,
           sort: "most_active"
         }),
-        getBrandsFacets(admin),
+        getBrandsFacets(),
         viewer
           ? listCompetitorSetSummaries(admin, viewer.userId).catch((err) => {
               console.error("Failed to load comparisons", err);
@@ -112,12 +112,12 @@ export default async function BrandsPage() {
   // so one missing table can't take down the directory.
   const [initialResult, facets, comparisons, followedBrandIdSet] =
     await Promise.all([
-      searchBrands(supabase, {
+      searchBrands({
         page: 1,
         pageSize: BRANDS_PAGE_SIZE,
         sort: "most_active"
       }),
-      getBrandsFacets(supabase),
+      getBrandsFacets(),
       // Feeds the batch bar's "Add to comparison" action.
       listCompetitorSetSummaries(supabase, userId).catch((err) => {
         console.error("Failed to load comparisons", err);

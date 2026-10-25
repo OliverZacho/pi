@@ -1402,7 +1402,9 @@ export function normalizeInboxSegment(
   }
   if ("segmentCategory" in segment) {
     const v = (segment.segmentCategory ?? "").trim().toLowerCase();
-    out.segment_category = v.length > 0 ? v : null;
+    // An "@" means an inbox address was pasted into the wrong field; it
+    // would otherwise surface as a bogus option in the Categories filter.
+    out.segment_category = v.length > 0 && !v.includes("@") ? v : null;
   }
   if ("segmentCountry" in segment) {
     const v = (segment.segmentCountry ?? "").trim().toUpperCase();

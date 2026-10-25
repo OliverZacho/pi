@@ -1,7 +1,9 @@
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ESP_LABELS, type EspProvider } from "./admin-types";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { getSupabaseAdmin } from "./supabase-admin";
 import { fetchAllRows } from "./supabase-paging";
 import type { Database } from "@/types/supabase";
 
@@ -156,21 +158,88 @@ function relationFirst<T>(value: T | T[] | null | undefined): T | null {
 }
 
 /**
- * Server-side Brands search.
+ * One tracked brand with its email counters and send stats folded in.
+ * Plain JSON (no Maps / Dates) so it survives the data cache.
+ */
+type CatalogueBrand = Omit<CompanyRow, "company_email_stats"> & {
+  emailCount: number;
+  lastReceivedAt: string | null;
+  primaryEsp: EspProvider | null;
+  avgDaysBetween: number | null;
+};
+
+/**
+ * How stale the cached catalogue may get before a background refresh: a day.
+ * The founder signed off on directory stats (and newly added or edited
+ * brands) lagging by up to 24 hours in exchange for load time.
+ */
+const CATALOGUE_REVALIDATE_SECONDS = 60 * 60 * 24;
+
+/**
+ * Every non-deleted brand plus its counters and ESP / cadence stats, cached
+ * across requests and instances for {@link CATALOGUE_REVALIDATE_SECONDS}.
  *
- * Two-pass design:
- *  1. Pull non-deleted companies + the `company_email_stats` view (so
- *     volume filters and sorts can run on cheap counters).
- *  2. Pull one row per brand from the `brand_send_stats` view (ESP +
- *     cadence, aggregated in the DB). The aggregates are folded into
- *     each candidate row, then ESP / cadence filters are applied and
- *     pagination is finalised in memory.
+ * `brand_send_stats` aggregates every captured email on each read, which
+ * takes seconds whenever its pages have fallen out of Postgres's buffer
+ * cache. Nothing on the directory needs to-the-minute numbers, so the
+ * catalogue is read once and served stale-while-revalidate: visitors only
+ * ever wait on it when the cache is completely empty.
  *
- * The in-memory finish keeps the code straightforward at the brand
- * counts we expect today (low hundreds).
+ * Read with the service-role client because the cache is shared across
+ * viewers. That exposes nothing new: the logged-out directory already
+ * serves this exact data through the public API.
+ */
+const loadBrandCatalogue = unstable_cache(
+  async (): Promise<CatalogueBrand[]> => {
+    const admin = getSupabaseAdmin();
+    const [companies, aggregates] = await Promise.all([
+      // Paged: PostgREST stops at 1,000 rows.
+      fetchAllRows((from, to) =>
+        admin
+          .from("companies")
+          .select(
+            "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, company_email_stats(email_count, last_received_at)"
+          )
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to)
+      ),
+      computeBrandAggregates(admin)
+    ]);
+
+    return companies.map((row) => {
+      const { company_email_stats, ...company } = row as CompanyRow;
+      const stats = relationFirst(company_email_stats);
+      const agg = aggregates.perBrand.get(company.id);
+      return {
+        ...company,
+        emailCount: stats?.email_count ?? 0,
+        lastReceivedAt: stats?.last_received_at ?? null,
+        primaryEsp: agg?.primaryEsp ?? null,
+        avgDaysBetween: agg?.avgDaysBetween ?? null
+      };
+    });
+  },
+  ["brand-catalogue"],
+  { revalidate: CATALOGUE_REVALIDATE_SECONDS }
+);
+
+/** Parse an ISO timestamp to epoch ms, `null` when absent or invalid. */
+function toMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Server-side Brands search over the cached catalogue
+ * ({@link loadBrandCatalogue}). Every filter, the sort, and pagination run
+ * in memory, which is cheap at the brand counts we expect (hundreds to low
+ * thousands). The free-text term has to run in memory regardless: it also
+ * matches a brand's *category* (e.g. "kids" → "baby & kids"), and PostgREST
+ * can't do a partial `ilike` against a `text[]` element.
  */
 export async function searchBrands(
-  supabase: SupabaseClient<Database>,
   params: BrandsSearchParams = {}
 ): Promise<BrandsSearchResult> {
   const page = Math.max(1, Math.floor(params.page ?? 1));
@@ -180,88 +249,43 @@ export async function searchBrands(
   );
   const sort: BrandsSortKey = params.sort ?? "most_active";
 
-  // Free-text term is matched in memory (below) rather than pushed to the
-  // DB. The term needs to match a brand's *category* too (e.g. "kids" →
-  // "baby & kids"), and PostgREST can't do a partial `ilike` against a
-  // `text[]` element. The function already fetches the full structural
-  // match set and filters in memory for cadence/ESP, so folding
-  // the text match in there keeps one code path and makes name, domain and
-  // category all searchable.
   const searchTerm = (params.query ?? "").trim().toLowerCase();
 
-  // Paged: the structural match set is the whole catalogue when no filter
-  // is set, and PostgREST stops at 1,000 rows. A fresh builder per page,
-  // since postgrest-js builders mutate in place.
-  const data = await fetchAllRows((from, to) => {
-    let query = supabase
-      .from("companies")
-      .select(
-        "id, slug, name, domain, markets, primary_market_country, is_global, subscribed_since, logo_storage_path, logo_source, company_email_stats(email_count, last_received_at)"
-      )
-      .is("deleted_at", null);
-
-    if (params.markets && params.markets.length > 0) {
-      // `overlaps` matches any brand whose `markets` array shares at least
-      // one tag with the user's selection — so a brand tagged
-      // `["fashion", "ecommerce"]` is returned under both filters.
-      query = query.overlaps("markets", params.markets);
-    }
-
-    if (params.global) {
-      query = query.eq("is_global", true);
-    } else if (params.country) {
-      // Restrict to one audience so peer comparisons stay same-market. Brands
-      // whose region we couldn't determine (NULL) are intentionally excluded
-      // when a country filter is active.
-      query = query.eq("primary_market_country", params.country);
-    }
-
-    if (params.subscribedAfter) {
-      query = query.gte("subscribed_since", params.subscribedAfter);
-    }
-    if (params.subscribedBefore) {
-      query = query.lte("subscribed_since", params.subscribedBefore);
-    }
-
-    return query.order("id").range(from, to);
-  });
-
-  type EnrichedRow = CompanyRow & {
-    emailCount: number;
-    lastReceivedMs: number | null;
-    subscribedMs: number;
-    primaryEsp: EspProvider | null;
-    avgDaysBetween: number | null;
-  };
-
-  // Aggregate per-brand ESP + cadence in a single email scan. The
-  // function caches inside the request via `supabase`'s scope; if the
-  // same client is reused across multiple searches (it isn't today)
-  // the cost would still be a single fetch per call.
-  const aggregates = await computeBrandAggregates(supabase);
-
-  const enriched: EnrichedRow[] = data.map((row) => {
-    const stats = relationFirst(row.company_email_stats);
-    const emailCount = stats?.email_count ?? 0;
-    const lastReceivedMs = stats?.last_received_at
-      ? new Date(stats.last_received_at).getTime()
-      : null;
-    const subscribedMs = new Date(row.subscribed_since).getTime();
-    const agg = aggregates.perBrand.get(row.id);
-    return {
-      ...(row as CompanyRow),
-      emailCount,
-      lastReceivedMs:
-        lastReceivedMs !== null && Number.isNaN(lastReceivedMs)
-          ? null
-          : lastReceivedMs,
-      subscribedMs: Number.isNaN(subscribedMs) ? 0 : subscribedMs,
-      primaryEsp: agg?.primaryEsp ?? null,
-      avgDaysBetween: agg?.avgDaysBetween ?? null
-    };
-  });
+  const enriched = (await loadBrandCatalogue()).map((row) => ({
+    ...row,
+    lastReceivedMs: toMs(row.lastReceivedAt),
+    subscribedMs: toMs(row.subscribed_since) ?? 0
+  }));
 
   let filtered = enriched;
+  if (params.markets && params.markets.length > 0) {
+    // Overlap: a brand tagged `["fashion", "ecommerce"]` matches either
+    // filter.
+    const wanted = new Set(params.markets);
+    filtered = filtered.filter(
+      (row) =>
+        Array.isArray(row.markets) &&
+        row.markets.some((market) => wanted.has(market))
+    );
+  }
+  if (params.global) {
+    filtered = filtered.filter((row) => row.is_global === true);
+  } else if (params.country) {
+    // Restrict to one audience so peer comparisons stay same-market. Brands
+    // whose region we couldn't determine (NULL) are intentionally excluded
+    // when a country filter is active.
+    filtered = filtered.filter(
+      (row) => row.primary_market_country === params.country
+    );
+  }
+  const subscribedAfterMs = toMs(params.subscribedAfter);
+  if (subscribedAfterMs !== null) {
+    filtered = filtered.filter((row) => row.subscribedMs >= subscribedAfterMs);
+  }
+  const subscribedBeforeMs = toMs(params.subscribedBefore);
+  if (subscribedBeforeMs !== null) {
+    filtered = filtered.filter((row) => row.subscribedMs <= subscribedBeforeMs);
+  }
   if (searchTerm.length > 0) {
     // Match name, domain, or any category label the brand is tagged with,
     // so the picker's "Search by name or category" promise holds.
@@ -442,26 +466,16 @@ export async function computeBrandAggregates(
  * primary signal for, and a sensible upper bound for the cadence
  * slider. Used by the filter UI to seed its menus.
  */
-export async function getBrandsFacets(
-  supabase: SupabaseClient<Database>
-): Promise<BrandsFacets> {
-  const [companies, aggregates] = await Promise.all([
-    fetchAllRows((from, to) =>
-      supabase
-        .from("companies")
-        .select("id, markets, primary_market_country, company_email_stats(email_count)")
-        .is("deleted_at", null)
-        .order("id")
-        .range(from, to)
-    ),
-    computeBrandAggregates(supabase)
-  ]);
+export async function getBrandsFacets(): Promise<BrandsFacets> {
+  const catalogue = await loadBrandCatalogue();
 
   const marketSet = new Set<string>();
   const countrySet = new Set<string>();
+  const espIdsInUse = new Set<EspProvider>();
+  let cadenceMaxObserved = 0;
   let totalBrands = 0;
   let brandsWithEmails = 0;
-  for (const row of companies) {
+  for (const row of catalogue) {
     totalBrands += 1;
     if (Array.isArray(row.markets)) {
       for (const market of row.markets) {
@@ -473,15 +487,17 @@ export async function getBrandsFacets(
     if (typeof row.primary_market_country === "string" && row.primary_market_country.length > 0) {
       countrySet.add(row.primary_market_country);
     }
-    const stats = relationFirst(row.company_email_stats);
-    const count = stats?.email_count ?? 0;
-    if (count > 0) brandsWithEmails += 1;
+    if (row.emailCount > 0) brandsWithEmails += 1;
+    if (row.primaryEsp) espIdsInUse.add(row.primaryEsp);
+    if (row.avgDaysBetween !== null && row.avgDaysBetween > cadenceMaxObserved) {
+      cadenceMaxObserved = row.avgDaysBetween;
+    }
   }
 
   const markets = Array.from(marketSet).sort((a, b) => a.localeCompare(b));
   const countries = Array.from(countrySet).sort((a, b) => a.localeCompare(b));
 
-  const espProviders = Array.from(aggregates.espIdsInUse)
+  const espProviders = Array.from(espIdsInUse)
     .map((id) => ({
       id,
       label: ESP_LABELS[id] ?? id
@@ -493,7 +509,7 @@ export async function getBrandsFacets(
   // Round the observed max up to the next whole day and clamp into
   // [CADENCE_MIN_MAX, CADENCE_HARD_MAX] so the slider's right edge is
   // a tidy integer regardless of the data.
-  const ceil = Math.ceil(aggregates.cadenceMaxObserved || 0);
+  const ceil = Math.ceil(cadenceMaxObserved || 0);
   const cadenceMaxDays = Math.max(
     CADENCE_MIN_MAX,
     Math.min(CADENCE_HARD_MAX, ceil)

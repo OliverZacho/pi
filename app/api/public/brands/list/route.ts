@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   searchBrands,
   type BrandsSearchParams,
@@ -55,7 +54,7 @@ export async function GET(request: Request) {
   };
 
   try {
-    const result = await searchBrands(getSupabaseAdmin(), search);
+    const result = await searchBrands(search);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to search public brands", error);
