@@ -168,8 +168,12 @@ type CatalogueBrand = Omit<CompanyRow, "company_email_stats"> & {
   avgDaysBetween: number | null;
 };
 
-/** How stale the cached catalogue may get before a background refresh. */
-const CATALOGUE_REVALIDATE_SECONDS = 600;
+/**
+ * How stale the cached catalogue may get before a background refresh: a day.
+ * The founder signed off on directory stats (and newly added or edited
+ * brands) lagging by up to 24 hours in exchange for load time.
+ */
+const CATALOGUE_REVALIDATE_SECONDS = 60 * 60 * 24;
 
 /**
  * Every non-deleted brand plus its counters and ESP / cadence stats, cached
