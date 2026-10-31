@@ -137,3 +137,8 @@
     height: min(560px, 60vh);
   }
 }
+
+/* Hero "Log in" CTA: hidden pre-hydration when a session cookie exists. */
+:global(html[data-session]) .guestOnly {
+  display: none;
+}

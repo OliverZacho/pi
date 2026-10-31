@@ -1,12 +1,10 @@
 import Header from "./Header";
-import { getViewerDisplay } from "@/lib/viewer-display";
 
 /**
- * Server wrapper for the marketing <Header />: resolves the signed-in
- * viewer's display identity (locally-verified JWT, request-cached) so
- * the header renders the right state on first paint with no
- * logged-out flash.
+ * Marketing header for static pages. The signed-in state is resolved in the
+ * browser (see Header), never here: reading the session server-side would
+ * make every page that renders the header dynamic and uncacheable.
  */
-export default async function SiteHeader() {
-  return <Header user={await getViewerDisplay()} />;
+export default function SiteHeader() {
+  return <Header />;
 }

@@ -373,6 +373,13 @@
   gap: 0.5rem;
 }
 
+/* Session cookie present but not yet read (inline hint before hydration,
+   data-pending after): hold the guest buttons' space without showing them. */
+:global(html[data-session]) .headerRight > *,
+.headerRight[data-pending] > * {
+  visibility: hidden;
+}
+
 .linkBtn {
   padding: 0.55rem 0.9rem;
   border-radius: 999px;
