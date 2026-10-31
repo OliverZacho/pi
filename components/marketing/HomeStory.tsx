@@ -429,7 +429,12 @@ function StatTicker({ stats }: { stats: ArchiveStats }) {
   );
 }
 
-/** Counts 0 → value once `run` flips true. Reduced motion: jumps. */
+/**
+ * Counts 0 → value once `run` flips true. Reduced motion: jumps.
+ * Server HTML carries the real value (crawlers and no-JS readers saw
+ * "0 emails read" otherwise); it drops to 0 after hydration, while the
+ * ticker is still hidden by its reveal, so the count-up can play.
+ */
 function CountUp({
   value,
   run,
@@ -439,8 +444,16 @@ function CountUp({
   run: boolean;
   delayMs?: number;
 }) {
-  const [display, setDisplay] = useState(0);
+  const [display, setDisplay] = useState(value);
   const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    setDisplay(0);
+    // Mount only: resetting again on later renders would blank a finished count.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!run || started.current) return;

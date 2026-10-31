@@ -1,12 +1,21 @@
 import Link from "next/link";
+import { searchBrands } from "@/lib/brands-explore-db";
 import styles from "./home-sections.module.css";
 
 /**
  * Site footer: a final "Browse the archive" prompt plus navigation. Product
  * links point at the public surfaces — the archive itself plus the
  * /features/* explainer pages — never at auth-gated app routes.
+ *
+ * The Brands column puts the A to Z index (which links every brand page)
+ * one click from any marketing page, so brand pages sit two clicks deep
+ * for crawlers. Top brands come from the cached catalogue, not a query.
  */
-export default function SiteFooter() {
+export default async function SiteFooter() {
+  const topBrands = await searchBrands({ sort: "most_active", pageSize: 8 })
+    .then((r) => r.items)
+    .catch(() => []);
+
   return (
     <footer className={styles.footer} aria-label="Site footer">
       <div className={styles.footerInner}>
@@ -33,6 +42,15 @@ export default function SiteFooter() {
             <Link href="/features/collections" className={styles.footerLink}>Collections</Link>
             <Link href="/features/comparisons" className={styles.footerLink}>Comparisons</Link>
             <Link href="/features/following" className={styles.footerLink}>Following</Link>
+          </div>
+          <div className={styles.footerCol}>
+            <p className={styles.footerColTitle}>Brands</p>
+            <Link href="/brands/a-z" className={styles.footerLink}>All brands A to Z</Link>
+            {topBrands.map((b) => (
+              <Link key={b.slug} href={`/brands/${b.slug}`} className={styles.footerLink}>
+                {b.name}
+              </Link>
+            ))}
           </div>
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Resources</p>
