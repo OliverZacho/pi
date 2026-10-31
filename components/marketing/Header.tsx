@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import SearchOverlay from "./SearchOverlay";
+import { useViewerDisplay } from "./useViewerDisplay";
+import { clearSessionHint } from "@/lib/session-hint";
 import styles from "./landing.module.css";
 
-/** Signed-in viewer for the header — display-only, resolved server-side. */
+/** Signed-in viewer for the header — display-only, resolved in the browser. */
 export type HeaderUser = {
   name: string | null;
   email: string;
@@ -98,8 +100,20 @@ const SEARCH_HINTS = [
   "welcome series",
 ];
 
-export default function Header({ user = null }: { user?: HeaderUser | null }) {
+/**
+ * The header is rendered into static pages, so the signed-in state is
+ * resolved in the browser (useViewerDisplay). While a session cookie exists
+ * but the session is unread, the guest buttons keep their space but stay
+ * hidden, so signed-in visitors never see a "Login" flash.
+ */
+export default function Header() {
+  const user = useViewerDisplay();
   const [hint, setHint] = useState("");
+
+  useEffect(() => {
+    // The pre-hydration hint has served its purpose once the session is read.
+    if (user !== undefined) clearSessionHint();
+  }, [user]);
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -188,7 +202,10 @@ export default function Header({ user = null }: { user?: HeaderUser | null }) {
         </button>
       </div>
 
-      <div className={styles.headerRight}>
+      <div
+        className={styles.headerRight}
+        data-pending={user === undefined ? "" : undefined}
+      >
         {user ? (
           <>
             <Link href="/explore" className={styles.primaryBtn}>

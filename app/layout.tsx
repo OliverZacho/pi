@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SITE_URL } from "@/lib/site";
+import { SESSION_HINT_SCRIPT } from "@/lib/session-hint";
 import UpgradeModalProvider from "@/components/onboarding/UpgradeModalProvider";
 
 const SITE_DESCRIPTION =
@@ -42,7 +43,11 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the head script below may add data-session.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SESSION_HINT_SCRIPT }} />
+      </head>
       <body>
         <UpgradeModalProvider>{children}</UpgradeModalProvider>
         <Analytics />

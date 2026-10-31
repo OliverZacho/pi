@@ -1,6 +1,6 @@
 import Link from "next/link";
 import NewsletterFan from "./NewsletterFan";
-import { getViewerDisplay } from "@/lib/viewer-display";
+import HeroLoginLink from "./HeroLoginLink";
 import styles from "./newsletter-hero.module.css";
 
 /**
@@ -8,11 +8,7 @@ import styles from "./newsletter-hero.module.css";
  * real captured newsletters on the right (the same component the login page
  * renders statically).
  */
-export default async function NewsletterFanHero() {
-  // Hide the "Log in" CTA for signed-in visitors (request-cached lookup the
-  // header already performs, so this is free).
-  const viewer = await getViewerDisplay();
-
+export default function NewsletterFanHero() {
   return (
     <section className={styles.hero} aria-label="Brand intelligence preview">
       <div className={styles.heroCopy}>
@@ -27,14 +23,7 @@ export default async function NewsletterFanHero() {
           <Link href="/explore" className={styles.primaryBtn}>
             Browse the archive
           </Link>
-          {!viewer && (
-            <Link href="/login" className={styles.secondaryBtn}>
-              Log in
-              <span className={styles.secondaryArrow} aria-hidden>
-                →
-              </span>
-            </Link>
-          )}
+          <HeroLoginLink />
         </div>
       </div>
 
