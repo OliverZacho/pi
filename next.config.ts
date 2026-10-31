@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
   // sharp is a native module used by the logo-invert route — keep it external
   // so Next doesn't try to bundle its platform-specific binaries.
   serverExternalPackages: ["sharp"],
+  // Next streams metadata into <body> for every UA outside this list, and its
+  // default list leaves out Googlebot (it renders JS). Search Console still
+  // reported "user-declared canonical: none" on our pages, so search and AI
+  // crawlers get a blocking render with title/description/canonical in <head>.
+  // Replaces Next's default list, so that list is repeated here.
+  htmlLimitedBots:
+    /Googlebot|bingbot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-User|PerplexityBot|[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight/i,
   // The Learn library moved from /docs to /learn to match its branding.
   // Permanently redirect old URLs so existing links and search results
   // (the guides are a public SEO surface) keep working.
