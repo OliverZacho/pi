@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   BRANDS_PAGE_SIZE,
   getBrandsFacets,
@@ -13,6 +12,7 @@ import {
 import { listFollowedBrandIds } from "@/lib/follows-db";
 import { getViewer } from "@/lib/access";
 import BrandsExploreClient from "@/components/brand/BrandsExploreClient";
+import LockedBrandsDirectory from "./LockedBrandsDirectory";
 import styles from "@/components/brand/brands-explore.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
 
@@ -45,63 +45,7 @@ export default async function BrandsPage() {
   // unpaid visitors get the same search/filter directory (via the public,
   // service-role API), they just can't open a brand's locked analytics.
   if (!viewer || !viewer.hasAccess) {
-    const admin = getSupabaseAdmin();
-    // Signed-in free users can select brands to follow (capped) and fill
-    // their one comparison, so their follow/comparison state loads too —
-    // via the service-role client (free tokens have no RLS grants on
-    // those tables; both helpers filter by user id).
-    const [publicResult, publicFacets, freeComparisons, freeFollowedIds] =
-      await Promise.all([
-        searchBrands({
-          page: 1,
-          pageSize: BRANDS_PAGE_SIZE,
-          sort: "most_active"
-        }),
-        getBrandsFacets(),
-        viewer
-          ? listCompetitorSetSummaries(admin, viewer.userId).catch((err) => {
-              console.error("Failed to load comparisons", err);
-              return [] as CompetitorSetSummary[];
-            })
-          : Promise.resolve([] as CompetitorSetSummary[]),
-        viewer
-          ? listFollowedBrandIds(admin, viewer.userId).catch((err) => {
-              console.error("Failed to load followed brands", err);
-              return new Set<string>();
-            })
-          : Promise.resolve(new Set<string>())
-      ]);
-
-    return (
-      <main className={styles.main}>
-        <header className={styles.heading}>
-          <div className={styles.headingRow}>
-            <div>
-              <h1>Brands</h1>
-              <p>
-                Search every tracked brand and filter by what we know.
-              </p>
-            </div>
-            <Link href="/brands/a-z" className={styles.azLink}>
-              All brands A to Z
-            </Link>
-          </div>
-        </header>
-
-        <BrandsExploreClient
-          initialBrands={publicResult.items}
-          initialHasMore={publicResult.hasMore}
-          initialTotal={publicResult.total}
-          pageSize={BRANDS_PAGE_SIZE}
-          facets={publicFacets}
-          searchEndpoint="/api/public/brands/list"
-          isPublic
-          allowFollow={Boolean(viewer)}
-          comparisons={freeComparisons}
-          initialFollowedBrandIds={Array.from(freeFollowedIds)}
-        />
-      </main>
-    );
+    return <LockedBrandsDirectory viewer={viewer} />;
   }
 
   const userId = viewer.userId;
