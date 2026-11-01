@@ -1,20 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getProfile } from "@/lib/profile-db";
-import { hasSessionCookie } from "@/lib/session-hint";
+import { useHasSessionCookie } from "@/lib/use-has-session-cookie";
 import type { HeaderUser } from "./Header";
-
-const noopSubscribe = () => () => {};
-
-/**
- * Whether a session cookie exists. False during hydration (matching the
- * static HTML), the real answer straight after.
- */
-export function useHasSessionCookie(): boolean {
-  return useSyncExternalStore(noopSubscribe, hasSessionCookie, () => false);
-}
 
 /**
  * The signed-in viewer for marketing chrome, resolved in the browser so the

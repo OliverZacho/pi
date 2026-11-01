@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import SupportChat from "./SupportChat";
 import SupportFeedback from "./SupportFeedback";
+import { useHasSessionCookie } from "@/lib/use-has-session-cookie";
 import styles from "./HelpPane.module.css";
 
 const UNREAD_POLL_INTERVAL_MS = 30000;
@@ -33,6 +34,10 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
   const [view, setView] = useState<"menu" | "chat" | "feedback">("menu");
   const [mounted, setMounted] = useState(false);
   const [unread, setUnread] = useState(0);
+  // Whether the viewer has a support thread. Replies only ever arrive in an
+  // existing thread, so without one there is nothing to poll for.
+  const [hasThread, setHasThread] = useState(false);
+  const hasSession = useHasSessionCookie();
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -40,32 +45,58 @@ export default function HelpPane({ variant = "marketing" }: HelpPaneProps) {
     setMounted(true);
   }, []);
 
-  // Poll for unread admin replies so the trigger shows a notification dot even
-  // when the panel is closed. Logged-in only; a 401 just leaves the count at 0.
+  // Unread admin replies drive the notification dot. Checked once on load,
+  // when the panel opens or closes (a first message creates the thread), and
+  // when the tab comes back into view. Interval polling only runs for viewers
+  // with a thread and only while the tab is visible. Guests skip it entirely:
+  // they have no thread and the request could only 401.
   const refreshUnread = useCallback(async () => {
+    if (!hasSession) return;
     try {
       const response = await fetch("/api/support/chat?summary=1", { cache: "no-store" });
       if (!response.ok) return;
-      const data = (await response.json()) as { unreadCount?: number };
+      const data = (await response.json()) as { unreadCount?: number; hasThread?: boolean };
       setUnread(data.unreadCount ?? 0);
+      setHasThread(Boolean(data.hasThread));
     } catch {
       /* best-effort */
     }
-  }, []);
+  }, [hasSession]);
 
   useEffect(() => {
     void refreshUnread();
-    const timer = setInterval(() => void refreshUnread(), UNREAD_POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
   }, [refreshUnread]);
 
-  // Re-check unread when the panel opens, and return to the menu once closed.
   useEffect(() => {
-    if (open) {
-      void refreshUnread();
-    } else {
-      setView("menu");
-    }
+    if (!hasThread) return;
+    let timer: number | undefined;
+    const start = () => {
+      window.clearInterval(timer);
+      timer = window.setInterval(() => void refreshUnread(), UNREAD_POLL_INTERVAL_MS);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        window.clearInterval(timer);
+      } else {
+        void refreshUnread();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [hasThread, refreshUnread]);
+
+  // Re-check unread when the panel opens or closes, and return to the menu
+  // once closed.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open || wasOpen.current) void refreshUnread();
+    wasOpen.current = open;
+    if (!open) setView("menu");
   }, [open, refreshUnread]);
 
   useEffect(() => {

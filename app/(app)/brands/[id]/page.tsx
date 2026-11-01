@@ -1,29 +1,17 @@
-import { cache } from "react";
-import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getViewer } from "@/lib/access";
-import { normalizeCompanyMarkets } from "@/lib/explore-db";
-import { resolveBrandLogo } from "@/lib/logo-dev";
-import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
-import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
-import { getBrandNarrative } from "@/lib/brand-claim-facts";
-import { loadIndexableBrands, pickRelatedBrands } from "@/lib/brand-link-index";
-import { getBrandPageData, getBrandSummary } from "@/lib/brand-db";
-import { SITE_URL } from "@/lib/site";
-import { canonicalUrl } from "@/lib/page-metadata";
-import { MIN_INDEXABLE_EMAILS, proseDescription } from "@/lib/brand-summary";
-import { ORGANIZATION_ID } from "@/lib/structured-data";
 import {
   listCompetitorSetSummaries,
   listSetIdsContainingBrand,
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { isBrandFollowed } from "@/lib/follows-db";
-import { DEMO_BRAND_SLUG } from "@/lib/demo";
+import { getBrandPageData } from "@/lib/brand-db";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import { resolveHandle } from "./resolve-handle";
+import { brandPageMetadata } from "./brand-metadata";
+import LockedBrandView from "./LockedBrandView";
 
 export const dynamic = "force-dynamic";
 
@@ -31,56 +19,6 @@ type RouteParams = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ segment?: string | string[] }>;
 };
-
-/**
- * Request-memoised summary build, so `generateMetadata` and the page body each
- * run it once per request rather than twice. `getSupabaseAdmin` is a
- * singleton, so keying on the string args is stable.
- */
-const loadBrandSummary = cache((id: string, name: string) =>
-  getBrandSummary(getSupabaseAdmin(), id, { name })
-);
-
-/**
- * The public teaser: the brand's real KPI tiles + send calendar, served to
- * *every* locked viewer — including logged-out visitors and crawlers. This is
- * what makes each brand page unique, honest content (no shared sample data in
- * the crawlable HTML). The heavy dashboard query is too expensive to run per
- * anonymous request, so the subset is cached across requests for an hour —
- * fine for a teaser that changes at most a few times a day.
- */
-/**
- * The generated narrative (lib/brand-claims.ts). Reads the three claim-facts
- * views, which are keyed lookups rather than scans, but a brand's prose changes
- * at most a few times a day and crawler traffic hits this path 450 times, so it
- * is cached across requests for an hour alongside the teaser.
- */
-const loadBrandNarrative = unstable_cache(
-  async (companyId: string, name: string) => {
-    const narrative = await getBrandNarrative(getSupabaseAdmin(), companyId, {
-      name
-    });
-    return narrative?.paragraphs ?? null;
-  },
-  ["brand-narrative"],
-  { revalidate: 3600 }
-);
-
-const loadPublicTeaser = unstable_cache(
-  async (companyId: string) => {
-    const data = await getBrandPageData(getSupabaseAdmin(), companyId);
-    if (!data) return null;
-    return {
-      totals: data.totals,
-      cadence: data.cadence,
-      promo: data.promo,
-      esp: data.esp,
-      calendar: data.calendar
-    };
-  },
-  ["brand-public-teaser"],
-  { revalidate: 3600 }
-);
 
 /**
  * Per-brand SaaS-style dashboard. The companion to `/explore`: where
@@ -93,60 +31,7 @@ const loadPublicTeaser = unstable_cache(
  */
 export async function generateMetadata({ params }: RouteParams) {
   const { id } = await params;
-  // Resolve via the service-role client: companies aren't readable under RLS
-  // for logged-out visitors / crawlers, which is exactly who reads <head>.
-  const resolved = await resolveHandle(id);
-  if (!resolved) {
-    return { title: "Brand — Pirol" };
-  }
-
-  // Canonical always points at the slug URL, so Google consolidates any
-  // legacy /brands/<uuid> links onto the keyword-bearing slug without us
-  // having to 301 (and slow down) internal navigation.
-  const canonical = canonicalUrl(`/brands/${resolved.slug}`);
-  const [summary, narrative] = await Promise.all([
-    loadBrandSummary(resolved.id, resolved.name),
-    loadBrandNarrative(resolved.id, resolved.name).catch(() => null)
-  ]);
-
-  // Only pages with enough captured email to say something real are offered
-  // to the index (same threshold as the sitemap). The rest stay reachable but
-  // noindexed — hundreds of near-empty templates would read as scaled thin
-  // content and drag every strong page down with them.
-  const indexable =
-    summary !== null && summary.emailCount >= MIN_INDEXABLE_EMAILS;
-
-  // Keyword-bearing title: people find these pages searching
-  // "<brand> email frequency / newsletter strategy", not "<brand> Pirol".
-  const title = indexable
-    ? `${resolved.name} email marketing: frequency, timing, discounts`
-    : `${resolved.name} — Pirol`;
-
-  // The narrative's opening sentences when the brand has one: they vary in
-  // what they say per brand, where the summary only varies in its numbers.
-  const description = narrative?.length
-    ? proseDescription(narrative.join(" "))
-    : summary?.metaDescription ?? undefined;
-
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    // Full card rather than the bare url+title this used to ship: Next
-    // replaces the root layout's openGraph wholesale when a page sets its own,
-    // so every field has to be repeated here. See lib/page-metadata.ts for why
-    // there's no og:image.
-    openGraph: {
-      type: "website",
-      url: canonical,
-      siteName: "Pirol",
-      locale: "en",
-      title,
-      description
-    },
-    twitter: { card: "summary", title, description },
-    robots: indexable ? undefined : { index: false, follow: true }
-  };
+  return brandPageMetadata(id);
 }
 
 export default async function BrandPage({ params, searchParams }: RouteParams) {
@@ -174,179 +59,12 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   // Only light brand identity is fetched (service-role); the heavy analytics
   // (`getBrandPageData`) are skipped entirely.
   if (!viewer || !viewer.hasAccess) {
-    // The onboarding tour's demo brand is the one exception: unpaid users get
-    // its real dashboard (data fetched service-side past RLS) so they can see
-    // what a brand page actually offers. Read-only — no follow / group actions.
-    if (resolved.slug === DEMO_BRAND_SLUG) {
-      const demoData = await getBrandPageData(getSupabaseAdmin(), id, {
-        segmentInboxId
-      });
-      if (demoData) {
-        return (
-          <BrandDashboard
-            data={demoData}
-            isFollowing={false}
-            groups={[]}
-            groupMembershipIds={[]}
-          />
-        );
-      }
-    }
-
-    const admin = getSupabaseAdmin();
-    // Identity, summary, and (for signed-in free viewers) follow state +
-    // the real dashboard payload are independent — fetch together. The
-    // service-role client is used throughout because free tokens have no
-    // RLS grants here. The heavy dashboard query only runs for signed-in
-    // viewers, so logged-out / crawler traffic stays on the cheap path.
-    const [{ data: company }, summary, narrative, isFollowing, liveData] =
-      await Promise.all([
-        admin
-          .from("companies")
-          .select(
-            "id, name, domain, markets, primary_market_country, is_global, logo_storage_path, logo_source, subscribed_since, deleted_at"
-          )
-          .eq("id", id)
-          .maybeSingle(),
-        loadBrandSummary(id, resolved.name),
-        loadBrandNarrative(id, resolved.name).catch((err) => {
-          console.error("Failed to load brand narrative", err);
-          return null;
-        }),
-        viewer
-          ? isBrandFollowed(admin, viewer.userId, id).catch((err) => {
-              console.error("Failed to load follow state for locked brand", err);
-              return false;
-            })
-          : Promise.resolve(false),
-        viewer
-          ? getBrandPageData(admin, id)
-              .then((data) =>
-                data
-                  ? {
-                      totals: data.totals,
-                      cadence: data.cadence,
-                      promo: data.promo,
-                      esp: data.esp,
-                      calendar: data.calendar
-                    }
-                  : null
-              )
-              .catch((err) => {
-                console.error("Failed to load live teaser data", err);
-                return null;
-              })
-          : // Logged-out visitors (and crawlers) get the same real teaser,
-            // but from the shared hourly cache — the heavy query never runs
-            // per anonymous request.
-            loadPublicTeaser(id).catch((err) => {
-              console.error("Failed to load public teaser", err);
-              return null;
-            })
-      ]);
-
-    if (!company || company.deleted_at) {
-      notFound();
-    }
-
-    let logoUrl: string | null = null;
-    if (company.logo_storage_path) {
-      try {
-        const signed = await getSignedAssets([company.logo_storage_path], {
-          transform: BRAND_LOGO_TRANSFORM
-        });
-        logoUrl = signed[company.logo_storage_path] ?? null;
-      } catch (err) {
-        console.error("Failed to sign brand logo", err);
-      }
-    }
-    logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
-
-    const marketLabels = normalizeCompanyMarkets(company.markets);
-    // Same-market brands for the cross-link strip, picked as a ring so every
-    // indexable brand is linked from its neighbours (lib/brand-link-index.ts).
-    const related = await loadIndexableBrands()
-      .then((index) =>
-        pickRelatedBrands(index, {
-          id,
-          name: company.name,
-          markets: marketLabels
-        })
-      )
-      .catch((err) => {
-        console.error("Failed to load related brands", err);
-        return { brands: [], sharedMarket: null };
-      });
-
-    // Structured data for the public page: the breadcrumb trail plus the
-    // brand's email program described as a Dataset published by Pirol.
-    // Only emitted when the page is indexable — schema on a noindexed page
-    // is noise.
-    const indexable =
-      summary !== null && summary.emailCount >= MIN_INDEXABLE_EMAILS;
-    const canonical = `${SITE_URL}/brands/${resolved.slug}`;
-    const jsonLd = indexable
-      ? [
-          {
-            "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            itemListElement: [
-              {
-                "@type": "ListItem",
-                position: 1,
-                name: "Brands",
-                item: `${SITE_URL}/brands`
-              },
-              {
-                "@type": "ListItem",
-                position: 2,
-                name: company.name,
-                item: canonical
-              }
-            ]
-          },
-          {
-            "@context": "https://schema.org",
-            "@type": "Dataset",
-            name: `${company.name} email marketing data`,
-            description: summary.paragraph,
-            url: canonical,
-            creator: { "@id": ORGANIZATION_ID },
-            isAccessibleForFree: false
-          }
-        ]
-      : null;
-
     return (
-      <>
-        {jsonLd ? (
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-          />
-        ) : null}
-        <BrandLockedDashboard
-          brand={{
-            name: company.name,
-            domain: company.domain ?? null,
-            markets: marketLabels,
-            primaryMarketCountry: company.primary_market_country ?? null,
-            isGlobal: Boolean(company.is_global),
-            logoUrl,
-            subscribedSince: company.subscribed_since ?? null
-          }}
-          summary={summary?.paragraph ?? null}
-          narrative={narrative}
-          follow={
-            viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
-          }
-          live={liveData ?? undefined}
-          related={related.brands.map((r) => ({
-            ...r,
-            marketLabel: related.sharedMarket
-          }))}
-        />
-      </>
+      <LockedBrandView
+        resolved={resolved}
+        viewer={viewer}
+        segmentInboxId={segmentInboxId}
+      />
     );
   }
 
