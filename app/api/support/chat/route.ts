@@ -14,7 +14,8 @@ type ChatMessage = {
  * GET `/api/support/chat` — the signed-in user's support chat thread.
  *
  * Returns `{ thread, messages, unreadCount }`. `?summary=1` returns only
- * `{ unreadCount, lastMessageAt }` for the cheap notification-dot poll.
+ * `{ unreadCount, lastMessageAt, hasThread }` for the cheap notification-dot
+ * poll; the client stops polling while `hasThread` is false.
  * Reading does NOT clear unread — the client calls `/api/support/chat/read`
  * when the panel is actually open so the dot only clears once seen.
  */
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       unreadCount: thread?.user_unread_count ?? 0,
       lastMessageAt: thread?.last_message_at ?? null,
+      hasThread: Boolean(thread),
       ...(summary ? {} : { thread: thread ?? null, messages: [] })
     });
   }

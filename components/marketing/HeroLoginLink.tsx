@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useHasSessionCookie } from "./useViewerDisplay";
+import { useHasSessionCookie } from "@/lib/use-has-session-cookie";
 import styles from "./newsletter-hero.module.css";
 
 /**
