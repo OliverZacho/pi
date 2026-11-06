@@ -1,0 +1,138 @@
+/* "Brands similar to X" at the foot of the brand page. */
+.section {
+  margin-top: 2.5rem;
+}
+
+.header {
+  margin-bottom: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  text-decoration: none;
+  transition: border-color 120ms ease;
+}
+
+.card:hover {
+  border-color: #086e4b;
+}
+
+.card:hover .name {
+  color: #086e4b;
+}
+
+.card:focus-visible {
+  outline: 2px solid #086e4b;
+  outline-offset: 2px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.monogram {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name,
+.meta,
+.count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.meta {
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.count {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.allLink {
+  display: inline-block;
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #086e4b;
+  text-decoration: none;
+}
+
+.allLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

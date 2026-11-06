@@ -8,6 +8,7 @@ import {
 } from "@/lib/competitor-db";
 import { isBrandFollowed } from "@/lib/follows-db";
 import { getBrandPageData } from "@/lib/brand-db";
+import { loadRelatedBrands } from "@/lib/brand-link-index";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import { resolveHandle } from "./resolve-handle";
 import { brandPageMetadata } from "./brand-metadata";
@@ -75,21 +76,24 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   // fan everything out together instead of awaiting in a chain. Each
   // auxiliary source swallows its own error — only a missing dashboard
   // payload 404s the page.
-  const [data, groups, isFollowing, groupMembershipIds] = await Promise.all([
-    getBrandPageData(supabase, id, { segmentInboxId }),
-    listCompetitorSetSummaries(supabase, userId).catch((err) => {
-      console.error("Failed to load competitor sets", err);
-      return [] as CompetitorSetSummary[];
-    }),
-    isBrandFollowed(supabase, userId, id).catch((err) => {
-      console.error("Failed to load follow status", err);
-      return false;
-    }),
-    listSetIdsContainingBrand(supabase, userId, id).catch((err) => {
-      console.error("Failed to load group memberships", err);
-      return new Set<string>();
-    })
-  ]);
+  const [data, groups, isFollowing, groupMembershipIds, related] =
+    await Promise.all([
+      getBrandPageData(supabase, id, { segmentInboxId }),
+      listCompetitorSetSummaries(supabase, userId).catch((err) => {
+        console.error("Failed to load competitor sets", err);
+        return [] as CompetitorSetSummary[];
+      }),
+      isBrandFollowed(supabase, userId, id).catch((err) => {
+        console.error("Failed to load follow status", err);
+        return false;
+      }),
+      listSetIdsContainingBrand(supabase, userId, id).catch((err) => {
+        console.error("Failed to load group memberships", err);
+        return new Set<string>();
+      }),
+      // Served from the hourly cache and picked in memory; never throws.
+      loadRelatedBrands(id)
+    ]);
 
   if (!data) {
     notFound();
@@ -101,6 +105,7 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
       isFollowing={isFollowing}
       groups={groups}
       groupMembershipIds={Array.from(groupMembershipIds)}
+      related={related}
     />
   );
 }

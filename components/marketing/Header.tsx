@@ -164,6 +164,12 @@ export default function Header() {
           <Link href="/explore" className={styles.navLink}>
             Explore
           </Link>
+          {/* The brand directory is the public, indexable hub (/explore is
+              disallowed in robots.txt), so it gets its own link from every
+              marketing page's header. */}
+          <Link href="/brands" className={styles.navLink}>
+            Brands
+          </Link>
           <Link href="/learn" className={styles.navLink}>
             Learn
           </Link>

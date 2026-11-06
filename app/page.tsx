@@ -1,10 +1,12 @@
 import SiteHeader from "@/components/marketing/SiteHeader";
 import NewsletterFanHero from "@/components/marketing/NewsletterFanHero";
 import HomeStory from "@/components/marketing/HomeStory";
+import HomeBrands from "@/components/marketing/HomeBrands";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import { siteStructuredData } from "@/lib/structured-data";
 import { getArchiveStats } from "@/lib/marketing-stats";
+import { loadHomepageCategories } from "@/lib/brand-link-index";
 import styles from "@/components/marketing/landing.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
 
@@ -19,7 +21,11 @@ export const metadata = pageMetadata({
 });
 
 export default async function Home() {
-  const stats = await getArchiveStats();
+  // Read once per hourly regeneration, together so neither waits on the other.
+  const [stats, brandCategories] = await Promise.all([
+    getArchiveStats(),
+    loadHomepageCategories()
+  ]);
 
   return (
     <main className={styles.page}>
@@ -30,6 +36,7 @@ export default async function Home() {
       <SiteHeader />
       <NewsletterFanHero />
       <HomeStory stats={stats} />
+      <HomeBrands categories={brandCategories} />
       <PricingTeaser />
       <SiteFooter />
     </main>
