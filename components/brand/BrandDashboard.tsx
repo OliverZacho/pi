@@ -20,6 +20,8 @@ import BrandDiscountTimeline, {
 } from "./BrandDiscountTimeline";
 import BrandHeroActions from "./BrandHeroActions";
 import BrandRecentEmails from "./BrandRecentEmails";
+import RelatedBrands from "./RelatedBrands";
+import type { RelatedBrands as RelatedBrandsData } from "@/lib/brand-link-index";
 import BrandSeasonalRunup from "./BrandSeasonalRunup";
 import { brandUrlHref, brandUrlLabel } from "@/lib/brand-url";
 import styles from "./brand.module.css";
@@ -95,6 +97,11 @@ function SegmentSwitcher({
 type Props = {
   data: BrandPageData;
   /**
+   * Similar brands linked under the recent campaigns (lib/brand-link-index.ts).
+   * Omitted where the page has no reason to cross-link, e.g. the demo brand.
+   */
+  related?: RelatedBrandsData;
+  /**
    * Whether the current user follows this brand. Drives the initial
    * state of the Follow toggle in the hero strip.
    */
@@ -131,7 +138,8 @@ export default function BrandDashboard({
   data,
   isFollowing,
   groups,
-  groupMembershipIds
+  groupMembershipIds,
+  related
 }: Props) {
   const {
     brand,
@@ -341,6 +349,10 @@ export default function BrandDashboard({
           </section>
         </>
       )}
+
+      {related ? (
+        <RelatedBrands brandName={brand.name} related={related} />
+      ) : null}
     </main>
   );
 }

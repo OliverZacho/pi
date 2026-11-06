@@ -5,7 +5,7 @@ import { normalizeCompanyMarkets } from "@/lib/explore-db";
 import { resolveBrandLogo } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
-import { loadIndexableBrands, pickRelatedBrands } from "@/lib/brand-link-index";
+import { loadRelatedBrands } from "@/lib/brand-link-index";
 import { getBrandPageData } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
 import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
@@ -63,7 +63,7 @@ export default async function LockedBrandView({
   // service-role client is used throughout because free tokens have no
   // RLS grants here. The heavy dashboard query only runs for signed-in
   // viewers, so logged-out / crawler traffic stays on the cheap path.
-  const [{ data: company }, summary, narrative, isFollowing, liveData] =
+  const [{ data: company }, summary, narrative, isFollowing, liveData, related] =
     await Promise.all([
       admin
         .from("companies")
@@ -106,7 +106,10 @@ export default async function LockedBrandView({
           loadPublicTeaser(id).catch((err) => {
             console.error("Failed to load public teaser", err);
             return null;
-          })
+          }),
+      // Cached catalogue + in-memory pick: no query of its own, and started
+      // here so it never adds a step after the loads above.
+      loadRelatedBrands(id)
     ]);
 
   if (!company || company.deleted_at) {
@@ -127,21 +130,6 @@ export default async function LockedBrandView({
   logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
 
   const marketLabels = normalizeCompanyMarkets(company.markets);
-  // Same-market brands for the cross-link strip, picked as a ring so every
-  // indexable brand is linked from its neighbours (lib/brand-link-index.ts).
-  const related = await loadIndexableBrands()
-    .then((index) =>
-      pickRelatedBrands(index, {
-        id,
-        name: company.name,
-        markets: marketLabels
-      })
-    )
-    .catch((err) => {
-      console.error("Failed to load related brands", err);
-      return { brands: [], sharedMarket: null };
-    });
-
   // Structured data for the public page: the breadcrumb trail plus the
   // brand's email program described as a Dataset published by Pirol.
   // Only emitted when the page is indexable — schema on a noindexed page
@@ -205,10 +193,7 @@ export default async function LockedBrandView({
           viewer ? { brandId: id, initialFollowing: isFollowing } : undefined
         }
         live={liveData ?? undefined}
-        related={related.brands.map((r) => ({
-          ...r,
-          marketLabel: related.sharedMarket
-        }))}
+        related={related}
       />
     </>
   );

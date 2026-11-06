@@ -4,18 +4,13 @@ import TrackedUpgradeLink from "@/components/common/TrackedUpgradeLink";
 import BrandFollowButton from "./BrandFollowButton";
 import BrandActivityCalendar from "./BrandActivityCalendar";
 import BrandLockedPreviewSkeleton from "./BrandLockedPreviewSkeleton";
+import RelatedBrands from "./RelatedBrands";
 import { KpiGrid } from "./BrandDashboard";
 import { brandUrlLabel } from "@/lib/brand-url";
 import type { BrandPageData } from "@/lib/brand-db";
+import type { RelatedBrands as RelatedBrandsData } from "@/lib/brand-link-index";
 import styles from "./brand.module.css";
 import locked from "./brand-locked.module.css";
-
-export type RelatedBrand = {
-  slug: string;
-  name: string;
-  /** Pretty label of the market the two brands share, for the heading. */
-  marketLabel: string | null;
-};
 
 export type LockedBrand = {
   name: string;
@@ -88,11 +83,11 @@ export default function BrandLockedDashboard({
     "totals" | "cadence" | "promo" | "esp" | "calendar"
   >;
   /**
-   * Same-market brands to cross-link at the bottom of the page, so brand
-   * pages pass link equity to each other instead of each leaf being an
-   * island only the sitemap knows about.
+   * Similar brands to cross-link at the bottom of the page, so brand pages
+   * pass link equity to each other instead of each leaf being an island only
+   * the sitemap knows about.
    */
-  related?: RelatedBrand[];
+  related?: RelatedBrandsData;
 }) {
   // The hero carries one line so it stays the same height it is today; the rest
   // of the narrative gets its own section below. When there is no narrative the
@@ -253,28 +248,8 @@ export default function BrandLockedDashboard({
         </div>
       </div>
 
-      {related && related.length > 0 ? (
-        <section className={locked.related} aria-label="Related brands">
-          <h2 className={locked.relatedTitle}>
-            {related[0].marketLabel
-              ? `More ${related[0].marketLabel.toLowerCase()} brands`
-              : "More brands on Pirol"}
-          </h2>
-          <div className={locked.relatedList}>
-            {related.map((r) => (
-              <Link
-                key={r.slug}
-                href={`/brands/${r.slug}`}
-                className={locked.relatedLink}
-              >
-                {r.name}
-              </Link>
-            ))}
-            <Link href="/brands/a-z" className={locked.relatedLink}>
-              All brands A to Z →
-            </Link>
-          </div>
-        </section>
+      {related ? (
+        <RelatedBrands brandName={brand.name} related={related} />
       ) : null}
     </main>
   );

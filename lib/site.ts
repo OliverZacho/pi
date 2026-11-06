@@ -1,5 +1,5 @@
 /**
- * Canonical, public-facing origin for the site. Used by sitemap.ts,
+ * Canonical, public-facing origin for the site. Used by the sitemaps,
  * robots.ts, llms.txt and metadataBase so every canonical URL agrees.
  *
  * Override per-environment with NEXT_PUBLIC_SITE_URL (no trailing slash).
@@ -94,3 +94,9 @@ export const DISALLOWED_PATHS = [
   "/compare",
   "/c"
 ] as const;
+
+/**
+ * The per-section sitemaps listed by the /sitemap.xml index. Each is served
+ * by app/sitemaps/sitemap.ts at /sitemaps/sitemap/<id>.xml.
+ */
+export const SITEMAP_SECTIONS = ["pages", "learn", "brands"] as const;
