@@ -501,6 +501,72 @@
   background: var(--ink);
 }
 
+.pending {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px dashed rgba(11, 11, 12, 0.18);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+/* campaign stages */
+
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.stageRow {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.stageBar {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 0.75rem;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.st_teaser {
+  background: #94a3b8;
+}
+.st_early {
+  background: #5fa98a;
+}
+.st_live {
+  background: var(--green);
+}
+.st_last_chance {
+  background: var(--amber);
+}
+.st_extended {
+  background: #7f1d1d;
+}
+.st_other {
+  background: #d4d4d8;
+}
+
 /* subject lines */
 
 .tiles {
@@ -525,29 +591,6 @@
   font-size: 0.82rem;
   color: var(--ink-soft);
   line-height: 1.35;
-}
-
-.words {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0 0 1.75rem;
-  padding: 0;
-  list-style: none;
-}
-
-.words > li {
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  background: var(--green-soft);
-  color: var(--green);
-  font-size: 0.88rem;
-  font-weight: 500;
-}
-
-.words span {
-  margin-left: 0.25rem;
-  opacity: 0.7;
 }
 
 /* design */
@@ -735,6 +778,9 @@
   }
   .hrow {
     grid-template-columns: 8rem 1fr 2.5rem;
+  }
+  .stageRow {
+    grid-template-columns: 7rem 1fr;
   }
   .list > li {
     grid-template-columns: 1fr auto auto;

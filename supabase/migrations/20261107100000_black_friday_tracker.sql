@@ -13,6 +13,10 @@
 -- "no Black Friday"), which are counted separately. Keep the keyword list in
 -- lockstep with the methodology copy on the page (lib/black-friday.ts).
 --
+-- Anything that names a brand next to a discount (deepest list, gallery
+-- badges) uses stated_pct: the extracted percentage only when the subject or
+-- preview text states that same number. Aggregates use every extraction.
+--
 -- Service-role only: the page calls it server-side, so anon gets nothing.
 
 create or replace function public.black_friday_tracker()
@@ -37,11 +41,13 @@ raw as (
          ce.offer_ends_on,
          ce.offer_is_extension,
          coalesce(ce.has_gif, false) as has_gif,
-         coalesce('black' = any(ce.color_buckets), false) as dark,
          ce.promo_code,
          coalesce(cardinality(ce.image_urls), 0) > 0 as has_image,
          (coalesce(ce.sent_at, ce.created_at) at time zone 'Europe/Copenhagen') as ts,
-         lower(coalesce(ce.subject, '') || ' ' || coalesce(ce.preheader, '')) as s
+         -- Preview text keeps HTML entities (udl&#248;ber); decode the Nordic ones.
+         lower(replace(replace(replace(replace(
+           coalesce(ce.subject, '') || ' ' || coalesce(ce.preheader, ''),
+           '&#248;', 'ø'), '&#229;', 'å'), '&#230;', 'æ'), '&amp;', '&')) as s
   from captured_emails ce
   join companies c on c.id = ce.company_id and c.deleted_at is null
   where ce.duplicate_of is null
@@ -54,7 +60,10 @@ tagged as (
          r.ts::date as d,
          r.s ~ '(green[ -]?friday|giving[ -]?tuesday|white[ -]?friday|buy[ -]?nothing[ -]?day|grøn[ -]?fredag|ingen[ -]?black[ -]?friday|no[ -]?black[ -]?friday|not doing black[ -]?friday)' as optout,
          r.s ~ 'cyber[ -]?(monday|week|weekend)' as cyber,
-         r.s ~ '(black[ -]?(friday|week|weekend|november|month)|sort[ -]?fredag|cyber[ -]?(monday|week|weekend))' as kw
+         r.s ~ '(black[ -]?(friday|week|weekend|november|month)|sort[ -]?fredag|cyber[ -]?(monday|week|weekend))' as kw,
+         case when r.discount_percent > 0
+                   and r.s ~ ('(^|[^0-9])' || round(r.discount_percent)::int::text || ' ?%')
+              then r.discount_percent end as stated_pct
   from raw r
 ),
 g as materialized (
@@ -79,7 +88,7 @@ base as (
   select count(*)::numeric as emails,
          count(distinct company_id) as brands,
          avg(has_gif::int) as gif,
-         avg(dark::int) as dark
+         avg((offer_ends_on is not null)::int) as deadline
   from g, params p
   where g.d <= p.base_end and not g.bf
 ),
@@ -147,6 +156,7 @@ disc as (
         from bfe where discount_percent > 0 group by 1
       ) b
     ),
+    'no_discount', (select count(*) from bfe where coalesce(discount_percent, 0) = 0),
     'by_category', (
       select jsonb_agg(jsonb_build_object('label', category, 'median', med, 'brands', nb) order by med desc)
       from (
@@ -174,16 +184,16 @@ disc as (
       ) c
     ),
     'deepest', (
-      select jsonb_agg(jsonb_build_object('brand', company_id, 'pct', discount_percent, 'subject', subject, 'd', d)
-                       order by discount_percent desc, d)
+      select jsonb_agg(jsonb_build_object('brand', company_id, 'pct', stated_pct, 'subject', subject, 'd', d)
+                       order by stated_pct desc, d)
       from (
-        select distinct on (company_id) company_id, discount_percent, subject, d
-        from bfe where discount_percent > 0
-        order by company_id, discount_percent desc, d
+        select distinct on (company_id) company_id, stated_pct, subject, d
+        from bfe where stated_pct is not null
+        order by company_id, stated_pct desc, d
       ) x
       where x.company_id in (
-        select company_id from bfe where discount_percent > 0
-        group by company_id order by max(discount_percent) desc, min(d) limit 10
+        select company_id from bfe where stated_pct is not null
+        group by company_id order by max(stated_pct) desc, min(d) limit 10
       )
     )
   ) as j
@@ -205,22 +215,46 @@ windows as (
     limit 14
   ) w
 ),
+-- Share of each brand's emails since its first Black Friday email that are
+-- about Black Friday: a raw count would rank daily senders above brands that
+-- went all in.
 loudest as (
-  select jsonb_agg(jsonb_build_object('brand', company_id, 'n', n, 'base_week', base_week) order by n desc, base_week) as j
+  select jsonb_agg(jsonb_build_object('brand', company_id, 'n', n, 'total', total)
+                   order by n::numeric / total desc, n desc) as j
   from (
-    select e.company_id,
-           count(*) as n,
-           round((select count(*) from g x, params p
-                  where x.company_id = e.company_id and x.d <= p.base_end) / (31 / 7.0), 1) as base_week
-    from bfe e
-    group by e.company_id
-    order by count(*) desc
+    select company_id, n, total
+    from (
+      select f.company_id,
+             (select count(*) from bfe e where e.company_id = f.company_id) as n,
+             (select count(*) from g x where x.company_id = f.company_id and x.d >= f.first_day) as total
+      from firsts f
+    ) c
+    where n >= 3
+    order by n::numeric / total desc, n desc
     limit 10
   ) l
 ),
 peak as (
   select jsonb_build_object('d', d, 'n', n) as j
   from (select d, count(*) as n from bfe group by d order by n desc, d limit 1) p
+),
+-- Campaign stage from the subject + preview wording, first match wins.
+staged as (
+  select d,
+         case
+           when offer_is_extension or s ~ '(extended|forlæng|förläng|forleng|verlänger)' then 'extended'
+           when s ~ '(last chance|sidste chance|sista chansen|letzte chance|last day|sidste dag|final hours|final day|ends tonight|ends today|ends at midnight|ending soon|slutter i dag|udløber|sidste timer|hours left|going fast|selling fast|almost gone|remaining)' then 'last_chance'
+           when s ~ '(\mearly|tidlig|\mvip\M|før alle andre|before everyone|before anyone|first in line|sneak peek|preview|pre-?sale|first access|exclusive access|eksklusiv adgang|medlemspris|förtur|warm[ -]?up)' then 'early'
+           when s ~ '(is here|is live|\mlive\M|starts? now|starter nu|nu starter|starts today|starter i dag|now on\M|er i gang|has started|har startet|er startet|er skudt i gang|is on\M|er her|lige nu)' then 'live'
+           when s ~ '(coming|soon|save the date|snart|countdown|get ready|gør dig klar|kommer|days to go|is near|nærmer sig|starts tomorrow|starter i morgen|starter [0-9])' then 'teaser'
+           when s ~ '[0-9] ?%' then 'live'
+           else 'other'
+         end as stage
+  from bfe
+),
+stages as (
+  select jsonb_agg(jsonb_build_object('wk', wk, 'stage', stage, 'n', n) order by wk, stage) as j
+  from (select date_trunc('week', d)::date as wk, stage, count(*) as n from staged group by 1, 2) x
 ),
 subj as (
   select jsonb_build_object(
@@ -230,23 +264,6 @@ subj as (
     'early_access_share', (select avg((s ~ '(early access|tidlig adgang|\mvip\M|før alle andre|before anyone|before everyone|first access|förtur)')::int) from bfe),
     'free_shipping_share', (select avg((s ~ '(free shipping|free delivery|fri fragt|fri frakt|gratis levering|fri levering)')::int) from bfe),
     'promo_code_share', (select avg((promo_code is not null)::int) from bfe),
-    'top_words', (
-      select jsonb_agg(jsonb_build_object('w', w, 'n', n) order by n desc, w)
-      from (
-        select w, count(distinct company_id) as n
-        from bfe, regexp_split_to_table(lower(coalesce(subject, '')), '[^[:alpha:]]+') as w
-        where char_length(w) >= 4
-          and w not in ('black','friday','week','weekend','cyber','monday','november','month','sort','fredag',
-                        'your','with','this','that','from','have','just','more','will','what','into','than',
-                        'them','they','their','here','there','been','were','when','only','also','about',
-                        'alle','vores','dine','dit','eller','over','efter','inden','fra','bare','lige',
-                        'some','these','those','nyt','nye','till','från','alla','eller','dina','våra')
-        group by w
-        having count(distinct company_id) >= 2
-        order by count(distinct company_id) desc, w
-        limit 14
-      ) t
-    ),
     'examples', (
       select jsonb_agg(jsonb_build_object('brand', company_id, 'subject', subject, 'd', d) order by d desc, ts desc)
       from (
@@ -264,8 +281,8 @@ design as (
   select jsonb_build_object(
     'gif_bf', (select avg(has_gif::int) from bfe),
     'gif_base', (select gif from base),
-    'dark_bf', (select avg(dark::int) from bfe),
-    'dark_base', (select dark from base)
+    'deadline_bf', (select avg((offer_ends_on is not null)::int) from bfe),
+    'deadline_base', (select deadline from base)
   ) as j
 ),
 optouts as (
@@ -277,10 +294,10 @@ optouts as (
   ) o
 ),
 gallery as (
-  select jsonb_agg(jsonb_build_object('id', id, 'brand', company_id, 'subject', subject, 'd', d, 'pct', discount_percent)
+  select jsonb_agg(jsonb_build_object('id', id, 'brand', company_id, 'subject', subject, 'd', d, 'pct', stated_pct)
                    order by ts desc) as j
   from (
-    select distinct on (company_id) id, company_id, subject, d, ts, discount_percent
+    select distinct on (company_id) id, company_id, subject, d, ts, stated_pct
     from bfe where has_image
     order by company_id, ts desc
   ) x
@@ -318,6 +335,7 @@ select jsonb_build_object(
   'windows', coalesce((select j from windows), '[]'),
   'loudest', coalesce((select j from loudest), '[]'),
   'peak', (select j from peak),
+  'stages', coalesce((select j from stages), '[]'),
   'subjects', (select j from subj),
   'design', (select j from design),
   'optouts', coalesce((select j from optouts), '[]'),

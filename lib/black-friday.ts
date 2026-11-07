@@ -55,13 +55,17 @@ export type BfSnapshot = {
   };
   discounts: {
     buckets: { k: number; n: number }[] | null;
+    /** Absent in snapshots taken before 2026-11-07 10:00. */
+    no_discount?: number;
     by_category: { label: string; median: number; brands: number }[] | null;
     by_country: { label: string; median: number; brands: number }[] | null;
     deepest: (BrandRef & Dated & { pct: number; subject: string | null })[] | null;
   };
   windows: (BrandRef & { start: string; first_end: string; end: string; extended: boolean })[];
-  loudest: (BrandRef & { n: number; base_week: number })[];
+  /** Brands by share of their emails that are about Black Friday (n of total). */
+  loudest: (BrandRef & { n: number; total: number })[];
   peak: { d: string; n: number } | null;
+  stages?: { wk: string; stage: string; n: number }[];
   subjects: {
     avg_length: number | null;
     emoji_share: number | null;
@@ -69,14 +73,13 @@ export type BfSnapshot = {
     early_access_share: number | null;
     free_shipping_share: number | null;
     promo_code_share: number | null;
-    top_words: { w: string; n: number }[] | null;
     examples: (BrandRef & Dated & { subject: string })[] | null;
   };
   design: {
     gif_bf: number | null;
     gif_base: number | null;
-    dark_bf: number | null;
-    dark_base: number | null;
+    deadline_bf: number | null;
+    deadline_base: number | null;
   };
   optouts: (BrandRef & Dated & { subject: string | null })[];
   gallery: (BrandRef & Dated & { id: string; subject: string | null; pct: number | null })[];

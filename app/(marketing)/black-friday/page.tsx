@@ -23,6 +23,11 @@ import {
 } from "@/lib/black-friday";
 import s from "./black-friday.module.css";
 
+/** A category or market median is shown once this many brands are behind it. */
+const MIN_SPLIT_BRANDS = 8;
+/** Per-brand volume and design comparisons wait for this many Black Friday emails. */
+const MIN_EMAILS_FOR_COMPARISONS = 300;
+
 // The snapshot behind this page refreshes hourly in the database.
 export const revalidate = 3600;
 
@@ -134,16 +139,26 @@ function Tracker({ data }: { data: BlackFridayData }) {
             rows={(d.lead.earliest ?? []).map((r) => ({
               brand: brand(r.brand),
               value: `${r.days_before} days before`,
-              note: shortDate(r.first_day)
+              date: shortDate(r.first_day)
             }))}
           />
         </div>
       </Section>
 
       <Section
+        id="stages"
+        title="From teaser to last chance"
+        lede="What each Black Friday email is doing, read from its subject line and preview text, week by week."
+      >
+        <Stages rows={d.stages ?? []} />
+      </Section>
+
+      <Section
         id="discounts"
         title="How deep Black Friday discounts go"
-        lede="The largest percentage offered in each Black Friday email."
+        lede={`The largest percentage offered in each Black Friday email.${
+          d.discounts.no_discount ? ` ${d.discounts.no_discount} of ${h.bf_emails} name no discount at all.` : ""
+        }`}
       >
         <div className={s.split}>
           <DiscountChart buckets={d.discounts.buckets ?? []} />
@@ -170,6 +185,7 @@ function Tracker({ data }: { data: BlackFridayData }) {
             date: shortDate(r.d)
           }))}
         />
+        <p className={s.footnote}>Only discounts the subject line or preview text states are listed here.</p>
       </Section>
 
       <Section
@@ -182,29 +198,31 @@ function Tracker({ data }: { data: BlackFridayData }) {
 
       <Section
         id="volume"
-        title="Who sends the most Black Friday emails"
-        lede={
-          h.volume_lift == null
-            ? "Black Friday emails per brand, next to how often the same brand sent in October."
-            : `Overall, brands sent ${h.volume_lift.toFixed(1)}× their October daily volume over the last 7 days.`
-        }
+        title="Who goes all in on Black Friday"
+        lede="The share of each brand's emails that are about Black Friday, counted from its first Black Friday email."
       >
-        <BrandList
-          heading="Most Black Friday emails"
-          wide
-          bars
-          rows={d.loudest.map((r) => ({
-            brand: brand(r.brand),
-            value: `${r.n}`,
-            amount: r.n,
-            note: `normally ${r.base_week} a week`
-          }))}
-        />
-        {d.peak && (
-          <p className={s.footnote}>
-            Busiest day so far: {shortDate(d.peak.d)}, with {d.peak.n} Black Friday emails.{" "}
-            {h.cyber_share ? `${pct(h.cyber_share)} of them mention Cyber Monday or Cyber Week.` : ""}
-          </p>
+        {h.bf_emails < MIN_EMAILS_FOR_COMPARISONS ? (
+          <Pending have={h.bf_emails} />
+        ) : (
+          <>
+            <BrandList
+              heading="Most Black Friday focused"
+              wide
+              bars
+              rows={d.loudest.map((r) => ({
+                brand: brand(r.brand),
+                value: pct(r.n / r.total),
+                amount: r.n / r.total,
+                note: `${r.n} of ${r.total} emails`
+              }))}
+            />
+            {d.peak && (
+              <p className={s.footnote}>
+                Busiest day so far: {shortDate(d.peak.d)}, with {d.peak.n} Black Friday emails.
+                {h.cyber_share ? ` ${pct(h.cyber_share)} of all Black Friday emails mention Cyber Monday or Cyber Week.` : ""}
+              </p>
+            )}
+          </>
         )}
       </Section>
 
@@ -221,18 +239,6 @@ function Tracker({ data }: { data: BlackFridayData }) {
           <Tile value={pct(d.subjects.free_shipping_share)} label="mention free shipping" />
           <Tile value={pct(d.subjects.promo_code_share)} label="include a promo code" />
         </div>
-        {(d.subjects.top_words?.length ?? 0) > 0 && (
-          <>
-            <h3 className={s.h3}>Most used words, by number of brands</h3>
-            <ul className={s.words}>
-              {d.subjects.top_words!.map((w) => (
-                <li key={w.w}>
-                  {w.w} <span>{w.n}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
         <BrandList
           heading="Latest subject lines"
           wide
@@ -247,13 +253,17 @@ function Tracker({ data }: { data: BlackFridayData }) {
 
       <Section
         id="design"
-        title="How Black Friday emails look"
+        title="How Black Friday emails differ"
         lede="Black Friday emails compared with all emails sent in October."
       >
-        <div className={s.pairs}>
-          <Pair label="Use animated GIFs" bf={d.design.gif_bf} base={d.design.gif_base} />
-          <Pair label="Lean on black in the design" bf={d.design.dark_bf} base={d.design.dark_base} />
-        </div>
+        {h.bf_emails < MIN_EMAILS_FOR_COMPARISONS ? (
+          <Pending have={h.bf_emails} />
+        ) : (
+          <div className={s.pairs}>
+            <Pair label="Use animated GIFs" bf={d.design.gif_bf} base={d.design.gif_base} />
+            <Pair label="State when the offer ends" bf={d.design.deadline_bf} base={d.design.deadline_base} />
+          </div>
+        )}
       </Section>
 
       {d.optouts.length >= 5 && (
@@ -404,11 +414,13 @@ const bar = (share: number): CSSProperties => ({ "--v": `${Math.max(0, Math.min(
 function RunUp({ data }: { data: BlackFridayData }) {
   const { daily, through } = data.snapshot;
   const total = daysBetween(WINDOW_START, WINDOW_END) + 1;
-  const byDay = new Map(daily.map((x) => [x.d, x.bf]));
-  const max = Math.max(5, ...daily.map((x) => x.bf));
+  const byDay = new Map(daily.map((x) => [x.d, x]));
+  const share = (x?: { bf: number; all: number }) => (x && x.all > 0 ? x.bf / x.all : 0);
+  // Round the scale up to a whole 5% so the top label reads cleanly.
+  const max = Math.max(0.05, Math.ceil(Math.max(...daily.map(share)) * 20) / 20);
   const days = Array.from({ length: total }, (_, i) => {
     const date = new Date(Date.parse(`${WINDOW_START}T12:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
-    return { date, n: byDay.get(date), future: date > through };
+    return { date, day: byDay.get(date), future: date > through };
   });
   const at = (date: string) => ({ left: `${((daysBetween(WINDOW_START, date) + 0.5) / total) * 100}%` });
 
@@ -416,18 +428,22 @@ function RunUp({ data }: { data: BlackFridayData }) {
     <Section
       id="run-up"
       title="The run-up, day by day"
-      lede="Black Friday emails sent each day since October 1. Days still to come are empty."
+      lede="The share of all emails each day that mention Black Friday, since October 1. Days still to come are empty."
     >
       <div className={s.runup}>
-        <span className={s.yMax}>{max}</span>
+        <span className={s.yMax}>{pct(max)}</span>
         <div className={s.plot}>
           <div className={s.runupBars}>
             {days.map((x) => (
               <span
                 key={x.date}
                 className={x.future ? s.future : undefined}
-                style={bar((x.n ?? 0) / max)}
-                title={x.future ? shortDate(x.date) : `${shortDate(x.date)}: ${x.n ?? 0} Black Friday emails`}
+                style={bar(share(x.day) / max)}
+                title={
+                  x.future
+                    ? shortDate(x.date)
+                    : `${shortDate(x.date)}: ${x.day?.bf ?? 0} of ${x.day?.all ?? 0} emails (${pct(share(x.day))})`
+                }
               />
             ))}
           </div>
@@ -509,11 +525,19 @@ function MedianRows({
   rows: { label: string; median: number; brands: number }[];
   format: (label: string) => string;
 }) {
-  if (rows.length === 0) return null;
+  const shown = rows.filter((r) => r.brands >= MIN_SPLIT_BRANDS);
+  if (shown.length === 0) {
+    return (
+      <div>
+        <h3 className={s.h3}>{heading}</h3>
+        <p className={s.pending}>Shown once {MIN_SPLIT_BRANDS} brands in a group have sent a discount.</p>
+      </div>
+    );
+  }
   return (
     <div className={s.hbars}>
       <h3 className={s.h3}>{heading}</h3>
-      {rows.map((r) => (
+      {shown.map((r) => (
         <div key={r.label} className={s.hrow}>
           <span className={s.hlabel}>
             {format(r.label)} <small>{r.brands} brands</small>
@@ -634,6 +658,66 @@ function Pair({ label, bf, base }: { label: string; bf: number | null; base: num
           <span className={s.hvalue}>{pct(v as number | null)}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Pending({ have }: { have: number }) {
+  return (
+    <p className={s.pending}>
+      This fills in during Black Week, once there are {MIN_EMAILS_FOR_COMPARISONS} Black Friday emails to compare. So
+      far: {have}.
+    </p>
+  );
+}
+
+const STAGES = [
+  { id: "teaser", label: "Teaser" },
+  { id: "early", label: "Early access" },
+  { id: "live", label: "Sale is live" },
+  { id: "last_chance", label: "Last chance" },
+  { id: "extended", label: "Extended" },
+  { id: "other", label: "Other mentions" }
+] as const;
+
+/** One 100% bar per week, split by campaign stage. Weeks with a handful of emails are skipped. */
+function Stages({ rows }: { rows: { wk: string; stage: string; n: number }[] }) {
+  const totals = new Map<string, number>();
+  for (const r of rows) totals.set(r.wk, (totals.get(r.wk) ?? 0) + r.n);
+  const weeks = [...totals].filter(([, n]) => n >= 5).map(([wk]) => wk).sort();
+  if (weeks.length === 0) return null;
+  return (
+    <div className={s.stages}>
+      {weeks.map((wk) => {
+        const counts = STAGES.map((st) => rows.find((r) => r.wk === wk && r.stage === st.id)?.n ?? 0);
+        const sum = counts.reduce((a, b) => a + b, 0);
+        return (
+          <div key={wk} className={s.stageRow}>
+            <span className={s.hlabel}>
+              Week of {shortDate(wk)} <small>{sum}</small>
+            </span>
+            <span className={s.stageBar}>
+              {STAGES.map((st, i) =>
+                counts[i] ? (
+                  <span
+                    key={st.id}
+                    className={s[`st_${st.id}`]}
+                    style={{ flexGrow: counts[i] }}
+                    title={`${st.label}: ${counts[i]} of ${sum}`}
+                  />
+                ) : null
+              )}
+            </span>
+          </div>
+        );
+      })}
+      <p className={s.legend}>
+        {STAGES.map((st) => (
+          <span key={st.id} className={s.legendItem}>
+            <span className={`${s.swatch} ${s[`st_${st.id}`]}`} /> {st.label}
+          </span>
+        ))}
+      </p>
     </div>
   );
 }
