@@ -163,7 +163,15 @@ export default async function LockedBrandView({
           name: `${company.name} email marketing data`,
           description: summary.paragraph,
           url: canonical,
-          creator: { "@id": ORGANIZATION_ID },
+          // Typed inline: the full Organization node only ships on the home
+          // page, so a bare @id here validates as an untyped creator.
+          creator: {
+            "@type": "Organization",
+            "@id": ORGANIZATION_ID,
+            name: "Pirol",
+            url: SITE_URL
+          },
+          license: `${SITE_URL}/terms`,
           isAccessibleForFree: false
         }
       ]
