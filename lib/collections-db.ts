@@ -12,6 +12,7 @@ import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import { buildSearchMatcher, matcherValue, type SearchMatcher } from "./search-term";
 import { fetchAllRows } from "./supabase-paging";
+import { getSupabaseAdmin } from "./supabase-admin";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
 
@@ -848,8 +849,15 @@ async function buildCollectionDetail(
   data: CollectionDetailRow
 ): Promise<CollectionDetail> {
   const rules = safeParseStoredRules(data.rules);
+  // Rules run on the service-role client. Under RLS Postgres can't use the
+  // search_text trigram index (ilike isn't leakproof, so the policy check
+  // must run first), so a search rule seq-scans every email body: 27s for
+  // "Black Friday" at 19.5k emails, past the 8s authenticated timeout. Safe
+  // because every caller has already read `data` through the viewer's own
+  // access (owner filter or RLS), and archive rows are readable by every
+  // signed-in user anyway (free tier sees the whole catalogue).
   const emails = rules
-    ? await evaluateCollectionRules(supabase, rules)
+    ? await evaluateCollectionRules(getSupabaseAdmin(), rules)
     : await loadCollectionEmails(supabase, data.id);
 
   return {
