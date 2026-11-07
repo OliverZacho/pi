@@ -141,8 +141,8 @@ function Tracker({ data }: { data: BlackFridayData }) {
 
       <Section
         id="who"
-        title="Who has started, and how"
-        lede="Every brand that has sent a Black Friday email, by what it is doing right now."
+        title="Who has started, and what they call it"
+        lede="Every brand that has sent a Black Friday email, grouped by the longest name it uses for the event in its subject lines."
       >
         <Board rows={d.board ?? []} brands={brands} />
       </Section>
@@ -506,9 +506,9 @@ function LeadChart({ buckets, today }: { buckets: { w: number; n: number }[]; to
 }
 
 const BOARD_GROUPS = [
-  { id: "stretch", label: "Running Black Week or Black Month", note: "Stretching the event beyond one day" },
-  { id: "live", label: "Deals already live", note: "A Black Friday sale is on" },
-  { id: "teasing", label: "Teasing", note: "Black Friday is coming, no deal yet" }
+  { id: "day", label: "Black Friday", note: "The day itself, or the weekend" },
+  { id: "week", label: "Black Week", note: "A week-long event" },
+  { id: "month", label: "Black Month", note: "Black Month or Black November" }
 ] as const;
 
 /** How many logos each group shows before collapsing the rest into a count. */
@@ -531,6 +531,7 @@ function Board({
               {g.label} <span className={s.boardCount}>{items.length}</span>
             </h3>
             <p className={s.boardNote}>{g.note}</p>
+            {items.length === 0 && <p className={s.boardNote}>None yet.</p>}
             <ul className={s.logos}>
               {items.slice(0, BOARD_LIMIT).map((r) => {
                 const b = brands[r.brand];

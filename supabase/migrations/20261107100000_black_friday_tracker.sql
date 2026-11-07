@@ -240,8 +240,8 @@ peak as (
   from (select d, count(*) as n from bfe group by d order by n desc, d limit 1) p
 ),
 -- Campaign stage from the subject + preview wording, first match wins.
-staged as materialized (
-  select company_id, d, s, discount_percent, offer_ends_on,
+staged as (
+  select d,
          case
            when offer_is_extension or s ~ '(extended|forlæng|förläng|forleng|verlänger)' then 'extended'
            when s ~ '(last chance|sidste chance|sista chansen|letzte chance|last day|sidste dag|final hours|final day|ends tonight|ends today|ends at midnight|ending soon|slutter i dag|udløber|sidste timer|hours left|going fast|selling fast|almost gone|remaining)' then 'last_chance'
@@ -253,22 +253,20 @@ staged as materialized (
          end as stage
   from bfe
 ),
--- Where each started brand stands: stretching the event into a week or
--- month, deals already live, or still only teasing.
+-- Every started brand, grouped by the longest name it has used for the
+-- event in its own subject or preview text: a month, a week, or the day
+-- (weekend wording counts as the day). Read from wording only, so it never
+-- claims whether a brand's sale is live.
 board as (
   select jsonb_agg(jsonb_build_object('brand', company_id, 'group', grp, 'since', since)
                    order by grp, since, company_id) as j
   from (
     select company_id,
            min(d) as since,
-           case when bool_or(s ~ '(black[ -]?(week\M|november|month)|black[ -]?måned)') then 'stretch'
-                -- Live: a sale-is-on email, or a discount that is more than a
-                -- teaser (stated end date, or not worded as "coming").
-                when bool_or(stage in ('live', 'last_chance', 'extended')
-                             or (coalesce(discount_percent, 0) > 0
-                                 and (stage <> 'teaser' or offer_ends_on is not null))) then 'live'
-                else 'teasing' end as grp
-    from staged
+           case when bool_or(s ~ '(black[ -]?(november|month)|black[ -]?måned)') then 'month'
+                when bool_or(s ~ '(black[ -]?week\M|cyber[ -]?week\M)') then 'week'
+                else 'day' end as grp
+    from bfe
     group by company_id
   ) b
 ),

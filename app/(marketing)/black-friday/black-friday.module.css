@@ -295,10 +295,11 @@
 
 /* who has started */
 
+/* Groups stack so a crowded one spreads across the width instead of one long column. */
 .board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
 .boardCount {
@@ -815,8 +816,7 @@
     grid-template-columns: repeat(3, 1fr);
   }
   .split,
-  .pairs,
-  .board {
+  .pairs {
     grid-template-columns: 1fr;
   }
   .gallery {

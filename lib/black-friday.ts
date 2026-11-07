@@ -68,7 +68,7 @@ export type BfSnapshot = {
   loudest: (BrandRef & { n: number; total: number })[];
   peak: { d: string; n: number } | null;
   stages?: { wk: string; stage: string; n: number }[];
-  /** Every started brand by what it is doing now: stretch, live or teasing. */
+  /** Every started brand by the longest name it uses: day, week or month. */
   board?: (BrandRef & { group: string; since: string })[];
   subjects: {
     avg_length: number | null;
