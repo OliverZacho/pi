@@ -493,7 +493,7 @@ function LeadChart({ buckets, today }: { buckets: { w: number; n: number }[]; to
         <div key={r.w} className={`${s.hrow} ${r.w < now ? s.ahead : ""} ${r.w === now ? s.now : ""}`}>
           <span className={s.hlabel}>
             {LEAD_LABELS[r.w] ?? `${r.w} weeks before`}
-            {r.w === now && <em className={s.nowTag}>This week</em>}
+            {r.w === now && <span className={s.nowNote}> · now</span>}
           </span>
           <span className={s.htrack}>
             <span style={bar(r.n / max)} />

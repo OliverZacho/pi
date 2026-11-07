@@ -278,7 +278,7 @@
   font-weight: 600;
 }
 
-/* timing: weeks still ahead are dimmed, the current one is tagged */
+/* timing: weeks still ahead are dimmed, the current one is set in bold */
 
 .ahead {
   opacity: 0.35;
@@ -288,16 +288,9 @@
   font-weight: 600;
 }
 
-.nowTag {
-  margin-left: 0.4rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: var(--green-soft);
-  color: var(--green);
-  font-size: 0.72rem;
-  font-style: normal;
-  font-weight: 600;
-  white-space: nowrap;
+.nowNote {
+  font-weight: 400;
+  color: var(--ink-soft);
 }
 
 /* who has started */
@@ -320,29 +313,32 @@
 }
 
 .logos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.55rem 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .logoTile {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.65rem 0.3rem 0.35rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  gap: 0.5rem;
+  min-width: 0;
   color: var(--ink);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 500;
   text-decoration: none;
 }
 
+.logoTile > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .logoTile:hover {
-  border-color: var(--green);
   color: var(--green);
 }
 
@@ -726,8 +722,8 @@
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
   background: var(--ink);
   color: #fff;
   font-size: 0.78rem;
