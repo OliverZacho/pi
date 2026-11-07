@@ -26,6 +26,7 @@ export const SITE_URL = (
 export const PUBLIC_MARKETING_PATHS = [
   "/",
   "/pricing",
+  "/black-friday",
   "/help",
   "/learn",
   "/features/brands",
