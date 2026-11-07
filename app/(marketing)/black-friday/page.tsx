@@ -32,11 +32,11 @@ const MIN_EMAILS_FOR_COMPARISONS = 300;
 export const revalidate = 3600;
 
 export const metadata = pageMetadata({
-  title: "Black Friday Email Tracker 2026 — Pirol",
+  title: "Pirol Black Friday Report 2026: Black Friday email tracker",
   description:
     "Live data on Black Friday 2026 emails: who has started, when campaigns begin, how deep the discounts go, deadlines, subject lines and real examples. Updated every hour.",
   path: "/black-friday",
-  socialTitle: "Black Friday Email Tracker 2026",
+  socialTitle: "The Pirol Black Friday Report 2026",
   socialDescription:
     "How brands run Black Friday email in 2026: timing, discounts, deadlines, subject lines and examples. Updated every hour."
 });
@@ -58,8 +58,8 @@ export default async function BlackFridayPage() {
 function Empty() {
   return (
     <header className={s.hero}>
-      <p className={s.eyebrow}>Black Friday 2026</p>
-      <h1 className={s.title}>Black Friday Email Tracker</h1>
+      <p className={s.eyebrow}>Live edition</p>
+      <h1 className={s.title}>The Pirol Black Friday Report 2026</h1>
       <p className={s.lede}>The first numbers are being counted. Check back within the hour.</p>
     </header>
   );
@@ -70,6 +70,7 @@ function Tracker({ data }: { data: BlackFridayData }) {
   const h = d.headline;
   const day = d.generated_at.slice(0, 10);
   const brand = (id: string) => brands[id];
+  const final = day > WINDOW_END;
 
   return (
     <>
@@ -79,7 +80,7 @@ function Tracker({ data }: { data: BlackFridayData }) {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Dataset",
-            name: "Black Friday Email Tracker 2026",
+            name: "The Pirol Black Friday Report 2026",
             description:
               "Daily counts of Black Friday and Cyber Monday marketing emails, discount depth, deadlines and subject line patterns across brands tracked by Pirol.",
             url: `${SITE_URL}/black-friday`,
@@ -92,12 +93,18 @@ function Tracker({ data }: { data: BlackFridayData }) {
 
       <header className={s.hero}>
         <p className={s.eyebrow}>
-          <span className={s.live} aria-hidden /> {phaseLabel(day)}
+          {final ? (
+            "Final edition"
+          ) : (
+            <>
+              <span className={s.live} aria-hidden /> Live edition · {phaseLabel(day)}
+            </>
+          )}
         </p>
-        <h1 className={s.title}>Black Friday Email Tracker 2026</h1>
+        <h1 className={s.title}>The Pirol Black Friday Report 2026</h1>
         <p className={s.lede}>
-          Every Black Friday email from the brands we follow, counted as it lands.
-          When campaigns start, how deep the discounts go, and which deadlines quietly move.
+          We&apos;re subscribed to the brands and read every Black Friday email as it lands. When campaigns
+          start, how deep the discounts go, and which deadlines quietly move.
         </p>
         <p className={s.meta}>
           Updated {shortDate(day)} at{" "}
@@ -106,7 +113,7 @@ function Tracker({ data }: { data: BlackFridayData }) {
             minute: "2-digit",
             timeZone: "Europe/Copenhagen"
           })}{" "}
-          CET. Refreshed every hour.
+          CET. {final ? "These are the final numbers." : `Refreshed every hour until ${shortDate(WINDOW_END)}.`}
         </p>
       </header>
 
