@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireArchiveAccess } from "@/lib/require-admin-api";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   searchExploreEmails,
   type ExploreSearchParams,
@@ -55,7 +56,11 @@ export async function GET(request: Request) {
   };
 
   try {
-    const result = await searchExploreEmails(session.supabase, search);
+    // Service-role read once the gate above has passed: it checks the same
+    // has_archive_access() the RLS policy does, and under RLS a text search
+    // can't use the search_text trigram index (ilike isn't leakproof), so it
+    // seq-scans every email body and hits the 8s statement timeout.
+    const result = await searchExploreEmails(getSupabaseAdmin(), search);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to search Explore emails", error);
