@@ -34,11 +34,11 @@ export const revalidate = 3600;
 export const metadata = pageMetadata({
   title: "Black Friday Email Tracker 2026 — Pirol",
   description:
-    "Live data on Black Friday 2026 emails from 500 brands: when campaigns start, how deep the discounts go, deadlines, subject lines and real examples. Updated every hour.",
+    "Live data on Black Friday 2026 emails: who has started, when campaigns begin, how deep the discounts go, deadlines, subject lines and real examples. Updated every hour.",
   path: "/black-friday",
   socialTitle: "Black Friday Email Tracker 2026",
   socialDescription:
-    "How 500 brands run Black Friday email in 2026: timing, discounts, deadlines, subject lines and examples. Updated every hour."
+    "How brands run Black Friday email in 2026: timing, discounts, deadlines, subject lines and examples. Updated every hour."
 });
 
 export default async function BlackFridayPage() {
@@ -96,7 +96,7 @@ function Tracker({ data }: { data: BlackFridayData }) {
         </p>
         <h1 className={s.title}>Black Friday Email Tracker 2026</h1>
         <p className={s.lede}>
-          Every Black Friday email from {h.brands_tracked} brands we follow, counted as it lands.
+          Every Black Friday email from the brands we follow, counted as it lands.
           When campaigns start, how deep the discounts go, and which deadlines quietly move.
         </p>
         <p className={s.meta}>
@@ -111,7 +111,11 @@ function Tracker({ data }: { data: BlackFridayData }) {
       </header>
 
       <section className={s.kpis} aria-label="Headline numbers">
-        <Kpi value={`${h.brands_live}`} label="brands running Black Friday" sub={`of ${h.brands_tracked} tracked`} />
+        <Kpi
+          value={`${h.brands_live}`}
+          label="brands running Black Friday"
+          sub={h.new_brands_7d != null ? `+${h.new_brands_7d} started in the last 7 days` : "and counting"}
+        />
         <Kpi value={h.bf_emails.toLocaleString("en-US")} label="Black Friday emails so far" sub={`since ${shortDate(WINDOW_START)}`} />
         <Kpi
           value={h.median_discount == null ? "n/a" : `${Math.round(h.median_discount)}%`}
@@ -132,17 +136,15 @@ function Tracker({ data }: { data: BlackFridayData }) {
         title="When Black Friday emails start"
         lede="How many weeks before Black Friday each brand sent its first Black Friday email."
       >
-        <div className={s.split}>
-          <LeadChart buckets={d.lead.buckets ?? []} />
-          <BrandList
-            heading="First to start"
-            rows={(d.lead.earliest ?? []).map((r) => ({
-              brand: brand(r.brand),
-              value: `${r.days_before} days before`,
-              date: shortDate(r.first_day)
-            }))}
-          />
-        </div>
+        <LeadChart buckets={d.lead.buckets ?? []} today={d.through} />
+      </Section>
+
+      <Section
+        id="who"
+        title="Who has started, and how"
+        lede="Every brand that has sent a Black Friday email, by what it is doing right now."
+      >
+        <Board rows={d.board ?? []} brands={brands} />
       </Section>
 
       <Section
@@ -468,31 +470,88 @@ function RunUp({ data }: { data: BlackFridayData }) {
 }
 
 const LEAD_LABELS: Record<number, string> = {
-  0: "On the day or after",
-  1: "Under 1 week",
-  8: "8 weeks or more"
+  8: "8 weeks or more",
+  1: "Final week",
+  0: "On Black Friday",
+  [-1]: "After Black Friday"
 };
 
-function LeadChart({ buckets }: { buckets: { w: number; n: number }[] }) {
+/** Bucket of a day, matching the SQL: weeks before (1..8), 0 on the day, -1 after. */
+function leadWeek(day: string): number {
+  const days = daysBetween(day, BLACK_FRIDAY);
+  return days < 0 ? -1 : days === 0 ? 0 : Math.min(8, Math.ceil(days / 7));
+}
+
+function LeadChart({ buckets, today }: { buckets: { w: number; n: number }[]; today: string }) {
   const max = Math.max(1, ...buckets.map((b) => b.n));
-  const rows = [8, 7, 6, 5, 4, 3, 2, 1, 0].map((w) => ({ w, n: buckets.find((b) => b.w === w)?.n ?? 0 }));
+  const now = leadWeek(today);
+  const rows = [8, 7, 6, 5, 4, 3, 2, 1, 0, -1].map((w) => ({ w, n: buckets.find((b) => b.w === w)?.n ?? 0 }));
   return (
     <div className={s.hbars}>
       <h3 className={s.h3}>Brands by first Black Friday email</h3>
       {rows.map((r) => (
-        <div key={r.w} className={s.hrow}>
-          <span className={s.hlabel}>{LEAD_LABELS[r.w] ?? `${r.w} weeks before`}</span>
+        <div key={r.w} className={`${s.hrow} ${r.w < now ? s.ahead : ""} ${r.w === now ? s.now : ""}`}>
+          <span className={s.hlabel}>
+            {LEAD_LABELS[r.w] ?? `${r.w} weeks before`}
+            {r.w === now && <em className={s.nowTag}>This week</em>}
+          </span>
           <span className={s.htrack}>
             <span style={bar(r.n / max)} />
           </span>
-          <span className={s.hvalue}>{r.n}</span>
+          <span className={s.hvalue}>{r.w < now ? "" : r.n}</span>
         </div>
       ))}
     </div>
   );
 }
 
-const DISCOUNT_LABELS = ["Under 20%", "20 to 29%", "30 to 39%", "40 to 49%", "50% or more"];
+const BOARD_GROUPS = [
+  { id: "stretch", label: "Running Black Week or Black Month", note: "Stretching the event beyond one day" },
+  { id: "live", label: "Deals already live", note: "A Black Friday sale is on" },
+  { id: "teasing", label: "Teasing", note: "Black Friday is coming, no deal yet" }
+] as const;
+
+/** How many logos each group shows before collapsing the rest into a count. */
+const BOARD_LIMIT = 30;
+
+function Board({
+  rows,
+  brands
+}: {
+  rows: { brand: string; group: string; since: string }[];
+  brands: Record<string, BfBrand>;
+}) {
+  return (
+    <div className={s.board}>
+      {BOARD_GROUPS.map((g) => {
+        const items = rows.filter((r) => r.group === g.id && brands[r.brand]);
+        return (
+          <div key={g.id} className={s.boardCol}>
+            <h3 className={s.h3}>
+              {g.label} <span className={s.boardCount}>{items.length}</span>
+            </h3>
+            <p className={s.boardNote}>{g.note}</p>
+            <ul className={s.logos}>
+              {items.slice(0, BOARD_LIMIT).map((r) => {
+                const b = brands[r.brand];
+                return (
+                  <li key={r.brand}>
+                    <Link href={`/brands/${b.slug}`} className={s.logoTile} title={`${b.name}, since ${shortDate(r.since)}`}>
+                      <Logo b={b} /> <span>{b.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {items.length > BOARD_LIMIT && <p className={s.boardNote}>and {items.length - BOARD_LIMIT} more</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const DISCOUNT_LABELS = ["Under 20%", "20 to 29%", "30 to 39%", "40 to 49%", "50 to 59%", "60 to 69%", "70% or more"];
 
 function DiscountChart({ buckets }: { buckets: { k: number; n: number }[] }) {
   const counts = DISCOUNT_LABELS.map((_, k) => buckets.find((b) => b.k === k)?.n ?? 0);

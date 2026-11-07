@@ -108,7 +108,9 @@ headline as (
                           where offer_is_extension or s ~ '(extended|forlæng|förläng|forleng|verlänger)'),
     'deadline_share', (select avg((offer_ends_on is not null)::int) from bfe),
     'volume_lift', (select round(((select emails from last7) / 7) / nullif((select emails from base) / 31, 0), 2)),
-    'cyber_share', (select avg(cyber::int) from bfe)
+    'cyber_share', (select avg(cyber::int) from bfe),
+    'new_brands_7d', (select count(*) from (select company_id from bfe group by company_id
+                        having min(d) > (select end_day from params) - 7) n)
   ) as j
 ),
 daily as (
@@ -123,22 +125,19 @@ daily as (
 firsts as (
   select company_id, min(d) as first_day from bfe group by company_id
 ),
+-- Weeks before Black Friday of each brand's first Black Friday email:
+-- 1..8 (8 = eight or more), 0 = on the day, -1 = after it.
 lead as (
   select jsonb_build_object(
     'buckets', (
       select jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w)
       from (
-        select least(greatest(ceil((p.bf_day - f.first_day) / 7.0), 0), 8)::int as w, count(*) as n
+        select case when p.bf_day - f.first_day < 0 then -1
+                    when p.bf_day - f.first_day = 0 then 0
+                    else least(ceil((p.bf_day - f.first_day) / 7.0), 8)::int end as w,
+               count(*) as n
         from firsts f, params p group by 1
       ) b
-    ),
-    'earliest', (
-      select jsonb_agg(jsonb_build_object('brand', f.company_id, 'first_day', f.first_day,
-                                          'days_before', p.bf_day - f.first_day)
-                       order by f.first_day, b.name)
-      from (select * from firsts order by first_day limit 10) f
-      join brand b on b.id = f.company_id
-      cross join params p
     )
   ) as j
 ),
@@ -151,7 +150,9 @@ disc as (
                     when discount_percent < 30 then 1
                     when discount_percent < 40 then 2
                     when discount_percent < 50 then 3
-                    else 4 end as k,
+                    when discount_percent < 60 then 4
+                    when discount_percent < 70 then 5
+                    else 6 end as k,
                count(*) as n
         from bfe where discount_percent > 0 group by 1
       ) b
@@ -239,8 +240,8 @@ peak as (
   from (select d, count(*) as n from bfe group by d order by n desc, d limit 1) p
 ),
 -- Campaign stage from the subject + preview wording, first match wins.
-staged as (
-  select d,
+staged as materialized (
+  select company_id, d, s, discount_percent, offer_ends_on,
          case
            when offer_is_extension or s ~ '(extended|forlæng|förläng|forleng|verlänger)' then 'extended'
            when s ~ '(last chance|sidste chance|sista chansen|letzte chance|last day|sidste dag|final hours|final day|ends tonight|ends today|ends at midnight|ending soon|slutter i dag|udløber|sidste timer|hours left|going fast|selling fast|almost gone|remaining)' then 'last_chance'
@@ -251,6 +252,25 @@ staged as (
            else 'other'
          end as stage
   from bfe
+),
+-- Where each started brand stands: stretching the event into a week or
+-- month, deals already live, or still only teasing.
+board as (
+  select jsonb_agg(jsonb_build_object('brand', company_id, 'group', grp, 'since', since)
+                   order by grp, since, company_id) as j
+  from (
+    select company_id,
+           min(d) as since,
+           case when bool_or(s ~ '(black[ -]?(week\M|november|month)|black[ -]?måned)') then 'stretch'
+                -- Live: a sale-is-on email, or a discount that is more than a
+                -- teaser (stated end date, or not worded as "coming").
+                when bool_or(stage in ('live', 'last_chance', 'extended')
+                             or (coalesce(discount_percent, 0) > 0
+                                 and (stage <> 'teaser' or offer_ends_on is not null))) then 'live'
+                else 'teasing' end as grp
+    from staged
+    group by company_id
+  ) b
 ),
 stages as (
   select jsonb_agg(jsonb_build_object('wk', wk, 'stage', stage, 'n', n) order by wk, stage) as j
@@ -308,7 +328,7 @@ gallery as (
 used as (
   select (x ->> 'brand')::uuid as id
   from (
-    select jsonb_array_elements(coalesce((select j -> 'earliest' from lead), '[]')) as x
+    select jsonb_array_elements(coalesce((select j from board), '[]')) as x
     union all select jsonb_array_elements(coalesce((select j -> 'deepest' from disc), '[]'))
     union all select jsonb_array_elements(coalesce((select j from windows), '[]'))
     union all select jsonb_array_elements(coalesce((select j from loudest), '[]'))
@@ -336,6 +356,7 @@ select jsonb_build_object(
   'loudest', coalesce((select j from loudest), '[]'),
   'peak', (select j from peak),
   'stages', coalesce((select j from stages), '[]'),
+  'board', coalesce((select j from board), '[]'),
   'subjects', (select j from subj),
   'design', (select j from design),
   'optouts', coalesce((select j from optouts), '[]'),

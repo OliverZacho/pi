@@ -278,11 +278,79 @@
   font-weight: 600;
 }
 
+/* timing: weeks still ahead are dimmed, the current one is tagged */
+
+.ahead {
+  opacity: 0.35;
+}
+
+.now .hlabel {
+  font-weight: 600;
+}
+
+.nowTag {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* who has started */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.boardCount {
+  margin-left: 0.25rem;
+  color: var(--ink);
+}
+
+.boardNote {
+  margin: -0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.logos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.logoTile {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.logoTile:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
 /* discount columns */
 
 .columns {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 0.6rem;
 }
 
@@ -751,7 +819,8 @@
     grid-template-columns: repeat(3, 1fr);
   }
   .split,
-  .pairs {
+  .pairs,
+  .board {
     grid-template-columns: 1fr;
   }
   .gallery {
@@ -771,6 +840,12 @@
   }
   .tiles {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .columns {
+    gap: 0.3rem;
+  }
+  .colLabel {
+    font-size: 0.68rem;
   }
   .runupBars {
     gap: 1px;

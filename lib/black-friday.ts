@@ -47,11 +47,13 @@ export type BfSnapshot = {
     deadline_share: number | null;
     volume_lift: number | null;
     cyber_share: number | null;
+    /** Brands whose first Black Friday email is from the last 7 days. */
+    new_brands_7d?: number;
   };
   daily: { d: string; bf: number; all: number }[];
   lead: {
+    /** w = weeks before (1..8, 8 = eight or more), 0 = on the day, -1 = after. */
     buckets: { w: number; n: number }[] | null;
-    earliest: (BrandRef & { first_day: string; days_before: number })[] | null;
   };
   discounts: {
     buckets: { k: number; n: number }[] | null;
@@ -66,6 +68,8 @@ export type BfSnapshot = {
   loudest: (BrandRef & { n: number; total: number })[];
   peak: { d: string; n: number } | null;
   stages?: { wk: string; stage: string; n: number }[];
+  /** Every started brand by what it is doing now: stretch, live or teasing. */
+  board?: (BrandRef & { group: string; since: string })[];
   subjects: {
     avg_length: number | null;
     emoji_share: number | null;
