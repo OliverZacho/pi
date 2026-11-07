@@ -7,7 +7,7 @@ export default function BlackFridayTeaser({ headline: h }: { headline: BfHeadlin
   return (
     <section className={styles.strip} aria-label="Black Friday tracker">
       <p className={styles.label}>
-        <span className={styles.dot} aria-hidden /> Black Friday 2026 · {phaseLabel(h.through)}
+        <span className={styles.dot} aria-hidden /> Pirol Black Friday Report 2026 · {phaseLabel(h.through)}
       </p>
       <ul className={styles.stats}>
         <li>
@@ -23,7 +23,7 @@ export default function BlackFridayTeaser({ headline: h }: { headline: BfHeadlin
         )}
       </ul>
       <Link href="/black-friday" className={styles.link}>
-        See the Black Friday tracker
+        Read the report
       </Link>
     </section>
   );
