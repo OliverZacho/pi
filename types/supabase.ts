@@ -74,6 +74,24 @@ export type Database = {
         }
         Relationships: []
       }
+      black_friday_snapshots: {
+        Row: {
+          computed_at: string
+          data: Json
+          day: string
+        }
+        Insert: {
+          computed_at?: string
+          data: Json
+          day: string
+        }
+        Update: {
+          computed_at?: string
+          data?: Json
+          day?: string
+        }
+        Relationships: []
+      }
       brand_auth_status: {
         Row: {
           auth_domain: string | null

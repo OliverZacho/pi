@@ -55,6 +55,7 @@ export default async function SiteFooter() {
           <div className={styles.footerCol}>
             <p className={styles.footerColTitle}>Resources</p>
             <Link href="/learn" className={styles.footerLink}>Learn</Link>
+            <Link href="/black-friday" className={styles.footerLink}>Black Friday tracker</Link>
             <Link href="/help" className={styles.footerLink}>Help</Link>
             <Link href="/pricing" className={styles.footerLink}>Pricing</Link>
           </div>
