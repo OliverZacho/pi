@@ -131,6 +131,11 @@ export default function CollectionDetailClient({
     return seen.size;
   }, [emails]);
 
+  // Smart collections show exact totals (the grid holds only the newest
+  // emails); manual collections count what's on screen.
+  const totalEmails = collection.matchTotals?.emails ?? emails.length;
+  const totalBrands = collection.matchTotals?.brands ?? brandCount;
+
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const isRuleBased = collection.rules !== null;
   const building = collection.matchBuild !== null;
@@ -704,10 +709,16 @@ export default function CollectionDetailClient({
           <span className={styles.detailMeta}>
             {building
               ? "Finding matching emails"
-              : emails.length === 0
+              : totalEmails === 0
               ? "Empty collection"
-              : `${emails.length} ${emails.length === 1 ? "email" : "emails"} across ${brandCount} ${
-                  brandCount === 1 ? "brand" : "brands"
+              : `${totalEmails.toLocaleString("en-US")} ${
+                  totalEmails === 1 ? "email" : "emails"
+                } across ${totalBrands.toLocaleString("en-US")} ${
+                  totalBrands === 1 ? "brand" : "brands"
+                }${
+                  totalEmails > emails.length
+                    ? `. Showing the newest ${emails.length}.`
+                    : ""
                 }`}
           </span>
         </div>

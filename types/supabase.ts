@@ -453,6 +453,7 @@ export type Database = {
           last_opened_at: string
           match_key: string
           ready_at: string | null
+          recheck_through: number
           scanned: number
           started_at: string
           status: string
@@ -466,6 +467,7 @@ export type Database = {
           last_opened_at?: string
           match_key: string
           ready_at?: string | null
+          recheck_through?: number
           scanned?: number
           started_at?: string
           status: string
@@ -479,6 +481,7 @@ export type Database = {
           last_opened_at?: string
           match_key?: string
           ready_at?: string | null
+          recheck_through?: number
           scanned?: number
           started_at?: string
           status?: string
@@ -494,6 +497,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      collection_match_rechecks: {
+        Row: {
+          company_id: string | null
+          email_id: string | null
+          id: number
+          queued_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          email_id?: string | null
+          id?: number
+          queued_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          email_id?: string | null
+          id?: number
+          queued_at?: string
+        }
+        Relationships: []
       }
       collection_matches: {
         Row: {
@@ -1592,6 +1616,7 @@ export type Database = {
           p_collection_id: string
           p_combinator: string
           p_filters: Json
+          p_flag_new?: boolean
           p_limit?: number
           p_match_key: string
         }
@@ -1601,6 +1626,30 @@ export type Database = {
           scanned: number
           status: string
         }[]
+      }
+      collection_match_backlog: {
+        Args: { p_cap?: number; p_collection_id: string }
+        Returns: {
+          emails: number
+          rechecks: number
+        }[]
+      }
+      collection_match_maintenance: { Args: never; Returns: undefined }
+      collection_match_totals: {
+        Args: {
+          p_collection_id: string
+          p_gte?: string
+          p_lt?: string
+          p_lte?: string
+        }
+        Returns: {
+          brands: number
+          emails: number
+        }[]
+      }
+      start_collection_match_catch_up: {
+        Args: { p_collection_id: string; p_match_key: string }
+        Returns: undefined
       }
       collection_match_builds_due: {
         Args: { p_limit?: number }

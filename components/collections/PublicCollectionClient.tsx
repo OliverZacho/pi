@@ -25,6 +25,9 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
   const [openEmail, setOpenEmail] = useState<ExploreEmailCard | null>(null);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  // Smart collections carry exact totals; the page holds only the newest.
+  const publicTotal =
+    collection.matchTotals?.emails ?? collection.emails.length;
 
   const renderUrlFor = useCallback(
     (emailId: string) => `/api/c/${slug}/emails/${emailId}/render?preview=1`,
@@ -93,10 +96,14 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
           <p className={styles.meta}>
             {collection.matchBuild
               ? "Finding matching emails"
-              : collection.emails.length === 0
+              : publicTotal === 0
               ? "No emails in this collection yet."
-              : `${collection.emails.length} ${
-                  collection.emails.length === 1 ? "email" : "emails"
+              : `${publicTotal.toLocaleString("en-US")} ${
+                  publicTotal === 1 ? "email" : "emails"
+                }${
+                  publicTotal > collection.emails.length
+                    ? `. Showing the newest ${collection.emails.length}.`
+                    : ""
                 }`}
           </p>
         </div>

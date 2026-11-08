@@ -8,7 +8,6 @@ import { detectEsp } from "./esp-detect";
 import { extractMetadata, type ParsedLink } from "./extract-metadata";
 import { extractImagePaletteForEmail } from "./extract-image-palette";
 import { classifyPaletteBuckets } from "./color-buckets";
-import { flagCollectionsMatchingEmail } from "./collections-db";
 import { buildImageStats } from "./image-stats";
 import { recomputeCompanyMarket } from "./market-detect";
 import { getResend } from "./resend";
@@ -464,10 +463,8 @@ async function ingestEmailReceivedEvent(
     });
 
     await runMarketRollupStage(stored.id);
-
-    // Last, so the rules see the email's final category and its brand's
-    // freshly rolled-up markets.
-    await runCollectionMatchStage(stored.id);
+    // Smart collections pick the email up from the stored-match worker
+    // (lib/collections-db.ts, "Stored matches"), not per email here.
   }
 
   return stored;
@@ -479,17 +476,6 @@ async function ingestEmailReceivedEvent(
  * ingest, since the per-email country has already been persisted and the brand
  * will be corrected on the next email regardless.
  */
-async function runCollectionMatchStage(emailId: string): Promise<void> {
-  try {
-    await flagCollectionsMatchingEmail(getSupabaseAdmin(), emailId);
-  } catch (error) {
-    console.warn("Collection match stage threw (non-blocking)", {
-      emailId,
-      error: error instanceof Error ? error.message : "unknown collection match error"
-    });
-  }
-}
-
 async function runMarketRollupStage(emailId: string): Promise<void> {
   try {
     const supabaseAdmin = getSupabaseAdmin();
