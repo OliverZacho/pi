@@ -244,7 +244,7 @@ export default function CollectionCard({
             ? "Building"
             : collection.emailCount === 1
             ? "1 email"
-            : `${collection.emailCount} emails`}
+            : `${collection.emailCount.toLocaleString("en-US")} emails`}
         </span>
         {copyError ? (
           <span className={styles.copyError} role="alert">
