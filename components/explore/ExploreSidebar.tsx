@@ -13,6 +13,8 @@ import HelpPane from "@/components/help/HelpPane";
 import BillingGraceCard from "@/components/billing/BillingGraceCard";
 import { trackNavClick } from "@/lib/nav-tracking";
 import SidebarNotices from "./SidebarNotices";
+import CollectionReadyNotice from "@/components/collections/CollectionReadyNotice";
+import { useCollectionBuildWatcher } from "@/components/collections/useCollectionBuildWatcher";
 import styles from "./explore.module.css";
 
 type NavId =
@@ -720,6 +722,11 @@ export default function ExploreSidebar({
     typeof activeId === "string" && activeId.startsWith("collection:")
       ? activeId.slice("collection:".length)
       : null;
+  const buildWatcher = useCollectionBuildWatcher(
+    items,
+    setItems,
+    activeCollectionId
+  );
   const activeCompetitorSetId =
     typeof activeId === "string" && activeId.startsWith("compare:")
       ? activeId.slice("compare:".length)
@@ -982,6 +989,9 @@ export default function ExploreSidebar({
                 ) : null}
               </span>
               <span className={styles.navItemLabel}>{collection.name}</span>
+              {collection.matchBuilding ? (
+                <span className={styles.navBuilding}>Building</span>
+              ) : null}
               {collection.sharedByTeam ? (
                 <span
                   className={styles.navTeamBadge}
@@ -1118,6 +1128,10 @@ export default function ExploreSidebar({
       {pending ? null : (
       <div className={styles.sidebarFooter}>
         <SidebarNotices signedIn={Boolean(user)} />
+        <CollectionReadyNotice
+          ready={buildWatcher.ready}
+          onDismiss={buildWatcher.dismiss}
+        />
 
         {user ? (
           <AccountRow user={user} settingsActive={activeId === "settings"} />

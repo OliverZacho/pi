@@ -91,7 +91,9 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
             {collection.name}
           </h1>
           <p className={styles.meta}>
-            {collection.emails.length === 0
+            {collection.matchBuild
+              ? "Finding matching emails"
+              : collection.emails.length === 0
               ? "No emails in this collection yet."
               : `${collection.emails.length} ${
                   collection.emails.length === 1 ? "email" : "emails"
@@ -105,7 +107,11 @@ export default function PublicCollectionClient({ collection, slug }: Props) {
           </div>
         ) : null}
 
-        {collection.emails.length === 0 ? (
+        {collection.matchBuild ? (
+          <p className={exploreStyles.empty}>
+            This collection is being prepared. Check back in a few minutes.
+          </p>
+        ) : collection.emails.length === 0 ? (
           <p className={exploreStyles.empty}>
             The owner hasn&apos;t added any emails to this collection.
           </p>

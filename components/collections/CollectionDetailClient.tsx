@@ -27,6 +27,8 @@ import EmailModal from "../explore/EmailModal";
 import { emitSavedDelta } from "../explore/SidebarNotices";
 import exploreStyles from "../explore/explore.module.css";
 import CollectionEventInsights from "./CollectionEventInsights";
+import CollectionBuildProgress from "./CollectionBuildProgress";
+import { emitCollectionBuildStarted } from "./useCollectionBuildWatcher";
 import TeamUpgradeButton from "@/components/common/TeamUpgradeButton";
 import InlineRenameForm, {
   PencilIcon,
@@ -131,6 +133,7 @@ export default function CollectionDetailClient({
 
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const isRuleBased = collection.rules !== null;
+  const building = collection.matchBuild !== null;
   const openEmailRef = useRef<ExploreEmailCard | null>(null);
   useEffect(() => {
     openEmailRef.current = openEmail;
@@ -396,9 +399,28 @@ export default function CollectionDetailClient({
       const body = (await res.json()) as { collection: CollectionDetail };
       applyDetailResponse(body.collection);
       setRulesEditorOpen(false);
+      if (body.collection.matchBuild) {
+        emitCollectionBuildStarted(body.collection.id);
+      }
     },
     [applyDetailResponse, collection.id]
   );
+
+  // The build finished while this page was open: load the matches.
+  const handleBuildReady = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/collections/${collection.id}`, {
+        credentials: "include",
+        cache: "no-store"
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const body = (await res.json()) as { collection: CollectionDetail };
+      applyDetailResponse(body.collection);
+    } catch {
+      // Fall back to a full server render, which reads the same state.
+      router.refresh();
+    }
+  }, [applyDetailResponse, collection.id, router]);
 
   async function handleClearRules() {
     const confirmed = window.confirm(
@@ -680,7 +702,9 @@ export default function CollectionDetailClient({
             )}
           </div>
           <span className={styles.detailMeta}>
-            {emails.length === 0
+            {building
+              ? "Finding matching emails"
+              : emails.length === 0
               ? "Empty collection"
               : `${emails.length} ${emails.length === 1 ? "email" : "emails"} across ${brandCount} ${
                   brandCount === 1 ? "brand" : "brands"
@@ -884,7 +908,17 @@ export default function CollectionDetailClient({
         />
       ) : null}
 
-      {!rulesEditorOpen && emails.length > 0 ? (
+      {!rulesEditorOpen && collection.matchBuild ? (
+        <CollectionBuildProgress
+          // A rebuild (rules saved again) starts a fresh progress panel.
+          key={collection.matchBuild.startedAt}
+          collectionId={collection.id}
+          initialBuild={collection.matchBuild}
+          onReady={handleBuildReady}
+        />
+      ) : null}
+
+      {!rulesEditorOpen && !building && emails.length > 0 ? (
         <CollectionEventInsights
           collectionId={collection.id}
           initialDetection={collection.eventDetection}
@@ -897,7 +931,7 @@ export default function CollectionDetailClient({
         />
       ) : null}
 
-      {!rulesEditorOpen && emails.length === 0 ? (
+      {!rulesEditorOpen && !building && emails.length === 0 ? (
         isRuleBased ? (
           <p className={exploreStyles.empty}>
             No emails match these rules yet. New incoming emails will be
@@ -924,7 +958,7 @@ export default function CollectionDetailClient({
         )
       ) : null}
 
-      {!rulesEditorOpen && emails.length > 0 ? (
+      {!rulesEditorOpen && !building && emails.length > 0 ? (
         <div className={exploreStyles.grid}>
           {emails.map((email, index) => (
             <EmailCard

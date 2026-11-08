@@ -12,6 +12,7 @@ import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { collapseDuplicateRows } from "./dedup";
 import { buildSearchMatcher, matcherValue, type SearchMatcher } from "./search-term";
 import { fetchAllRows } from "./supabase-paging";
+import { after } from "next/server";
 import { getSupabaseAdmin } from "./supabase-admin";
 import type { Database, Json } from "@/types/supabase";
 import type { ExploreEmailCard } from "./explore-db";
@@ -606,6 +607,8 @@ export type CollectionCardData = {
   previewEmailIds: string[];
   createdAt: string;
   updatedAt: string;
+  /** Smart collection whose stored matches are still being built. */
+  matchBuilding?: boolean;
 };
 
 /**
@@ -633,6 +636,8 @@ export type CollectionSummary = {
   sharedByTeam?: boolean;
   /** Display name of the teammate who owns the shared row, if resolved. */
   teamOwnerName?: string | null;
+  /** Smart collection whose stored matches are still being built. */
+  matchBuilding?: boolean;
 };
 
 export type CollectionDetail = {
@@ -661,6 +666,12 @@ export type CollectionDetail = {
    * qualified for (or completed) a detection run.
    */
   eventDetection: CollectionEventDetection | null;
+  /**
+   * Non-null while a smart collection's stored matches are being built
+   * (first time, after a rule change, or after falling far behind).
+   * `emails` is empty until the build finishes.
+   */
+  matchBuild: CollectionMatchBuild | null;
 };
 
 /**
@@ -720,26 +731,36 @@ export async function listCollectionsWithPreviews(
     }
   }
 
-  // Rule-based collections don't keep an explicit `collection_emails`
-  // row per match, so the membership join above would always report
-  // zero for them. Run the evaluator instead — same source of truth as
-  // the detail page. The fan-out is fine in practice because a single
-  // user only has a handful of rule-based collections, but a future
-  // optimisation could batch them into a single materialised view.
-  await Promise.all(
-    ruleRows.map(async ({ row, rules }) => {
-      try {
-        const ids = await evaluateCollectionRuleIds(supabase, rules);
-        counts.set(row.id, ids.length);
-        previews.set(row.id, ids.slice(0, PREVIEW_EMAIL_COUNT));
-      } catch (err) {
-        console.warn("Failed to evaluate rule-based collection for preview", {
-          collectionId: row.id,
-          err
-        });
-      }
-    })
-  );
+  // Rule-based collections read their stored matches (same source of
+  // truth as the detail page). No catch-up here: the grid shows what was
+  // matched as of the last view or worker pass, and opening a collection
+  // brings it current. A collection with no build yet gets one started.
+  const building = new Set<string>();
+  if (ruleRows.length > 0) {
+    const admin = getSupabaseAdmin();
+    await Promise.all(
+      ruleRows.map(async ({ row, rules }) => {
+        if (rules.conditions.length === 0) return;
+        try {
+          const build = await ensureCollectionMatches(admin, row.id, rules, {
+            catchUp: false
+          });
+          if (build) {
+            building.add(row.id);
+            return;
+          }
+          const ids = await loadMatchedEmailIds(admin, row.id, rules);
+          counts.set(row.id, ids.length);
+          previews.set(row.id, ids.slice(0, PREVIEW_EMAIL_COUNT));
+        } catch (err) {
+          console.warn("Failed to load rule-based collection for preview", {
+            collectionId: row.id,
+            err
+          });
+        }
+      })
+    );
+  }
 
   return rows.map((row) => ({
     id: row.id,
@@ -749,7 +770,8 @@ export async function listCollectionsWithPreviews(
     emailCount: counts.get(row.id) ?? 0,
     previewEmailIds: previews.get(row.id) ?? [],
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    ...(building.has(row.id) ? { matchBuilding: true } : {})
   }));
 }
 
@@ -764,7 +786,9 @@ export async function listCollectionSummaries(
 ): Promise<CollectionSummary[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, name, icon, share_slug, has_new_matches")
+    .select(
+      "id, name, icon, share_slug, has_new_matches, collection_match_builds(status)"
+    )
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
@@ -774,7 +798,10 @@ export async function listCollectionSummaries(
     name: row.name,
     icon: readIcon(row.icon),
     shareSlug: row.share_slug,
-    ...(row.has_new_matches ? { hasNewEmails: true } : {})
+    ...(row.has_new_matches ? { hasNewEmails: true } : {}),
+    ...(embeddedBuildStatus(row.collection_match_builds) === "building"
+      ? { matchBuilding: true }
+      : {})
   }));
 }
 
@@ -849,16 +876,27 @@ async function buildCollectionDetail(
   data: CollectionDetailRow
 ): Promise<CollectionDetail> {
   const rules = safeParseStoredRules(data.rules);
-  // Rules run on the service-role client. Under RLS Postgres can't use the
-  // search_text trigram index (ilike isn't leakproof, so the policy check
-  // must run first), so a search rule seq-scans every email body: 27s for
-  // "Black Friday" at 19.5k emails, past the 8s authenticated timeout. Safe
-  // because every caller has already read `data` through the viewer's own
-  // access (owner filter or RLS), and archive rows are readable by every
-  // signed-in user anyway (free tier sees the whole catalogue).
-  const emails = rules
-    ? await evaluateCollectionRules(getSupabaseAdmin(), rules)
-    : await loadCollectionEmails(supabase, data.id);
+  // Smart collections read their stored matches (see "Stored matches"
+  // below) on the service-role client. Safe because every caller has
+  // already read `data` through the viewer's own access (owner filter or
+  // RLS), and archive rows are readable by every signed-in user anyway
+  // (free tier sees the whole catalogue).
+  let emails: ExploreEmailCard[] = [];
+  let matchBuild: CollectionMatchBuild | null = null;
+  if (!rules) {
+    emails = await loadCollectionEmails(supabase, data.id);
+  } else if (rules.conditions.length > 0) {
+    const admin = getSupabaseAdmin();
+    // Before ensuring, so a dormant collection's catch-up counts as
+    // active and the cron worker carries it on past this request.
+    await markCollectionMatchesOpened(admin, data.id);
+    matchBuild = await ensureCollectionMatches(admin, data.id, rules, {
+      catchUp: true
+    });
+    if (!matchBuild) {
+      emails = await loadMatchedEmails(admin, data.id, rules);
+    }
+  }
 
   return {
     id: data.id,
@@ -873,7 +911,8 @@ async function buildCollectionDetail(
     updatedAt: data.updated_at,
     emails,
     rules,
-    eventDetection: safeParseEventDetection(data.event_detection)
+    eventDetection: safeParseEventDetection(data.event_detection),
+    matchBuild
   };
 }
 
@@ -1348,6 +1387,12 @@ export async function setCollectionRules(
     .maybeSingle();
 
   if (error) throw error;
+  // New conditions are picked up by the next read (ensureCollectionMatches
+  // sees the key change and rebuilds). Removing the rules leaves nothing to
+  // rebuild against, so clear the stored matches here.
+  if (data && (rules === null || rules.conditions.length === 0)) {
+    await clearCollectionMatches(getSupabaseAdmin(), collectionId);
+  }
   return Boolean(data);
 }
 
@@ -1433,131 +1478,532 @@ export async function listCollectionMembership(
   return (data ?? []).map((row) => row.collection_id);
 }
 
-// ---------- Rule evaluation ----------
+// ---------- Stored matches (smart collections) ----------
+//
+// A smart collection's matches live in `collection_matches`, built by
+// walking the archive in ingest order, CHUNK emails per database call
+// (`advance_collection_matches`). Each call is bounded work however big the
+// archive gets, so a build never hits a statement timeout; it just takes
+// longer, and the page shows progress plus an estimate meanwhile. The same
+// cursor then keeps moving over newly ingested emails, so opening a
+// collection only checks emails it hasn't seen before.
+//
+// Who moves the cursor:
+//  - a page view catches up a ready collection inline (usually zero or a
+//    handful of new emails, one call);
+//  - builds run in the background: kicked off with `after()` by the request
+//    that started them, and continued by the pg_cron driven worker route
+//    (`/api/admin/internal/build-collection-matches`) every 30 seconds, so
+//    nobody has to keep the page open.
+//
+// Dormancy: a collection nobody has opened in COLLECTION_DORMANT_AFTER_DAYS
+// gets no background work at all (no build, no new-email dot checks), unless
+// it sends new-match alert emails. Its next open catches it up, with the
+// progress panel if that takes more than a moment.
+//
+// The stored matches cover the rule's CONDITIONS only. Scope (past/future
+// cutoff) and the time window are applied on read against the stored
+// received_at, so a rolling window stays right as time passes and editing
+// only the window or scope doesn't trigger a rebuild.
+
+/** Emails checked per database call. Roughly 0.2 to 1s of DB work. */
+const MATCH_CHUNK = 1000;
+
+/** How long a page view spends catching a ready collection up inline. */
+const CATCH_UP_BUDGET_MS = 2_500;
+
+/** A building collection with no progress this long gets a fresh kick. */
+const STALLED_BUILD_MS = 20_000;
+
+/** Background budget for a build kicked off from a request via `after()`. */
+const AFTER_BUILD_BUDGET_MS = 40_000;
 
 /**
- * Run the saved rule against `captured_emails` and return matching
- * `ExploreEmailCard`s, signed logos and all. Mirrors the embedding
- * shape `loadCollectionEmails` uses so the UI doesn't have to care
- * whether a collection is manual or rule-based.
- *
- * Compilation strategy:
- *  - Every condition is turned into a `Filter` (or a small set of
- *    them, for the brand-name search that has to OR across columns).
- *  - For `AND` we chain `.in()` / `.eq()` / `.gte()` etc. one filter
- *    at a time. The brand-name search collapses to a single `.or()`
- *    for that condition only.
- *  - For `OR` every filter is appended to a single `.or()` string so
- *    PostgREST evaluates them as one disjunction.
- *
- * Brand IDs from text search and market filters are resolved up-front
- * so the `captured_emails` query never has to reach into `companies`.
+ * Unopened this long, a collection goes dormant (see above). Keep in sync
+ * with collection_match_dormant_before() in the match cache migration.
  */
-export async function evaluateCollectionRules(
-  client: SupabaseClient<Database>,
+const COLLECTION_DORMANT_AFTER_DAYS = 30;
+
+/** Opens closer together than this don't rewrite last_opened_at. */
+const OPENED_STAMP_INTERVAL_MS = 60 * 60 * 1000;
+
+export type CollectionMatchBuild = {
+  status: "building";
+  /**
+   * "build": first build, or a rebuild after the conditions changed.
+   * "catchUp": a built collection checking the emails that arrived while
+   * nobody had it open.
+   */
+  kind: "build" | "catchUp";
+  /** Emails checked so far in this build. */
+  scanned: number;
+  /** Emails this build has to check in total (an estimate at scale). */
+  total: number;
+  startedAt: string;
+  /** Server clock when this snapshot was taken, for skew-free estimates. */
+  serverNow: string;
+};
+
+type MatchBuildRow = {
+  match_key: string;
+  status: string;
+  scanned: number;
+  total: number;
+  started_at: string;
+  updated_at: string;
+  ready_at: string | null;
+};
+
+type AdvanceResult = "ready" | "building" | "busy" | "stale" | "missing";
+
+/**
+ * Identity of what the stored matches were built for: the combinator and
+ * the conditions, minus their client-side ids. Scope and time window are
+ * deliberately left out (applied on read).
+ */
+function ruleMatchKey(rules: CollectionRules): string {
+  return JSON.stringify({
+    combinator: rules.combinator,
+    conditions: rules.conditions.map((condition) => {
+      const { id, ...rest } = condition;
+      void id;
+      return rest;
+    })
+  });
+}
+
+/** Compiled filters as the JSON `advance_collection_matches` evaluates. */
+function serializeFilters(filters: CompiledFilter[]): Json {
+  return filters.map((filter) =>
+    filter.type === "search"
+      ? {
+          type: "search",
+          pattern: filter.matcher.pattern,
+          brandIds: filter.brandIds.filter((id) => UUID_PATTERN.test(id))
+        }
+      : filter
+  ) as unknown as Json;
+}
+
+function buildSnapshot(row: MatchBuildRow): CollectionMatchBuild {
+  return {
+    status: "building",
+    // A row that has been ready before and is building again without a
+    // reset (reset clears ready_at) fell behind: a catch-up.
+    kind: row.ready_at ? "catchUp" : "build",
+    scanned: row.scanned,
+    total: Math.max(row.total, row.scanned),
+    startedAt: row.started_at,
+    serverNow: new Date().toISOString()
+  };
+}
+
+async function readMatchBuild(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<MatchBuildRow | null> {
+  const { data, error } = await admin
+    .from("collection_match_builds")
+    .select("match_key, status, scanned, total, started_at, updated_at, ready_at")
+    .eq("collection_id", collectionId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function resetCollectionMatches(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
+  matchKey: string | null
+): Promise<void> {
+  const { error } = await admin.rpc("reset_collection_matches", {
+    p_collection_id: collectionId,
+    p_match_key: matchKey
+  });
+  if (error) throw error;
+}
+
+/**
+ * Record that someone opened the collection, which keeps it out of
+ * dormancy. At most one write an hour; a no-op before the first build
+ * exists (a new build row starts as just opened).
+ */
+async function markCollectionMatchesOpened(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<void> {
+  const now = Date.now();
+  const { error } = await admin
+    .from("collection_match_builds")
+    .update({ last_opened_at: new Date(now).toISOString() })
+    .eq("collection_id", collectionId)
+    .lt("last_opened_at", new Date(now - OPENED_STAMP_INTERVAL_MS).toISOString());
+  if (error) throw error;
+}
+
+/** Start of the dormancy window: unopened since before this is dormant. */
+function dormantBefore(): string {
+  return new Date(
+    Date.now() - COLLECTION_DORMANT_AFTER_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+}
+
+/** Drop a collection's stored matches and build (rules removed). */
+export async function clearCollectionMatches(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<void> {
+  await resetCollectionMatches(admin, collectionId, null);
+}
+
+/**
+ * Move one collection's cursor forward until it's caught up, the deadline
+ * passes, or another worker holds it. Rules are compiled once per call
+ * (brand-name and market lookups), then each chunk is one RPC.
+ */
+async function advanceCollectionMatches(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
+  rules: CollectionRules,
+  deadline: number
+): Promise<AdvanceResult> {
+  const compiled = await compileRules(admin, rules);
+  const filters = compiled === "no_match" ? [] : serializeFilters(compiled.filters);
+  const combinator = compiled === "no_match" ? "AND" : compiled.combinator;
+  const matchKey = ruleMatchKey(rules);
+
+  for (;;) {
+    const { data, error } = await admin.rpc("advance_collection_matches", {
+      p_collection_id: collectionId,
+      p_match_key: matchKey,
+      p_combinator: combinator,
+      p_filters: filters,
+      p_limit: MATCH_CHUNK
+    });
+    if (error) throw error;
+    const row = data?.[0];
+    if (!row) throw new Error("advance_collection_matches returned no row");
+    if (row.outcome !== "ok") return row.outcome as AdvanceResult;
+    if (row.status === "ready") return "ready";
+    if (Date.now() >= deadline) return "building";
+  }
+}
+
+/**
+ * Hand a build to the background: `after()` keeps the serverless function
+ * alive past the response. Outside a request (scripts) `after` throws, and
+ * the cron worker picks the build up within 30 seconds instead.
+ */
+function scheduleMatchBuild(collectionId: string): void {
+  try {
+    after(async () => {
+      try {
+        await runCollectionMatchWorker({
+          collectionIds: [collectionId],
+          budgetMs: AFTER_BUILD_BUDGET_MS
+        });
+      } catch (err) {
+        console.error("Background collection match build failed", {
+          collectionId,
+          err
+        });
+      }
+    });
+  } catch {
+    // Not in a request scope; the cron worker will continue it.
+  }
+}
+
+/**
+ * Make sure a smart collection's stored matches exist and fit its current
+ * rules. Returns null when they're ready to read, or the build progress
+ * while a build is running (the caller shows progress, not emails).
+ *
+ * `catchUp` also checks emails ingested since the last pass (the detail
+ * page wants that; the grid doesn't need to pay for it).
+ */
+export async function ensureCollectionMatches(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
+  rules: CollectionRules,
+  options: { catchUp: boolean }
+): Promise<CollectionMatchBuild | null> {
+  const matchKey = ruleMatchKey(rules);
+  let build = await readMatchBuild(admin, collectionId);
+
+  if (!build || build.match_key !== matchKey) {
+    await resetCollectionMatches(admin, collectionId, matchKey);
+    scheduleMatchBuild(collectionId);
+    build = await readMatchBuild(admin, collectionId);
+    if (!build) throw new Error("Collection match build missing after reset");
+    return buildSnapshot(build);
+  }
+
+  if (build.status === "building") {
+    if (Date.now() - new Date(build.updated_at).getTime() > STALLED_BUILD_MS) {
+      scheduleMatchBuild(collectionId);
+    }
+    return buildSnapshot(build);
+  }
+
+  if (!options.catchUp) return null;
+
+  const outcome = await advanceCollectionMatches(
+    admin,
+    collectionId,
+    rules,
+    Date.now() + CATCH_UP_BUDGET_MS
+  );
+  if (outcome === "stale" || outcome === "missing") {
+    // Rules changed between our read and the advance; start over with
+    // the rules we were given (the caller just read them).
+    await resetCollectionMatches(admin, collectionId, matchKey);
+    scheduleMatchBuild(collectionId);
+  } else if (outcome !== "building") {
+    // ready, or busy (a worker is mid-chunk; what's stored is current
+    // up to that chunk, which is fine to show).
+    return null;
+  } else {
+    // Far behind (thousands of new emails since the last view): finish
+    // in the background like a build.
+    scheduleMatchBuild(collectionId);
+  }
+  build = await readMatchBuild(admin, collectionId);
+  return build && build.status === "building" ? buildSnapshot(build) : null;
+}
+
+/** Scope + time window, applied on read against the stored received_at. */
+function ruleReceivedBounds(rules: CollectionRules): { gte?: string; lt?: string; lte?: string } {
+  const bounds: { gte?: string; lt?: string; lte?: string } = {};
+  if (rules.scope === "future" && rules.appliedAt) {
+    bounds.gte = rules.appliedAt;
+  } else if (rules.scope === "past" && rules.appliedAt) {
+    bounds.lt = rules.appliedAt;
+  }
+  const window = timeWindowBounds(rules.timeWindow);
+  if (window.gte && (!bounds.gte || window.gte > bounds.gte)) bounds.gte = window.gte;
+  if (window.lte) bounds.lte = window.lte;
+  return bounds;
+}
+
+/**
+ * Newest stored matches as cards (same cap and duplicate collapsing the
+ * live evaluator had). Embeds through the collection_matches → emails FK,
+ * the same shape `loadCollectionEmails` reads from collection_emails.
+ */
+async function loadMatchedEmails(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
   rules: CollectionRules
 ): Promise<ExploreEmailCard[]> {
-  const compiled = await compileRules(client, rules);
-  if (compiled === "no_match") {
-    return [];
-  }
-
-  let query = client
-    .from("captured_emails")
+  const bounds = ruleReceivedBounds(rules);
+  let query = admin
+    .from("collection_matches")
     .select(
-      `id, subject, preheader, received_at, category, has_gif, has_dark_mode,
-       discount_percent, promo_code, company_id, duplicate_of,
-       companies(id, slug, name, domain, markets, logo_storage_path, logo_source)`
+      `received_at,
+       captured_emails!inner(
+         id, subject, preheader, received_at, category, has_gif, has_dark_mode,
+         discount_percent, promo_code, company_id, duplicate_of,
+         companies(id, slug, name, domain, markets, logo_storage_path, logo_source)
+       )`
     )
+    .eq("collection_id", collectionId);
+  if (bounds.gte) query = query.gte("received_at", bounds.gte);
+  if (bounds.lt) query = query.lt("received_at", bounds.lt);
+  if (bounds.lte) query = query.lte("received_at", bounds.lte);
+
+  const { data, error } = await query
     .order("received_at", { ascending: false })
     .limit(RULE_EVAL_LIMIT);
+  if (error) throw error;
+  return embeddedRowsToCards(data ?? []);
+}
 
-  // The scope (past / future) is an outer filter — semantically it's
-  // ALWAYS AND'd with the rest of the rule, even when the per-
-  // condition combinator is OR. PostgREST chains additional `.gte()` /
-  // `.lt()` calls with implicit AND, so we can just tack them on
-  // before the combinator clause runs.
-  if (rules.scope === "future" && rules.appliedAt) {
-    query = query.gte("received_at", rules.appliedAt);
-  } else if (rules.scope === "past" && rules.appliedAt) {
-    query = query.lt("received_at", rules.appliedAt);
+/** Newest stored match ids, for the grid's count + preview mosaic. */
+async function loadMatchedEmailIds(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
+  rules: CollectionRules
+): Promise<string[]> {
+  const bounds = ruleReceivedBounds(rules);
+  let query = admin
+    .from("collection_matches")
+    .select("email_id")
+    .eq("collection_id", collectionId);
+  if (bounds.gte) query = query.gte("received_at", bounds.gte);
+  if (bounds.lt) query = query.lt("received_at", bounds.lt);
+  if (bounds.lte) query = query.lte("received_at", bounds.lte);
+
+  const { data, error } = await query
+    .order("received_at", { ascending: false })
+    .limit(RULE_EVAL_LIMIT);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.email_id);
+}
+
+/**
+ * Ids of stored matches ingested after `createdAfter`, newest first, for
+ * the new-match alert emails. Catches the collection up first. Returns
+ * null while the collection is still building, so the caller can fall
+ * back to evaluating the rule directly.
+ */
+export async function matchedEmailIdsCreatedAfter(
+  admin: SupabaseClient<Database>,
+  collectionId: string,
+  rules: CollectionRules,
+  createdAfter: string,
+  limit: number
+): Promise<string[] | null> {
+  const build = await ensureCollectionMatches(admin, collectionId, rules, {
+    catchUp: true
+  });
+  if (build) return null;
+
+  const bounds = ruleReceivedBounds(rules);
+  let query = admin
+    .from("collection_matches")
+    .select("email_id")
+    .eq("collection_id", collectionId)
+    .gt("email_created_at", createdAfter);
+  if (bounds.gte) query = query.gte("received_at", bounds.gte);
+  if (bounds.lt) query = query.lt("received_at", bounds.lt);
+  if (bounds.lte) query = query.lte("received_at", bounds.lte);
+
+  const { data, error } = await query
+    .order("received_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.email_id);
+}
+
+/**
+ * Build progress for one collection, or null when it has no running
+ * build. Nudges a stalled build back into motion, so watching the page
+ * keeps it going even if the cron worker is late.
+ */
+export async function getCollectionMatchBuild(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<CollectionMatchBuild | null> {
+  const build = await readMatchBuild(admin, collectionId);
+  if (!build || build.status !== "building") return null;
+  if (Date.now() - new Date(build.updated_at).getTime() > STALLED_BUILD_MS) {
+    scheduleMatchBuild(collectionId);
+  }
+  return buildSnapshot(build);
+}
+
+/**
+ * The background worker: starts builds for smart collections that have
+ * none yet, then advances running builds round robin until the budget is
+ * spent. Safe to run concurrently (each chunk locks its build row with
+ * SKIP LOCKED, so two workers never process the same collection at once).
+ */
+export async function runCollectionMatchWorker(options: {
+  budgetMs: number;
+  /** Limit the pass to these collections (a build kicked by a request). */
+  collectionIds?: string[];
+}): Promise<{ started: number; advanced: number; finished: number }> {
+  const admin = getSupabaseAdmin();
+  const deadline = Date.now() + options.budgetMs;
+  const summary = { started: 0, advanced: 0, finished: 0 };
+
+  if (!options.collectionIds) {
+    const { data: missing, error } = await admin.rpc(
+      "collections_missing_match_build",
+      { p_limit: 20 }
+    );
+    if (error) throw error;
+    for (const row of missing ?? []) {
+      const rules = safeParseStoredRules(row.rules);
+      if (!rules || rules.conditions.length === 0) continue;
+      await resetCollectionMatches(admin, row.id, ruleMatchKey(rules));
+      summary.started += 1;
+    }
   }
 
-  // The optional time window is likewise an outer AND on `received_at`.
-  const window = timeWindowBounds(rules.timeWindow);
-  if (window.gte) query = query.gte("received_at", window.gte);
-  if (window.lte) query = query.lte("received_at", window.lte);
+  // Without explicit ids: running builds of collections that aren't
+  // dormant. A request names its collection explicitly, so a dormant one
+  // that's just been opened still gets its after() pass.
+  let targetIds = options.collectionIds;
+  if (!targetIds) {
+    const { data, error } = await admin.rpc("collection_match_builds_due", {
+      p_limit: 50
+    });
+    if (error) throw error;
+    targetIds = (data ?? []).map((row) => row.collection_id);
+  }
+  if (targetIds.length === 0) return summary;
 
-  if (compiled.combinator === "AND") {
-    for (const filter of compiled.filters) {
-      switch (filter.type) {
-        case "category_in":
-          query =
-            filter.values.length === 0
-              ? query.eq("id", IMPOSSIBLE_ID)
-              : query.in("category", filter.values);
-          break;
-        case "country_in":
-          query =
-            filter.values.length === 0
-              ? query.eq("id", IMPOSSIBLE_ID)
-              : query.in("detected_country", filter.values);
-          break;
-        case "in_company":
-          query =
-            filter.ids.length === 0
-              ? query.eq("id", IMPOSSIBLE_ID)
-              : query.in("company_id", filter.ids);
-          break;
-        case "discount":
-          query =
-            filter.op === "gte"
-              ? query.gte("discount_percent", filter.value)
-              : filter.op === "lte"
-                ? query.lte("discount_percent", filter.value)
-                : query.eq("discount_percent", filter.value);
-          break;
-        case "search":
-          query = query.or(buildSearchOrClause(filter.matcher, filter.brandIds));
-          break;
+  const { data: rows, error: rowsError } = await admin
+    .from("collections")
+    .select("id, rules")
+    .in("id", targetIds);
+  if (rowsError) throw rowsError;
+
+  let active = (rows ?? []).flatMap((row) => {
+    const rules = safeParseStoredRules(row.rules);
+    return rules && rules.conditions.length > 0 ? [{ id: row.id, rules }] : [];
+  });
+
+  // Round robin in short slices so one huge build can't starve the rest.
+  while (active.length > 0 && Date.now() < deadline) {
+    const next: typeof active = [];
+    for (const target of active) {
+      if (Date.now() >= deadline) {
+        next.push(target);
+        continue;
+      }
+      try {
+        const outcome = await advanceCollectionMatches(
+          admin,
+          target.id,
+          target.rules,
+          Math.min(deadline, Date.now() + 5_000)
+        );
+        summary.advanced += 1;
+        if (outcome === "building") {
+          next.push(target);
+        } else if (outcome === "ready") {
+          summary.finished += 1;
+        } else if (outcome === "stale" || outcome === "missing") {
+          // Rules changed after this pass loaded them: re-read and
+          // restart against what's saved now.
+          const { data: fresh } = await admin
+            .from("collections")
+            .select("rules")
+            .eq("id", target.id)
+            .maybeSingle();
+          const rules = safeParseStoredRules(fresh?.rules);
+          await resetCollectionMatches(
+            admin,
+            target.id,
+            rules && rules.conditions.length > 0 ? ruleMatchKey(rules) : null
+          );
+          if (rules && rules.conditions.length > 0) {
+            next.push({ id: target.id, rules });
+          }
+        }
+        // busy: another worker has it this round.
+      } catch (err) {
+        console.error("Collection match build step failed", {
+          collectionId: target.id,
+          err
+        });
       }
     }
-  } else {
-    const parts = orParts(compiled.filters);
-    query =
-      parts.length === 0
-        ? query.eq("id", IMPOSSIBLE_ID)
-        : query.or(parts.join(","));
+    active = next;
   }
+  return summary;
+}
 
-  const { data, error } = await query;
-  if (error) throw error;
-
-  // Collapse list-copies of multi-segment sends so a rule that matches a
-  // campaign yields one card, not one per inbox segment — same intent as
-  // Explore's `duplicate_of IS NULL` filter. Rule rows are the email rows
-  // themselves, so the group key reads straight off the row.
-  const rows = collapseDuplicateRows(data ?? [], (row) => row);
-  const logoPaths = new Set<string>();
-  for (const row of rows) {
-    const company = pickCompany(row.companies);
-    if (company?.logo_storage_path) {
-      logoPaths.add(company.logo_storage_path);
-    }
-  }
-  const signed =
-    logoPaths.size > 0
-      ? await getSignedAssets(Array.from(logoPaths), {
-          transform: BRAND_LOGO_TRANSFORM
-        })
-      : {};
-
-  const cards: ExploreEmailCard[] = [];
-  for (const row of rows) {
-    const card = ruleRowToCard(row, signed);
-    if (card) cards.push(card);
-  }
-  return cards;
+/** One-to-one embeds come back as an object (or, defensively, an array). */
+function embeddedBuildStatus(
+  value: { status: string } | { status: string }[] | null | undefined
+): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0]?.status ?? null;
+  return value.status;
 }
 
 /** Rule checks run concurrently per ingested email, in batches this big. */
@@ -1565,8 +2011,9 @@ const MATCH_FLAG_CONCURRENCY = 8;
 
 /**
  * Ingest hook behind the sidebar "new emails" dot. Tests one freshly stored
- * email against every rule-based collection that isn't already flagged and
- * flags the ones it matches. Each test is pinned to the email's id, so it
+ * email against every rule-based collection that isn't already flagged or
+ * dormant (owner hasn't opened it in COLLECTION_DORMANT_AFTER_DAYS, and no
+ * alert emails) and flags the ones it matches. Each test is pinned to the email's id, so it
  * costs a primary-key lookup however broad the rule, and page renders only
  * read the flag. Returns how many collections it flagged.
  */
@@ -1574,12 +2021,16 @@ export async function flagCollectionsMatchingEmail(
   admin: SupabaseClient<Database>,
   emailId: string
 ): Promise<number> {
+  const cutoff = dormantBefore();
   const rows = await fetchAllRows((from, to) =>
     admin
       .from("collections")
       .select("id, rules")
       .not("rules", "is", null)
       .eq("has_new_matches", false)
+      .or(
+        `notify_new_matches.eq.true,last_viewed_at.gte.${cutoff},created_at.gte.${cutoff}`
+      )
       .order("id")
       .range(from, to)
   );
@@ -1899,50 +2350,6 @@ async function lookupCompanyIdsByName(
   return (data ?? []).map((row) => row.id);
 }
 
-function ruleRowToCard(
-  row: {
-    id: string;
-    subject: string;
-    preheader: string | null;
-    received_at: string;
-    category: string;
-    has_gif: boolean | null;
-    has_dark_mode: boolean | null;
-    discount_percent: number | null;
-    promo_code: string | null;
-    company_id: string | null;
-    companies: CompaniesField;
-  },
-  signed: Record<string, string>
-): ExploreEmailCard | null {
-  const company = pickCompany(row.companies);
-  const logoPath = company?.logo_storage_path ?? null;
-  return {
-    id: row.id,
-    subject: row.subject,
-    preheader: cleanPreheaderText(row.preheader),
-    companyId: company?.id ?? null,
-    companySlug: company?.slug ?? null,
-    companyName: company?.name ?? "Unknown",
-    companyDomain: company?.domain ?? null,
-    companyMarkets: pickCompanyMarkets(company),
-    companyLogoUrl: resolveBrandLogo(
-      logoPath ? signed[logoPath] ?? null : null,
-      company?.logo_source,
-      company?.domain
-    ),
-    receivedAt: row.received_at,
-    category: row.category,
-    hasGif: row.has_gif ?? false,
-    hasDarkMode: row.has_dark_mode ?? false,
-    discountPercent:
-      row.discount_percent === null || row.discount_percent === undefined
-        ? null
-        : Number(row.discount_percent),
-    promoCode: row.promo_code ?? null
-  };
-}
-
 /**
  * Defensive read of the `rules` column: we trust the validator on
  * write, but the column is plain JSONB so a corrupted or hand-edited
@@ -1978,12 +2385,21 @@ async function loadCollectionEmails(
     .order("added_at", { ascending: false });
 
   if (error) throw error;
+  return embeddedRowsToCards(data ?? []);
+}
 
+/**
+ * Cards from rows that embed `captured_emails` (manual membership rows
+ * and stored smart-collection matches share the shape), with signed logos.
+ */
+async function embeddedRowsToCards(
+  data: { captured_emails: EmailField }[]
+): Promise<ExploreEmailCard[]> {
   // Collapse list-copies of multi-segment sends to one card, mirroring
-  // Explore's `duplicate_of IS NULL` filter. Manual membership stores
-  // literal email ids (which may be duplicate copies, not the canonical),
-  // so we group in memory rather than filtering in SQL.
-  const rows = collapseDuplicateRows(data ?? [], (row) =>
+  // Explore's `duplicate_of IS NULL` filter. Membership rows store literal
+  // email ids (which may be duplicate copies, not the canonical), so we
+  // group in memory rather than filtering in SQL.
+  const rows = collapseDuplicateRows(data, (row) =>
     pickEmail(row.captured_emails)
   );
   const logoPaths = new Set<string>();

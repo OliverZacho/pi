@@ -200,7 +200,9 @@ export default function CollectionCard({
               </div>
             );
           })}
-          {collection.emailCount === 0 ? (
+          {collection.matchBuilding ? (
+            <div className={styles.emptyMessage}>Finding matching emails</div>
+          ) : collection.emailCount === 0 ? (
             <div className={styles.emptyMessage}>Empty collection</div>
           ) : null}
         </div>
@@ -238,7 +240,9 @@ export default function CollectionCard({
           {collection.name}
         </span>
         <span className={styles.cardCount}>
-          {collection.emailCount === 1
+          {collection.matchBuilding
+            ? "Building"
+            : collection.emailCount === 1
             ? "1 email"
             : `${collection.emailCount} emails`}
         </span>

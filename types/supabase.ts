@@ -445,6 +445,92 @@ export type Database = {
           },
         ]
       }
+      collection_match_builds: {
+        Row: {
+          collection_id: string
+          cursor_at: string
+          cursor_id: string
+          last_opened_at: string
+          match_key: string
+          ready_at: string | null
+          scanned: number
+          started_at: string
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          collection_id: string
+          cursor_at?: string
+          cursor_id?: string
+          last_opened_at?: string
+          match_key: string
+          ready_at?: string | null
+          scanned?: number
+          started_at?: string
+          status: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          collection_id?: string
+          cursor_at?: string
+          cursor_id?: string
+          last_opened_at?: string
+          match_key?: string
+          ready_at?: string | null
+          scanned?: number
+          started_at?: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_match_builds_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: true
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collection_matches: {
+        Row: {
+          collection_id: string
+          email_created_at: string
+          email_id: string
+          received_at: string
+        }
+        Insert: {
+          collection_id: string
+          email_created_at: string
+          email_id: string
+          received_at: string
+        }
+        Update: {
+          collection_id?: string
+          email_created_at?: string
+          email_id?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_matches_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collection_matches_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "captured_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collections: {
         Row: {
           created_at: string
@@ -1501,6 +1587,42 @@ export type Database = {
       }
     }
     Functions: {
+      advance_collection_matches: {
+        Args: {
+          p_collection_id: string
+          p_combinator: string
+          p_filters: Json
+          p_limit?: number
+          p_match_key: string
+        }
+        Returns: {
+          matched: number
+          outcome: string
+          scanned: number
+          status: string
+        }[]
+      }
+      collection_match_builds_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          collection_id: string
+        }[]
+      }
+      collection_match_dormant_before: {
+        Args: never
+        Returns: string
+      }
+      collections_missing_match_build: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          rules: Json
+        }[]
+      }
+      reset_collection_matches: {
+        Args: { p_collection_id: string; p_match_key: string | null }
+        Returns: undefined
+      }
       brand_cohort_benchmark: {
         Args: { p_markets?: string[] }
         Returns: Json
