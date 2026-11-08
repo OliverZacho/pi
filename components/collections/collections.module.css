@@ -2130,3 +2130,160 @@ select.ruleOperator:focus {
     flex-wrap: wrap;
   }
 }
+
+/* ---------- Smart collection build progress ---------- */
+
+.buildPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 560px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.buildTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.buildBody {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.buildBar {
+  height: 8px;
+  margin-top: 0.25rem;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.buildBarFill {
+  height: 100%;
+  background: #086e4b;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.buildStats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.buildStats strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.buildNote {
+  margin: 0.25rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+/* ---------- "Collection is ready" notice ---------- */
+
+.readyStack {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.readyNotice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #086e4b;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  animation: readyIn 0.25s ease-out;
+}
+
+@keyframes readyIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.readyText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.readyText strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.readyActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.readyOpen {
+  padding: 0.45rem 0.9rem;
+  background: #086e4b;
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.readyOpen:hover {
+  background: #065a3c;
+}
+
+.readyDismiss {
+  padding: 0.45rem 0.25rem;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.readyDismiss:hover {
+  color: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .readyStack {
+    right: 1rem;
+    bottom: 1rem;
+  }
+}

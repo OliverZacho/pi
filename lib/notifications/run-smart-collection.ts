@@ -3,7 +3,8 @@ import { getResend } from "@/lib/resend";
 import type { DigestCadence } from "@/lib/notification-prefs";
 import {
   parseCollectionRules,
-  evaluateCollectionRuleIds
+  evaluateCollectionRuleIds,
+  matchedEmailIdsCreatedAfter
 } from "@/lib/collections-db";
 import {
   resolveAudience,
@@ -143,10 +144,20 @@ export async function runSmartCollection(
     const matches: CollectionMatch[] = [];
     for (const collection of smart) {
       try {
-        const ids = await evaluateCollectionRuleIds(admin, collection.rules, {
-          createdAfter: since,
-          limit: MATCH_LIMIT
-        });
+        // Stored matches when the collection is built; while a build is
+        // still running, evaluate the rule over the new emails directly.
+        const ids =
+          (await matchedEmailIdsCreatedAfter(
+            admin,
+            collection.id,
+            collection.rules,
+            since,
+            MATCH_LIMIT
+          )) ??
+          (await evaluateCollectionRuleIds(admin, collection.rules, {
+            createdAfter: since,
+            limit: MATCH_LIMIT
+          }));
         if (ids.length === 0) continue;
         matches.push({
           collectionId: collection.id,
