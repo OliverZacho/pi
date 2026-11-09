@@ -202,6 +202,10 @@ export default function CollectionCard({
           })}
           {collection.matchBuilding ? (
             <div className={styles.emptyMessage}>Finding matching emails</div>
+          ) : collection.matchPending ? (
+            <div className={styles.emptyMessage}>
+              Open to find matching emails
+            </div>
           ) : collection.emailCount === 0 ? (
             <div className={styles.emptyMessage}>Empty collection</div>
           ) : null}
@@ -242,6 +246,8 @@ export default function CollectionCard({
         <span className={styles.cardCount}>
           {collection.matchBuilding
             ? "Building"
+            : collection.matchPending
+            ? "Not checked yet"
             : collection.emailCount === 1
             ? "1 email"
             : `${collection.emailCount.toLocaleString("en-US")} emails`}
