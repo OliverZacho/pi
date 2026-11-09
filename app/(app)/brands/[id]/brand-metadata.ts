@@ -60,9 +60,20 @@ export const loadPublicTeaser = unstable_cache(
 
 /**
  * Brand page metadata, shared by the signed-in route and the cached guest
- * route (app/guest/brands/[id]) so both serve identical <head> tags.
+ * route (app/guest/brands/[id]).
+ *
+ * `narrative: false` skips the generated narrative and describes the page
+ * with the one-sentence summary instead. The signed-in route passes it: the
+ * narrative only feeds the meta description, which matters to crawlers, and
+ * crawlers are cookieless so they always get the guest route. Signed-in
+ * browsers run this for every brand link they preload, so the saving is per
+ * brand card on screen, not per page view.
  */
-export async function brandPageMetadata(id: string): Promise<Metadata> {
+export async function brandPageMetadata(
+  id: string,
+  options: { narrative?: boolean } = {}
+): Promise<Metadata> {
+  const withNarrative = options.narrative ?? true;
   // Resolve via the service-role client: companies aren't readable under RLS
   // for logged-out visitors / crawlers, which is exactly who reads <head>.
   const resolved = await resolveHandle(id);
@@ -76,7 +87,9 @@ export async function brandPageMetadata(id: string): Promise<Metadata> {
   const canonical = canonicalUrl(`/brands/${resolved.slug}`);
   const [summary, narrative] = await Promise.all([
     loadBrandSummary(resolved.id, resolved.name),
-    loadBrandNarrative(resolved.id, resolved.name).catch(() => null)
+    withNarrative
+      ? loadBrandNarrative(resolved.id, resolved.name).catch(() => null)
+      : null
   ]);
 
   // Only pages with enough captured email to say something real are offered
