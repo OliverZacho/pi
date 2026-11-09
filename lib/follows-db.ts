@@ -258,7 +258,7 @@ export async function listFollowedBrandCards(
         })
       : Promise.resolve({} as Record<string, string>),
     companyIds.length > 0
-      ? computeBrandAggregates(supabase, companyIds)
+      ? computeBrandAggregates(companyIds)
       : null
   ]);
 
