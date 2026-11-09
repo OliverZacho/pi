@@ -179,11 +179,12 @@ const CATALOGUE_REVALIDATE_SECONDS = 60 * 60 * 24;
  * Every non-deleted brand plus its counters and ESP / cadence stats, cached
  * across requests and instances for {@link CATALOGUE_REVALIDATE_SECONDS}.
  *
- * `brand_send_stats` aggregates every captured email on each read, which
- * takes seconds whenever its pages have fallen out of Postgres's buffer
- * cache. Nothing on the directory needs to-the-minute numbers, so the
- * catalogue is read once and served stale-while-revalidate: visitors only
- * ever wait on it when the cache is completely empty.
+ * Nothing on the directory needs to-the-minute numbers, so the catalogue is
+ * read once and served stale-while-revalidate: visitors only ever wait on it
+ * when the cache is completely empty. A deploy empties it, and concurrent
+ * misses are not deduplicated, so several requests can rebuild it at once;
+ * that is why the ESP / cadence stats come from a stored snapshot rather
+ * than the `brand_send_stats` view (see {@link computeBrandAggregates}).
  *
  * Read with the service-role client because the cache is shared across
  * viewers. That exposes nothing new: the logged-out directory already
@@ -204,7 +205,7 @@ const loadBrandCatalogue = unstable_cache(
           .order("id")
           .range(from, to)
       ),
-      computeBrandAggregates(admin)
+      computeBrandAggregates()
     ]);
 
     return companies.map((row) => {
@@ -414,23 +415,34 @@ export async function searchBrands(
 }
 
 /**
- * Reads the `brand_send_stats` view (one row per brand: modal ESP and
- * mean days between sends, aggregated in the DB) and returns the
- * per-brand map. Returned alongside is the set of primary ESPs in use
+ * Reads `brand_send_stats_snapshot` (one row per brand: modal ESP and
+ * mean days between sends) and returns the per-brand map.
+ *
+ * The snapshot is a stored copy of the `brand_send_stats` view, refreshed
+ * twice an hour (20261109210000_brand_send_stats_snapshot.sql). The view
+ * walks every captured email on each read: 1 to 6 seconds on an idle
+ * database and over 10 when a few run together, which is what a cold
+ * catalogue cache produces. Stats can lag a new email by up to 30 minutes.
+ *
+ * Always read through the service role: a materialised view has no row
+ * security, so the snapshot is granted to the service role only. The same
+ * numbers are already public on the logged-out directory.
+ *
+ * Returned alongside is the set of primary ESPs in use
  * and the largest observed cadence — both used by the facets endpoint
  * to seed the filter UI. The ESP menu is seeded from *primary* ESPs
  * only, since the ESP filter matches a brand's primary; an ESP that is
  * nobody's primary would be a dead filter option.
  */
 export async function computeBrandAggregates(
-  supabase: SupabaseClient<Database>,
   companyIds?: string[]
 ): Promise<AggregateResult> {
+  const admin = getSupabaseAdmin();
   // One row per brand, so the unscoped read is the whole catalogue: paged,
   // since PostgREST stops at 1,000 rows.
   const data = await fetchAllRows((from, to) => {
-    let statsQuery = supabase
-      .from("brand_send_stats")
+    let statsQuery = admin
+      .from("brand_send_stats_snapshot")
       .select("company_id, primary_esp, avg_days_between");
 
     // When the caller only needs a known set of brands (e.g. the user's

@@ -1593,6 +1593,15 @@ export type Database = {
           },
         ]
       }
+      brand_send_stats_snapshot: {
+        Row: {
+          avg_days_between: number | null
+          company_id: string | null
+          email_count: number | null
+          primary_esp: string | null
+        }
+        Relationships: []
+      }
       company_email_stats: {
         Row: {
           company_id: string | null
