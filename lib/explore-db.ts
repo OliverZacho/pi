@@ -1,9 +1,11 @@
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isColorBucketKey } from "./color-buckets";
 import { cleanPreheaderText } from "./extract-metadata";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { buildSearchMatcher, matcherValue } from "./search-term";
+import { getSupabaseAdmin } from "./supabase-admin";
 import { fetchAllRows } from "./supabase-paging";
 import type { Database } from "@/types/supabase";
 
@@ -543,6 +545,13 @@ type ExploreFacetsRpcPayload = {
  * facet lists cross the wire. Facet entries deliberately carry no
  * logo URLs: the dropdown can render hundreds of brands and the grid
  * cards already bring their own logos from `searchExploreEmails`.
+ *
+ * The unfiltered lists are the same for every viewer (subscribers read
+ * the whole archive, the teaser reads it through the service role), so
+ * they're cached for everyone and refreshed every 10 minutes: that RPC
+ * scans every email, and Explore shouldn't pay for it on each page load
+ * or fail when the database is busy. The `/following` variant, scoped to
+ * the viewer's brands, is read live.
  */
 export async function getExploreFacets(
   supabase: SupabaseClient<Database>,
@@ -553,9 +562,24 @@ export async function getExploreFacets(
   if (options.restrictBrandIds && options.restrictBrandIds.length === 0) {
     return { brands: [], markets: [], categories: [], countries: [] };
   }
+  if (!options.restrictBrandIds) return loadAllExploreFacets();
+  return fetchExploreFacets(supabase, options.restrictBrandIds);
+}
 
+const EXPLORE_FACETS_REVALIDATE_SECONDS = 600;
+
+const loadAllExploreFacets = unstable_cache(
+  () => fetchExploreFacets(getSupabaseAdmin(), null),
+  ["explore-facets"],
+  { revalidate: EXPLORE_FACETS_REVALIDATE_SECONDS }
+);
+
+async function fetchExploreFacets(
+  supabase: SupabaseClient<Database>,
+  restrictBrandIds: string[] | null
+): Promise<ExploreFacets> {
   const { data, error } = await supabase.rpc("explore_facets", {
-    restrict_ids: options.restrictBrandIds ?? undefined
+    restrict_ids: restrictBrandIds ?? undefined
   });
 
   if (error) throw error;

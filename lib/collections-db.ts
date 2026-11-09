@@ -609,6 +609,12 @@ export type CollectionCardData = {
   updatedAt: string;
   /** Smart collection whose stored matches are still being built. */
   matchBuilding?: boolean;
+  /**
+   * Smart collection with no stored matches for its current rules yet.
+   * The grid never starts that work (a long list of old collections would
+   * all build at once); opening the collection does.
+   */
+  matchPending?: boolean;
 };
 
 /**
@@ -738,23 +744,43 @@ export async function listCollectionsWithPreviews(
   }
 
   // Rule-based collections read their stored matches (same source of
-  // truth as the detail page). No catch-up here: the grid shows what was
-  // matched as of the last view or worker pass, and opening a collection
-  // brings it current. A collection with no build yet gets one started.
+  // truth as the detail page). The grid never starts or catches up a
+  // build: one page view must not set off work for every old collection
+  // in the list. Opening a collection does that; until then a collection
+  // without matches for its current rules shows as not checked yet.
   const building = new Set<string>();
+  const pending = new Set<string>();
   if (ruleRows.length > 0) {
     const admin = getSupabaseAdmin();
+    const { data: buildRows, error: buildError } = await admin
+      .from("collection_match_builds")
+      .select("collection_id, match_key, status, updated_at")
+      .in(
+        "collection_id",
+        ruleRows.map(({ row }) => row.id)
+      );
+    if (buildError) throw buildError;
+    const builds = new Map(
+      (buildRows ?? []).map((build) => [build.collection_id, build])
+    );
+
     await Promise.all(
       ruleRows.map(async ({ row, rules }) => {
         if (rules.conditions.length === 0) return;
-        try {
-          const build = await ensureCollectionMatches(admin, row.id, rules, {
-            catchUp: false
-          });
-          if (build) {
-            building.add(row.id);
-            return;
+        const build = builds.get(row.id);
+        if (!build || build.match_key !== ruleMatchKey(rules)) {
+          pending.add(row.id);
+          return;
+        }
+        if (build.status === "building") {
+          // Someone opened it and its build is running; nudge it if stalled.
+          if (Date.now() - new Date(build.updated_at).getTime() > STALLED_BUILD_MS) {
+            scheduleMatchBuild(row.id);
           }
+          building.add(row.id);
+          return;
+        }
+        try {
           const [ids, totals] = await Promise.all([
             loadMatchedEmailIds(admin, row.id, rules, PREVIEW_EMAIL_COUNT),
             loadMatchTotals(admin, row.id, rules)
@@ -780,7 +806,8 @@ export async function listCollectionsWithPreviews(
     previewEmailIds: previews.get(row.id) ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    ...(building.has(row.id) ? { matchBuilding: true } : {})
+    ...(building.has(row.id) ? { matchBuilding: true } : {}),
+    ...(pending.has(row.id) ? { matchPending: true } : {})
   }));
 }
 
@@ -1525,7 +1552,12 @@ export async function listCollectionMembership(
 //    `after()`, so the first progress shows without waiting for the cron;
 //  - a page view checks whatever is left inline (usually nothing), or starts
 //    a measured catch-up when there's a lot (a collection opened after a
-//    long break).
+//    long break). The Collections grid never starts work.
+//
+// Load: a build step reads email text only where the rule's indexes point
+// (the trigram index for searches), and build steps run one at a time
+// across the database with a pause as long as each step, so builds never
+// take more than about half the database however many are waiting.
 //
 // Edits to existing emails or brands (markets, names, brand assignment,
 // re-classification) are queued by database triggers and re-evaluated by
@@ -1541,8 +1573,29 @@ export async function listCollectionMembership(
 // received_at, so a rolling window stays right as time passes and editing
 // only the window or scope doesn't trigger a rebuild.
 
-/** Emails checked per database call. Roughly 0.2 to 1s of DB work. */
+/**
+ * Backlog size (new emails or queued edits) a page view still checks
+ * inline; above it, a measured catch-up runs in the background.
+ */
 const MATCH_CHUNK = 1000;
+
+/**
+ * Emails per build step. A step only reads the text of emails the rule's
+ * indexes point at, so its cost depends on the rule: the size adapts
+ * toward ~0.5 to 1.5s of database work per step.
+ */
+const STEP_START = 2_000;
+const STEP_MIN = 500;
+const STEP_MAX = 20_000;
+const STEP_FAST_MS = 500;
+const STEP_SLOW_MS = 1_500;
+
+/**
+ * Builds run one step at a time across the whole database, with a pause
+ * after each as long as the step took (see advance_collection_matches).
+ * A caller that finds the gate shut waits this long and tries again.
+ */
+const QUEUED_RETRY_MS = 400;
 
 /** How long a page view spends catching a ready collection up inline. */
 const CATCH_UP_BUDGET_MS = 2_500;
@@ -1584,6 +1637,10 @@ type MatchBuildRow = {
 };
 
 type AdvanceResult = "ready" | "building" | "busy" | "stale" | "missing";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Identity of what the stored matches were built for: the combinator and
@@ -1681,7 +1738,9 @@ export async function clearCollectionMatches(
 /**
  * Move one collection's cursor forward until it's caught up, the deadline
  * passes, or another worker holds it. Rules are compiled once per call
- * (brand-name and market lookups), then each chunk is one RPC.
+ * (brand-name and market lookups), then each step is one RPC. While other
+ * build steps hold the database-wide gate this waits its turn, and reports
+ * "building" if the deadline passes first.
  */
 async function advanceCollectionMatches(
   admin: SupabaseClient<Database>,
@@ -1695,21 +1754,32 @@ async function advanceCollectionMatches(
   const combinator = compiled === "no_match" ? "AND" : compiled.combinator;
   const matchKey = ruleMatchKey(rules);
 
+  let step = STEP_START;
   for (;;) {
+    const startedAt = Date.now();
     const { data, error } = await admin.rpc("advance_collection_matches", {
       p_collection_id: collectionId,
       p_match_key: matchKey,
       p_combinator: combinator,
       p_filters: filters,
-      p_limit: MATCH_CHUNK,
+      p_limit: step,
       p_flag_new: options.flagNew
     });
     if (error) throw error;
     const row = data?.[0];
     if (!row) throw new Error("advance_collection_matches returned no row");
+    if (row.outcome === "queued") {
+      if (Date.now() + QUEUED_RETRY_MS >= deadline) return "building";
+      await sleep(QUEUED_RETRY_MS);
+      continue;
+    }
     if (row.outcome !== "ok") return row.outcome as AdvanceResult;
     if (row.status === "ready") return "ready";
     if (Date.now() >= deadline) return "building";
+
+    const took = Date.now() - startedAt;
+    if (took < STEP_FAST_MS) step = Math.min(STEP_MAX, step * 2);
+    else if (took > STEP_SLOW_MS) step = Math.max(STEP_MIN, Math.floor(step / 2));
   }
 }
 
@@ -2014,6 +2084,8 @@ export async function runCollectionMatchWorker(options: {
   });
 
   // Round robin in short slices so one huge build can't starve the rest.
+  // Build steps also queue behind each other database-wide, so a crowd of
+  // waiting builds takes longer instead of loading the database harder.
   while (active.length > 0 && Date.now() < deadline) {
     const next: typeof active = [];
     for (const target of active) {
