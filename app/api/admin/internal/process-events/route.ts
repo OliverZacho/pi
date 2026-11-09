@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processNextBatch } from "@/lib/ingest-processor";
+import { warmExploreFeed } from "@/lib/explore-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,6 +46,11 @@ async function runProcessor(request: Request) {
 
   try {
     const result = await processNextBatch(limit);
+    // This route runs every 30 seconds, which makes it the heartbeat that
+    // keeps Explore's cached landing feed fresh: the call is a cache read
+    // unless the entry has aged out, and then the refresh happens here
+    // instead of in front of a visitor. Never throws.
+    await warmExploreFeed();
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Internal processor failed", error);

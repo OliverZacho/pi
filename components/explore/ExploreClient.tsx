@@ -248,6 +248,12 @@ export default function ExploreClient({
   // entitlement-safe public endpoints; admins keep the admin routes for
   // full-fidelity inspection.
   const authedRenderBase = isAdmin ? renderUrlBase : "/api/explore/emails";
+  // Grid thumbnails are the exception: every viewer, admins included, loads
+  // them from the entitlement-safe route, because it is the one the CDN and
+  // the browser cache. The admin route re-runs auth and the email query for
+  // each card on each visit, and its output for a thumbnail is no different
+  // (links are stripped either way). Admins keep it for the modal.
+  const cardRenderBase = "/api/explore/emails";
   const authedDetailBase = isAdmin ? "/api/admin/emails" : "/api/public/emails";
   // Free (public + allowSave) users can save curated cards up to a cap;
   // track the running total to drive the quota nudge.
@@ -1646,7 +1652,7 @@ export default function ExploreClient({
                   key={email.id}
                   email={email}
                   onOpen={handleOpenEmail}
-                  renderUrlBase={authedRenderBase}
+                  renderUrlBase={cardRenderBase}
                   isSaved={savedIds.has(email.id)}
                   onToggleSave={handleToggleSave}
                   tourAnchor={index === 0}
