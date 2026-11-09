@@ -32,7 +32,9 @@ type RouteParams = {
  */
 export async function generateMetadata({ params }: RouteParams) {
   const { id } = await params;
-  return brandPageMetadata(id);
+  // Signed-in viewers only: see brandPageMetadata for why the narrative is
+  // left out here.
+  return brandPageMetadata(id, { narrative: false });
 }
 
 export default async function BrandPage({ params, searchParams }: RouteParams) {

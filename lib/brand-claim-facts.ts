@@ -7,6 +7,13 @@
  * costs two round trips of keyed lookups rather than a percentile scan across
  * the whole category. That matters because this path is what Googlebot hits.
  *
+ * The per-brand stats are read from `brand_campaign_stats_snapshot`, a stored
+ * copy of the `brand_campaign_stats` view refreshed every 30 minutes (see
+ * 20261109200000_brand_campaign_stats_snapshot.sql). The view itself scans
+ * every captured email on each read, even for one brand, and several of those
+ * at once stalled the database; the pool and benchmark views are built on the
+ * snapshot too. Facts can therefore lag a new email by up to half an hour.
+ *
  * Read through the service-role client by the caller: logged-out visitors and
  * crawlers have no RLS grant on `captured_emails`, and they are precisely who
  * reads the public summary.
@@ -22,7 +29,7 @@ import {
 } from "./brand-claims";
 import type { EmailCategory } from "./admin-types";
 
-/** Row shape of `public.brand_campaign_stats`. */
+/** Row shape of `public.brand_campaign_stats_snapshot`. */
 type StatsRow = {
   campaigns: number;
   zone_label: string | null;
@@ -99,7 +106,7 @@ export async function getBrandNarrative(
   try {
     const [statsResult, poolResult, companyResult] = await Promise.all([
       admin
-        .from("brand_campaign_stats")
+        .from("brand_campaign_stats_snapshot")
         .select(
           "campaigns, zone_label, first_send, span_days, send_days, distinct_subjects, discount_count, max_discount, max_discount_at, discount_depths, promo_code_count, deadline_count, extension_count, esp, padded_share, dark_share, gif_share, hour_counts, weekday_counts, mix"
         )
