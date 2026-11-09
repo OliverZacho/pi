@@ -457,6 +457,59 @@ export async function searchExploreEmails(
   return { items, total, page, pageSize, hasMore };
 }
 
+/**
+ * How old the cached landing feed may get before it is refreshed. A new
+ * email therefore reaches the default Explore view up to about five
+ * minutes after it is captured, never instantly. Curated brands send a
+ * handful of emails a day, so a shorter window buys little and only adds
+ * background queries.
+ */
+const DEFAULT_FEED_REVALIDATE_SECONDS = 300;
+
+const loadDefaultExploreFeed = unstable_cache(
+  () =>
+    searchExploreEmails(getSupabaseAdmin(), {
+      page: 1,
+      pageSize: EXPLORE_PAGE_SIZE,
+      sort: "recommended"
+    }),
+  ["explore-default-feed", String(EXPLORE_PAGE_SIZE)],
+  { revalidate: DEFAULT_FEED_REVALIDATE_SECONDS }
+);
+
+/**
+ * Page 1 of the "Recommended" feed: what Explore shows before the viewer
+ * touches a filter.
+ *
+ * It is the same rows for every viewer (subscribers get all of it, the
+ * teaser a shorter slice), so it is cached rather than queried per page
+ * load: Explore then opens at the same speed whether or not the database
+ * is busy ingesting. A stale entry is still served while it refreshes in
+ * the background, so no visitor waits on the query; the ingest tick calls
+ * {@link warmExploreFeed} so the entry never ages past a few minutes even
+ * when nobody is browsing.
+ *
+ * Read through the service role: callers must have settled the viewer's
+ * entitlement (or be serving the public teaser slice) before using it.
+ * Filtered, sorted and paged requests stay live.
+ */
+export function getDefaultExploreFeed(): Promise<ExploreSearchResult> {
+  return loadDefaultExploreFeed();
+}
+
+/**
+ * Refreshes the cached landing feed if it has gone stale. Called on the
+ * 30-second ingest tick (see the process-events route). Never throws: a
+ * failed refresh keeps the previous entry.
+ */
+export async function warmExploreFeed(): Promise<void> {
+  try {
+    await loadDefaultExploreFeed();
+  } catch (err) {
+    console.error("Failed to warm the Explore feed cache", err);
+  }
+}
+
 export type SearchFacets = {
   brands: { id: string; name: string; isCurated: boolean }[];
   markets: string[];

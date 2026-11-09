@@ -3,8 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { FREE_SAVE_LIMIT, getViewer, PUBLIC_EXPLORE_LIMIT } from "@/lib/access";
 import {
   EXPLORE_PAGE_SIZE,
+  getDefaultExploreFeed,
   getExploreFacets,
-  searchExploreEmails,
   type ExploreFacets
 } from "@/lib/explore-db";
 import { countSavedEmails, listSavedEmailIds } from "@/lib/saved-emails-db";
@@ -70,20 +70,18 @@ export default async function ExplorePage({ searchParams }: PageProps) {
 
   // Logged-out / unpaid viewers get the interactive teaser: the real
   // Explore UI (search / filter / sort) capped to PUBLIC_EXPLORE_LIMIT with
-  // a fade + unlock box. SSR the first slice + facets via the service-role
-  // client (RLS would otherwise return nothing); the client then queries the
+  // a fade + unlock box. SSR the first slice + facets from the shared caches
+  // (RLS would return nothing for this viewer); the client then queries the
   // public `/api/public/explore/*` routes and renders previews through the
   // public render endpoint.
   if (!viewer || !viewer.hasAccess) {
     const admin = getSupabaseAdmin();
-    const [preview, facets] = await Promise.all([
-      searchExploreEmails(admin, {
-        page: 1,
-        pageSize: PUBLIC_EXPLORE_LIMIT,
-        sort: "recommended"
-      }),
+    const [feed, facets] = await Promise.all([
+      getDefaultExploreFeed(),
       getExploreFacets(admin).catch(facetsFallback)
     ]);
+    // The teaser is the top of the same cached feed subscribers see.
+    const previewItems = feed.items.slice(0, PUBLIC_EXPLORE_LIMIT);
 
     // A signed-in but unpaid viewer gets the same limited teaser, but with
     // Save enabled on its cards (the free conversion hook). Their saved
@@ -134,7 +132,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             allowSave={Boolean(viewer)}
             saveLimit={FREE_SAVE_LIMIT}
             initialSavedCount={savedCount}
-            initialEmails={preview.items}
+            initialEmails={previewItems}
             initialHasMore={false}
             pageSize={PUBLIC_EXPLORE_LIMIT}
             facets={facets}
@@ -157,6 +155,8 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   //   - first page + facets: SSR so the grid is hydrated with real data on
   //     first paint ("recommended" = curated allowlist, newest first; SSR
   //     with the sort the client initialises to so paint matches hydration).
+  //     Both come from shared caches, so only the viewer's own rows below
+  //     are queried on a page load.
   //   - saved ids: the user's entire saved-id set up front so infinite-scroll
   //     cards already know their saved state (just UUIDs — a few hundred KB
   //     even for thousands of saves).
@@ -165,11 +165,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   // (saves / collections) never takes down Explore itself.
   const [initialResult, facets, savedSet, initialCollections, teamCtx] =
     await Promise.all([
-      searchExploreEmails(supabase, {
-        page: 1,
-        pageSize: EXPLORE_PAGE_SIZE,
-        sort: "recommended"
-      }),
+      getDefaultExploreFeed(),
       getExploreFacets(supabase).catch(facetsFallback),
       listSavedEmailIds(supabase, userId).catch((err) => {
         console.error("Failed to load saved email IDs", err);

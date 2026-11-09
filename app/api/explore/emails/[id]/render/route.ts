@@ -88,7 +88,11 @@ export async function GET(request: Request, context: RouteContext) {
       // Output depends only on the email id (signed asset URLs are memoised
       // with a 7-day TTL) and the route is public, so let the edge serve
       // repeats — same approach as the shared-collection render route.
-      "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+      // `max-age` adds the viewer's own browser on top: a card already seen
+      // this hour repaints from disk when they come back to the grid, and
+      // keeps doing so across deploys, which empty the edge cache.
+      "Cache-Control":
+        "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
       // Block the email's own remote resources (trackers, unmirrored images,
       // remote fonts) — only our mirrored CDN assets load. Stops slow
       // third-party hangs + per-view tracker re-fires. See emailPreviewCsp().
