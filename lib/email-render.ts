@@ -57,18 +57,44 @@ export function emailPreviewCsp(): string {
 }
 
 /**
- * The one script a preview document may run: reports the document's natural
- * width to the embedding page (see lib/preview-width.ts). Sends when it runs,
- * again on `load` (images can widen the layout), and whenever the parent asks.
+ * The one script a preview document may run. It does two jobs for the
+ * embedding card (see lib/preview-width.ts), both reported in one message:
+ *
+ * - `width`: the document's natural width. Sent when the script runs, again
+ *   on `load` (images can widen the layout), and whenever the parent asks.
+ * - `ready`: true once everything inside the frame's own viewport has
+ *   loaded. A thumbnail only ever shows the top of the email, so the
+ *   preview routes mark every `<img>` lazy (see {@link lazyLoadImages}) and
+ *   this script switches the ones that fall inside the viewport back to
+ *   eager. It decides from the frame's own geometry on purpose: native lazy
+ *   loading is judged against the top-level page with a margin that differs
+ *   per browser, so on its own it could leave a card that is mounted just
+ *   below the fold waiting for images until it scrolls into view.
+ *   Each image that arrives can push later ones out of (or into) view, so
+ *   the check reruns on every image `load` / `error`. Most email images
+ *   state no height, so until they load they are flat and everything below
+ *   them piles up inside the viewport; taking the whole pile at face value
+ *   loaded nearly the entire email again. The walk therefore goes in
+ *   document order and stops once four still-flat images (under 24px tall)
+ *   are on their way, then resumes as they land and the layout opens up.
+ *   Hidden images (`display: none`, no client rects) never load and are
+ *   skipped. Four seconds after `load` it reports ready regardless, so one
+ *   stalled image cannot hold a card on its skeleton.
+ *
  * A fixed string, so its hash is stable across cached responses; changing it
  * changes the CSP hash with it.
  */
 export const PREVIEW_MEASURE_SCRIPT =
-  "(function(){var d=document;" +
+  "(function(){var d=document,l=0,r=0;" +
   "function w(){var e=d.documentElement,b=d.body;return Math.max(e?e.scrollWidth:0,b?b.scrollWidth:0)}" +
-  `function s(){try{parent.postMessage({type:${JSON.stringify(PREVIEW_WIDTH_MESSAGE)},width:w()},"*")}catch(e){}}` +
+  `function s(){try{parent.postMessage({type:${JSON.stringify(PREVIEW_WIDTH_MESSAGE)},width:w(),ready:!!r},"*")}catch(e){}}` +
+  "function c(){var a=d.images,h=window.innerHeight,p=0,u=0,i,m,b;" +
+  "for(i=0;i<a.length&&u<4;i++){m=a[i];if(m.complete||!m.getClientRects().length)continue;" +
+  'b=m.getBoundingClientRect();if(b.top<h&&b.bottom>=0){m.loading="eager";p=1;if(b.height<24)u++}}' +
+  "if(l&&!p&&!r){r=1;s()}}" +
   `window.addEventListener("message",function(m){if(m.data&&m.data.type===${JSON.stringify(PREVIEW_MEASURE_REQUEST)})s()});` +
-  'window.addEventListener("load",s);s()})();';
+  'window.addEventListener("load",function(){l=1;s();c();setTimeout(function(){if(!r){r=1;s()}},4000)});' +
+  'd.addEventListener("load",c,true);d.addEventListener("error",c,true);s();c()})();';
 
 /** CSP source expression matching {@link PREVIEW_MEASURE_SCRIPT} exactly. */
 export const PREVIEW_MEASURE_SCRIPT_HASH =
@@ -93,6 +119,27 @@ export function injectPreviewMeasureScript(html: string): string {
 }
 
 const IMG_TAG_RE = /<img\b[^>]*>/gi;
+
+const LOADING_ATTR_RE = /\sloading\s*=/i;
+
+/**
+ * Mark every `<img>` in a thumbnail document `loading="lazy"`.
+ *
+ * A grid card shows roughly the top 630px of an email, but an eager `<img>`
+ * downloads wherever it sits, and the frame's `load` event (which used to
+ * reveal the card) waits for all of them. On a cold cache the 16 cards of
+ * the logged-out Explore page pulled 216 images / 6.9 MB that way and then
+ * appeared all at once. Lazy images cost nothing until wanted; the measuring
+ * script ({@link PREVIEW_MEASURE_SCRIPT}) loads the visible ones and tells
+ * the card when they are in. Only for documents that carry that script.
+ * Tags that already state a `loading` preference are left alone.
+ */
+export function lazyLoadImages(html: string): string {
+  return html.replace(IMG_TAG_RE, (tag) =>
+    LOADING_ATTR_RE.test(tag) ? tag : `<img loading="lazy"${tag.slice(4)}`
+  );
+}
+
 const ATTR_RE = /(\s)(src|srcset|background|data-src|data-original|data-image|data-bg)\s*=\s*("([^"]*)"|'([^']*)')/gi;
 // Legacy HTML background attribute on layout tags (`<td background="...">`).
 // The ATTR_RE pass above only runs inside `<img>` tags, so these need their
