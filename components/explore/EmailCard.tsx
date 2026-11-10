@@ -4,13 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CollectionSummary } from "@/lib/collections-db";
 import { formatShortDate, formatTime } from "@/lib/datetime";
 import type { ExploreEmailCard } from "@/lib/explore-db";
-import {
-  PREVIEW_FRAME_SANDBOX,
-  RENDER_WIDTH,
-  subscribeToPreviewWidth
-} from "@/lib/preview-width";
+import { PREVIEW_FRAME_SANDBOX } from "@/lib/preview-width";
 import AddToCollectionButton from "./AddToCollectionButton";
 import styles from "./explore.module.css";
+import { usePreviewFrame } from "./usePreviewFrame";
 
 type Props = {
   email: ExploreEmailCard;
@@ -130,21 +127,17 @@ export default function EmailCard({
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
-  // The width we lay the email out at inside the iframe. Defaults to 600
-  // (the common design width) but is widened to the email's own natural
-  // width once it loads — many emails are built wider (640/700px) and,
-  // rendered at a fixed 600, their overflow paints as uneven side gutters
-  // under the `transform: scale()` thumbnail. Rendering at the true width
-  // lets the whole layout map edge-to-edge, so it sits centered. See the
-  // load handler below.
-  const [renderWidth, setRenderWidth] = useState(RENDER_WIDTH);
-  const [loaded, setLoaded] = useState(false);
   // Off-screen cards must not mount their preview iframe — each one pulls
   // the full email and every image it references (the grid can be hundreds
   // of cards). `loading="lazy"` alone doesn't gate this reliably, so we
   // only attach the iframe `src` once the card scrolls within range. Until
   // then the skeleton shows and zero asset requests fire.
   const [inView, setInView] = useState(false);
+  // Render width (widened to the email's natural width once the frame
+  // reports it, so wide layouts map edge-to-edge instead of leaving uneven
+  // side gutters under the `transform: scale()` thumbnail) and the moment
+  // to swap the skeleton for the frame. See usePreviewFrame.
+  const { renderWidth, loaded, onFrameLoad } = usePreviewFrame(frameRef, inView);
   // Per-card pending state so we can disable the Save button while the
   // round-trip is in flight without blocking other cards on the grid.
   const [pendingSave, setPendingSave] = useState(false);
@@ -198,19 +191,6 @@ export default function EmailCard({
     io.observe(previewEl);
     return () => io.disconnect();
   }, []);
-
-  // Widen the render width to the email's real layout once the frame
-  // reports it. The frame is an opaque origin (see lib/preview-width.ts), so
-  // we never read its document; the render route's embedded script posts the
-  // width and we only ever widen past the 600px default.
-  useEffect(() => {
-    if (!inView) return;
-    const frame = frameRef.current;
-    if (!frame) return;
-    return subscribeToPreviewWidth(frame, (natural) => {
-      setRenderWidth((current) => (natural > current ? natural : current));
-    });
-  }, [inView]);
 
   // `?preview=1` opts the grid thumbnail into CDN-resized body images
   // (≤600px, WebP/AVIF) — far smaller than the full-fidelity originals the
@@ -298,7 +278,7 @@ export default function EmailCard({
             scrolling="no"
             className={styles.cardFrame}
             style={frameStyle}
-            onLoad={() => setLoaded(true)}
+            onLoad={onFrameLoad}
           />
         ) : null}
         {recommendEnabled ? (

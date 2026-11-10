@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ExploreEmailCard } from "@/lib/explore-db";
-import {
-  PREVIEW_FRAME_SANDBOX,
-  RENDER_WIDTH,
-  subscribeToPreviewWidth
-} from "@/lib/preview-width";
+import { PREVIEW_FRAME_SANDBOX } from "@/lib/preview-width";
+import { usePreviewFrame } from "../explore/usePreviewFrame";
 import exploreStyles from "../explore/explore.module.css";
 
 type Props = {
@@ -39,11 +36,9 @@ export default function PublicEmailCard({
   const previewRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
-  // Width the email is rendered at before scaling. Starts at the 600px
-  // default and widens to the document's natural width once it loads, so
-  // wider layouts sit centred instead of showing only their left edge.
-  const [renderWidth, setRenderWidth] = useState(RENDER_WIDTH);
-  const [loaded, setLoaded] = useState(false);
+  // Render width (widens to the document's natural width so wider layouts
+  // sit centred) and when to reveal the frame. Same as EmailCard.
+  const { renderWidth, loaded, onFrameLoad } = usePreviewFrame(frameRef, true);
 
   useEffect(() => {
     const previewEl = previewRef.current;
@@ -60,16 +55,6 @@ export default function PublicEmailCard({
     const ro = new ResizeObserver(recompute);
     ro.observe(previewEl);
     return () => ro.disconnect();
-  }, []);
-
-  // Same natural-width detection as EmailCard: the frame's embedded script
-  // posts its width (see lib/preview-width.ts); we only ever widen.
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    return subscribeToPreviewWidth(frame, (natural) => {
-      setRenderWidth((current) => (natural > current ? natural : current));
-    });
   }, []);
 
   const scale = previewWidth !== null ? previewWidth / renderWidth : null;
@@ -119,7 +104,7 @@ export default function PublicEmailCard({
           scrolling="no"
           className={exploreStyles.cardFrame}
           style={frameStyle}
-          onLoad={() => setLoaded(true)}
+          onLoad={onFrameLoad}
         />
         <div className={exploreStyles.cardOverlay}>
           <button

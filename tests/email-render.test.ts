@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   emailPreviewCsp,
   injectPreviewMeasureScript,
+  lazyLoadImages,
   PREVIEW_MEASURE_SCRIPT,
   PREVIEW_MEASURE_SCRIPT_HASH,
   rewriteEmailHtml,
@@ -237,6 +238,14 @@ describe("preview measuring script", () => {
     expect(PREVIEW_MEASURE_SCRIPT).not.toContain("</script");
   });
 
+  it("reports readiness alongside the width, with a cap after load", () => {
+    // The cards reveal on `ready: true`; a document that never sends a
+    // boolean `ready` is treated as a legacy one and revealed on `load`.
+    expect(PREVIEW_MEASURE_SCRIPT).toContain("ready:!!r");
+    expect(PREVIEW_MEASURE_SCRIPT).toContain('m.loading="eager"');
+    expect(PREVIEW_MEASURE_SCRIPT).toContain("4000");
+  });
+
   it("injects before the last </body>, case-insensitively, else appends", () => {
     const tag = `<script>${PREVIEW_MEASURE_SCRIPT}</script>`;
     expect(injectPreviewMeasureScript("<html><body><p>x</p></BODY ></html>")).toBe(
@@ -245,5 +254,23 @@ describe("preview measuring script", () => {
     const twoBodies = "<body>a</body><body>b</body>";
     expect(injectPreviewMeasureScript(twoBodies)).toBe(`<body>a</body><body>b${tag}</body>`);
     expect(injectPreviewMeasureScript("<p>bare fragment</p>")).toBe(`<p>bare fragment</p>${tag}`);
+  });
+});
+
+describe("lazyLoadImages", () => {
+  it("marks every img lazy, whatever its case or shape", () => {
+    expect(lazyLoadImages('<img src="a.png"><IMG SRC="b.png" /><img\n  width="600" src="c.png">')).toBe(
+      '<img loading="lazy" src="a.png"><img loading="lazy" SRC="b.png" /><img loading="lazy"\n  width="600" src="c.png">'
+    );
+  });
+
+  it("keeps a loading preference the email already states", () => {
+    const html = '<img loading="eager" src="a.png"><img src="b.png" LOADING=lazy>';
+    expect(lazyLoadImages(html)).toBe(html);
+  });
+
+  it("leaves everything that is not an img alone", () => {
+    const html = '<table background="bg.png"><tr><td>imgs</td></tr></table><image href="x" />';
+    expect(lazyLoadImages(html)).toBe(html);
   });
 });

@@ -56,23 +56,34 @@ export function clampNaturalWidth(natural: unknown): number | null {
 }
 
 /**
- * Listen for the measuring script's width reports from `frame`, clamped via
- * {@link clampNaturalWidth}. Messages are matched on the sending window
- * (the frame's origin is opaque, so `event.origin` is always "null" and
- * proves nothing). Also asks the frame to measure right away, in case a
- * cached document already reported before we were listening. Returns the
- * unsubscribe function.
+ * Listen for the measuring script's reports from `frame`. Messages are
+ * matched on the sending window (the frame's origin is opaque, so
+ * `event.origin` is always "null" and proves nothing). Also asks the frame
+ * to report right away, in case a cached document already did before we
+ * were listening. Returns the unsubscribe function.
+ *
+ * - `onWidth` gets the natural width, clamped via {@link clampNaturalWidth}.
+ * - `onReady` gets the document's own verdict on whether the part of the
+ *   email the thumbnail shows has finished loading. Thumbnail images are
+ *   lazy, so the frame's `load` event fires before they arrive and no longer
+ *   means "safe to reveal"; this does. A document cached from before the
+ *   script reported readiness never calls it, which is how a card knows to
+ *   fall back to `load` (see components/explore/usePreviewFrame.ts).
  */
 export function subscribeToPreviewWidth(
   frame: HTMLIFrameElement,
-  onWidth: (width: number) => void
+  onWidth: (width: number) => void,
+  onReady?: (ready: boolean) => void
 ): () => void {
   function onMessage(event: MessageEvent) {
     if (!frame.contentWindow || event.source !== frame.contentWindow) return;
-    const data = event.data as { type?: unknown; width?: unknown } | null;
+    const data = event.data as
+      | { type?: unknown; width?: unknown; ready?: unknown }
+      | null;
     if (!data || data.type !== PREVIEW_WIDTH_MESSAGE) return;
     const width = clampNaturalWidth(data.width);
     if (width !== null) onWidth(width);
+    if (onReady && typeof data.ready === "boolean") onReady(data.ready);
   }
   window.addEventListener("message", onMessage);
   try {

@@ -4,6 +4,7 @@ import { isEmailInPublicCollection } from "@/lib/collections-db";
 import {
   emailPreviewCsp,
   injectPreviewMeasureScript,
+  lazyLoadImages,
   rewriteEmailHtml
 } from "@/lib/email-render";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -93,7 +94,12 @@ export async function GET(request: Request, context: RouteContext) {
   // The thumbnail cards need the document's natural width; the frame is
   // an opaque origin, so the document reports it itself (see
   // lib/preview-width.ts). Allowed by hash in emailPreviewCsp().
-  const document = injectPreviewMeasureScript(wrapHtml(html, email.subject));
+  // A thumbnail shows only the top of the email: its images are lazy and
+  // the measuring script loads the ones in view (see lazyLoadImages()). The
+  // modal renders the whole email, so it keeps every image eager.
+  const document = injectPreviewMeasureScript(
+    wrapHtml(isPreview ? lazyLoadImages(html) : html, email.subject)
+  );
 
   return new NextResponse(document, {
     status: 200,
