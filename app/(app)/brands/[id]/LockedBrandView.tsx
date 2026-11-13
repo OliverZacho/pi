@@ -42,17 +42,25 @@ export default async function LockedBrandView({
   // its real dashboard (data fetched service-side past RLS) so they can see
   // what a brand page actually offers. Read-only — no follow / group actions.
   if (resolved.slug === DEMO_BRAND_SLUG) {
-    const demoData = await getBrandPageData(getSupabaseAdmin(), id, {
-      segmentInboxId
-    });
+    const [demoData, demoSummary] = await Promise.all([
+      getBrandPageData(getSupabaseAdmin(), id, { segmentInboxId }),
+      loadBrandSummary(id, resolved.name)
+    ]);
     if (demoData) {
       return (
-        <BrandDashboard
-          data={demoData}
-          isFollowing={false}
-          groups={[]}
-          groupMembershipIds={[]}
-        />
+        <>
+          <BrandJsonLd
+            name={resolved.name}
+            slug={resolved.slug}
+            summary={demoSummary}
+          />
+          <BrandDashboard
+            data={demoData}
+            isFollowing={false}
+            groups={[]}
+            groupMembershipIds={[]}
+          />
+        </>
       );
     }
   }
@@ -130,61 +138,14 @@ export default async function LockedBrandView({
   logoUrl = resolveBrandLogo(logoUrl, company.logo_source, company.domain);
 
   const marketLabels = normalizeCompanyMarkets(company.markets);
-  // Structured data for the public page: the breadcrumb trail plus the
-  // brand's email program described as a Dataset published by Pirol.
-  // Only emitted when the page is indexable — schema on a noindexed page
-  // is noise.
-  const indexable =
-    summary !== null && summary.emailCount >= MIN_INDEXABLE_EMAILS;
-  const canonical = `${SITE_URL}/brands/${resolved.slug}`;
-  const jsonLd = indexable
-    ? [
-        {
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            {
-              "@type": "ListItem",
-              position: 1,
-              name: "Brands",
-              item: `${SITE_URL}/brands`
-            },
-            {
-              "@type": "ListItem",
-              position: 2,
-              name: company.name,
-              item: canonical
-            }
-          ]
-        },
-        {
-          "@context": "https://schema.org",
-          "@type": "Dataset",
-          name: `${company.name} email marketing data`,
-          description: summary.paragraph,
-          url: canonical,
-          // Typed inline: the full Organization node only ships on the home
-          // page, so a bare @id here validates as an untyped creator.
-          creator: {
-            "@type": "Organization",
-            "@id": ORGANIZATION_ID,
-            name: "Pirol",
-            url: SITE_URL
-          },
-          license: `${SITE_URL}/terms`,
-          isAccessibleForFree: false
-        }
-      ]
-    : null;
 
   return (
     <>
-      {jsonLd ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      ) : null}
+      <BrandJsonLd
+        name={company.name}
+        slug={resolved.slug}
+        summary={summary}
+      />
       <BrandLockedDashboard
         brand={{
           name: company.name,
@@ -204,5 +165,64 @@ export default async function LockedBrandView({
         related={related}
       />
     </>
+  );
+}
+
+/**
+ * Structured data for the public page: the breadcrumb trail plus the brand's
+ * email program described as a Dataset published by Pirol. Only emitted when
+ * the page is indexable (same rule as the robots meta in brand-metadata.ts),
+ * since schema on a noindexed page is noise.
+ */
+function BrandJsonLd({
+  name,
+  slug,
+  summary
+}: {
+  name: string;
+  slug: string;
+  summary: { paragraph: string; emailCount: number } | null;
+}) {
+  if (summary === null || summary.emailCount < MIN_INDEXABLE_EMAILS) {
+    return null;
+  }
+  const canonical = `${SITE_URL}/brands/${slug}`;
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Brands",
+          item: `${SITE_URL}/brands`
+        },
+        { "@type": "ListItem", position: 2, name, item: canonical }
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      name: `${name} email marketing data`,
+      description: summary.paragraph,
+      url: canonical,
+      // Typed inline: the full Organization node only ships on the home
+      // page, so a bare @id here validates as an untyped creator.
+      creator: {
+        "@type": "Organization",
+        "@id": ORGANIZATION_ID,
+        name: "Pirol",
+        url: SITE_URL
+      },
+      license: `${SITE_URL}/terms`,
+      isAccessibleForFree: false
+    }
+  ];
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
   );
 }
