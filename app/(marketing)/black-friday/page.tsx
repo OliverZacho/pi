@@ -86,7 +86,8 @@ function Tracker({ data }: { data: BlackFridayData }) {
             url: `${SITE_URL}/black-friday`,
             temporalCoverage: `${WINDOW_START}/${WINDOW_END}`,
             dateModified: d.generated_at,
-            creator: { "@type": "Organization", name: "Pirol", url: SITE_URL }
+            creator: { "@type": "Organization", name: "Pirol", url: SITE_URL },
+            license: `${SITE_URL}/terms`
           })
         }}
       />
