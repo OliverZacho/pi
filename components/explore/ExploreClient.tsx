@@ -220,7 +220,6 @@ type PopoverName =
 
 type FetchResponse = {
   items: ExploreEmailCard[];
-  total: number;
   page: number;
   pageSize: number;
   hasMore: boolean;
