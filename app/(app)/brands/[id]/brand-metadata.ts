@@ -9,12 +9,26 @@ import { MIN_INDEXABLE_EMAILS, proseDescription } from "@/lib/brand-summary";
 import { resolveHandle } from "./resolve-handle";
 
 /**
- * Request-memoised summary build, so `generateMetadata` and the page body each
- * run it once per request rather than twice. `getSupabaseAdmin` is a
- * singleton, so keying on the string args is stable.
+ * The summary, kept for an hour across requests. Building it reads up to 500
+ * of the brand's emails plus a live count, and `generateMetadata` runs for
+ * every brand link a signed-in browser preloads: a screen of brand cards
+ * used to mean that read once per card, per viewer. The summary only changes
+ * when the brand sends, so an hour-old copy is fine (the teaser and the
+ * narrative below are cached the same way).
+ */
+const loadCachedBrandSummary = unstable_cache(
+  (id: string, name: string) =>
+    getBrandSummary(getSupabaseAdmin(), id, { name }),
+  ["brand-summary"],
+  { revalidate: 3600 }
+);
+
+/**
+ * Request-memoised on top of the hourly cache, so `generateMetadata` and the
+ * page body share one lookup per request.
  */
 export const loadBrandSummary = cache((id: string, name: string) =>
-  getBrandSummary(getSupabaseAdmin(), id, { name })
+  loadCachedBrandSummary(id, name)
 );
 
 /**

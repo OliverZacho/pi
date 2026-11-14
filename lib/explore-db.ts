@@ -87,7 +87,6 @@ export type ExploreSearchParams = {
 
 export type ExploreSearchResult = {
   items: ExploreEmailCard[];
-  total: number;
   page: number;
   pageSize: number;
   hasMore: boolean;
@@ -273,11 +272,15 @@ export async function searchExploreEmails(
   const companiesEmbed =
     "companies!inner(id, slug, name, domain, markets, logo_storage_path, logo_source)";
 
+  // No row count is requested. An exact count makes Postgres find every
+  // match a second time, and for a text search that means re-reading the
+  // full search text of each one: seconds per request once a term is
+  // common. Nothing in the UI shows a total, so "is there another page" is
+  // answered by asking for one row more than the page holds (see below).
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      `id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, company_id, ${companiesEmbed}`,
-      { count: "exact" }
+      `id, subject, preheader, received_at, category, has_gif, has_dark_mode, discount_percent, promo_code, company_id, ${companiesEmbed}`
     )
     .not("company_id", "is", null);
 
@@ -399,14 +402,16 @@ export async function searchExploreEmails(
       break;
   }
 
+  // One row past the page: its presence is what says there is a next page.
   const start = (page - 1) * pageSize;
-  const end = start + pageSize - 1;
-  emailsQuery = emailsQuery.range(start, end);
+  emailsQuery = emailsQuery.range(start, start + pageSize);
 
-  const { data, error, count } = await emailsQuery;
+  const { data, error } = await emailsQuery;
   if (error) throw error;
 
-  const rows = data ?? [];
+  const fetched = data ?? [];
+  const hasMore = fetched.length > pageSize;
+  const rows = hasMore ? fetched.slice(0, pageSize) : fetched;
 
   const logoPaths = new Set<string>();
   for (const row of rows) {
@@ -451,10 +456,7 @@ export async function searchExploreEmails(
     };
   });
 
-  const total = typeof count === "number" ? count : items.length;
-  const hasMore = start + items.length < total;
-
-  return { items, total, page, pageSize, hasMore };
+  return { items, page, pageSize, hasMore };
 }
 
 /**
@@ -739,7 +741,7 @@ function pickCompany(value: CompaniesField) {
 
 /** Shared zero-result payload for the various short-circuit paths. */
 function emptyResult(page: number, pageSize: number): ExploreSearchResult {
-  return { items: [], total: 0, page, pageSize, hasMore: false };
+  return { items: [], page, pageSize, hasMore: false };
 }
 
 /**

@@ -6,7 +6,7 @@ import {
   mergeBrandSearchResults,
   searchLogoDevBrands
 } from "@/lib/logo-dev-search";
-import { clientRateKey } from "@/lib/rate-limit";
+import { clientRateKey, createRateLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,23 +33,7 @@ const MAX_SUGGESTIONS = 5;
 // Coarse per-instance throttle so an anonymous visitor can't burn through
 // the Logo.dev search quota. Keyed on the hashed client IP; the typeahead
 // already debounces, so a human never gets near this.
-const RATE_LIMIT = 40;
-const RATE_WINDOW_MS = 60_000;
-const rateBuckets = new Map<string, { count: number; expiresAt: number }>();
-
-function underRateLimit(key: string): boolean {
-  const now = Date.now();
-  const bucket = rateBuckets.get(key);
-  if (!bucket || bucket.expiresAt < now) {
-    rateBuckets.set(key, { count: 1, expiresAt: now + RATE_WINDOW_MS });
-    if (rateBuckets.size > 5000) {
-      for (const [k, v] of rateBuckets) if (v.expiresAt < now) rateBuckets.delete(k);
-    }
-    return true;
-  }
-  bucket.count += 1;
-  return bucket.count <= RATE_LIMIT;
-}
+const underRateLimit = createRateLimiter({ limit: 40, windowMs: 60_000 });
 
 /**
  * `GET /api/brand-requests/search?q=` — typeahead source for the public

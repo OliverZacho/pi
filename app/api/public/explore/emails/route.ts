@@ -5,6 +5,7 @@ import {
   type ExploreSearchParams,
   type ExploreSortKey
 } from "@/lib/explore-db";
+import { clientRateKey, createRateLimiter } from "@/lib/rate-limit";
 
 const SORT_KEYS: ExploreSortKey[] = [
   "recommended",
@@ -27,10 +28,29 @@ const SORT_KEYS: ExploreSortKey[] = [
  * Search spans the whole archive by design (product decision); the matching
  * render route serves the previews. Tighten both to curated-only if the
  * exposure needs to shrink.
+ *
+ * Anyone can call this and every call is a database search, so it is
+ * guarded twice: answers are cached at the edge (they are the same for
+ * every visitor), and one client can only get so many uncached searches a
+ * minute.
  */
 const PUBLIC_RESULT_CAP = 16;
 
+/** Longest search term passed on to the database. */
+const MAX_QUERY_LENGTH = 80;
+
+// The teaser fires one request per filter click or per typing pause, so a
+// person stays far below this; a script looping over search terms doesn't.
+const underRateLimit = createRateLimiter({ limit: 60, windowMs: 60_000 });
+
 export async function GET(request: Request) {
+  if (!underRateLimit(clientRateKey(request))) {
+    return NextResponse.json(
+      { error: "Too many searches. Please slow down." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
+  }
+
   const params = new URL(request.url).searchParams;
 
   const sortRaw = params.get("sort");
@@ -45,7 +65,7 @@ export async function GET(request: Request) {
   const emailIds = params.getAll("id").filter(Boolean);
 
   const search: ExploreSearchParams = {
-    query: params.get("q") ?? undefined,
+    query: params.get("q")?.slice(0, MAX_QUERY_LENGTH) ?? undefined,
     emailIds: emailIds.length > 0 ? emailIds : undefined,
     brandIds: params.getAll("brand").filter(Boolean),
     markets: params.getAll("market").filter(Boolean),
@@ -64,7 +84,17 @@ export async function GET(request: Request) {
   try {
     const result = await searchExploreEmails(getSupabaseAdmin(), search);
     // Force `hasMore: false` so any client never tries to load page 2.
-    return NextResponse.json({ ...result, hasMore: false });
+    return NextResponse.json(
+      { ...result, hasMore: false },
+      {
+        headers: {
+          // The slice depends only on the URL, never on who asks, so the
+          // edge can answer repeats of a search for a few minutes. Same
+          // freshness as the cached landing feed.
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900"
+        }
+      }
+    );
   } catch (error) {
     console.error("Failed to search public Explore emails", error);
     return NextResponse.json(
