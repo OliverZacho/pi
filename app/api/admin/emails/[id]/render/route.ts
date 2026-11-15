@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEmailDetailFromDb } from "@/lib/admin-db";
+import { getEmailRenderSourceFromDb } from "@/lib/admin-db";
 import { rewriteEmailHtml, emailPreviewCsp } from "@/lib/email-render";
 import { requireAdminSession } from "@/lib/require-admin-api";
 import { CARD_IMAGE_TRANSFORM } from "@/lib/storage";
@@ -31,7 +31,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   let email;
   try {
-    email = await getEmailDetailFromDb(session.supabase, id, {
+    email = await getEmailRenderSourceFromDb(session.supabase, id, {
       imageTransform: isPreview ? CARD_IMAGE_TRANSFORM : undefined
     });
   } catch (error) {

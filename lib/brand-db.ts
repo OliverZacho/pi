@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   EMAIL_CATEGORY_LABELS,
@@ -30,6 +31,7 @@ import { parseImageStats, type ImageFormat } from "./image-stats";
 import { buildOfferEpisodes, summarizeOfferDeadlines } from "./offer-episodes";
 import { detectOpenPixel } from "./tracking-pixels";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
+import { getSupabaseAdmin } from "./supabase-admin";
 import type { Database } from "@/types/supabase";
 
 /**
@@ -548,6 +550,35 @@ export async function getBrandSegments(
 }
 
 /**
+ * The `metadata` keys the dashboard reads (see `computeDesign`), fetched as
+ * separate JSON paths so the rest of the object never leaves the database.
+ */
+const BRAND_PAGE_METADATA_KEYS = [
+  "image_stats",
+  "image_palette",
+  "palette_colors",
+  "font_families"
+] as const;
+
+const BRAND_PAGE_METADATA_SELECT = BRAND_PAGE_METADATA_KEYS.map(
+  (key) => `${key}:metadata->${key}`
+).join(", ");
+
+/**
+ * Puts the picked metadata keys back under `metadata`, the shape the
+ * `compute*` helpers read, so they don't care how the row was fetched.
+ */
+function withPickedMetadata(raw: unknown): EmailRow {
+  const row = { ...(raw as Record<string, unknown>) };
+  const metadata: Record<string, unknown> = {};
+  for (const key of BRAND_PAGE_METADATA_KEYS) {
+    if (row[key] !== null && row[key] !== undefined) metadata[key] = row[key];
+    delete row[key];
+  }
+  return { ...row, metadata } as EmailRow;
+}
+
+/**
  * Loads a brand's profile + everything we know about its email program.
  *
  * The function does three things in parallel:
@@ -640,7 +671,10 @@ export async function getBrandPageData(
   let emailsQuery = supabase
     .from("captured_emails")
     .select(
-      "id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, remote_image_urls, metadata"
+      // Only the parts of `metadata` the dashboard reads. The whole object
+      // averages 5.7 KB an email, almost half of it the image mirror map,
+      // which nothing here uses; across 500 emails that was megabytes a view.
+      `id, subject, preheader, preheader_padded, received_at, sent_at, category, subcategory, has_gif, has_dark_mode, discount_percent, promo_code, offer_ends_on, offer_is_extension, primary_cta_text, primary_cta_url, esp_provider, remote_image_urls, ${BRAND_PAGE_METADATA_SELECT}`
     )
     .eq("company_id", companyId);
   if (scoped) {
@@ -658,7 +692,7 @@ export async function getBrandPageData(
     .limit(STATS_ROW_CAP);
 
   if (emailError) throw emailError;
-  const emailRows: EmailRow[] = (emailRowsRaw ?? []) as EmailRow[];
+  const emailRows: EmailRow[] = (emailRowsRaw ?? []).map(withPickedMetadata);
 
   // Email-authentication posture is a per-brand DNS fact, independent of the
   // segment scope and the captured-email sample. A missing row (brand not yet
@@ -812,6 +846,53 @@ export async function getBrandPageData(
     recentEmails,
     seasonalSample
   };
+}
+
+/**
+ * How old a shared brand dashboard may get. A brand's numbers only move
+ * when it sends, a few times a week for most, so a new email reaching its
+ * dashboard up to ten minutes late costs nothing a viewer would notice.
+ */
+const SHARED_BRAND_PAGE_REVALIDATE_SECONDS = 600;
+
+const loadSharedBrandPageData = unstable_cache(
+  (companyId: string, segmentKey: string) =>
+    getBrandPageData(getSupabaseAdmin(), companyId, {
+      segmentInboxIds: segmentKey ? segmentKey.split(",") : null
+    }),
+  ["brand-page-data"],
+  { revalidate: SHARED_BRAND_PAGE_REVALIDATE_SECONDS }
+);
+
+/**
+ * {@link getBrandPageData}, shared between viewers and kept for ten minutes.
+ *
+ * The payload is the same for everyone allowed to see it, and building it
+ * is the heaviest read in the app (up to 500 emails per brand; a comparison
+ * builds one per brand, up to 20 at once). Without this every viewer paid
+ * for it on every brand page and comparison view.
+ *
+ * Read through the service role, so row security does not apply: callers
+ * must have decided the viewer may see the dashboard before calling. Use
+ * {@link getBrandPageData} with the viewer's own client where the answer
+ * has to be live, such as an admin checking an edit they just made.
+ */
+export function getSharedBrandPageData(
+  companyId: string,
+  options: {
+    segmentInboxId?: string | null;
+    segmentInboxIds?: string[] | null;
+  } = {}
+): Promise<BrandPageData | null> {
+  // Same precedence as getBrandPageData: a list of inboxes wins over the
+  // single one. Order is kept, so the cache key is the scope as asked for.
+  const ids =
+    options.segmentInboxIds && options.segmentInboxIds.length > 0
+      ? options.segmentInboxIds
+      : options.segmentInboxId
+        ? [options.segmentInboxId]
+        : [];
+  return loadSharedBrandPageData(companyId, Array.from(new Set(ids)).join(","));
 }
 
 const UUID_RE =

@@ -7,7 +7,7 @@ import {
   type CompetitorSetSummary
 } from "@/lib/competitor-db";
 import { isBrandFollowed } from "@/lib/follows-db";
-import { getBrandPageData } from "@/lib/brand-db";
+import { getBrandPageData, getSharedBrandPageData } from "@/lib/brand-db";
 import { loadRelatedBrands } from "@/lib/brand-link-index";
 import BrandDashboard from "@/components/brand/BrandDashboard";
 import { resolveHandle } from "./resolve-handle";
@@ -80,7 +80,11 @@ export default async function BrandPage({ params, searchParams }: RouteParams) {
   // payload 404s the page.
   const [data, groups, isFollowing, groupMembershipIds, related] =
     await Promise.all([
-      getBrandPageData(supabase, id, { segmentInboxId }),
+      // Everyone gets the shared copy (at most ten minutes old) except
+      // admins, who read live so an edit they just made shows straight away.
+      viewer.isAdmin
+        ? getBrandPageData(supabase, id, { segmentInboxId })
+        : getSharedBrandPageData(id, { segmentInboxId }),
       listCompetitorSetSummaries(supabase, userId).catch((err) => {
         console.error("Failed to load competitor sets", err);
         return [] as CompetitorSetSummary[];

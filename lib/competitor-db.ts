@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getBrandPageData, type BrandPageData } from "./brand-db";
+import { getSharedBrandPageData, type BrandPageData } from "./brand-db";
 import { resolveBrandLogo } from "./logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "./storage";
 import { MAX_BRANDS_PER_COMPARISON } from "./competitor-constants";
@@ -667,16 +667,20 @@ export async function getComparisonActivity(
 }
 
 /**
- * Fetch the multi-brand comparison payload for the dashboard. Calls the
- * existing per-brand `getBrandPageData` in parallel so we reuse every
- * aggregation already battle-tested by the `/brands/[id]` route, and
- * returns the list in the same order the caller supplied.
+ * Fetch the multi-brand comparison payload for the dashboard. Builds one
+ * brand dashboard per member in parallel so we reuse every aggregation
+ * already battle-tested by the `/brands/[id]` route, and returns the list
+ * in the same order the caller supplied.
+ *
+ * Each dashboard is the shared ten-minute copy (`getSharedBrandPageData`),
+ * read through the service role: a comparison of 20 brands would otherwise
+ * be 20 of the app's heaviest reads on every view. Callers decide whether
+ * the viewer may see the comparison before calling.
  *
  * Brand ids that resolve to `null` (deleted, never existed) are
  * collected into `missing` so the caller can surface them.
  */
 export async function getCompetitorComparison(
-  supabase: SupabaseClient<Database>,
   members: Array<string | ComparisonMemberInput>
 ): Promise<CompetitorComparison> {
   // Accept either bare company ids (ad-hoc `?brands=` deep links, which
@@ -701,7 +705,7 @@ export async function getCompetitorComparison(
 
   const results = await Promise.all(
     cleaned.map((member) =>
-      getBrandPageData(supabase, member.companyId, {
+      getSharedBrandPageData(member.companyId, {
         segmentInboxIds: member.inboxIds ?? null
       })
     )

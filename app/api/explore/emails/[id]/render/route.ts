@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEmailDetailFromDb } from "@/lib/admin-db";
+import { getEmailRenderSourceFromDb } from "@/lib/admin-db";
 import {
   emailPreviewCsp,
   injectPreviewMeasureScript,
@@ -48,7 +48,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   let email;
   try {
-    email = await getEmailDetailFromDb(admin, id, {
+    email = await getEmailRenderSourceFromDb(admin, id, {
       imageTransform: isPreview ? CARD_IMAGE_TRANSFORM : undefined
     });
   } catch (error) {
