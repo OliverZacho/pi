@@ -90,7 +90,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const [sets, paidComparison, sectionPrefs, teamShared] = await Promise.all([
     listCompetitorSetSummaries(supabase, userId),
     viewer.hasAccess && requestedBrandIds.length > 0
-      ? getCompetitorComparison(supabase, requestedBrandIds)
+      ? getCompetitorComparison(requestedBrandIds)
       : Promise.resolve({ brands: [], missing: [] }),
     getCompareSectionPrefs(supabase, userId),
     // Teams are a paid feature — skip the read for free viewers.
@@ -111,7 +111,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const adhocBlocked = requestedBrandIds.length > 0 && !adhocAllowed;
   const comparison =
     !viewer.hasAccess && requestedBrandIds.length > 0 && adhocAllowed
-      ? await getCompetitorComparison(supabase, requestedBrandIds)
+      ? await getCompetitorComparison(requestedBrandIds)
       : paidComparison;
 
   // Preview brands for each saved set — used by the grid card to show

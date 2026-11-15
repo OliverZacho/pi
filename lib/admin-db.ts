@@ -336,6 +336,85 @@ export async function getEmailDetailFromDb(
   };
 }
 
+/** Everything a render route needs to turn a stored email into a page. */
+export type EmailRenderSource = {
+  subject: string;
+  htmlContent: string;
+  imageMirrorMap: Record<string, string>;
+  imageSignedUrls: { storagePath: string; signedUrl: string }[];
+};
+
+/**
+ * The slice of an email the render routes use: its HTML, subject and image
+ * URLs. One primary-key read, nothing else in the usual case.
+ *
+ * The render routes used to call {@link getEmailDetailFromDb}, which also
+ * loads the modal's fields: every other column, the "sent to" lists, a
+ * signed link to the stored HTML and a storage lookup for image sizes. A
+ * grid page renders 24 previews, so that was four round trips times 24 for
+ * data the preview never shows.
+ *
+ * Image sizes (for the resize gate, see `getSignedAssets`) come from the
+ * `image_stats` saved with the email at ingest. Only an email without them
+ * falls back to the storage lookup.
+ */
+export async function getEmailRenderSourceFromDb(
+  supabase: PirolDb,
+  emailId: string,
+  options: GetEmailDetailOptions = {}
+): Promise<EmailRenderSource | null> {
+  const { data, error } = await supabase
+    .from("captured_emails")
+    .select(
+      "subject, html_content, image_urls, image_mirror_map:metadata->image_mirror_map, image_stats:metadata->image_stats"
+    )
+    .eq("id", emailId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    return null;
+  }
+
+  const imagePaths: string[] = data.image_urls ?? [];
+
+  let sizesByPath: Record<string, number> | undefined;
+  if (options.imageTransform && imagePaths.length > 0) {
+    const stored = parseImageStats({ image_stats: data.image_stats });
+    if (stored) {
+      // A size of 0 means "not measured", which must read as unknown (and so
+      // be resized) rather than as a tiny file that is safe to serve whole.
+      sizesByPath = {};
+      for (const asset of stored.assets) {
+        if (asset.bytes > 0) sizesByPath[asset.path] = asset.bytes;
+      }
+    } else {
+      sizesByPath = await fetchEmailAssetSizes(supabase, imagePaths);
+    }
+  }
+
+  const signedAssets = await getSignedAssets(imagePaths, {
+    transform: options.imageTransform,
+    sizesByPath
+  });
+
+  return {
+    subject: data.subject,
+    htmlContent: data.html_content ?? "",
+    imageMirrorMap: parseImageMirrorMap({
+      image_mirror_map: data.image_mirror_map
+    }),
+    imageSignedUrls: imagePaths
+      .map((path) => ({ storagePath: path, signedUrl: signedAssets[path] ?? null }))
+      .filter(
+        (item): item is { storagePath: string; signedUrl: string } =>
+          item.signedUrl !== null
+      )
+  };
+}
+
 /**
  * Resolve the mailing lists an email was sent to when it's part of a
  * de-dup group — i.e. the brand fired identical content to several tagged

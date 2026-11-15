@@ -38,7 +38,6 @@ async function demoComparisonView() {
     return null;
   }
   const demoComparison = await getCompetitorComparison(
-    admin,
     demoSet.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
   );
   return (
@@ -132,7 +131,6 @@ export default async function CompareSetPage({ params }: PageProps) {
 
   const [comparison, sectionPrefs, canShareWithTeam] = await Promise.all([
     getCompetitorComparison(
-      supabase,
       set.brands.map((b) => ({ companyId: b.id, inboxIds: b.inboxIds }))
     ),
     getCompareSectionPrefs(supabase, userId),

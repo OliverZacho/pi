@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/access";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getBrandPageData, type BrandPageData } from "@/lib/brand-db";
+import { getSharedBrandPageData, type BrandPageData } from "@/lib/brand-db";
 import { brandUrlLabel } from "@/lib/brand-url";
 import {
   getCompetitorComparison,
@@ -119,7 +119,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
   if (!viewer.hasAccess) {
     const admin = getSupabaseAdmin();
     const [own, deliverability, altText, welcome] = await Promise.all([
-      getBrandPageData(admin, match.id),
+      getSharedBrandPageData(match.id),
       getDeliverabilitySample(admin, match.id),
       getAltTextSample(admin, match.id),
       getWelcomeSignal(admin, match.id)
@@ -147,7 +147,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const [own, deliverability, altText, welcome, prefs, comparisonSets] =
     await Promise.all([
-    getBrandPageData(supabase, match.id),
+    getSharedBrandPageData(match.id),
     getDeliverabilitySample(supabase, match.id),
     getAltTextSample(supabase, match.id),
     getWelcomeSignal(supabase, match.id),
@@ -195,7 +195,7 @@ export default async function YourBrandPage({ searchParams }: PageProps) {
         .filter((id) => id !== match.id)
         .slice(0, MAX_BRANDS_PER_COMPARISON);
       if (memberIds.length > 0) {
-        const comparison = await getCompetitorComparison(supabase, memberIds);
+        const comparison = await getCompetitorComparison(memberIds);
         peers = comparison.brands;
       }
     }

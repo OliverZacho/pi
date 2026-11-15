@@ -6,7 +6,7 @@ import { resolveBrandLogo } from "@/lib/logo-dev";
 import { BRAND_LOGO_TRANSFORM, getSignedAssets } from "@/lib/storage";
 import BrandLockedDashboard from "@/components/brand/BrandLockedDashboard";
 import { loadRelatedBrands } from "@/lib/brand-link-index";
-import { getBrandPageData } from "@/lib/brand-db";
+import { getSharedBrandPageData } from "@/lib/brand-db";
 import { SITE_URL } from "@/lib/site";
 import { MIN_INDEXABLE_EMAILS } from "@/lib/brand-summary";
 import { ORGANIZATION_ID } from "@/lib/structured-data";
@@ -43,7 +43,7 @@ export default async function LockedBrandView({
   // what a brand page actually offers. Read-only — no follow / group actions.
   if (resolved.slug === DEMO_BRAND_SLUG) {
     const [demoData, demoSummary] = await Promise.all([
-      getBrandPageData(getSupabaseAdmin(), id, { segmentInboxId }),
+      getSharedBrandPageData(id, { segmentInboxId }),
       loadBrandSummary(id, resolved.name)
     ]);
     if (demoData) {
@@ -92,7 +92,7 @@ export default async function LockedBrandView({
           })
         : Promise.resolve(false),
       viewer
-        ? getBrandPageData(admin, id)
+        ? getSharedBrandPageData(id)
             .then((data) =>
               data
                 ? {
