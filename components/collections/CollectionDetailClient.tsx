@@ -40,6 +40,22 @@ import styles from "./collections.module.css";
 
 const EMPTY_ID_SET = new Set<string>();
 
+/** How often the "checking newer emails" line asks whether it's done. */
+const CATCH_UP_POLL_MS = 2_000;
+/** Stop asking after this long (the cron worker still finishes the job). */
+const CATCH_UP_POLL_MAX_MS = 90_000;
+
+function describeCatchUp(
+  catchUp: NonNullable<CollectionDetail["matchCatchUp"]>
+): string {
+  const { newEmails, moreThan } = catchUp;
+  if (newEmails === 0) return "Updating matches for recently changed emails…";
+  const count = `${newEmails.toLocaleString("en-US")}${moreThan ? "+" : ""}`;
+  return `Checking ${count} new ${
+    newEmails === 1 && !moreThan ? "email" : "emails"
+  } for matches. They'll appear here when it's done.`;
+}
+
 /**
  * Frequencies the "Alert me" dropdown offers — the digest cadences, same
  * as the smart-collection row in Settings → Notifications (alerts are
@@ -427,6 +443,58 @@ export default function CollectionDetailClient({
     }
   }, [applyDetailResponse, collection.id, router]);
 
+  // Newly arrived emails are being checked in the background (the server
+  // no longer holds the page for it). Poll until that's done, then load
+  // the fresh matches. A catch-up that outlasts the poll window just
+  // drops the line; the next visit shows what it found.
+  const catchUp = building ? null : collection.matchCatchUp;
+  const [expiredCatchUp, setExpiredCatchUp] =
+    useState<CollectionDetail["matchCatchUp"]>(null);
+  useEffect(() => {
+    if (!catchUp) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+
+    async function poll() {
+      if (cancelled) return;
+      if (document.visibilityState === "visible") {
+        try {
+          const res = await fetch(`/api/collections/${collection.id}/build`, {
+            credentials: "include",
+            cache: "no-store"
+          });
+          if (res.ok) {
+            const body = (await res.json()) as {
+              build: unknown;
+              catchingUp?: boolean;
+            };
+            if (cancelled) return;
+            if (body.build || !body.catchingUp) {
+              await handleBuildReady();
+              return;
+            }
+          }
+        } catch {
+          // Try again on the next tick.
+        }
+      }
+      if (cancelled) return;
+      if (Date.now() - startedAt > CATCH_UP_POLL_MAX_MS) {
+        setExpiredCatchUp(catchUp);
+        return;
+      }
+      timer = setTimeout(poll, CATCH_UP_POLL_MS);
+    }
+
+    timer = setTimeout(poll, CATCH_UP_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [catchUp, collection.id, handleBuildReady]);
+  const showCatchUp = catchUp !== null && catchUp !== expiredCatchUp;
+
   async function handleClearRules() {
     const confirmed = window.confirm(
       "Remove the automatic rules for this collection? The collection will become empty until you add emails manually."
@@ -721,6 +789,12 @@ export default function CollectionDetailClient({
                     : ""
                 }`}
           </span>
+          {showCatchUp && catchUp ? (
+            <span className={styles.catchUpNote} role="status">
+              <span className={styles.catchUpDot} aria-hidden="true" />
+              {describeCatchUp(catchUp)}
+            </span>
+          ) : null}
         </div>
 
         <div className={styles.detailActions}>

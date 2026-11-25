@@ -12,7 +12,8 @@
  * Server-only: every function reaches the database through the service-role
  * `getSupabaseAdmin()` client, exactly like the public teaser routes. They are
  * imported by the `/docs/[slug]` server component, which is ISR-cached
- * (`revalidate`), so a single light scan refreshes for everyone every ~30 min.
+ * (`revalidate`). The archive itself is summarised per brand in the database
+ * (see `loadArchiveSample`); nothing here reads individual emails.
  *
  * Resilience: a load failure returns `null`/empty, never throws — the article
  * page falls back to neutral prose instead of a 500.
@@ -28,16 +29,11 @@ import {
 } from "@/lib/admin-types";
 import {
   formatHourOfDay,
-  getActiveTimeZone,
-  getZonedParts
+  getActiveTimeZone
 } from "@/lib/datetime";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { loadIndexableBrands } from "@/lib/brand-link-index";
 
-/** Rows aggregated per scan. Generous — the math is linear and cached. */
-const SCAN_CAP = 40000;
-/** PostgREST's max rows per response (Supabase default). */
-const PAGE_SIZE = 1000;
 /** A brand needs at least this many sends to count toward a benchmark. */
 const MIN_SENDS_PER_BRAND = 4;
 /** An industry needs at least this many brands before we quote it. */
@@ -45,102 +41,103 @@ const MIN_BRANDS_PER_INDUSTRY = 6;
 /** How long a computed benchmark is cached across requests (seconds). */
 const INSIGHT_TTL = 1800;
 
-type SampleRow = {
-  companyId: string;
-  receivedAt: string;
-  esp: string | null;
-  /** Discount percent in (0, 100]; `null` for non-promo or out-of-range. */
-  discount: number | null;
-  /** Classified email type (e.g. "sale", "products"); "" when unclassified. */
-  category: string;
+/**
+ * One brand's totals over the archive slice (the newest 40,000 de-duplicated
+ * sends). Rolled up in the database by the `docs_brand_insight_stats`
+ * snapshot; every benchmark below is built from these, never from emails.
+ */
+type BrandAgg = {
+  n: number;
+  espCounts: Map<string, number>;
+  /** Sends carrying a discount in (0, 100]. */
+  discCount: number;
+  discDepthSum: number;
+  discDepthMax: number;
+  minMs: number;
+  maxMs: number;
+  /** Sends per hour of day in the platform time zone (index 0 = midnight). */
+  hourly: number[];
+  /** Sends per classified type (e.g. "sale"); unclassified sends left out. */
+  categories: Map<string, number>;
 };
 
 type BrandMeta = { markets: string[]; country: string | null };
 
 type ArchiveSample = {
-  rows: SampleRow[];
+  /** Brand id → its totals. Includes since-deleted brands, as the old scan did. */
+  stats: Map<string, BrandAgg>;
   /** Tracked-brand id → its industry tags + primary country. */
   brands: Map<string, BrandMeta>;
   /** Total tracked brands (not soft-deleted). */
   brandCount: number;
-  /** Exact total captured (de-duped) emails — from a head count, not the cap. */
-  emailCount: number;
+};
+
+type InsightsPayload = {
+  companies: { id: string; markets: string[] | null; country: string | null }[];
+  brands: {
+    company_id: string;
+    sends: number;
+    discount_sends: number;
+    discount_sum: number;
+    discount_max: number;
+    first_at: string;
+    last_at: string;
+    esp_counts: Record<string, number>;
+    hour_counts: Record<string, number>;
+    category_counts: Record<string, number>;
+  }[];
 };
 
 /**
- * Loads the shared archive slice once per render (React `cache` dedups it across
- * the four `getX` helpers). Pulls the brand → industry map, an exact email head
- * count, and a capped, newest-first scan of de-duped sends.
+ * Loads the per-brand archive summary once per render (React `cache` dedups it
+ * across the `getX` helpers). One RPC reading a snapshot refreshed by pg_cron
+ * once a day at 04:12 UTC (supabase/migrations/20261125190100_docs_archive_insights.sql,
+ * schedule in 20261125200000_docs_insight_stats_daily.sql), so a cache refresh
+ * here costs ~30 ms however large the archive grows.
+ *
+ * It used to page ~22 x 1,000 email rows out of captured_emails in parallel;
+ * each refresh then took 13 to 19 s per page and stalled ingest and every
+ * other query behind it.
+ *
+ * Send hours are bucketed in the snapshot in Europe/Copenhagen, the platform
+ * zone (`getActiveTimeZone()`); the labels below format in the same zone.
  */
 const loadArchiveSample = cache(async (): Promise<ArchiveSample | null> => {
   try {
-    const admin = getSupabaseAdmin();
-    const [companiesRes, countRes] = await Promise.all([
-      admin
-        .from("companies")
-        .select("id, markets, primary_market_country")
-        .is("deleted_at", null),
-      admin
-        .from("captured_emails")
-        .select("id", { count: "exact", head: true })
-        .is("duplicate_of", null)
-    ]);
-
-    const companies = companiesRes.data;
-    if (!companies) return null;
-
-    // PostgREST caps every response at PAGE_SIZE rows whatever `limit` asks
-    // for, so a single `.limit(SCAN_CAP)` silently returned only the newest
-    // 1,000 sends (a few days of mail) and every benchmark was computed from
-    // that. Page through the scan instead, in parallel since the count is
-    // known. `id` breaks received_at ties so pages can't overlap or skip.
-    const scanSize = Math.min(countRes.count ?? 0, SCAN_CAP);
-    const pages = await Promise.all(
-      Array.from({ length: Math.ceil(scanSize / PAGE_SIZE) }, (_, i) =>
-        admin
-          .from("captured_emails")
-          .select("company_id, received_at, esp_provider, discount_percent, category")
-          .is("duplicate_of", null)
-          .order("received_at", { ascending: false })
-          .order("id", { ascending: false })
-          .range(i * PAGE_SIZE, Math.min((i + 1) * PAGE_SIZE, scanSize) - 1)
-      )
-    );
-    const failed = pages.find((page) => page.error);
-    if (failed?.error) throw failed.error;
-    const emailsRes = { data: pages.flatMap((page) => page.data ?? []) };
+    const { data, error } = await getSupabaseAdmin().rpc("docs_archive_insights");
+    if (error) throw error;
+    const payload = data as unknown as InsightsPayload | null;
+    if (!payload) return null;
 
     const brands = new Map<string, BrandMeta>();
-    for (const c of companies) {
+    for (const c of payload.companies ?? []) {
       brands.set(c.id, {
         markets: (c.markets ?? []).filter(Boolean),
-        country: c.primary_market_country ?? null
+        country: c.country ?? null
       });
     }
 
-    const rows: SampleRow[] = [];
-    for (const r of emailsRes.data ?? []) {
-      if (!r.company_id) continue;
-      const raw =
-        r.discount_percent === null || r.discount_percent === undefined
-          ? null
-          : Number(r.discount_percent);
-      const discount = raw !== null && raw > 0 && raw <= 100 ? raw : null;
-      rows.push({
-        companyId: r.company_id,
-        receivedAt: r.received_at,
-        esp: r.esp_provider,
-        discount,
-        category: r.category ?? ""
+    const stats = new Map<string, BrandAgg>();
+    for (const b of payload.brands ?? []) {
+      const hourly = new Array<number>(24).fill(0);
+      for (const [hour, n] of Object.entries(b.hour_counts ?? {})) {
+        const h = Number(hour);
+        if (Number.isInteger(h) && h >= 0 && h < 24) hourly[h] += n;
+      }
+      stats.set(b.company_id, {
+        n: b.sends,
+        espCounts: new Map(Object.entries(b.esp_counts ?? {})),
+        discCount: b.discount_sends,
+        discDepthSum: b.discount_sum,
+        discDepthMax: b.discount_max,
+        minMs: new Date(b.first_at).getTime(),
+        maxMs: new Date(b.last_at).getTime(),
+        hourly,
+        categories: new Map(Object.entries(b.category_counts ?? {}))
       });
     }
 
-    return {
-      rows,
-      brands,
-      brandCount: brands.size,
-      emailCount: countRes.count ?? rows.length
-    };
+    return { stats, brands, brandCount: brands.size };
   } catch (error) {
     console.error("[docs/insights] sample load failed", error);
     return null;
@@ -148,46 +145,6 @@ const loadArchiveSample = cache(async (): Promise<ArchiveSample | null> => {
 });
 
 /* ----------------------------- shared helpers ----------------------------- */
-
-type BrandAgg = {
-  n: number;
-  espCounts: Map<string, number>;
-  discCount: number;
-  discDepthSum: number;
-  minMs: number;
-  maxMs: number;
-};
-
-/** One pass over the sample, rolled up per brand. */
-function buildBrandAgg(sample: ArchiveSample): Map<string, BrandAgg> {
-  const agg = new Map<string, BrandAgg>();
-  for (const row of sample.rows) {
-    let a = agg.get(row.companyId);
-    if (!a) {
-      a = {
-        n: 0,
-        espCounts: new Map(),
-        discCount: 0,
-        discDepthSum: 0,
-        minMs: Infinity,
-        maxMs: -Infinity
-      };
-      agg.set(row.companyId, a);
-    }
-    a.n += 1;
-    if (row.esp) a.espCounts.set(row.esp, (a.espCounts.get(row.esp) ?? 0) + 1);
-    if (row.discount !== null) {
-      a.discCount += 1;
-      a.discDepthSum += row.discount;
-    }
-    const t = new Date(row.receivedAt).getTime();
-    if (!Number.isNaN(t)) {
-      if (t < a.minMs) a.minMs = t;
-      if (t > a.maxMs) a.maxMs = t;
-    }
-  }
-  return agg;
-}
 
 function topEspOf(a: BrandAgg): string | null {
   let top: string | null = null;
@@ -322,7 +279,7 @@ export const getEspInsights = unstable_cache(
   const sample = await loadArchiveSample();
   if (!sample) return null;
 
-  const agg = buildBrandAgg(sample);
+  const agg = sample.stats;
   const brandEsp = new Map<string, string>();
   for (const [id, a] of agg) {
     if (a.n < MIN_SENDS_PER_BRAND) continue;
@@ -420,29 +377,22 @@ export const getSendTimeInsights = unstable_cache(
     const indHourly = new Map<string, number[]>();
     const brandHourly = new Map<string, number[]>();
 
-    for (const row of sample.rows) {
-      let hour: number;
-      try {
-        hour = getZonedParts(row.receivedAt, zone).hour;
-      } catch {
-        continue;
-      }
-      hourly[hour] += 1;
-      let own = brandHourly.get(row.companyId);
-      if (!own) {
-        own = new Array<number>(24).fill(0);
-        brandHourly.set(row.companyId, own);
-      }
-      own[hour] += 1;
-      const meta = sample.brands.get(row.companyId);
-      if (!meta) continue;
-      for (const tag of meta.markets) {
-        let arr = indHourly.get(tag);
-        if (!arr) {
-          arr = new Array<number>(24).fill(0);
-          indHourly.set(tag, arr);
+    for (const [id, a] of sample.stats) {
+      brandHourly.set(id, a.hourly);
+      const meta = sample.brands.get(id);
+      for (let h = 0; h < 24; h++) {
+        const c = a.hourly[h];
+        if (c === 0) continue;
+        hourly[h] += c;
+        if (!meta) continue;
+        for (const tag of meta.markets) {
+          let arr = indHourly.get(tag);
+          if (!arr) {
+            arr = new Array<number>(24).fill(0);
+            indHourly.set(tag, arr);
+          }
+          arr[h] += c;
         }
-        arr[hour] += 1;
       }
     }
 
@@ -526,7 +476,7 @@ export const getCadenceInsights = unstable_cache(
     const sample = await loadArchiveSample();
     if (!sample) return null;
 
-    const agg = buildBrandAgg(sample);
+    const agg = sample.stats;
     const rates: number[] = [];
     for (const a of agg.values()) {
       if (a.n >= MIN_SENDS_PER_BRAND) rates.push(brandPerWeek(a));
@@ -586,7 +536,7 @@ export const getDiscountInsights = unstable_cache(
     const sample = await loadArchiveSample();
     if (!sample) return null;
 
-    const agg = buildBrandAgg(sample);
+    const agg = sample.stats;
     const shares: number[] = [];
     for (const a of agg.values()) {
       if (a.n >= MIN_SENDS_PER_BRAND) shares.push(a.discCount / a.n);
@@ -596,11 +546,10 @@ export const getDiscountInsights = unstable_cache(
     let depthSum = 0;
     let depthN = 0;
     let maxDepth = 0;
-    for (const row of sample.rows) {
-      if (row.discount === null) continue;
-      depthSum += row.discount;
-      depthN += 1;
-      if (row.discount > maxDepth) maxDepth = row.discount;
+    for (const a of agg.values()) {
+      depthSum += a.discDepthSum;
+      depthN += a.discCount;
+      if (a.discDepthMax > maxDepth) maxDepth = a.discDepthMax;
     }
 
     const indMap = industryBrandMap(sample);
@@ -667,17 +616,18 @@ export const getContentMixInsights = unstable_cache(
     const counts = new Map<string, number>();
     const brandCounts = new Map<string, Map<string, number>>();
     let total = 0;
-    for (const row of sample.rows) {
-      const cat = row.category;
-      if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
-      counts.set(cat, (counts.get(cat) ?? 0) + 1);
-      total += 1;
-      let own = brandCounts.get(row.companyId);
-      if (!own) {
-        own = new Map();
-        brandCounts.set(row.companyId, own);
+    for (const [id, a] of sample.stats) {
+      for (const [cat, c] of a.categories) {
+        if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
+        counts.set(cat, (counts.get(cat) ?? 0) + c);
+        total += c;
+        let own = brandCounts.get(id);
+        if (!own) {
+          own = new Map();
+          brandCounts.set(id, own);
+        }
+        own.set(cat, (own.get(cat) ?? 0) + c);
       }
-      own.set(cat, (own.get(cat) ?? 0) + 1);
     }
     if (total === 0) return null;
 
@@ -690,15 +640,16 @@ export const getContentMixInsights = unstable_cache(
     // Per-industry leading campaign type, computed over campaign sends only.
     const byIndustry = topIndustries(indMap, MIN_BRANDS_PER_INDUSTRY, 4)
       .map(({ key, brandIds }) => {
-        const ids = new Set(brandIds);
+        // brandCounts already holds campaign sends only.
         const local = new Map<string, number>();
         let n = 0;
-        for (const row of sample.rows) {
-          if (!ids.has(row.companyId)) continue;
-          const cat = row.category;
-          if (!cat || NON_CAMPAIGN_CATEGORIES.has(cat as EmailCategory)) continue;
-          local.set(cat, (local.get(cat) ?? 0) + 1);
-          n += 1;
+        for (const id of brandIds) {
+          const own = brandCounts.get(id);
+          if (!own) continue;
+          for (const [cat, c] of own) {
+            local.set(cat, (local.get(cat) ?? 0) + c);
+            n += c;
+          }
         }
         let top: string | null = null;
         let best = -1;
