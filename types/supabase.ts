@@ -1727,6 +1727,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      docs_archive_insights: { Args: never; Returns: Json }
       email_asset_sizes: {
         Args: { p_paths: string[] }
         Returns: {
