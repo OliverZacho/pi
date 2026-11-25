@@ -91,8 +91,9 @@ type InsightsPayload = {
 /**
  * Loads the per-brand archive summary once per render (React `cache` dedups it
  * across the `getX` helpers). One RPC reading a snapshot refreshed by pg_cron
- * twice an hour (supabase/migrations/20261125190100_docs_archive_insights.sql),
- * so a cache refresh here costs ~30 ms however large the archive grows.
+ * once a day at 04:12 UTC (supabase/migrations/20261125190100_docs_archive_insights.sql,
+ * schedule in 20261125200000_docs_insight_stats_daily.sql), so a cache refresh
+ * here costs ~30 ms however large the archive grows.
  *
  * It used to page ~22 x 1,000 email rows out of captured_emails in parallel;
  * each refresh then took 13 to 19 s per page and stalled ingest and every
