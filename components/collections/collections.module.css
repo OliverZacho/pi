@@ -494,6 +494,41 @@
   color: #64748b;
 }
 
+/* Background catch-up line under the meta row: plain muted text with a
+ * softly pulsing dot so it reads as "in progress", not as a label. */
+.catchUpNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.catchUpDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #086e4b;
+  flex-shrink: 0;
+  animation: catchUpPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes catchUpPulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catchUpDot {
+    animation: none;
+  }
+}
+
 .detailActions {
   display: inline-flex;
   align-items: center;

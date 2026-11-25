@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSessionWithEntitlement } from "@/lib/require-admin-api";
-import { getCollectionMatchBuild } from "@/lib/collections-db";
+import { getCollectionMatchBuild, hasMatchBacklog } from "@/lib/collections-db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 const UUID_PATTERN =
@@ -11,7 +11,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 /**
  * GET `/api/collections/[id]/build` — progress of a smart collection's
  * match build, polled by the building screen. `{ build: null }` means the
- * matches are ready to load.
+ * matches are ready to load. `catchingUp` is true while a built
+ * collection still checks newly arrived emails (the detail page's
+ * "checking newer emails" line polls for it to turn false).
  */
 export async function GET(_request: Request, context: RouteContext) {
   const session = await requireSessionWithEntitlement();
@@ -36,9 +38,11 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    const build = await getCollectionMatchBuild(getSupabaseAdmin(), id);
+    const admin = getSupabaseAdmin();
+    const build = await getCollectionMatchBuild(admin, id);
+    const catchingUp = build ? false : await hasMatchBacklog(admin, id);
     return NextResponse.json(
-      { build },
+      { build, catchingUp },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {

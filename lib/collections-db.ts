@@ -679,6 +679,12 @@ export type CollectionDetail = {
    */
   matchBuild: CollectionMatchBuild | null;
   /**
+   * Non-null while a built smart collection checks emails that arrived
+   * since its last pass. That runs in the background: the stored matches
+   * show right away and the page reloads them when it's done.
+   */
+  matchCatchUp: CollectionMatchCatchUp | null;
+  /**
    * Exact totals of a built smart collection (`emails` holds only the
    * newest RULE_EVAL_LIMIT). Null for manual collections and while
    * building.
@@ -920,6 +926,7 @@ async function buildCollectionDetail(
   let emails: ExploreEmailCard[] = [];
   let matchBuild: CollectionMatchBuild | null = null;
   let matchTotals: CollectionMatchTotals | null = null;
+  let matchCatchUp: CollectionMatchCatchUp | null = null;
   if (!rules) {
     emails = await loadCollectionEmails(supabase, data.id);
   } else if (rules.conditions.length > 0) {
@@ -927,14 +934,33 @@ async function buildCollectionDetail(
     // Before ensuring, so a dormant collection's catch-up counts as
     // active and the cron worker carries it on past this request.
     await markCollectionMatchesOpened(admin, data.id);
+    // No inline catch-up: checking newly arrived emails used to run
+    // before the page rendered and could hold it for 10 seconds behind
+    // a silent skeleton. The stored matches show now; the check runs
+    // after the response and the page picks up its results.
     matchBuild = await ensureCollectionMatches(admin, data.id, rules, {
-      catchUp: true
+      catchUp: false
     });
     if (!matchBuild) {
-      [emails, matchTotals] = await Promise.all([
+      let backlog: MatchBacklog | null;
+      [emails, matchTotals, backlog] = await Promise.all([
         loadMatchedEmails(admin, data.id, rules),
-        loadMatchTotals(admin, data.id, rules)
+        loadMatchTotals(admin, data.id, rules),
+        readMatchBacklog(admin, data.id).catch((err) => {
+          console.warn("Failed to read collection match backlog", {
+            collectionId: data.id,
+            err
+          });
+          return null;
+        })
       ]);
+      if (backlog && (backlog.emails > 0 || backlog.rechecks > 0)) {
+        scheduleMatchCatchUp(data.id, rules);
+        matchCatchUp = {
+          newEmails: backlog.emails,
+          moreThan: backlog.emails >= MATCH_CHUNK
+        };
+      }
     }
   }
 
@@ -953,6 +979,7 @@ async function buildCollectionDetail(
     rules,
     eventDetection: safeParseEventDetection(data.event_detection),
     matchBuild,
+    matchCatchUp,
     matchTotals
   };
 }
@@ -1814,6 +1841,66 @@ function scheduleMatchBuild(collectionId: string): void {
   }
 }
 
+type MatchBacklog = { emails: number; rechecks: number };
+
+/**
+ * New emails and queued edits a built collection hasn't checked yet, each
+ * capped at MATCH_CHUNK. One cheap query; null when there's no build row.
+ */
+async function readMatchBacklog(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<MatchBacklog | null> {
+  const { data, error } = await admin.rpc("collection_match_backlog", {
+    p_collection_id: collectionId,
+    p_cap: MATCH_CHUNK
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  return row ? { emails: row.emails, rechecks: row.rechecks } : null;
+}
+
+/**
+ * Check a built collection's backlog after the response is sent (see
+ * buildCollectionDetail). No sidebar dot for what it finds: the viewer is
+ * looking at the collection. If this pass doesn't finish, the cron worker
+ * carries the (just opened, so active) collection on.
+ */
+function scheduleMatchCatchUp(collectionId: string, rules: CollectionRules): void {
+  try {
+    after(async () => {
+      try {
+        await advanceCollectionMatches(
+          getSupabaseAdmin(),
+          collectionId,
+          rules,
+          Date.now() + AFTER_BUILD_BUDGET_MS,
+          { flagNew: false }
+        );
+      } catch (err) {
+        console.error("Background collection catch-up failed", {
+          collectionId,
+          err
+        });
+      }
+    });
+  } catch {
+    // Not in a request scope; the cron worker will continue it.
+  }
+}
+
+/**
+ * True while a built collection still has emails (or edits) to check.
+ * Polled by the detail page's "checking newer emails" line.
+ */
+export async function hasMatchBacklog(
+  admin: SupabaseClient<Database>,
+  collectionId: string
+): Promise<boolean> {
+  const backlog = await readMatchBacklog(admin, collectionId);
+  return Boolean(backlog && (backlog.emails > 0 || backlog.rechecks > 0));
+}
+
 /**
  * Make sure a smart collection's stored matches exist and fit its current
  * rules. Returns null when they're ready to read, or the build progress
@@ -1850,12 +1937,7 @@ export async function ensureCollectionMatches(
 
   // Active collections are kept current by the worker, so usually there's
   // nothing left and this costs one cheap query.
-  const { data: backlogRows, error: backlogError } = await admin.rpc(
-    "collection_match_backlog",
-    { p_collection_id: collectionId, p_cap: MATCH_CHUNK }
-  );
-  if (backlogError) throw backlogError;
-  const backlog = backlogRows?.[0];
+  const backlog = await readMatchBacklog(admin, collectionId);
   if (!backlog || (backlog.emails === 0 && backlog.rechecks === 0)) return null;
 
   if (backlog.emails < MATCH_CHUNK && backlog.rechecks < MATCH_CHUNK) {
@@ -1960,6 +2042,13 @@ async function loadMatchedEmailIds(
 }
 
 export type CollectionMatchTotals = { emails: number; brands: number };
+
+export type CollectionMatchCatchUp = {
+  /** Newly arrived emails being checked (0 when only edits are queued). */
+  newEmails: number;
+  /** The count hit its cap, so there are at least this many. */
+  moreThan: boolean;
+};
 
 /**
  * Exact totals for a smart collection within its scope / window, counting
