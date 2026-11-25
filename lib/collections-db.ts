@@ -1688,10 +1688,16 @@ async function readMatchBuild(
   admin: SupabaseClient<Database>,
   collectionId: string
 ): Promise<MatchBuildRow | null> {
+  // The build row changes mid-request (ensureCollectionMatches resets it,
+  // then reads it again). During a page render Next memoizes identical GET
+  // fetches, so the second read got the first one's answer back: a
+  // collection with no build row yet read "missing" after its own reset,
+  // threw, and the page showed the error screen. A signal opts out.
   const { data, error } = await admin
     .from("collection_match_builds")
     .select("match_key, status, scanned, total, started_at, updated_at, ready_at")
     .eq("collection_id", collectionId)
+    .abortSignal(new AbortController().signal)
     .maybeSingle();
   if (error) throw error;
   return data;
